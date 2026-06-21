@@ -38,7 +38,7 @@ export class ZapClient {
   private keypair: Keypair;
   private jupiterApiUrl: string;
 
-  constructor(keypair: Keypair, rpcUrl: string, jupiterApiUrl: string = "https://api.jup.ag") {
+  constructor(keypair: Keypair, rpcUrl: string, jupiterApiUrl: string = "https://lite-api.jup.ag") {
     this.connection = new Connection(rpcUrl, "confirmed");
     this.keypair = keypair;
     this.jupiterApiUrl = jupiterApiUrl;
