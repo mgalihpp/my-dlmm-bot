@@ -1,238 +1,177 @@
-# vexis-dlmm-bot
+# Vexis DLMM Bot
 
-**Read-only portfolio viewer + On-chain liquidity manager** untuk Meteora DLMM.
+Portfolio viewer & liquidity manager untuk [Meteora DLMM](https://app.meteora.ag/dlmm) — CLI + Telegram bot.
 
-**Read-only**: Lihat posisi terbuka/tertutup dan total PnL langsung dari [Meteora Data API](https://docs.meteora.ag/api-reference/dlmm/portfolio). Hanya butuh wallet address.
+## Features
 
-**On-chain operations**: Buat, close, dan manage posisi DLMM langsung dari CLI. Butuh private key + RPC endpoint.
+- **Portfolio tracking** — Open/closed positions, PnL (USD & SOL), fees, out-of-range alerts
+- **Pool analytics** — Trending pools, TVL, APR, volume, market cap, holders
+- **On-chain operations** — Create/close positions, add/remove liquidity, claim fees & rewards
+- **Telegram bot** — Full access to all features with inline confirmation for on-chain ops
+- **Smart alerts** — Auto-detect PnL changes, position changes, out-of-range, balance changes
 
 ## Install
 
 ```bash
-npm install
-npm run build
+npm install && npm run build
 ```
 
-Atau jalankan tanpa build pakai `tsx`:
+Run without build: `npm run dev -- open <wallet>`
+
+## CLI Usage
+
+### Portfolio
 
 ```bash
-npm run dev -- open <wallet>
+vexis open [wallet]       # Open positions (default: wallet from config)
+vexis closed [wallet]     # Closed positions
+vexis summary [wallet]    # Total PnL (USD + SOL)
 ```
 
-## Perintah
+### Pool Analytics
 
-### Portfolio (Read-only)
 ```bash
-vexis open <wallet>      # posisi terbuka, dikelompokkan per pool
-vexis closed <wallet>    # pool yang berisi posisi tertutup (deposit/withdraw/fee/PnL)
-vexis summary <wallet>   # total PnL portfolio (USD & SOL)
+vexis pool list                                # Trending pools (30m fee/TVL, min 100k MC)
+vexis pool list --sort volume_24h:desc         # By 24h volume
+vexis pool list --sort tvl:desc -s 5           # Top 5 by TVL
+vexis pool list --min-mc 500000 --query SOL    # Custom filters
+vexis pool info <address>                      # Pool detail (TVL, MC, APR, Volume, Fees)
 ```
 
-### Operasi On-Chain (Requires private key)
+### On-chain Operations
+
+Requires `privateKey` in config. Use `--dry-run` to preview, `--yes` to skip confirmation.
+
 ```bash
-# Position management
-vexis position create <poolAddress> --strategy spot|bidask|curve --x-amount <n> --y-amount <n> --min-bin <n> --max-bin <n>
-vexis position close <poolAddress> <positionPubkey>
-
-# Liquidity management
-vexis liquidity add <poolAddress> <positionPubkey> --strategy spot|bidask|curve --x-amount <n> --y-amount <n>
-vexis liquidity remove <poolAddress> <positionPubkey> --bps <1-10000> [--close]
-
-# Claim earnings
-vexis claim fee <poolAddress> <positionPubkey>
-vexis claim reward <poolAddress> <positionPubkey>
-```
-
-### Pool Analytics (Read-only)
-```bash
-vexis pool list                                  # trending pools (30m fee/TVL, min 100k MC, 500+ holders)
-vexis pool list --sort fee_tvl_ratio_24h:desc   # top 24h yield pools
-vexis pool list --sort volume_30m:desc          # high volume last 30m
-vexis pool list --sort tvl:desc -s 5            # top 5 pools by TVL
-vexis pool list --min-mc 500000 --min-holders 1000  # custom filters (min market cap, min holders)
-vexis pool list --query SOL                     # search by token name
-vexis pool info <poolAddress>                   # detail satu pool (TVL, APR, volume, fees)
-vexis pool list --json                          # raw JSON output
+vexis position create <pool> --strategy spot|bidask|curve --x-amount <n> --y-amount <n> --min-bin <n> --max-bin <n>
+vexis position close <pool> <position>
+vexis liquidity add <pool> <position> --strategy spot --x-amount <n> --y-amount <n>
+vexis liquidity remove <pool> <position> --bps <1-10000> [--close]
+vexis claim fee <pool> <position>
+vexis claim reward <pool> <position>
 ```
 
 ## Telegram Bot
 
-Semua fitur (portfolio, pool analytics, on-chain operations, alerts) bisa diakses lewat Telegram.
-
 ### Setup
 
-1. Buat bot baru via [@BotFather](https://t.me/BotFather), dapatkan token
-2. Dapatkan chat ID kamu (kirim pesan ke [@userinfobot](https://t.me/userinfobot))
-3. Set di config atau env var:
+1. Create bot via [@BotFather](https://t.me/BotFather), get the token
+2. Get your chat ID via [@userinfobot](https://t.me/userinfobot)
+3. Add to config:
 
 ```json
 {
-  "telegramBotToken": "123456:ABC-token-dari-botfather",
-  "telegramChatId": "123456789",
-  "alertInterval": 0
+  "telegramBotToken": "123456:ABC-token",
+  "telegramChatId": "123456789"
 }
 ```
 
-Atau env var: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+Or use env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 
-4. Jalankan bot:
+4. Run: `npm run bot`
 
-```bash
-npm run bot           # via tsx (dev)
-npm run build && npm run bot:start   # via compiled dist
-```
-
-### Perintah Bot
+### Commands
 
 **Read-only:**
 ```
-/portfolio          # total PnL summary (USD + SOL)
-/open               # posisi terbuka (top 10)
-/closed             # posisi tertutup
-/pools              # top 10 pools by fee/TVL ratio
-/pool <address>     # detail satu pool
-/config             # config aktif (token & key di-mask)
+/portfolio          Total PnL summary (USD + SOL)
+/open               Open positions (top 10)
+/closed             Closed positions
+/pools              Top 15 pools by fee/TVL
+/pool <address>     Pool detail
 ```
 
-**On-chain (butuh privateKey):** — setiap operasi tampil tombol konfirmasi `✅ Confirm` / `❌ Cancel`
+**On-chain (with inline confirmation):**
 ```
 /create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single]
 /close <pool> <position>
 /addliq <pool> <position> <strategy> <xAmt> <yAmt>
-/removeliq <pool> <position> <bps>      # bps: 1-10000
+/removeliq <pool> <position> <bps>
 /claimfee <pool> <position>
 /claimreward <pool> <position>
 ```
 
-Tambahkan `single` di akhir `/create` untuk single-sided deposit (hanya token X). Contoh: `/create <pool> spot 1000000 0 -100 100 single`.
-
 **Alerts:**
 ```
-/alerts                       # lihat alert aktif
-/setalert portfolio <hours>   # summary portfolio periodik tiap N jam
-/setalert pool <address>      # track pool (notify jika APR berubah >20%)
+/alerts                       Show active alerts
+/setalert portfolio <hours>   Portfolio summary every N hours
+/setalert position            Track all open positions (every 15m)
 /stopalert portfolio
-/stopalert pool <address>
+/stopalert position
 ```
 
-Smart alerts otomatis: PnL turun >10%, APR pool berubah >20%. State alert disimpan di `.vexis-alerts.json` (survive restart).
+### Alert Detection
 
-### Keamanan Bot
+Position alerts check every 15 minutes and detect:
 
-- Bot **hanya merespons** chat dari `telegramChatId` yang dikonfigurasi (whitelist). Tanpa chat ID, bot terbuka untuk semua (tidak disarankan untuk on-chain ops).
-- Private key tidak pernah dikirim lewat chat.
-- Semua on-chain operation butuh konfirmasi eksplisit lewat tombol inline.
+| Trigger | Threshold |
+|---------|-----------|
+| PnL change | ≥ 0.5% per pool |
+| New position | Immediate |
+| Position closed | Immediate |
+| Balance change | Immediate |
+| Fee change | Immediate |
+| Out of range | Immediate |
+
+Each alert includes full pool detail (TVL, MC, APR, Volume, Fees). State persists to `.vexis-alerts.json`.
 
 ## Config
 
-Buat `vexis.config.json` (lihat `vexis.config.example.json`) supaya tidak perlu mengetik wallet tiap kali:
+Create `vexis.config.json` (see `vexis.config.example.json`):
 
 ```json
 {
-  "wallet": "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt",
+  "wallet": "YourWalletAddress",
   "privateKey": "base64-encoded-secret-key",
   "rpcUrl": "https://api.mainnet-beta.solana.com",
   "dev": false,
-  "pageSize": 50
+  "pageSize": 50,
+  "telegramBotToken": "token-from-botfather",
+  "telegramChatId": "your-chat-id"
 }
 ```
 
-Field config:
-- `wallet` — wallet display (digunakan untuk read-only commands)
-- `privateKey` — base64-encoded secret key (hanya diperlukan untuk on-chain operations)
-- `rpcUrl` — RPC endpoint (default: mainnet-beta, bisa override)
-- `dev` — gunakan dev API server (default: false)
-- `pageSize` — default page size (default: 50)
-- `telegramBotToken` — token bot dari @BotFather (untuk `npm run bot`)
-- `telegramChatId` — chat ID yang diizinkan (bot abaikan chat lain)
-- `alertInterval` — interval portfolio alert dalam jam (0 = off)
+| Field | Required | Description |
+|-------|----------|-------------|
+| `wallet` | Read-only | Default wallet address |
+| `privateKey` | On-chain | Base64-encoded secret key |
+| `rpcUrl` | No | RPC endpoint (default: public mainnet) |
+| `dev` | No | Use dev API server |
+| `pageSize` | No | Default page size (50) |
+| `telegramBotToken` | Bot | Telegram bot token |
+| `telegramChatId` | Bot | Whitelist chat ID |
 
-Alternatif: set `VEXIS_PRIVATE_KEY` env var untuk private key (lebih aman dari config).
+Config search order: `$VEXIS_CONFIG` → `./vexis.config.json` → `~/.vexis/config.json`
 
-Lokasi config dicari berurutan: `$VEXIS_CONFIG` → `./vexis.config.json` → `~/.vexis/config.json`.
+Private key can also be set via `VEXIS_PRIVATE_KEY` env var.
 
-```bash
-vexis open            # pakai wallet default dari config
-vexis config          # tampilkan config aktif & lokasinya
-```
+### Global Options
 
-CLI argument & flag selalu menimpa nilai dari config.
+| Option | Description |
+|--------|-------------|
+| `--json` | Raw JSON output |
+| `--dev` | Use dev API server |
+| `-p, --page <n>` | Page number |
+| `-s, --page-size <n>` | Page size |
 
-### Opsi Global
+Set `NO_COLOR=1` to disable colors.
 
-| Opsi | Berlaku di | Keterangan |
-|------|-----------|------------|
-| `--json` | semua | output JSON mentah |
-| `--dev` | semua | pakai server API dev (`dlmm.dev.metdev.io`) |
-| `-p, --page <n>` | pool list, open, closed | nomor halaman (default 1) |
-| `-s, --page-size <n>` | pool list, open, closed | jumlah per halaman (default 20 untuk pool, 50 untuk portfolio) |
+## Security
 
-Set `NO_COLOR=1` untuk menonaktifkan warna.
+- Bot only responds to configured `telegramChatId` (whitelist)
+- Private key never sent through chat
+- On-chain operations require explicit inline confirmation
+- Use `--dry-run` to preview transactions before executing
 
-### Pool List Sort Options
+## API
 
-`vexis pool list --sort <field>:<asc|desc>`
+**Meteora Data API** (`dlmm.datapi.meteora.ag`):
+- `GET /portfolio/open` — Open positions per pool
+- `GET /portfolio` — Closed positions
+- `GET /portfolio/total` — Aggregate PnL
+- `GET /pools` — Pool list with sorting/filtering
+- `GET /pools/{address}` — Pool detail
+- `GET /pools/{address}/historical-volume` — Volume history
 
-Opsi sort yang valid:
-- `tvl:desc` — TVL terbesar
-- `volume_24h:desc` — Volume 24h terbesar
-- `volume_30m:desc` — Volume 30m terbesar (cocok untuk detecting momentum)
-- `fee_24h:desc` — Fee revenue terbesar
-- `fee_tvl_ratio_24h:desc` — Fee/TVL ratio (default) — yield efisiensi terbaik
-- `apr_24h:desc` — APR terbesar (jika farm aktif)
-
-Contoh: `vexis pool list --sort volume_24h:desc` atau `vexis pool list --sort tvl:desc`
-
-## Contoh
-
-### Portfolio
-```bash
-vexis open DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt
-vexis summary <wallet> --json
-```
-
-### On-Chain Operations
-```bash
-# Preview sebelum execute
-vexis position create <poolAddress> --strategy spot --x-amount 1000000 --y-amount 1000000 --min-bin -100 --max-bin 100 --dry-run
-
-# Execute dengan confirmation
-vexis position create <poolAddress> --strategy spot --x-amount 1000000 --y-amount 1000000 --min-bin -100 --max-bin 100 --yes
-
-# Add liquidity
-vexis liquidity add <poolAddress> <positionPubkey> --strategy spot --x-amount 500000 --y-amount 500000 --yes
-
-# Remove 50% of liquidity
-vexis liquidity remove <poolAddress> <positionPubkey> --bps 5000 --yes
-
-# Close position
-vexis position close <poolAddress> <positionPubkey> --yes
-
-# Claim fees dan rewards
-vexis claim fee <poolAddress> <positionPubkey> --yes
-vexis claim reward <poolAddress> <positionPubkey> --yes
-```
-
-## Safety
-
-- **`--dry-run`** — Preview transaction tanpa mengirim ke chain
-- **`--yes`** — Skip confirmation prompt (gunakan dengan hati-hati!)
-- **Private key** — Disimpan di config atau env var, jangan commit ke git
-- **RPC** — Defaultnya mainnet-beta public node (rate-limited), pertimbangkan private RPC untuk production
-
-## Endpoint yang dipakai
-
-**Portfolio** (Meteora Data API):
-- `GET /portfolio/open` — posisi terbuka per-pool
-- `GET /portfolio` — pool dengan posisi tertutup
-- `GET /portfolio/total` — total PnL agregat
-
-**Pool Analytics** (Meteora Data API):
-- `GET /pools` — daftar pool dengan sorting & filtering
-- `GET /pools/{address}` — detail pool spesifik
-- `GET /pools/{address}/historical-volume` — volume history untuk sparkline
-
-**On-chain Operations** (Meteora DLMM SDK):
-- Create/close positions
-- Add/remove liquidity
-- Claim fees & rewards
+**On-chain** (via `@meteora-ag/dlmm` SDK):
+- Position management, liquidity operations, fee/reward claims
