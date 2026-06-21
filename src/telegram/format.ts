@@ -55,6 +55,12 @@ export function tgPoolAddr(addr: string): string {
   return `${tgCode(addr)}\n  🔗 [Open in Meteora](${escapeMarkdown(url)})`;
 }
 
+/** Transaction signature with Solscan link. */
+export function tgTxLink(sig: string): string {
+  const url = `https://solscan.io/tx/${sig}`;
+  return `${tgCode(sig)}\n  🔗 [Solscan](${escapeMarkdown(url)})`;
+}
+
 const tgPair = (x: string, y: string) => escapeMarkdown(`${x ?? "?"}/${y ?? "?"}`);
 
 /** Full portfolio summary message. */

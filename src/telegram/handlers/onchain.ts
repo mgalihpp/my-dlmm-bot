@@ -1,8 +1,8 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import { Connection, Keypair, sendAndConfirmTransaction, PublicKey } from "@solana/web3.js";
+import { Connection, Keypair, sendAndConfirmTransaction } from "@solana/web3.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc } from "../../config.js";
-import { escapeMarkdown, tgCode } from "../format.js";
+import { escapeMarkdown, tgCode, tgTxLink } from "../format.js";
 import type { StrategyType } from "../../types.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
@@ -224,17 +224,8 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         "Claim swap fees \\+ swap to SOL via Jupiter\\.",
       ].join("\n");
       await present(ctx, summary, makeZapRunner(async (zap) => {
-        const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
-        const keypair = resolveKeypair(config);
-        const rpc = resolveRpc(config);
-        const conn = new Connection(rpc, "confirmed");
-        let sig = "";
-        for (const tx of result.transactions) {
-          tx.feePayer = keypair.publicKey;
-          tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-          sig = await sendAndConfirmTransaction(conn, tx, [keypair]);
-        }
-        return sig;
+        await zap.claimAndZapOut(poolAddress, positionPubkey);
+        return "done";
       }));
     } catch (e) {
       await replyError(ctx, e);
@@ -277,7 +268,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     try {
       const sig = await op.run();
       await ctx.editMessageText(
-        `✅ Done\\!\nSignature: ${tgCode(sig)}`,
+        `✅ Done\\!\n${tgTxLink(sig)}`,
         MD
       );
     } catch (e) {
