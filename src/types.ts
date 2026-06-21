@@ -136,6 +136,8 @@ export interface DlmmPool {
   token_x: TokenInfo;
   token_y: TokenInfo;
   tvl: number;
+  market_cap: number;
+  holders: number;
   current_price: number;
   apr: number;
   apy: number;

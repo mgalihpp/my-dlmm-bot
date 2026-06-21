@@ -25,7 +25,8 @@ export function tgUsd(value: string | number): string {
 }
 
 /** Percentage with sign + colored emoji. */
-export function tgPct(value: string | number): string {
+export function tgPct(value: string | number | null): string {
+  if (value === null || value === undefined) return "\\-";
   const n = typeof value === "number" ? value : parseFloat(value);
   if (Number.isNaN(n)) return escapeMarkdown(String(value));
   const emoji = n > 0 ? "🟢" : n < 0 ? "🔴" : "⚪";
@@ -76,7 +77,8 @@ export function tgOpenPools(pools: OpenPool[]): string {
       `${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
       `  ${tgPoolAddr(p.poolAddress)}`,
       `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
-      `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
+      `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
+      `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
       ""
     );
   }
@@ -92,7 +94,7 @@ export function tgClosedPools(pools: ClosedPool[]): string {
       `${tgBold(tgPair(p.tokenX, p.tokenY))}`,
       `  ${tgPoolAddr(p.poolAddress)}`,
       `  Deposit: ${tgUsd(p.totalDeposit)} \\| Withdraw: ${tgUsd(p.totalWithdrawal)}`,
-      `  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\)`,
+      `  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
       ""
     );
   }
@@ -107,11 +109,40 @@ export function tgPoolList(pools: DlmmPool[]): string {
     lines.push(
       `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))}`,
       `  ${tgPoolAddr(p.address)}`,
-      `  TVL: ${tgUsd(p.tvl)} \\| APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 30m: ${tgUsd(p.volume["30m"])}`,
+      `  TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(p.market_cap)} \\| Holders: ${escapeMarkdown(formatNum(p.holders))}`,
+      `  APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 30m: ${tgUsd(p.volume["30m"])}`,
       `  Fee/TVL 30m: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["30m"])}%`)}`,
       ""
     );
   });
+  return lines.join("\n");
+}
+
+/** Position alert message for a single pool. */
+export function tgPositionAlert(
+  icon: string,
+  tokenX: string,
+  tokenY: string,
+  poolAddress: string,
+  opts: {
+    pnl: string;
+    pnlPctChange: string;
+    pnlSol: string | null;
+    balances: string;
+    fees: string;
+    positions: number;
+    outOfRange: boolean | null;
+    prevPnl?: string;
+  }
+): string {
+  const range = opts.outOfRange ? " ⚠️ out of range" : "";
+  const lines = [
+    tgBold(`${icon} ${tokenX}/${tokenY}`),
+    `${tgPoolAddr(poolAddress)}`,
+    `  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(opts.pnlSol)}`,
+    `  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`,
+    `  Positions: ${escapeMarkdown(String(opts.positions))}${escapeMarkdown(range)}`,
+  ];
   return lines.join("\n");
 }
 
@@ -125,7 +156,7 @@ export function tgPoolDetail(p: DlmmPool): string {
     `Tokens: ${escapeMarkdown(`${p.token_x.symbol} / ${p.token_y.symbol}`)}`,
     `Price: ${escapeMarkdown(formatNum(p.current_price, 6))}`,
     `Bin Step: ${escapeMarkdown(String(p.pool_config.bin_step))} \\| Base Fee: ${escapeMarkdown(`${p.pool_config.base_fee_pct}%`)}`,
-    `TVL: ${tgUsd(p.tvl)}`,
+    `TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(p.market_cap)} \\| Holders: ${escapeMarkdown(formatNum(p.holders))}`,
     `APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)}${farm}`,
     "",
     tgBold("Volume"),

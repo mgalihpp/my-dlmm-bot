@@ -39,8 +39,8 @@ const HELP = [
   tgBold("Alerts"),
   escapeMarkdown("/alerts - show active alerts"),
   escapeMarkdown("/setalert portfolio <hours>"),
-  escapeMarkdown("/setalert pool <address>"),
-  escapeMarkdown("/stopalert portfolio | /stopalert pool <address>"),
+  escapeMarkdown("/setalert position - track open positions every 15m"),
+  escapeMarkdown("/stopalert portfolio | /stopalert position"),
 ].join("\n");
 
 async function main() {
