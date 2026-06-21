@@ -23,6 +23,11 @@ function patchPkg(pkgDir) {
       delete pkg.exports["."].import;
       changed = true;
     }
+    // If no main field, set it to the likely CJS entry point
+    if (!pkg.main && !pkg.exports) {
+      pkg.main = "dist/index.js";
+      changed = true;
+    }
   }
 
   if (changed) {
