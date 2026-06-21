@@ -9,6 +9,7 @@ Portfolio viewer & liquidity manager untuk [Meteora DLMM](https://app.meteora.ag
 - **On-chain operations** — Create/close positions, add/remove liquidity, claim fees & rewards
 - **Telegram bot** — Full access to all features with inline confirmation for on-chain ops
 - **Smart alerts** — Auto-detect PnL changes, position changes, out-of-range, balance changes
+- **Watchlist** — Track LP positions dari banyak wallet sekaligus (CLI + Telegram)
 
 ## Install
 
@@ -27,6 +28,20 @@ vexis open [wallet]       # Open positions (default: wallet from config)
 vexis closed [wallet]     # Closed positions
 vexis summary [wallet]    # Total PnL (USD + SOL)
 ```
+
+### Watchlist
+
+Track LP positions dari wallet lain (tanpa perlu private key mereka).
+
+```bash
+vexis watch add <wallet> [--label "Whale 1"]   # Add wallet ke watchlist
+vexis watch remove <wallet>                     # Remove wallet
+vexis watch list                                # List watched wallets
+vexis watch positions                           # Show positions semua watched wallet
+vexis wallets <addr1> [addr2] ...              # Query wallet mana aja on-the-fly
+```
+
+Data watchlist persist ke `.vexis-watchlist.json`.
 
 ### Pool Analytics
 
@@ -89,6 +104,15 @@ Or use env vars: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
 /removeliq <pool> <position> <bps>
 /claimfee <pool> <position>
 /claimreward <pool> <position>
+```
+
+**Watchlist:**
+```
+/watchadd <wallet> [label]     Add wallet ke watchlist
+/watchremove <wallet>          Remove wallet
+/watchlist                     List all watched wallets
+/watchpositions                Positions semua watched wallet
+/wallets <w1> [w2] ...         Query wallet mana aja
 ```
 
 **Alerts:**
@@ -166,9 +190,10 @@ Set `NO_COLOR=1` to disable colors.
 ## API
 
 **Meteora Data API** (`dlmm.datapi.meteora.ag`):
-- `GET /portfolio/open` — Open positions per pool
+- `GET /portfolio/open` — Open positions per pool (accepts any wallet as `user`)
 - `GET /portfolio` — Closed positions
 - `GET /portfolio/total` — Aggregate PnL
+- `GET /positions/{pool_address}/pnl` — Position PnL per pool per user
 - `GET /pools` — Pool list with sorting/filtering
 - `GET /pools/{address}` — Pool detail
 - `GET /pools/{address}/historical-volume` — Volume history
