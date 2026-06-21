@@ -50,18 +50,9 @@ program
 Wallet:
   Pass a wallet address, or omit it to use the default from vexis.config.json.
 
-Examples:
-  $ vexis open                 show open positions for the configured wallet
-  $ vexis open <wallet>        show open positions for a specific wallet
-  $ vexis closed               pools with closed positions (deposit/withdraw/fees/PnL)
-  $ vexis summary              total portfolio PnL in USD & SOL
-  $ vexis open -s 10 -p 2      page 2, 10 rows per page
-  $ vexis summary --json       raw JSON output
-  $ vexis config               show the active config file
-
-Config (vexis.config.json):
+Config:
+  vexis.config.json or $VEXIS_CONFIG env var.
   { "wallet": "<address>", "dev": false, "pageSize": 50 }
-  Lookup order: $VEXIS_CONFIG -> ./vexis.config.json -> ~/.vexis/config.json
 `,
   );
 
