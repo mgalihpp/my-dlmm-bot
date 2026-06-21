@@ -283,7 +283,8 @@ positionCmd
   .requiredOption("--y-amount <n>", "amount of token Y")
   .requiredOption("--min-bin <n>", "minimum bin ID")
   .requiredOption("--max-bin <n>", "maximum bin ID")
-  .option("--single-sided", "is single side?")
+  .option("--single-sided", "single-sided: deposit only token X (meme)")
+  .option("--single-sided-y", "single-sided: deposit only token Y (SOL)")
   .option("--dry-run", "preview without sending transaction")
   .option("--yes", "skip confirmation prompt")
   .action(
@@ -296,6 +297,7 @@ positionCmd
         minBin: string;
         maxBin: string;
         singleSided?: boolean;
+        singleSidedY?: boolean;
         dryRun?: boolean;
         yes?: boolean;
       },
@@ -304,15 +306,16 @@ positionCmd
         const keypair = resolveKeypair(config);
         const rpcUrl = resolveRpc(config);
 
+        const singleSidedX = opts.singleSided ?? false;
+        const mode = opts.singleSidedY ? "single-sided Y (SOL)" : singleSidedX ? "single-sided X (meme)" : "two-sided";
+
         console.log(`\n${bold("Create Position")}`);
         console.log(`  Pool:     ${cyan(poolAddress)}`);
         console.log(`  Strategy: ${opts.strategy}`);
         console.log(`  Token X:  ${usd(opts.xAmount)}`);
         console.log(`  Token Y:  ${usd(opts.yAmount)}`);
         console.log(`  Bin range: ${opts.minBin} to ${opts.maxBin}`);
-        console.log(
-          `  Mode:     ${opts.singleSided ? "single-sided (favor X)" : "two-sided"}`,
-        );
+        console.log(`  Mode:     ${mode}`);
         console.log(
           `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}`,
         );
@@ -339,7 +342,7 @@ positionCmd
           totalYAmount: opts.yAmount,
           minBinId: parseInt(opts.minBin),
           maxBinId: parseInt(opts.maxBin),
-          singleSidedX: opts.singleSided ?? false,
+          singleSidedX,
         });
 
         console.log(`${bold("✓ Success")} ${cyan(sig)}`);
