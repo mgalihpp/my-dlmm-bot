@@ -107,8 +107,8 @@ export function tgPoolList(pools: DlmmPool[]): string {
     lines.push(
       `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))}`,
       `  ${tgPoolAddr(p.address)}`,
-      `  TVL: ${tgUsd(p.tvl)} \\| APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 24h: ${tgUsd(p.volume["24h"])}`,
-      `  Fee/TVL 24h: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["24h"])}%`)}`,
+      `  TVL: ${tgUsd(p.tvl)} \\| APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 30m: ${tgUsd(p.volume["30m"])}`,
+      `  Fee/TVL 30m: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["30m"])}%`)}`,
       ""
     );
   });
