@@ -623,12 +623,14 @@ const poolCmd = program
 
 poolCmd
   .command("list")
-  .description("list top pools sorted by fee/TVL ratio (30m)")
+  .description("list top pools sorted by 30m fee/TVL (trending/active pools: min 100k MC, 500+ holders)")
   .option(
     "--sort <key>",
     "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy",
   )
   .option("--query <q>", "search by pool name, symbol, or address")
+  .option("--min-mc <n>", "minimum market cap (default 100000)", "100000")
+  .option("--min-holders <n>", "minimum holders (default 500)", "500")
   .option("-p, --page <n>", "page number", "1")
   .option("-s, --page-size <n>", "page size (max 1000)", "20")
   .option("--json", "output raw JSON")
@@ -636,6 +638,8 @@ poolCmd
     async (opts: {
       sort?: string;
       query?: string;
+      minMc?: string;
+      minHolders?: string;
       page: string;
       pageSize?: string;
       json?: boolean;
@@ -647,13 +651,15 @@ poolCmd
 
         const sortBy = opts.sort
           ? `${opts.sort}:desc`
-          : "fee_tvl_ratio_30m:desc";
+          : "fee_tvl_ratio_30m:desc";  // 30m metrics for trending/active detection
 
         const data = await c.pools({
           sortBy,
           query: opts.query,
           page: pageNum,
           pageSize,
+          minMarketCap: parseInt(opts.minMc ?? "100000"),
+          minHolders: parseInt(opts.minHolders ?? "500"),
         });
 
         if (opts.json) {

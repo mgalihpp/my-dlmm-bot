@@ -45,10 +45,13 @@ vexis claim reward <poolAddress> <positionPubkey>
 
 ### Pool Analytics (Read-only)
 ```bash
-vexis pool list                                  # daftar top 20 pools (default sort: fee/TVL ratio 24h)
+vexis pool list                                  # trending pools (30m fee/TVL, min 100k MC, 500+ holders)
+vexis pool list --sort fee_tvl_ratio_24h:desc   # top 24h yield pools
+vexis pool list --sort volume_30m:desc          # high volume last 30m
 vexis pool list --sort tvl:desc -s 5            # top 5 pools by TVL
-vexis pool list --sort volume_24h:desc          # pools by 24h volume
-vexis pool info <poolAddress>                   # detail satu pool (TVL, APR, volume, fees, sparkline)
+vexis pool list --min-mc 500000 --min-holders 1000  # custom filters (min market cap, min holders)
+vexis pool list --query SOL                     # search by token name
+vexis pool info <poolAddress>                   # detail satu pool (TVL, APR, volume, fees)
 vexis pool list --json                          # raw JSON output
 ```
 

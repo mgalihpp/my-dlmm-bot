@@ -102,7 +102,7 @@ export function tgClosedPools(pools: ClosedPool[]): string {
 /** Pool list summary (top N). */
 export function tgPoolList(pools: DlmmPool[]): string {
   if (pools.length === 0) return tgBold("📭 No pools found");
-  const lines = [tgBold("🏆 Top Pools \\(by fee/TVL 24h\\)"), ""];
+  const lines = [tgBold("📈 Trending Pools \\(30m fee/TVL\\)"), ""];
   pools.forEach((p, i) => {
     lines.push(
       `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))}`,
