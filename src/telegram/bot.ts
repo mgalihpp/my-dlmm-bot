@@ -13,6 +13,7 @@ import {
   createAlerts,
   registerAlertCommands,
 } from "./alerts.js";
+import { registerMenu } from "./menu.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
@@ -82,6 +83,7 @@ async function main() {
   registerPortfolio(bot, client, config);
   registerPool(bot, client);
   registerOnchain(bot, config);
+  registerMenu(bot, client, config);
 
   // Alerts need a destination chat. Only enable if one is configured.
   if (chatId) {
@@ -94,6 +96,7 @@ async function main() {
   });
 
   await bot.api.setMyCommands([
+    { command: "menu", description: "Open interactive menu" },
     { command: "portfolio", description: "Total PnL summary" },
     { command: "open", description: "Open positions" },
     { command: "closed", description: "Closed positions" },
