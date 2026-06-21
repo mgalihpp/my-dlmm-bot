@@ -295,7 +295,7 @@ positionCmd
         yAmount: string;
         minBin: string;
         maxBin: string;
-        singleSidedX?: boolean;
+        singleSided?: boolean;
         dryRun?: boolean;
         yes?: boolean;
       },
@@ -310,6 +310,9 @@ positionCmd
         console.log(`  Token X:  ${usd(opts.xAmount)}`);
         console.log(`  Token Y:  ${usd(opts.yAmount)}`);
         console.log(`  Bin range: ${opts.minBin} to ${opts.maxBin}`);
+        console.log(
+          `  Mode:     ${opts.singleSided ? "single-sided (favor X)" : "two-sided"}`,
+        );
         console.log(
           `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}`,
         );
@@ -336,7 +339,7 @@ positionCmd
           totalYAmount: opts.yAmount,
           minBinId: parseInt(opts.minBin),
           maxBinId: parseInt(opts.maxBin),
-          singleSidedX: opts.singleSidedX ?? false,
+          singleSidedX: opts.singleSided ?? false,
         });
 
         console.log(`${bold("✓ Success")} ${cyan(sig)}`);
