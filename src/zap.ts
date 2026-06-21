@@ -222,6 +222,38 @@ export class ZapClient {
     let lastErr: unknown;
     for (const slippageBps of slippageLevels) {
       try {
+        const sig = await this.buildAndSendSwap(mint, outputMint, amount, slippageBps);
+        console.log(`[swapToOutput] Swap sent at ${slippageBps}bps slippage. sig=${sig.sig}`);
+        transactions.push(sig.tx);
+        return sig.sig;
+      } catch (e) {
+        const msg = String((e as Error)?.message ?? e);
+        // 0x1789 = 6025 = SlippageToleranceExceeded — retry with more slippage.
+        if (msg.includes("0x1789") || msg.includes("6025")) {
+          console.warn(`[swapToOutput] Slippage exceeded at ${slippageBps}bps, retrying wider...`);
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr ?? new Error("Swap failed after slippage retries");
+  }
+
+  /**
+   * Build + send a single Jupiter swap at a fixed slippage, retrying transient
+   * Jupiter API fetch failures (rate limits / network) with backoff.
+   */
+  private async buildAndSendSwap(
+    mint: PublicKey,
+    outputMint: PublicKey,
+    amount: BN,
+    slippageBps: number
+  ): Promise<{ sig: string; tx: Transaction }> {
+    const maxAttempts = 4;
+    let lastErr: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
         // Re-quote each attempt so the route reflects current price.
         const { transaction: swapTx } = await buildJupiterSwapTransaction(
           this.keypair.publicKey,
@@ -236,21 +268,27 @@ export class ZapClient {
         swapTx.feePayer = this.keypair.publicKey;
         swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
         const sig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
-        console.log(`[swapToOutput] Swap sent at ${slippageBps}bps slippage. sig=${sig}`);
-        transactions.push(swapTx);
-        return sig;
+        return { sig, tx: swapTx };
       } catch (e) {
         const msg = String((e as Error)?.message ?? e);
-        // 0x1789 = 6025 = SlippageToleranceExceeded — retry with more slippage.
-        if (msg.includes("0x1789") || msg.includes("6025")) {
-          console.warn(`[swapToOutput] Slippage exceeded at ${slippageBps}bps, retrying wider...`);
+        const transient =
+          msg.includes("failed to fetch") ||
+          msg.includes("Failed to get Jupiter quote") ||
+          msg.includes("429") ||
+          msg.includes("fetch failed");
+        // On-chain errors (e.g. slippage 0x1789) bubble up immediately so the
+        // caller can widen slippage instead of blindly retrying the same quote.
+        if (transient && attempt < maxAttempts) {
+          const delayMs = 800 * attempt;
+          console.warn(`[swapToOutput] Jupiter API transient error (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+          await new Promise((r) => setTimeout(r, delayMs));
           lastErr = e;
           continue;
         }
         throw e;
       }
     }
-    throw lastErr ?? new Error("Swap failed after slippage retries");
+    throw lastErr ?? new Error("Jupiter swap failed after retries");
   }
 
   private async getWalletTokenBalance(mint: PublicKey): Promise<BN> {
