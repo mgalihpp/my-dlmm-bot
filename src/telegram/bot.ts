@@ -10,6 +10,7 @@ import { registerPortfolio } from "./handlers/portfolio.js";
 import { registerPool } from "./handlers/pool.js";
 import { registerOnchain } from "./handlers/onchain.js";
 import { registerManage } from "./handlers/manage.js";
+import { registerCreate } from "./handlers/create.js";
 import { registerWatchlist } from "./handlers/watchlist.js";
 import {
   createAlerts,
@@ -91,6 +92,7 @@ async function main() {
 
   registerPortfolio(bot, client, config);
   registerPool(bot, client, config);
+  registerCreate(bot, client, config);
   registerOnchain(bot, config);
   registerManage(bot, client, config);
   registerWatchlist(bot, client);
@@ -117,7 +119,7 @@ async function main() {
     { command: "pools", description: "Top pools by fee/TVL" },
     { command: "pool", description: "Pool detail <address>" },
     { command: "manage", description: "Interactive position manager" },
-    { command: "create", description: "Create a DLMM position" },
+    { command: "create", description: "Create a DLMM position (guided wizard)" },
     { command: "close", description: "Close a position" },
     { command: "addliq", description: "Add liquidity to position" },
     { command: "removeliq", description: "Remove liquidity from position" },

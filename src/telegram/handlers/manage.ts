@@ -150,7 +150,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       "",
       "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
     ].join("\n");
-    await presentEdit(ctx, actionId, summary, async () => {
+    await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
       const { ZapClient } = await import("../../zap.js");
@@ -180,7 +180,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       "",
       "Claim swap fees \\+ swap to SOL via Jupiter\\.",
     ].join("\n");
-    await presentEdit(ctx, actionId, summary, async () => {
+    await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
       const { ZapClient } = await import("../../zap.js");
@@ -208,7 +208,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
     ].join("\n");
-    await presentEdit(ctx, actionId, summary, async () => {
+    await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
       const { DLMMClient } = await import("../../dlmm.js");
@@ -307,6 +307,7 @@ async function sendPoolList(
     // poolAddress is 44 chars; prefix "mng:pool:" is 9 chars → 53 bytes total, under 64
     kb.text(label.slice(0, 30), `mng:pool:${p.poolAddress}`).row();
   }
+  kb.row().text("➕ Create New Position", "crt:source");
   const text = lines.join("\n");
   if (mode === "reply") {
     await (ctx as any).reply(text, { ...MD, reply_markup: kb });
@@ -353,7 +354,6 @@ async function showActionPanel(
 
 async function presentEdit(
   ctx: Context,
-  actionId: string,
   summary: string,
   run: () => Promise<string>
 ) {
