@@ -137,6 +137,7 @@ export function tgPositionAlert(
     balances: string;
     fees: string;
     positions: number;
+    listPositions: string[];
     outOfRange: boolean | null;
     prevPnl?: string;
   }
@@ -147,8 +148,11 @@ export function tgPositionAlert(
     `${tgPoolAddr(poolAddress)}`,
     `  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(opts.pnlSol)}`,
     `  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`,
-    `  Positions: ${escapeMarkdown(String(opts.positions))}${escapeMarkdown(range)}`,
+    `  Positions \\(${escapeMarkdown(String(opts.positions))}\\):${escapeMarkdown(range)}`,
   ];
+  for (const pos of opts.listPositions) {
+    lines.push(`    ${tgCode(pos)}`);
+  }
   return lines.join("\n");
 }
 

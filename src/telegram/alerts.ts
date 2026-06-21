@@ -10,7 +10,6 @@ import { resolveWallet } from "../config.js";
 import {
   tgPortfolioSummary,
   tgPositionAlert,
-  tgPoolDetail,
   escapeMarkdown,
   tgBold,
 } from "./format.js";
@@ -196,6 +195,7 @@ function schedulePositionChecks(
               balances: pool.balances,
               fees: pool.unclaimedFees,
               positions: pool.openPositionCount,
+              listPositions: pool.listPositions,
               outOfRange: pool.outOfRange,
             }),
             poolAddr: pool.poolAddress,
@@ -218,6 +218,7 @@ function schedulePositionChecks(
                 balances: pool.balances,
                 fees: pool.unclaimedFees,
                 positions: pool.openPositionCount,
+                listPositions: pool.listPositions,
                 outOfRange: pool.outOfRange,
                 prevPnl: prev.pnl,
               }),
@@ -258,6 +259,7 @@ function schedulePositionChecks(
               balances: pool.balances,
               fees: pool.unclaimedFees,
               positions: pool.openPositionCount,
+              listPositions: pool.listPositions,
               outOfRange: pool.outOfRange,
             }),
             poolAddr: pool.poolAddress,
@@ -276,7 +278,8 @@ function schedulePositionChecks(
               pnlSol: prev.pnlSol,
               balances: "0",
               fees: "0",
-              positions: 0,
+              positions: prev.openPositionCount,
+              listPositions: prev.listPositions,
               outOfRange: null,
             }),
             poolAddr: prev.poolAddress,
@@ -284,16 +287,9 @@ function schedulePositionChecks(
         }
       }
 
-      // Fetch pool detail and send combined messages
+      // Send position alert messages
       for (const alert of alerts) {
-        let fullMsg = alert.msg;
-        try {
-          const poolDetail = await client.pool(alert.poolAddr);
-          fullMsg += `\n${tgPoolDetail(poolDetail)}`;
-        } catch {
-          // pool detail fetch failed — send position alert without pool detail
-        }
-        await bot.api.sendMessage(chatId, fullMsg, MD);
+        await bot.api.sendMessage(chatId, alert.msg, MD);
       }
 
       // Save current snapshot
