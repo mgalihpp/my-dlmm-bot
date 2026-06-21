@@ -3,5 +3,8 @@
   "privateKey": "your-base64-private-key-or-base58",
   "rpcUrl": "https://api.mainnet-beta.solana.com",
   "dev": false,
-  "pageSize": 50
+  "pageSize": 50,
+  "telegramBotToken": "123456:ABC-your-bot-token-from-BotFather",
+  "telegramChatId": "your-numeric-chat-id",
+  "alertInterval": 0
 }

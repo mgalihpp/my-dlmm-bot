@@ -18,6 +18,12 @@ export interface VexisConfig {
   dev?: boolean;
   /** Default page size (max 50). */
   pageSize?: number;
+  /** Telegram bot token (from @BotFather). */
+  telegramBotToken?: string;
+  /** Authorized Telegram chat ID — bot ignores all other chats. */
+  telegramChatId?: string;
+  /** Periodic portfolio alert interval in hours (0 = off). */
+  alertInterval?: number;
 }
 
 function candidatePaths(): string[] {
@@ -69,4 +75,20 @@ export function resolveKeypair(config: VexisConfig): Keypair {
 /** Get RPC URL: config.rpcUrl → mainnet-beta default. */
 export function resolveRpc(config: VexisConfig): string {
   return config.rpcUrl || "https://api.mainnet-beta.solana.com";
+}
+
+/** Get Telegram bot token: env TELEGRAM_BOT_TOKEN → config.telegramBotToken. */
+export function resolveBotToken(config: VexisConfig): string {
+  const token = process.env.TELEGRAM_BOT_TOKEN || config.telegramBotToken;
+  if (!token) {
+    throw new Error(
+      "No Telegram bot token. Set TELEGRAM_BOT_TOKEN env var or telegramBotToken in vexis.config.json."
+    );
+  }
+  return token;
+}
+
+/** Get authorized chat ID: env TELEGRAM_CHAT_ID → config.telegramChatId. */
+export function resolveChatId(config: VexisConfig): string | undefined {
+  return process.env.TELEGRAM_CHAT_ID || config.telegramChatId;
 }

@@ -5,3 +5,6 @@ dist/
 
 # personal config (may contain wallet addresses) — keep the example tracked
 vexis.config.json
+
+# telegram alert state (per-machine runtime state)
+.vexis-alerts.json

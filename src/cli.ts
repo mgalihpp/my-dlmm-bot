@@ -283,7 +283,7 @@ positionCmd
   .requiredOption("--y-amount <n>", "amount of token Y")
   .requiredOption("--min-bin <n>", "minimum bin ID")
   .requiredOption("--max-bin <n>", "maximum bin ID")
-  .requiredOption("--single-sided", "is single side?")
+  .option("--single-sided", "is single side?")
   .option("--dry-run", "preview without sending transaction")
   .option("--yes", "skip confirmation prompt")
   .action(
@@ -614,12 +614,17 @@ claimCmd
   );
 
 // ---- pool ----
-const poolCmd = program.command("pool").description("browse and analyze DLMM pools");
+const poolCmd = program
+  .command("pool")
+  .description("browse and analyze DLMM pools");
 
 poolCmd
   .command("list")
   .description("list top pools sorted by fee/TVL ratio (30m)")
-  .option("--sort <key>", "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy")
+  .option(
+    "--sort <key>",
+    "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy",
+  )
   .option("--query <q>", "search by pool name, symbol, or address")
   .option("-p, --page <n>", "page number", "1")
   .option("-s, --page-size <n>", "page size (max 1000)", "20")
@@ -637,7 +642,9 @@ poolCmd
         const pageNum = parseInt(opts.page);
         const pageSize = parseInt(opts.pageSize ?? "20");
 
-        const sortBy = opts.sort ? `${opts.sort}:desc` : "fee_tvl_ratio_30m:desc";
+        const sortBy = opts.sort
+          ? `${opts.sort}:desc`
+          : "fee_tvl_ratio_30m:desc";
 
         const data = await c.pools({
           sortBy,
@@ -671,7 +678,16 @@ poolCmd
         console.log(
           "\n" +
             table(
-              ["Pair", "Pool", "TVL", "Vol 30m", "Fee 30m", "Fee/TVL", "APR", "Farm APR"],
+              [
+                "Pair",
+                "Pool",
+                "TVL",
+                "Vol 30m",
+                "Fee 30m",
+                "Fee/TVL",
+                "APR",
+                "Farm APR",
+              ],
               rows,
             ),
         );
@@ -702,11 +718,17 @@ poolCmd
       const decimalsX = parseInt(pool.token_x.decimals.toString());
       const decimalsY = parseInt(pool.token_y.decimals.toString());
 
-      console.log(`\n${bold("Pool Info")}  ${cyan(`${pool.token_x.symbol}/${pool.token_y.symbol}`)}  ${gray(shortAddr(address))}\n`);
+      console.log(
+        `\n${bold("Pool Info")}  ${cyan(`${pool.token_x.symbol}/${pool.token_y.symbol}`)}  ${gray(shortAddr(address))}\n`,
+      );
 
-      console.log(`  Tokens:   ${pool.token_x.symbol} / ${pool.token_y.symbol}`);
+      console.log(
+        `  Tokens:   ${pool.token_x.symbol} / ${pool.token_y.symbol}`,
+      );
       console.log(`  Price:    ${usd(pool.current_price)}`);
-      console.log(`  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`);
+      console.log(
+        `  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`,
+      );
       console.log(`  TVL:      ${usd(pool.tvl)}`);
       console.log(
         `  APR:      ${pct(pool.apr)}${pool.has_farm ? `  (Farm: ${pct(pool.farm_apr)})` : ""}`,
@@ -719,7 +741,9 @@ poolCmd
       console.log(
         `  Fees:     30m: ${usd(pool.fees["30m"])}  1h: ${usd(pool.fees["1h"])}  4h: ${usd(pool.fees["4h"])}  24h: ${usd(pool.fees["24h"])}`,
       );
-      console.log(`  Fee/TVL:  ${pct(pool.fee_tvl_ratio["30m"])} (30m)  ${pct(pool.fee_tvl_ratio["24h"])} (24h)`);
+      console.log(
+        `  Fee/TVL:  ${pct(pool.fee_tvl_ratio["30m"])} (30m)  ${pct(pool.fee_tvl_ratio["24h"])} (24h)`,
+      );
 
       try {
         const histData = await c.poolHistoricalVolume(address);
@@ -728,8 +752,7 @@ poolCmd
           console.log(`\n  Volume History`);
           console.log(`  ${sparkline(volumes, 40)}`);
         }
-      } catch {
-      }
+      } catch {}
 
       console.log();
     } catch (e) {

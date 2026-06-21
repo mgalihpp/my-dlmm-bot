@@ -52,6 +52,72 @@ vexis pool info <poolAddress>                   # detail satu pool (TVL, APR, vo
 vexis pool list --json                          # raw JSON output
 ```
 
+## Telegram Bot
+
+Semua fitur (portfolio, pool analytics, on-chain operations, alerts) bisa diakses lewat Telegram.
+
+### Setup
+
+1. Buat bot baru via [@BotFather](https://t.me/BotFather), dapatkan token
+2. Dapatkan chat ID kamu (kirim pesan ke [@userinfobot](https://t.me/userinfobot))
+3. Set di config atau env var:
+
+```json
+{
+  "telegramBotToken": "123456:ABC-token-dari-botfather",
+  "telegramChatId": "123456789",
+  "alertInterval": 0
+}
+```
+
+Atau env var: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`.
+
+4. Jalankan bot:
+
+```bash
+npm run bot           # via tsx (dev)
+npm run build && npm run bot:start   # via compiled dist
+```
+
+### Perintah Bot
+
+**Read-only:**
+```
+/portfolio          # total PnL summary (USD + SOL)
+/open               # posisi terbuka (top 10)
+/closed             # posisi tertutup
+/pools              # top 10 pools by fee/TVL ratio
+/pool <address>     # detail satu pool
+/config             # config aktif (token & key di-mask)
+```
+
+**On-chain (butuh privateKey):** — setiap operasi tampil tombol konfirmasi `✅ Confirm` / `❌ Cancel`
+```
+/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin>
+/close <pool> <position>
+/addliq <pool> <position> <strategy> <xAmt> <yAmt>
+/removeliq <pool> <position> <bps>      # bps: 1-10000
+/claimfee <pool> <position>
+/claimreward <pool> <position>
+```
+
+**Alerts:**
+```
+/alerts                       # lihat alert aktif
+/setalert portfolio <hours>   # summary portfolio periodik tiap N jam
+/setalert pool <address>      # track pool (notify jika APR berubah >20%)
+/stopalert portfolio
+/stopalert pool <address>
+```
+
+Smart alerts otomatis: PnL turun >10%, APR pool berubah >20%. State alert disimpan di `.vexis-alerts.json` (survive restart).
+
+### Keamanan Bot
+
+- Bot **hanya merespons** chat dari `telegramChatId` yang dikonfigurasi (whitelist). Tanpa chat ID, bot terbuka untuk semua (tidak disarankan untuk on-chain ops).
+- Private key tidak pernah dikirim lewat chat.
+- Semua on-chain operation butuh konfirmasi eksplisit lewat tombol inline.
+
 ## Config
 
 Buat `vexis.config.json` (lihat `vexis.config.example.json`) supaya tidak perlu mengetik wallet tiap kali:
@@ -72,6 +138,9 @@ Field config:
 - `rpcUrl` — RPC endpoint (default: mainnet-beta, bisa override)
 - `dev` — gunakan dev API server (default: false)
 - `pageSize` — default page size (default: 50)
+- `telegramBotToken` — token bot dari @BotFather (untuk `npm run bot`)
+- `telegramChatId` — chat ID yang diizinkan (bot abaikan chat lain)
+- `alertInterval` — interval portfolio alert dalam jam (0 = off)
 
 Alternatif: set `VEXIS_PRIVATE_KEY` env var untuk private key (lebih aman dari config).
 
