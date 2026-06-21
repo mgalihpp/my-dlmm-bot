@@ -17,14 +17,14 @@ function patchPkg(pkgDir) {
     }
   }
 
-  // For meteora packages: remove "import" from exports["."] so Node uses CJS
+  // For meteora packages: strip exports so Node uses main field (CJS)
   if (pkgDir.includes("@meteora-ag/")) {
-    if (pkg.exports?.["."]?.import) {
-      delete pkg.exports["."].import;
+    if (pkg.exports) {
+      delete pkg.exports;
       changed = true;
     }
-    // If no main field, set it to the likely CJS entry point
-    if (!pkg.main && !pkg.exports) {
+    // Ensure main field exists
+    if (!pkg.main) {
       pkg.main = "dist/index.js";
       changed = true;
     }
@@ -42,7 +42,12 @@ function walk(dir) {
   if (!fs.existsSync(dir)) return;
   for (const entry of fs.readdirSync(dir)) {
     const full = path.join(dir, entry);
-    if (entry === ".package-lock.json" || entry === ".bin" || entry === ".cache") continue;
+    if (
+      entry === ".package-lock.json" ||
+      entry === ".bin" ||
+      entry === ".cache"
+    )
+      continue;
     if (entry.startsWith("@")) {
       // scoped package
       for (const sub of fs.readdirSync(full)) {

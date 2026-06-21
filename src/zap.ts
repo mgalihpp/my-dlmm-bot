@@ -161,9 +161,18 @@ export class ZapClient {
         console.log("[claimAndZapOut] 4/4 Building zap out...");
         const inputMint = this.getBestInputMint(tokenX, tokenY, outputMintPk);
 
-        // Estimate reasonable swap amount from position fees (use 10% to avoid 0 amount)
-        const estimatedAmount = this.estimateFeeAmount(positionData);
-        const quote = await this.getQuote(inputMint, outputMintPk, estimatedAmount);
+        // Fees are now in the wallet after the claim above — size the swap from
+        // the ACTUAL wallet balance, not an estimate (which could be the wrong
+        // token or mismatch the real amount).
+        const actualAmount = await this.getWalletTokenBalance(inputMint);
+        console.log(`[claimAndZapOut] Wallet balance of ${inputMint}: ${actualAmount}`);
+
+        if (actualAmount.lten(0)) {
+          console.log("[claimAndZapOut] Nothing to zap (zero balance), claim done.");
+          return { transactions, outputMint, claimSig: lastSig };
+        }
+
+        const quote = await this.getQuote(inputMint, outputMintPk, actualAmount);
 
         if (!quote) {
           console.log("[claimAndZapOut] Jupiter quote unavailable, claim done without zap, jupiter gagal swap?");
@@ -350,11 +359,11 @@ export class ZapClient {
       inputMint,
       outputMint,
       minAmount,
-      40,       /* slippageBps */
-      50,       /* swapMode */
-      false,    /* onlyDirectRoutes */
-      true,     /* asLegacyTransaction */
-      true,     /* useSharedAccounts */
+      40,       /* maxAccounts */
+      100,      /* slippageBps (1%) */
+      false,    /* dynamicSlippage */
+      false,    /* onlyDirectRoutes — must be false so meme→SOL multi-hop routes are found */
+      false,    /* restrictIntermediateTokens */
       { jupiterApiKey: undefined }
     );
     console.log(`[getQuote] Result:`, quote ? `inAmount=${quote.inAmount}` : "null");
