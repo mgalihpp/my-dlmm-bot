@@ -1,5 +1,5 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import { Connection, Keypair, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Keypair } from "@solana/web3.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc } from "../../config.js";
 import { escapeMarkdown, tgCode, tgTxLink } from "../format.js";
@@ -117,16 +117,11 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
       ].join("\n");
       await present(ctx, summary, makeZapRunner(async (zap) => {
+        // closeAndZapOut now sends its own txs (close first, then zap the
+        // actual withdrawn balance). Prefer the zap sig; fall back to close.
         const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
-        const keypair = resolveKeypair(config);
-        const rpc = resolveRpc(config);
-        const conn = new Connection(rpc, "confirmed");
-        let sig = "";
-        for (const tx of result.transactions) {
-          tx.feePayer = keypair.publicKey;
-          tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
-          sig = await sendAndConfirmTransaction(conn, tx, [keypair]);
-        }
+        const sig = result.zapSig || result.closeSig;
+        if (!sig) throw new Error("Close produced no transaction signature");
         return sig;
       }));
     } catch (e) {
@@ -223,8 +218,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         "Claim swap fees \\+ swap to SOL via Jupiter\\.",
       ].join("\n");
       await present(ctx, summary, makeZapRunner(async (zap) => {
-        await zap.claimAndZapOut(poolAddress, positionPubkey);
-        return "done";
+        const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
+        // Prefer the Jupiter zap-out tx; fall back to the claim tx if the
+        // swap was skipped (e.g. no Jupiter quote). Either is a real sig.
+        const sig = result.zapSig || result.claimSig;
+        if (!sig) throw new Error("Claim produced no transaction signature");
+        return sig;
       }));
     } catch (e) {
       await replyError(ctx, e);

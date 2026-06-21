@@ -1,4 +1,5 @@
 import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { getAssociatedTokenAddress } from "@solana/spl-token";
 import { Zap, getJupiterQuote, getJupiterSwapInstruction, getTokenProgramFromMint } from "@meteora-ag/zap-sdk";
 import DLMM from "@meteora-ag/dlmm";
 import BN from "bn.js";
@@ -24,6 +25,12 @@ function toPubkey(val: unknown): PublicKey {
 export interface ZapOutResult {
   transactions: Transaction[];
   outputMint: string;
+  /** Signature of the claim-fee tx (empty if nothing claimed). */
+  claimSig?: string;
+  /** Signature of the close / remove-liquidity tx (empty if not closed). */
+  closeSig?: string;
+  /** Signature of the Jupiter zap-out swap tx (empty if zap skipped/failed). */
+  zapSig?: string;
 }
 
 export class ZapClient {
@@ -149,6 +156,7 @@ export class ZapClient {
 
       // Zap out (optional — if fails, fees are already claimed)
       const transactions: Transaction[] = [];
+      let zapOutSig = "";
       try {
         console.log("[claimAndZapOut] 4/4 Building zap out...");
         const inputMint = this.getBestInputMint(tokenX, tokenY, outputMintPk);
@@ -159,7 +167,7 @@ export class ZapClient {
 
         if (!quote) {
           console.log("[claimAndZapOut] Jupiter quote unavailable, claim done without zap, jupiter gagal swap?");
-          return { transactions, outputMint };
+          return { transactions, outputMint, claimSig: lastSig };
         }
         console.log(`[claimAndZapOut] Quote: inAmount=${quote.inAmount} outAmount=${quote.outAmount}`);
 
@@ -187,13 +195,14 @@ export class ZapClient {
           const zapSig = await sendAndConfirmTransaction(this.connection, zapOutTx, [this.keypair]);
           console.log(`[claimAndZapOut] Zap out sent. sig=${zapSig}`);
           transactions.push(zapOutTx);
+          zapOutSig = zapSig;
         }
       } catch (zapErr) {
         console.error("[claimAndZapOut] Zap out failed (fees already claimed):", zapErr);
       }
 
       console.log(`[claimAndZapOut] Done`);
-      return { transactions, outputMint };
+      return { transactions, outputMint, claimSig: lastSig, zapSig: zapOutSig };
     } catch (e) {
       console.error("[claimAndZapOut] FAILED:", e);
       throw e;
@@ -217,7 +226,8 @@ export class ZapClient {
     const tokenX = toPubkey(dlmm.tokenX.mint.address);
     const tokenY = toPubkey(dlmm.tokenY.mint.address);
 
-    // 2. Close position (removes all liquidity + claims fees)
+    // 2. Close position FIRST (removes all liquidity + claims fees), so the
+    //    actual token balance lands in the wallet before we size the swap.
     const positionData = await dlmm.getPosition(posPubkey);
     const removeTxs = await dlmm.removeLiquidity({
       user: this.keypair.publicKey,
@@ -228,44 +238,82 @@ export class ZapClient {
       shouldClaimAndClose: true,
     });
 
-    // 3. Get quote for zap out
-    const inputMint = this.getBestInputMint(tokenX, tokenY, outputMintPk);
-    const estimatedAmount = this.estimateFeeAmount(positionData);
-    const quote = await this.getQuote(inputMint, outputMintPk, estimatedAmount);
-
-    if (!quote) {
-      throw new Error("Jupiter quote unavailable");
-    }
-
-    // 4. Build zap out tx
-    const swapIx = await getJupiterSwapInstruction(this.keypair.publicKey, quote, {
-      jupiterApiKey: undefined,
-    });
-
-    const inputTokenProgram = await getTokenProgramFromMint(this.connection, inputMint);
-    const outputTokenProgram = await getTokenProgramFromMint(this.connection, outputMintPk);
-
-    const zapOutTx = await this.zap.zapOutThroughJupiter({
-      user: this.keypair.publicKey,
-      inputMint,
-      outputMint: outputMintPk,
-      inputTokenProgram,
-      outputTokenProgram,
-      jupiterSwapResponse: swapIx,
-      maxSwapAmount: new BN(quote.inAmount),
-      percentageToZapOut: 100,
-    });
-
-    // 5. Combine remove txs + zap out
     const transactions: Transaction[] = [];
+    let closeSig = "";
     for (const tx of removeTxs) {
+      tx.feePayer = this.keypair.publicKey;
+      tx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+      closeSig = await sendAndConfirmTransaction(this.connection, tx, [this.keypair]);
       transactions.push(tx);
     }
-    if (zapOutTx) {
-      transactions.push(zapOutTx);
+    console.log(`[closeAndZapOut] Position closed. sig=${closeSig}`);
+
+    // 3. Zap out the ACTUAL withdrawn balance (optional — if it fails the
+    //    funds are already safely in the wallet).
+    let zapSig = "";
+    try {
+      const inputMint = this.getBestInputMint(tokenX, tokenY, outputMintPk);
+      const actualAmount = await this.getWalletTokenBalance(inputMint);
+      console.log(`[closeAndZapOut] Wallet balance of ${inputMint}: ${actualAmount}`);
+
+      if (actualAmount.lten(0)) {
+        console.log("[closeAndZapOut] Nothing to zap (zero balance), done.");
+        return { transactions, outputMint, closeSig };
+      }
+
+      const quote = await this.getQuote(inputMint, outputMintPk, actualAmount);
+      if (!quote) {
+        console.log("[closeAndZapOut] Jupiter quote unavailable, position closed without zap.");
+        return { transactions, outputMint, closeSig };
+      }
+
+      const swapIx = await getJupiterSwapInstruction(this.keypair.publicKey, quote, {
+        jupiterApiKey: undefined,
+      });
+      const inputTokenProgram = await getTokenProgramFromMint(this.connection, inputMint);
+      const outputTokenProgram = await getTokenProgramFromMint(this.connection, outputMintPk);
+
+      const zapOutTx = await this.zap.zapOutThroughJupiter({
+        user: this.keypair.publicKey,
+        inputMint,
+        outputMint: outputMintPk,
+        inputTokenProgram,
+        outputTokenProgram,
+        jupiterSwapResponse: swapIx,
+        maxSwapAmount: new BN(quote.inAmount),
+        percentageToZapOut: 100,
+      });
+
+      if (zapOutTx) {
+        zapOutTx.feePayer = this.keypair.publicKey;
+        zapOutTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+        zapSig = await sendAndConfirmTransaction(this.connection, zapOutTx, [this.keypair]);
+        console.log(`[closeAndZapOut] Zap out sent. sig=${zapSig}`);
+        transactions.push(zapOutTx);
+      }
+    } catch (zapErr) {
+      console.error("[closeAndZapOut] Zap out failed (position already closed):", zapErr);
     }
 
-    return { transactions, outputMint };
+    return { transactions, outputMint, closeSig, zapSig };
+  }
+
+  /** Read the wallet's token balance (raw amount) for a given mint. */
+  private async getWalletTokenBalance(mint: PublicKey): Promise<BN> {
+    try {
+      const tokenProgram = await getTokenProgramFromMint(this.connection, mint);
+      const ata = await getAssociatedTokenAddress(
+        mint,
+        this.keypair.publicKey,
+        false,
+        tokenProgram
+      );
+      const bal = await this.connection.getTokenAccountBalance(ata);
+      return new BN(bal.value.amount);
+    } catch (e) {
+      console.error(`[getWalletTokenBalance] failed for ${mint}:`, e);
+      return new BN(0);
+    }
   }
 
   private getBestInputMint(tokenX: PublicKey, tokenY: PublicKey, outputMint: PublicKey): PublicKey {
