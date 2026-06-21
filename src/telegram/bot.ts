@@ -16,8 +16,7 @@ import {
 } from "./alerts.js";
 import { registerMenu } from "./menu.js";
 import { escapeMarkdown, tgBold } from "./format.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
+import { MD } from "./utils.js";
 
 const HELP = [
   tgBold("🤖 Vexis DLMM Bot"),

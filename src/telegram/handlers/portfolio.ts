@@ -6,10 +6,8 @@ import {
   tgPortfolioSummary,
   tgOpenPools,
   tgClosedPools,
-  escapeMarkdown,
 } from "../format.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
+import { MD, replyError } from "../utils.js";
 
 export function registerPortfolio(
   bot: Bot,
@@ -45,9 +43,4 @@ export function registerPortfolio(
       await replyError(ctx, e);
     }
   });
-}
-
-async function replyError(ctx: Context, e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e);
-  await ctx.reply(`✖ ${escapeMarkdown(msg)}`, MD);
 }

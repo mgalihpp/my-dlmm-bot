@@ -5,17 +5,20 @@ import BN from "bn.js";
 
 const SOL_MINT = new PublicKey("So11111111111111111111111111111111111111112");
 
-function toPubkey(val: any): PublicKey {
+function toPubkey(val: unknown): PublicKey {
   if (val instanceof PublicKey) return val;
   if (typeof val === "string") return new PublicKey(val);
-  if (typeof val?.toBase58 === "function") return new PublicKey(val.toBase58());
-  if (typeof val?.toString === "function") {
-    const s = val.toString();
+  const obj = val as Record<string, unknown>;
+  if (typeof obj.toBase58 === "function") return new PublicKey((obj.toBase58 as () => string)());
+  if (typeof obj.toString === "function") {
+    const s = (obj.toString as () => string)();
     if (s && s !== "[object Object]" && s.length >= 32) return new PublicKey(s);
   }
-  if (val?.bytes) return new PublicKey(Buffer.from(val.bytes));
-  if (val?._bn?.toArray) return new PublicKey(Buffer.from(val._bn.toArray()));
-  throw new Error(`Cannot convert to PublicKey: type=${typeof val} ctor=${val?.constructor?.name}`);
+  if (obj.bytes instanceof Buffer) return new PublicKey(obj.bytes);
+  if (obj._bn && typeof obj._bn === "object" && "toArray" in obj._bn) {
+    return new PublicKey(Buffer.from((obj._bn as { toArray: () => number[] }).toArray()));
+  }
+  throw new Error(`Cannot convert to PublicKey: type=${typeof val} ctor=${(obj.constructor as { name?: string })?.name}`);
 }
 
 export interface ZapOutResult {
@@ -51,8 +54,8 @@ export class ZapClient {
 
     // 1. Get DLMM pool state to know token X/Y
     const dlmm = await DLMM.create(this.connection, poolPubkey);
-          const tokenX = toPubkey(dlmm.tokenX.mint.address);
-      const tokenY = toPubkey(dlmm.tokenY.mint.address);
+    const tokenX = toPubkey(dlmm.tokenX.mint.address);
+    const tokenY = toPubkey(dlmm.tokenY.mint.address);
 
     // 2. Remove liquidity
     const positionData = await dlmm.getPosition(posPubkey);
@@ -211,8 +214,8 @@ export class ZapClient {
 
     // 1. Get DLMM pool state
     const dlmm = await DLMM.create(this.connection, poolPubkey);
-          const tokenX = toPubkey(dlmm.tokenX.mint.address);
-      const tokenY = toPubkey(dlmm.tokenY.mint.address);
+    const tokenX = toPubkey(dlmm.tokenX.mint.address);
+    const tokenY = toPubkey(dlmm.tokenY.mint.address);
 
     // 2. Close position (removes all liquidity + claims fees)
     const positionData = await dlmm.getPosition(posPubkey);
@@ -299,11 +302,11 @@ export class ZapClient {
       inputMint,
       outputMint,
       minAmount,
-      40,       // slippage bps
-      50,       // swap mode
-      false,
-      true,
-      true,
+      40,       /* slippageBps */
+      50,       /* swapMode */
+      false,    /* onlyDirectRoutes */
+      true,     /* asLegacyTransaction */
+      true,     /* useSharedAccounts */
       { jupiterApiKey: undefined }
     );
     console.log(`[getQuote] Result:`, quote ? `inAmount=${quote.inAmount}` : "null");

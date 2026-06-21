@@ -27,8 +27,8 @@ function loadState(): WatchlistState {
 function saveState(state: WatchlistState) {
   try {
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-  } catch {
-    // best-effort
+  } catch (e) {
+    console.warn("[watchlist] Failed to save state:", e);
   }
 }
 

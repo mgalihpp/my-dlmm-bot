@@ -13,8 +13,7 @@ import {
   tgBold,
   tgCode,
 } from "../format.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
+import { MD, replyError } from "../utils.js";
 const TG_MAX = 4096;
 
 export function registerWatchlist(bot: Bot, client: MeteoraClient) {
@@ -138,7 +137,3 @@ async function splitSend(ctx: Context, text: string) {
   }
 }
 
-async function replyError(ctx: Context, e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e);
-  await ctx.reply(`✖ ${escapeMarkdown(msg)}`, MD);
-}

@@ -1,9 +1,8 @@
 import type { Bot, Context } from "grammy";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
-import { tgPoolList, tgPoolDetail, escapeMarkdown } from "../format.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
+import { tgPoolList, tgPoolDetail } from "../format.js";
+import { MD, replyError } from "../utils.js";
 
 export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   bot.command("pools", async (ctx: Context) => {
@@ -36,9 +35,4 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
       await replyError(ctx, e);
     }
   });
-}
-
-async function replyError(ctx: Context, e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e);
-  await ctx.reply(`✖ ${escapeMarkdown(msg)}`, MD);
 }

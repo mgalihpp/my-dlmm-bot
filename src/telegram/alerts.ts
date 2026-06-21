@@ -71,8 +71,8 @@ function loadState(): AlertState {
 function saveState(state: AlertState) {
   try {
     writeFileSync(STATE_FILE, JSON.stringify(state, null, 2));
-  } catch {
-    // best-effort persistence
+  } catch (e) {
+    console.warn("[alerts] Failed to save state:", e);
   }
 }
 
@@ -160,8 +160,8 @@ function schedulePortfolio(
       }
       rt.state.lastPnlUsd = pnl;
       saveState(rt.state);
-    } catch {
-      // swallow — don't crash the scheduler
+    } catch (e) {
+      console.error("[alerts] Portfolio check failed:", e);
     }
   });
 }

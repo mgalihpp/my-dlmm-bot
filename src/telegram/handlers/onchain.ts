@@ -3,9 +3,8 @@ import { Connection, Keypair, sendAndConfirmTransaction } from "@solana/web3.js"
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc } from "../../config.js";
 import { escapeMarkdown, tgCode, tgTxLink } from "../format.js";
+import { MD, replyError } from "../utils.js";
 import type { StrategyType } from "../../types.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
 
 // Pending operations — run() is self-contained (signs + sends tx internally).
 interface Pending {
@@ -300,7 +299,3 @@ async function present(
   await ctx.reply(summary, { ...MD, reply_markup: kb });
 }
 
-async function replyError(ctx: Context, e: unknown) {
-  const msg = e instanceof Error ? e.message : String(e);
-  await ctx.reply(`✖ ${escapeMarkdown(msg)}`, MD);
-}

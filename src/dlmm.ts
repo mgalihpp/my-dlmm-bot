@@ -3,7 +3,6 @@ import {
   Keypair,
   PublicKey,
   sendAndConfirmTransaction,
-  Transaction,
 } from "@solana/web3.js";
 import DLMM, { StrategyType } from "@meteora-ag/dlmm";
 import BN from "bn.js";
@@ -14,6 +13,12 @@ import type {
   StrategyType as VexisStrategyType,
 } from "./types.js";
 
+const STRATEGY_MAP: Record<VexisStrategyType, StrategyType> = {
+  spot: StrategyType.Spot,
+  bidask: StrategyType.BidAsk,
+  curve: StrategyType.Curve,
+} as const;
+
 export class DLMMClient {
   private connection: Connection;
   private keypair: Keypair;
@@ -23,15 +28,18 @@ export class DLMMClient {
     this.keypair = keypair;
   }
 
-  async createPosition(params: CreatePositionParams): Promise<string> {
-    const poolPubkey = new PublicKey(params.poolAddress);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
+  private async getDlmm(poolAddress: string): Promise<DLMM> {
+    const poolPubkey = new PublicKey(poolAddress);
+    return DLMM.create(this.connection, poolPubkey);
+  }
 
-    const strategyMap: Record<VexisStrategyType, StrategyType> = {
-      spot: StrategyType.Spot,
-      bidask: StrategyType.BidAsk,
-      curve: StrategyType.Curve,
-    };
+  private async getPositionData(dlmm: DLMM, positionPubkey: string) {
+    const posPubkey = new PublicKey(positionPubkey);
+    return dlmm.getPosition(posPubkey);
+  }
+
+  async createPosition(params: CreatePositionParams): Promise<string> {
+    const dlmm = await this.getDlmm(params.poolAddress);
 
     const positionKeypair = Keypair.generate();
     const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
@@ -39,7 +47,7 @@ export class DLMMClient {
       totalXAmount: new BN(params.totalXAmount),
       totalYAmount: new BN(params.totalYAmount),
       strategy: {
-        strategyType: strategyMap[params.strategy],
+        strategyType: STRATEGY_MAP[params.strategy],
         minBinId: params.minBinId,
         maxBinId: params.maxBinId,
         singleSidedX: params.singleSidedX,
@@ -59,11 +67,8 @@ export class DLMMClient {
     poolAddress: string,
     positionPubkey: string,
   ): Promise<string> {
-    const poolPubkey = new PublicKey(poolAddress);
-    const posPubkey = new PublicKey(positionPubkey);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
-
-    const positionData = await dlmm.getPosition(posPubkey);
+    const dlmm = await this.getDlmm(poolAddress);
+    const positionData = await this.getPositionData(dlmm, positionPubkey);
 
     const tx = await dlmm.closePosition({
       owner: this.keypair.publicKey,
@@ -77,22 +82,15 @@ export class DLMMClient {
   }
 
   async addLiquidity(params: AddLiquidityParams): Promise<string> {
-    const poolPubkey = new PublicKey(params.poolAddress);
+    const dlmm = await this.getDlmm(params.poolAddress);
     const posPubkey = new PublicKey(params.positionPubkey);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
-
-    const strategyMap: Record<VexisStrategyType, StrategyType> = {
-      spot: StrategyType.Spot,
-      bidask: StrategyType.BidAsk,
-      curve: StrategyType.Curve,
-    };
 
     const tx = await dlmm.addLiquidityByStrategy({
       positionPubKey: posPubkey,
       totalXAmount: new BN(params.totalXAmount),
       totalYAmount: new BN(params.totalYAmount),
       strategy: {
-        strategyType: strategyMap[params.strategy],
+        strategyType: STRATEGY_MAP[params.strategy],
         minBinId: params.minBinId,
         maxBinId: params.maxBinId,
       },
@@ -107,11 +105,9 @@ export class DLMMClient {
   }
 
   async removeLiquidity(params: RemoveLiquidityParams): Promise<string> {
-    const poolPubkey = new PublicKey(params.poolAddress);
+    const dlmm = await this.getDlmm(params.poolAddress);
     const posPubkey = new PublicKey(params.positionPubkey);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
-
-    const positionData = await dlmm.getPosition(posPubkey);
+    const positionData = await this.getPositionData(dlmm, params.positionPubkey);
 
     const txs = await dlmm.removeLiquidity({
       user: this.keypair.publicKey,
@@ -131,11 +127,8 @@ export class DLMMClient {
   }
 
   async claimFee(poolAddress: string, positionPubkey: string): Promise<string> {
-    const poolPubkey = new PublicKey(poolAddress);
-    const posPubkey = new PublicKey(positionPubkey);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
-
-    const positionData = await dlmm.getPosition(posPubkey);
+    const dlmm = await this.getDlmm(poolAddress);
+    const positionData = await this.getPositionData(dlmm, positionPubkey);
 
     const txs = await dlmm.claimSwapFee({
       owner: this.keypair.publicKey,
@@ -154,11 +147,8 @@ export class DLMMClient {
     poolAddress: string,
     positionPubkey: string,
   ): Promise<string> {
-    const poolPubkey = new PublicKey(poolAddress);
-    const posPubkey = new PublicKey(positionPubkey);
-    const dlmm = await DLMM.create(this.connection, poolPubkey);
-
-    const positionData = await dlmm.getPosition(posPubkey);
+    const dlmm = await this.getDlmm(poolAddress);
+    const positionData = await this.getPositionData(dlmm, positionPubkey);
 
     const txs = await dlmm.claimLMReward({
       owner: this.keypair.publicKey,

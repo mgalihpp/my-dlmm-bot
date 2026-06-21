@@ -11,8 +11,7 @@ import {
   tgBold,
   type WalletPositions,
 } from "./format.js";
-
-const MD = { parse_mode: "MarkdownV2" as const };
+import { MD } from "./utils.js";
 
 export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   bot.command("menu", async (ctx) => {
@@ -98,8 +97,8 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       "",
       "`/watchadd <wallet> [label]` — add wallet",
       "`/watchremove <wallet>` — remove wallet",
-      "`/watchlist` — lihat watched wallets",
-      "`/watchpositions` — positions semua wallet",
+      "`/watchlist` — list watched wallets",
+      "`/watchpositions` — all wallet positions",
       "`/wallets <w1> [w2]...` — query any wallets",
       "",
     ].join("\n");
@@ -158,11 +157,11 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     const text = [
       tgBold("🔔 Alert Commands"),
       "",
-      "`/setalert portfolio <hours>` — summary periodik",
+      "`/setalert portfolio <hours>` — periodic portfolio summary",
       "`/setalert position` — track open positions \\(15m\\)",
-      "`/stopalert portfolio` — matikan portfolio alert",
-      "`/stopalert position` — matikan position alert",
-      "`/alerts` — lihat alert aktif",
+      "`/stopalert portfolio` — disable portfolio alert",
+      "`/stopalert position` — disable position alert",
+      "`/alerts` — show active alerts",
     ].join("\n");
     await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
   });
@@ -192,7 +191,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       "`/watchadd <wallet>` — add to watchlist",
       "`/watchremove <wallet>` — remove from watchlist",
       "`/watchlist` — list watched wallets",
-      "`/watchpositions` — positions semua wallet",
+      "`/watchpositions` — all wallet positions",
       "`/wallets <w1> [w2]...` — query any wallets",
       "",
       tgBold("Alerts"),
