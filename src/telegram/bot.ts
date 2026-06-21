@@ -30,7 +30,7 @@ const HELP = [
   "",
   tgBold("On-chain"),
   escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]"),
-  escapeMarkdown("/close <pool> <position>"),
+  escapeMarkdown("/close <pool> <position> — close \\+ zap out to SOL"),
   escapeMarkdown("/addliq <pool> <position> <strategy> <xAmt> <yAmt>"),
   escapeMarkdown("/removeliq <pool> <position> <bps>"),
   escapeMarkdown("/claimfee <pool> <position>"),

@@ -13,6 +13,11 @@ const lazyLoadDLMM = async () => {
   const { DLMMClient } = await import("./dlmm.js");
   return DLMMClient;
 };
+
+const lazyLoadZap = async () => {
+  const { ZapClient } = await import("./zap.js");
+  return ZapClient;
+};
 import {
   bold,
   cyan,
@@ -355,7 +360,7 @@ positionCmd
 
 positionCmd
   .command("close <poolAddress> <positionPubkey>")
-  .description("close an existing position and withdraw all liquidity")
+  .description("close position + zap out to SOL via Jupiter")
   .option("--dry-run", "preview without sending transaction")
   .option("--yes", "skip confirmation prompt")
   .action(
@@ -368,9 +373,10 @@ positionCmd
         const keypair = resolveKeypair(config);
         const rpcUrl = resolveRpc(config);
 
-        console.log(`\n${bold("Close Position")}`);
+        console.log(`\n${bold("Close Position + Zap Out")}`);
         console.log(`  Pool:     ${cyan(poolAddress)}`);
         console.log(`  Position: ${gray(shortAddr(positionPubkey))}`);
+        console.log(`  Output:   SOL (via Jupiter)`);
         console.log(
           `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}\n`,
         );
@@ -385,11 +391,21 @@ positionCmd
           return;
         }
 
-        const DLMMClient = await lazyLoadDLMM();
-        const dlmm = new DLMMClient(keypair, rpcUrl);
-        console.log(dim("Sending transaction..."));
+        const ZapClient = await lazyLoadZap();
+        const zap = new ZapClient(keypair, rpcUrl);
+        console.log(dim("Removing liquidity + claiming fees..."));
 
-        const sig = await dlmm.closePosition(poolAddress, positionPubkey);
+        const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
+
+        const { sendAndConfirmTransaction } = await import("@solana/web3.js");
+        const { Connection } = await import("@solana/web3.js");
+        const conn = new Connection(rpcUrl, "confirmed");
+        let sig = "";
+        for (const tx of result.transactions) {
+          tx.feePayer = keypair.publicKey;
+          tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+          sig = await sendAndConfirmTransaction(conn, tx, [keypair]);
+        }
 
         console.log(`${bold("✓ Success")} ${cyan(sig)}`);
         console.log(`  https://solscan.io/tx/${sig}\n`);
