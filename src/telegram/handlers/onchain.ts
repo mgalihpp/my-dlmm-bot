@@ -115,7 +115,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         `Pool: ${tgCode(poolAddress)}`,
         `Position: ${tgCode(positionPubkey)}`,
         "",
-        "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter.",
+        "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
       ].join("\n");
       await present(ctx, summary, makeZapRunner(async (zap) => {
         const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
@@ -221,7 +221,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         `Pool: ${tgCode(poolAddress)}`,
         `Position: ${tgCode(positionPubkey)}`,
         "",
-        "Claim swap fees \\+ swap to SOL via Jupiter.",
+        "Claim swap fees \\+ swap to SOL via Jupiter\\.",
       ].join("\n");
       await present(ctx, summary, makeZapRunner(async (zap) => {
         const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
