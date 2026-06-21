@@ -1,6 +1,6 @@
 // Telegram MarkdownV2 formatters. Reuses the plain number-formatting helpers
 // from ../format.js (the ANSI color wrappers are skipped — no TTY in a bot).
-import { formatNum, shortAddr } from "../format.js";
+import { formatNum } from "../format.js";
 import type {
   PortfolioTotal,
   OpenPool,
@@ -181,7 +181,7 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
       ? ` \\(${escapeMarkdown(r.wallet.label)}\\)`
       : "";
     lines.push(
-      `${tgBold(`🔹 ${shortAddr(r.wallet.address)}`)}${label}`,
+      `${tgBold(`🔹 ${escapeMarkdown(r.wallet.address)}`)}${label}`,
     );
     if (r.pools.length === 0) {
       lines.push(`  ${escapeMarkdown("No open positions")}`);
@@ -192,7 +192,7 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
         lines.push(
           `  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
           `  Balance: ${tgUsd(p.balances)} \\| PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\)`,
-          `  Positions: ${escapeMarkdown(String(p.openPositionCount))} \\| Pool: ${tgCode(shortAddr(p.poolAddress, 8))}`,
+          `  Positions: ${escapeMarkdown(String(p.openPositionCount))} \\| Pool: ${tgCode(p.poolAddress)}`,
         );
       }
     }

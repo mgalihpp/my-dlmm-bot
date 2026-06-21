@@ -840,7 +840,7 @@ watchCmd
         console.log(`\n${bold("Watched Wallets")}`);
         for (const w of wallets) {
           const label = w.label ? ` ${dim(`(${w.label})`)}` : "";
-          console.log(`  ${gray(shortAddr(w.address))}${label}`);
+          console.log(`  ${gray(w.address)}${label}`);
         }
         console.log(dim(`\n  ${wallets.length} wallet(s)\n`));
       } catch (e) {
@@ -865,7 +865,7 @@ watchCmd
         const c = new MeteoraClient({ dev: config.dev });
         for (const w of wallets) {
           const label = w.label ? ` (${w.label})` : "";
-          console.log(`\n${bold(cyan(shortAddr(w.address)))}${gray(label)}`);
+          console.log(`\n${bold(cyan(w.address))}${gray(label)}`);
           try {
             const data = await c.openPortfolio(w.address, 1, 50);
             if (!data.pools.length) {
@@ -875,6 +875,7 @@ watchCmd
                 const range = p.outOfRange ? " ⚠ out of range" : "";
                 console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
                 console.log(`    Pool: ${p.poolAddress}`);
+                console.log(`    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`);
                 console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
                 console.log(`    Positions: ${p.openPositionCount}`);
               }
@@ -903,7 +904,7 @@ program
       try {
         const c = new MeteoraClient({ dev: config.dev });
         for (const wallet of addresses) {
-          console.log(`\n${bold(cyan(shortAddr(wallet)))}`);
+          console.log(`\n${bold(cyan(wallet))}`);
           try {
             const data = await c.openPortfolio(wallet, 1, 50);
             if (opts.json) {
@@ -917,6 +918,7 @@ program
                 const range = p.outOfRange ? " ⚠ out of range" : "";
                 console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
                 console.log(`    Pool: ${p.poolAddress}`);
+                console.log(`    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`);
                 console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
                 console.log(`    Positions: ${p.openPositionCount}`);
               }
