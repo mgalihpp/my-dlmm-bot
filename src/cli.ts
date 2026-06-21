@@ -123,7 +123,6 @@ addCommon(
     const rows = data.pools.map((p: OpenPool) => [
       cyan(pair(p.tokenX, p.tokenY)),
       p.poolAddress,
-      String(p.openPositionCount),
       usd(p.balances),
       usd(p.unclaimedFees),
       pnlColor(p.pnl),
@@ -138,7 +137,6 @@ addCommon(
           [
             "Pair",
             "Pool",
-            "#Pos",
             "Balance",
             "Unclaimed",
             "PnL",
