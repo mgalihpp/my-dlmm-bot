@@ -106,10 +106,12 @@ export function tgPoolList(pools: DlmmPool[]): string {
   if (pools.length === 0) return tgBold("📭 No pools found");
   const lines = [tgBold("📈 Trending Pools \\(30m fee/TVL\\)"), ""];
   pools.forEach((p, i) => {
+    const mc = p.token_x.market_cap;
+    const holders = p.token_x.holders;
     lines.push(
       `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))}`,
       `  ${tgPoolAddr(p.address)}`,
-      `  TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(p.market_cap)} \\| Holders: ${escapeMarkdown(formatNum(p.holders))}`,
+      `  TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(mc)} \\| Holders: ${escapeMarkdown(formatNum(holders))}`,
       `  APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 30m: ${tgUsd(p.volume["30m"])}`,
       `  Fee/TVL 30m: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["30m"])}%`)}`,
       ""
@@ -149,6 +151,8 @@ export function tgPositionAlert(
 /** Single pool detail. */
 export function tgPoolDetail(p: DlmmPool): string {
   const farm = p.has_farm ? ` \\(Farm: ${escapeMarkdown(`${formatNum(p.farm_apr)}%`)}\\)` : "";
+  const mc = p.token_x.market_cap;
+  const holders = p.token_x.holders;
   const lines = [
     tgBold("🔍 " + p.name),
     `${tgPoolAddr(p.address)}`,
@@ -156,7 +160,7 @@ export function tgPoolDetail(p: DlmmPool): string {
     `Tokens: ${escapeMarkdown(`${p.token_x.symbol} / ${p.token_y.symbol}`)}`,
     `Price: ${escapeMarkdown(formatNum(p.current_price, 6))}`,
     `Bin Step: ${escapeMarkdown(String(p.pool_config.bin_step))} \\| Base Fee: ${escapeMarkdown(`${p.pool_config.base_fee_pct}%`)}`,
-    `TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(p.market_cap)} \\| Holders: ${escapeMarkdown(formatNum(p.holders))}`,
+    `TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(mc)} \\| Holders: ${escapeMarkdown(formatNum(holders))}`,
     `APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)}${farm}`,
     "",
     tgBold("Volume"),

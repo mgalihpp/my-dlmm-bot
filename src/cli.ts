@@ -677,8 +677,8 @@ poolCmd
           cyan(`${p.token_x.symbol}/${p.token_y.symbol}`),
           gray(shortAddr(p.address)),
           usd(p.tvl),
-          usd(p.market_cap),
-          String(p.holders),
+          usd(p.token_x.market_cap),
+          String(p.token_x.holders),
           usd(p.volume["30m"]),
           usd(p.fees["30m"]),
           pct(p.fee_tvl_ratio["30m"]),
@@ -742,7 +742,7 @@ poolCmd
       console.log(
         `  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`,
       );
-      console.log(`  TVL:      ${usd(pool.tvl)}  |  MC: ${usd(pool.market_cap)}  |  Holders: ${pool.holders}`);
+      console.log(`  TVL:      ${usd(pool.tvl)}  |  MC: ${usd(pool.token_x.market_cap)}  |  Holders: ${pool.token_x.holders}`);
       console.log(
         `  APR:      ${pct(pool.apr)}${pool.has_farm ? `  (Farm: ${pct(pool.farm_apr)})` : ""}`,
       );
