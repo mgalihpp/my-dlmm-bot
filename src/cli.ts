@@ -114,7 +114,7 @@ addCommon(
     );
     if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
-    console.log(`\n${bold("Open Positions")} ${gray(shortAddr(wallet, 6))}`);
+    console.log(`\n${bold("Open Positions")} ${gray(wallet)}`);
     if (!data.pools.length) {
       console.log(dim("  No open positions found."));
       return;
@@ -122,7 +122,7 @@ addCommon(
 
     const rows = data.pools.map((p: OpenPool) => [
       cyan(pair(p.tokenX, p.tokenY)),
-      gray(shortAddr(p.poolAddress)),
+      p.poolAddress,
       String(p.openPositionCount),
       usd(p.balances),
       usd(p.unclaimedFees),
@@ -149,6 +149,15 @@ addCommon(
           rows,
         ),
     );
+
+    for (const p of data.pools) {
+      if (p.listPositions.length > 0) {
+        console.log(`  ${cyan(pair(p.tokenX, p.tokenY))} positions:`);
+        for (const pos of p.listPositions) {
+          console.log(`    ${pos}`);
+        }
+      }
+    }
 
     const t = data.total;
     if (t) {
@@ -185,7 +194,7 @@ addCommon(
     );
     if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
-    console.log(`\n${bold("Closed Positions")} ${gray(shortAddr(wallet, 6))}`);
+    console.log(`\n${bold("Closed Positions")} ${gray(wallet)}`);
     if (!data.pools.length) {
       console.log(dim("  No closed positions found."));
       return;
@@ -193,7 +202,7 @@ addCommon(
 
     const rows = data.pools.map((p: ClosedPool) => [
       cyan(pair(p.tokenX, p.tokenY)),
-      gray(shortAddr(p.poolAddress)),
+      p.poolAddress,
       usd(p.totalDeposit),
       usd(p.totalWithdrawal),
       usd(p.totalFee),
@@ -244,7 +253,7 @@ program
         if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
         console.log(
-          `\n${bold("Portfolio Summary")} ${gray(shortAddr(wallet, 6))}\n`,
+          `\n${bold("Portfolio Summary")} ${gray(wallet)}\n`,
         );
         console.log(
           `  Total PnL (USD): ${pnlColor(data.totalPnlUsd)}  (${pct(data.totalPnlPctChange)})`,

@@ -78,9 +78,12 @@ export function tgOpenPools(pools: OpenPool[]): string {
       `  ${tgPoolAddr(p.poolAddress)}`,
       `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
       `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
-      `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
-      ""
+      `  Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`,
     );
+    for (const pos of p.listPositions) {
+      lines.push(`    ${tgCode(pos)}`);
+    }
+    lines.push("");
   }
   return lines.join("\n");
 }

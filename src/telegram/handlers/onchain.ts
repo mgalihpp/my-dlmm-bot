@@ -207,7 +207,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     }
   });
 
-  // ─── /claimfee ──────────────────────────────────────────────────────────
+  // ─── /claimfee — claim fees + zap out to SOL ────────────────────────────
   bot.command("claimfee", async (ctx) => {
     try {
       requireKeypair();
@@ -217,13 +217,25 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         return;
       }
       const summary = [
-        "*Claim fees?*",
+        "*Claim fees \\+ Zap to SOL?*",
         `Pool: ${tgCode(poolAddress)}`,
         `Position: ${tgCode(positionPubkey)}`,
+        "",
+        "Claim swap fees \\+ swap to SOL via Jupiter.",
       ].join("\n");
-      await present(ctx, summary, makeDlmmRunner((dlmm) =>
-        dlmm.claimFee(poolAddress, positionPubkey)
-      ));
+      await present(ctx, summary, makeZapRunner(async (zap) => {
+        const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
+        const keypair = resolveKeypair(config);
+        const rpc = resolveRpc(config);
+        const conn = new Connection(rpc, "confirmed");
+        let sig = "";
+        for (const tx of result.transactions) {
+          tx.feePayer = keypair.publicKey;
+          tx.recentBlockhash = (await conn.getLatestBlockhash()).blockhash;
+          sig = await sendAndConfirmTransaction(conn, tx, [keypair]);
+        }
+        return sig;
+      }));
     } catch (e) {
       await replyError(ctx, e);
     }

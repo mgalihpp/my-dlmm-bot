@@ -6,6 +6,7 @@ import { readFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
+import bs58 from "bs58";
 
 export interface VexisConfig {
   /** Default wallet address used when none is passed on the CLI. */
@@ -59,17 +60,20 @@ export function resolveWallet(arg: string | undefined, config: VexisConfig): str
 
 /** Load keypair for signing: env VEXIS_PRIVATE_KEY → config.privateKey. */
 export function resolveKeypair(config: VexisConfig): Keypair {
-  const privateKeyBase58 = process.env.VEXIS_PRIVATE_KEY || config.privateKey;
-  if (!privateKeyBase58) {
+  const rawKey = process.env.VEXIS_PRIVATE_KEY || config.privateKey;
+  if (!rawKey) {
     throw new Error(
       "No private key found. Set VEXIS_PRIVATE_KEY env var or privateKey in vexis.config.json."
     );
   }
+  // Try base64 first (wallet adapter format), then base58 (Solana CLI format)
   try {
-    return Keypair.fromSecretKey(Buffer.from(privateKeyBase58, "base64"));
-  } catch {
-    throw new Error("Invalid private key format (expected base64 or solana CLI base58).");
-  }
+    return Keypair.fromSecretKey(Buffer.from(rawKey, "base64"));
+  } catch { /* not base64 */ }
+  try {
+    return Keypair.fromSecretKey(bs58.decode(rawKey));
+  } catch { /* not base58 either */ }
+  throw new Error("Invalid private key format (expected base64 or base58).");
 }
 
 /** Get RPC URL: config.rpcUrl → mainnet-beta default. */

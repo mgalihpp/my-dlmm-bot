@@ -96,14 +96,24 @@ async function main() {
   });
 
   await bot.api.setMyCommands([
+    { command: "start", description: "Start the bot" },
     { command: "menu", description: "Open interactive menu" },
+    { command: "help", description: "Show all commands" },
+    { command: "config", description: "Show current config" },
     { command: "portfolio", description: "Total PnL summary" },
     { command: "open", description: "Open positions" },
     { command: "closed", description: "Closed positions" },
     { command: "pools", description: "Top pools by fee/TVL" },
     { command: "pool", description: "Pool detail <address>" },
+    { command: "create", description: "Create a DLMM position" },
+    { command: "close", description: "Close a position" },
+    { command: "addliq", description: "Add liquidity to position" },
+    { command: "removeliq", description: "Remove liquidity from position" },
+    { command: "claimfee", description: "Claim fees from position" },
+    { command: "claimreward", description: "Claim rewards from position" },
     { command: "alerts", description: "Show active alerts" },
-    { command: "help", description: "Show all commands" },
+    { command: "setalert", description: "Set price/pool alert" },
+    { command: "stopalert", description: "Stop an alert" },
   ]);
 
   console.log("Bot started" + (chatId ? ` (locked to chat ${chatId})` : " (open to all chats)"));
