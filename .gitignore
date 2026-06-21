@@ -1,0 +1,7 @@
+node_modules/
+dist/
+*.log
+.env
+
+# personal config (may contain wallet addresses) — keep the example tracked
+vexis.config.json

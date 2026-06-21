@@ -1,0 +1,22 @@
+{
+  "name": "vexis-dlmm-bot",
+  "version": "0.1.0",
+  "description": "CLI to view Meteora DLMM portfolio (open & closed positions)",
+  "type": "module",
+  "bin": {
+    "vexis": "./dist/cli.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/cli.ts",
+    "start": "node dist/cli.js"
+  },
+  "dependencies": {
+    "commander": "^12.1.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2",
+    "@types/node": "^22.10.0"
+  }
+}
