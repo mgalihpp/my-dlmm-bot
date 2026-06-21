@@ -10,6 +10,7 @@ import { resolveWallet } from "../config.js";
 import {
   tgPortfolioSummary,
   tgPositionAlert,
+  tgPoolDetail,
   escapeMarkdown,
   tgBold,
 } from "./format.js";
@@ -287,9 +288,16 @@ function schedulePositionChecks(
         }
       }
 
-      // Send position alert messages
+      // Fetch pool detail and send combined messages
       for (const alert of alerts) {
-        await bot.api.sendMessage(chatId, alert.msg, MD);
+        let fullMsg = alert.msg;
+        try {
+          const poolDetail = await client.pool(alert.poolAddr);
+          fullMsg += `\n${tgPoolDetail(poolDetail)}`;
+        } catch {
+          // pool detail fetch failed — send position alert without pool detail
+        }
+        await bot.api.sendMessage(chatId, fullMsg, MD);
       }
 
       // Save current snapshot
