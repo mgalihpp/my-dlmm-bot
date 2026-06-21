@@ -120,41 +120,15 @@ addCommon(
       return;
     }
 
-    const rows = data.pools.map((p: OpenPool) => [
-      cyan(pair(p.tokenX, p.tokenY)),
-      p.poolAddress,
-      usd(p.balances),
-      usd(p.unclaimedFees),
-      pnlColor(p.pnl),
-      pnlSol(p.pnlSol),
-      pct(p.pnlPctChange),
-      p.outOfRange ? "\x1b[33m⚠ out\x1b[0m" : dim("in range"),
-    ]);
-
-    console.log(
-      "\n" +
-        table(
-          [
-            "Pair",
-            "Pool",
-            "Balance",
-            "Unclaimed",
-            "PnL",
-            "PnL SOL",
-            "PnL%",
-            "Range",
-          ],
-          rows,
-        ),
-    );
-
     for (const p of data.pools) {
-      if (p.listPositions.length > 0) {
-        console.log(`  ${cyan(pair(p.tokenX, p.tokenY))} positions:`);
-        for (const pos of p.listPositions) {
-          console.log(`    ${pos}`);
-        }
+      const range = p.outOfRange ? " ⚠ out of range" : "in range";
+      console.log(`\n${bold(cyan(pair(p.tokenX, p.tokenY)))}  ${dim(range)}`);
+      console.log(`  Pool:     ${p.poolAddress}`);
+      for (const pos of p.listPositions) {
+        console.log(`  Position: ${pos}`);
       }
+      console.log(`  Balance:  ${usd(p.balances)}  |  Fees: ${usd(p.unclaimedFees)}`);
+      console.log(`  PnL:      ${pnlColor(p.pnl)}  (${pct(p.pnlPctChange)})  |  PnL SOL: ${pnlSol(p.pnlSol)}  (${pct(p.pnlSolPctChange)})`);
     }
 
     const t = data.total;
