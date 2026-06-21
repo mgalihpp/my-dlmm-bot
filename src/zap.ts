@@ -90,6 +90,9 @@ export class ZapClient {
     }
     console.log(`[claimAndZapOut] Claim done. sig=${claimSig}`);
 
+    // Wait for balance to settle before reading delta
+    await this.connection.confirmTransaction(claimSig, "finalized");
+
     // Delta = only the newly claimed tokens
     const [balXAfter, balYAfter] = await Promise.all([
       this.getWalletTokenBalance(tokenX),
@@ -154,6 +157,9 @@ export class ZapClient {
     }
     console.log(`[closeAndZapOut] Position closed. sig=${closeSig}`);
 
+    // Wait for balance to settle before reading delta
+    await this.connection.confirmTransaction(closeSig, "finalized");
+
     // Delta = only the withdrawn tokens
     const [balXAfter, balYAfter] = await Promise.all([
       this.getWalletTokenBalance(tokenX),
@@ -196,26 +202,21 @@ export class ZapClient {
         continue;
       }
       console.log(`[swapToOutput] Swapping ${amount} of ${mint} → ${outputMint}`);
-      try {
-        const { transaction: swapTx } = await buildJupiterSwapTransaction(
-          this.keypair.publicKey,
-          mint,
-          outputMint,
-          amount,
-          40,    // maxAccounts
-          100,   // slippageBps (1%)
-          undefined,
-          { jupiterApiUrl: this.jupiterApiUrl }
-        );
-        swapTx.feePayer = this.keypair.publicKey;
-        swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
-        lastSig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
-        console.log(`[swapToOutput] Swap sent. sig=${lastSig}`);
-        transactions.push(swapTx);
-      } catch (e) {
-        // Log but continue — if one token swap fails, try the rest
-        console.error(`[swapToOutput] Swap failed for ${mint}:`, e);
-      }
+      const { transaction: swapTx } = await buildJupiterSwapTransaction(
+        this.keypair.publicKey,
+        mint,
+        outputMint,
+        amount,
+        40,    // maxAccounts
+        100,   // slippageBps (1%)
+        undefined,
+        { jupiterApiUrl: this.jupiterApiUrl }
+      );
+      swapTx.feePayer = this.keypair.publicKey;
+      swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+      lastSig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
+      console.log(`[swapToOutput] Swap sent. sig=${lastSig}`);
+      transactions.push(swapTx);
     }
     return lastSig;
   }
