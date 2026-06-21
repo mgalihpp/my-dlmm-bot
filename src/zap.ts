@@ -1,6 +1,6 @@
-import { Connection, Keypair, PublicKey, Transaction, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Connection, Keypair, PublicKey, Transaction, VersionedTransaction, sendAndConfirmTransaction } from "@solana/web3.js";
 import { getAssociatedTokenAddress } from "@solana/spl-token";
-import { buildJupiterSwapTransaction, getTokenProgramFromMint } from "@meteora-ag/zap-sdk";
+import { getTokenProgramFromMint } from "@meteora-ag/zap-sdk";
 import DLMM from "@meteora-ag/dlmm";
 import BN from "bn.js";
 
@@ -47,11 +47,6 @@ export class ZapClient {
     this.keypair = keypair;
     this.jupiterApiUrl = jupiterApiUrl;
     this.jupiterApiKey = JUPITER_API_KEY;
-  }
-
-  /** Jupiter SDK config (url + key) passed to every swap call. */
-  private get jupiterConfig() {
-    return { jupiterApiUrl: this.jupiterApiUrl, jupiterApiKey: this.jupiterApiKey };
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -212,85 +207,86 @@ export class ZapClient {
         continue;
       }
       console.log(`[swapToOutput] Swapping ${amount} of ${mint} → ${outputMint}`);
-      lastSig = await this.swapOneWithRetry(mint, outputMint, amount, transactions);
+      lastSig = await this.jupiterUltraSwap(mint, outputMint, amount);
     }
     return lastSig;
   }
 
   /**
-   * Swap a single token to output, re-quoting with escalating slippage on
-   * SlippageToleranceExceeded (Jupiter error 0x1789 / 6025). Claimed-fee /
-   * dust amounts have high price impact, so a tight slippage often fails.
+   * Swap one token to output using the Jupiter Ultra API (order + execute).
+   * Jupiter assembles the full transaction (dynamic slippage + routing) and
+   * lands it for us — we only sign. Retries transient API errors with backoff.
    */
-  private async swapOneWithRetry(
+  private async jupiterUltraSwap(
     mint: PublicKey,
     outputMint: PublicKey,
-    amount: BN,
-    transactions: Transaction[]
+    amount: BN
   ): Promise<string> {
-    const slippageLevels = [300, 500, 1000, 2000]; // 3% → 5% → 10% → 20%
-    let lastErr: unknown;
-    for (const slippageBps of slippageLevels) {
-      try {
-        const sig = await this.buildAndSendSwap(mint, outputMint, amount, slippageBps);
-        console.log(`[swapToOutput] Swap sent at ${slippageBps}bps slippage. sig=${sig.sig}`);
-        transactions.push(sig.tx);
-        return sig.sig;
-      } catch (e) {
-        const msg = String((e as Error)?.message ?? e);
-        // 0x1789 = 6025 = SlippageToleranceExceeded — retry with more slippage.
-        if (msg.includes("0x1789") || msg.includes("6025")) {
-          console.warn(`[swapToOutput] Slippage exceeded at ${slippageBps}bps, retrying wider...`);
-          lastErr = e;
-          continue;
-        }
-        throw e;
-      }
-    }
-    throw lastErr ?? new Error("Swap failed after slippage retries");
-  }
-
-  /**
-   * Build + send a single Jupiter swap at a fixed slippage, retrying transient
-   * Jupiter API fetch failures (rate limits / network) with backoff.
-   */
-  private async buildAndSendSwap(
-    mint: PublicKey,
-    outputMint: PublicKey,
-    amount: BN,
-    slippageBps: number
-  ): Promise<{ sig: string; tx: Transaction }> {
     const maxAttempts = 4;
     let lastErr: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
-        // Re-quote each attempt so the route reflects current price.
-        const { transaction: swapTx } = await buildJupiterSwapTransaction(
-          this.keypair.publicKey,
-          mint,
-          outputMint,
-          amount,
-          40,    // maxAccounts
-          slippageBps,
-          undefined,
-          this.jupiterConfig
-        );
-        swapTx.feePayer = this.keypair.publicKey;
-        swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
-        const sig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
-        return { sig, tx: swapTx };
+        // 1) Get order — Jupiter returns a ready-to-sign base64 v0 transaction.
+        const orderUrl =
+          `${this.jupiterApiUrl}/swap/v2/order?` +
+          new URLSearchParams({
+            inputMint: mint.toBase58(),
+            outputMint: outputMint.toBase58(),
+            amount: amount.toString(),
+            taker: this.keypair.publicKey.toBase58(),
+          }).toString();
+        const orderRes = await fetch(orderUrl, {
+          headers: { "x-api-key": this.jupiterApiKey, Accept: "application/json" },
+        });
+        if (!orderRes.ok) {
+          throw new Error(`Jupiter order failed (${orderRes.status}): ${await orderRes.text()}`);
+        }
+        const order = await orderRes.json() as {
+          transaction: string | null;
+          requestId: string;
+          errorMessage?: string;
+        };
+        if (!order.transaction) {
+          throw new Error(`Jupiter could not build a swap: ${order.errorMessage ?? "no route"}`);
+        }
+
+        // 2) Sign the v0 transaction (partial — Jupiter may add a maker sig).
+        const tx = VersionedTransaction.deserialize(Buffer.from(order.transaction, "base64"));
+        tx.sign([this.keypair]);
+        const signedTx = Buffer.from(tx.serialize()).toString("base64");
+
+        // 3) Execute — Jupiter submits and lands the transaction.
+        const execRes = await fetch(`${this.jupiterApiUrl}/swap/v2/execute`, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "x-api-key": this.jupiterApiKey,
+          },
+          body: JSON.stringify({ signedTransaction: signedTx, requestId: order.requestId }),
+        });
+        if (!execRes.ok) {
+          throw new Error(`Jupiter execute failed (${execRes.status}): ${await execRes.text()}`);
+        }
+        const result = await execRes.json() as {
+          status: "Success" | "Failed";
+          signature: string;
+          error?: string;
+        };
+        if (result.status !== "Success") {
+          throw new Error(`Jupiter swap failed: ${result.error ?? "unknown"} (sig=${result.signature})`);
+        }
+        console.log(`[swapToOutput] Swap landed. sig=${result.signature}`);
+        return result.signature;
       } catch (e) {
         const msg = String((e as Error)?.message ?? e);
         const transient =
+          msg.includes("fetch failed") ||
           msg.includes("failed to fetch") ||
-          msg.includes("Failed to get Jupiter quote") ||
           msg.includes("429") ||
-          msg.includes("fetch failed");
-        // On-chain errors (e.g. slippage 0x1789) bubble up immediately so the
-        // caller can widen slippage instead of blindly retrying the same quote.
+          msg.includes("(5");           // 5xx
         if (transient && attempt < maxAttempts) {
           const delayMs = 800 * attempt;
-          console.warn(`[swapToOutput] Jupiter API transient error (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
+          console.warn(`[swapToOutput] Transient Jupiter error (attempt ${attempt}/${maxAttempts}), retrying in ${delayMs}ms...`);
           await new Promise((r) => setTimeout(r, delayMs));
           lastErr = e;
           continue;
