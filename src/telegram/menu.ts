@@ -180,6 +180,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       "`/pool <addr>` — pool detail",
       "",
       tgBold("On-chain"),
+      "`/manage` — interactive position manager",
       "`/create` — create position",
       "`/close` — close \\+ zap out to SOL",
       "`/addliq` — add liquidity",
@@ -211,10 +212,11 @@ function mainMenuKeyboard(): InlineKeyboard {
     .text("📈 Open", "menu:open")
     .text("📉 Closed", "menu:closed")
     .row()
-    .text("👁️ Watch", "menu:watchlist")
+    .text("⚡ Manage", "mng:pools")
     .text("🔥 Pools", "menu:pools")
     .text("🔔 Alerts", "menu:alerts")
     .row()
+    .text("👁️ Watch", "menu:watchlist")
     .text("📋 Commands", "menu:commands");
 }
 

@@ -295,16 +295,22 @@ function schedulePositionChecks(
         }
       }
 
-      // Fetch pool detail and send combined messages
-      for (const alert of alerts) {
-        let fullMsg = alert.msg;
-        try {
-          const poolDetail = await client.pool(alert.poolAddr);
-          fullMsg += `\n${tgPoolDetail(poolDetail)}`;
-        } catch {
-          // pool detail fetch failed — send position alert without pool detail
-        }
-        await bot.api.sendMessage(chatId, fullMsg, MD);
+      // Fetch pool details in parallel, then send all alerts as one message
+      if (alerts.length > 0) {
+        const fullMsgs = await Promise.all(
+          alerts.map(async (alert) => {
+            let msg = alert.msg;
+            try {
+              const poolDetail = await client.pool(alert.poolAddr);
+              msg += `\n${tgPoolDetail(poolDetail)}`;
+            } catch {
+              // pool detail fetch failed — send position alert without pool detail
+            }
+            return msg;
+          })
+        );
+        const combined = fullMsgs.join("\n\n─────────────────────\n\n");
+        await bot.api.sendMessage(chatId, combined, MD);
       }
 
       // Save current snapshot

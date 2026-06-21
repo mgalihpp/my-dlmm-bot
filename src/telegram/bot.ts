@@ -9,6 +9,7 @@ import {
 import { registerPortfolio } from "./handlers/portfolio.js";
 import { registerPool } from "./handlers/pool.js";
 import { registerOnchain } from "./handlers/onchain.js";
+import { registerManage } from "./handlers/manage.js";
 import { registerWatchlist } from "./handlers/watchlist.js";
 import {
   createAlerts,
@@ -37,8 +38,9 @@ const HELP = [
   escapeMarkdown("/wallets <w1> [w2]... - query any wallets"),
   "",
   tgBold("On-chain"),
+  escapeMarkdown("/manage — interactive position manager (close/claim/add/remove)"),
   escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]"),
-  escapeMarkdown("/close <pool> <position> — close \\+ zap out to SOL"),
+  escapeMarkdown("/close <pool> <position> — close + zap out to SOL"),
   escapeMarkdown("/addliq <pool> <position> <strategy> <xAmt> <yAmt>"),
   escapeMarkdown("/removeliq <pool> <position> <bps>"),
   escapeMarkdown("/claimfee <pool> <position>"),
@@ -90,6 +92,7 @@ async function main() {
   registerPortfolio(bot, client, config);
   registerPool(bot, client, config);
   registerOnchain(bot, config);
+  registerManage(bot, client, config);
   registerWatchlist(bot, client);
   registerMenu(bot, client, config);
 
@@ -113,6 +116,7 @@ async function main() {
     { command: "closed", description: "Closed positions" },
     { command: "pools", description: "Top pools by fee/TVL" },
     { command: "pool", description: "Pool detail <address>" },
+    { command: "manage", description: "Interactive position manager" },
     { command: "create", description: "Create a DLMM position" },
     { command: "close", description: "Close a position" },
     { command: "addliq", description: "Add liquidity to position" },

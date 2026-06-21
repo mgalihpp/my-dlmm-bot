@@ -106,7 +106,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (!poolAddress || !positionPubkey) {
-        await ctx.reply("Usage: `/close <poolAddr> <positionPubkey>`", MD);
+        await ctx.reply("Use /manage to select a position interactively\\.", MD);
         return;
       }
       const summary = [
@@ -136,7 +136,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
       if (parts.length < 5) {
         await ctx.reply(
-          "Usage: `/addliq <poolAddr> <positionPubkey> <strategy> <xAmt> <yAmt>`",
+          "Use /manage to select a position, or provide all args:\n`/addliq <poolAddr> <positionPubkey> <strategy> <xAmt> <yAmt>`",
           MD
         );
         return;
@@ -174,7 +174,10 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey, bps] = (ctx.match as string).trim().split(/\s+/);
       if (!poolAddress || !positionPubkey || !bps) {
-        await ctx.reply("Usage: `/removeliq <poolAddr> <positionPubkey> <bps 1-10000>`", MD);
+        await ctx.reply(
+          "Use /manage to select a position, or provide all args:\n`/removeliq <poolAddr> <positionPubkey> <bps 1-10000>`",
+          MD
+        );
         return;
       }
       const bpsNum = parseInt(bps, 10);
@@ -207,7 +210,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (!poolAddress || !positionPubkey) {
-        await ctx.reply("Usage: `/claimfee <poolAddr> <positionPubkey>`", MD);
+        await ctx.reply("Use /manage to select a position interactively\\.", MD);
         return;
       }
       const summary = [
@@ -236,7 +239,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (!poolAddress || !positionPubkey) {
-        await ctx.reply("Usage: `/claimreward <poolAddr> <positionPubkey>`", MD);
+        await ctx.reply("Use /manage to select a position interactively\\.", MD);
         return;
       }
       const summary = [
