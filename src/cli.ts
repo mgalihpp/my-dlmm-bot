@@ -642,7 +642,7 @@ const poolCmd = program
 
 poolCmd
   .command("list")
-  .description("list top pools sorted by 30m fee/TVL (max 2M MC)")
+  .description("list top pools sorted by 30m fee/TVL (max 2M MC, TVL > $100)")
   .option(
     "--sort <key>",
     "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy",
@@ -652,6 +652,7 @@ poolCmd
   .option("--max-mc <n>", "maximum market cap (default 2000000)", "2000000")
   .option("--min-holders <n>", "minimum holders")
   .option("--max-holders <n>", "maximum holders")
+  .option("--filter <expr>", "filter expression (e.g. tvl>1000, volume_24h>=50000)", "tvl>100")
   .option("-p, --page <n>", "page number", "1")
   .option("-s, --page-size <n>", "page size (max 1000)", "20")
   .option("--json", "output raw JSON")
@@ -663,6 +664,7 @@ poolCmd
       maxMc?: string;
       minHolders?: string;
       maxHolders?: string;
+      filter?: string;
       page: string;
       pageSize?: string;
       json?: boolean;
@@ -685,6 +687,7 @@ poolCmd
           maxMarketCap: opts.maxMc ? parseInt(opts.maxMc) : undefined,
           minHolders: opts.minHolders ? parseInt(opts.minHolders) : undefined,
           maxHolders: opts.maxHolders ? parseInt(opts.maxHolders) : undefined,
+          filterBy: opts.filter,
         });
 
         if (opts.json) {

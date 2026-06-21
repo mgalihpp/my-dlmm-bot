@@ -10,6 +10,7 @@ export function registerPool(bot: Bot, client: MeteoraClient) {
       const res = await client.pools({
         pageSize: 15,
         maxMarketCap: 2000000,
+        filterBy: "tvl>100",
         sortBy: "fee_tvl_ratio_30m:desc",
       });
       await ctx.reply(tgPoolList(res.data), MD);
