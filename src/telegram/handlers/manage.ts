@@ -3,7 +3,7 @@ import { Keypair } from "@solana/web3.js";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
-import { escapeMarkdown, tgBold, tgCode, tgTxLink, tgUsd } from "../format.js";
+import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { MD, replyError } from "../utils.js";
 import { registerAction, resolveAction } from "../action-store.js";
 
@@ -72,9 +72,9 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       }
 
       if (pool.listPositions.length === 1) {
-        // Single position — go straight to action panel
+        // Single position — go straight to action panel, back returns to pool list
         const actionId = registerAction(poolAddr, pool.listPositions[0]);
-        await showActionPanel(ctx, pool.tokenX, pool.tokenY, poolAddr, pool.listPositions[0], actionId, "edit");
+        await showActionPanel(ctx, pool.tokenX, pool.tokenY, poolAddr, pool.listPositions[0], actionId, "edit", "mng:pools");
         return;
       }
 
@@ -88,7 +88,8 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       const kb = new InlineKeyboard();
       pool.listPositions.forEach((pos, i) => {
         const actionId = registerAction(poolAddr, pos);
-        kb.text(`#${i + 1}: ${pos.slice(0, 6)}…${pos.slice(-4)}`, `mng:pos:${actionId}`).row();
+        // store backTarget in action so the panel can navigate back to position list
+        kb.text(`#${i + 1}: ${pos.slice(0, 6)}…${pos.slice(-4)}`, `mng:pos:${actionId}:${poolAddr}`).row();
       });
       kb.text("⬅️ Back", "mng:pools");
       await ctx.editMessageText(lines.join("\n"), { ...MD, reply_markup: kb });
@@ -101,10 +102,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     }
   });
 
-  // ─── mng:pos:<actionId> — show action panel for a position ────────────────
-  bot.callbackQuery(/^mng:pos:(.+)$/, async (ctx) => {
+  // ─── mng:pos:<actionId>:<poolAddr> — show action panel for a position ───────
+  // backTarget = mng:pool:<poolAddr> so user returns to position list (multi-pos)
+  bot.callbackQuery(/^mng:pos:([^:]+):(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const actionId = ctx.match![1];
+    const poolAddr = ctx.match![2];
     const pair = resolveAction(actionId);
     if (!pair) {
       await ctx.editMessageText("⌛ Expired\\. Please run /manage again\\.", {
@@ -119,7 +122,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       const pool = res.pools.find((p) => p.poolAddress === pair.poolAddress);
       const tokenX = pool?.tokenX ?? "?";
       const tokenY = pool?.tokenY ?? "?";
-      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, "edit");
+      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, "edit", `mng:pool:${poolAddr}`);
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
@@ -319,7 +322,8 @@ async function showActionPanel(
   poolAddress: string,
   positionPubkey: string,
   actionId: string,
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  backTarget: string
 ) {
   const text = [
     tgBold(`⚡ ${escapeMarkdown(tokenX)}/${escapeMarkdown(tokenY)}`),
@@ -338,7 +342,7 @@ async function showActionPanel(
     .text("➕ Add Liq", `mng:addliq:${actionId}`)
     .text("➖ Remove Liq", `mng:removeliq:${actionId}`)
     .row()
-    .text("⬅️ Back", `mng:pool:${poolAddress}`);
+    .text("⬅️ Back", backTarget);
 
   if (mode === "reply") {
     await (ctx as any).reply(text, { ...MD, reply_markup: kb });
