@@ -74,7 +74,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading pools\\.\\.\\.", MD);
     try {
-      const res = await client.pools({ pageSize: 10, minMarketCap: 100000, minHolders: 500 });
+      const res = await client.pools({ pageSize: 10, maxMarketCap: 2000000 });
       const text = tgPoolList(res.data);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
