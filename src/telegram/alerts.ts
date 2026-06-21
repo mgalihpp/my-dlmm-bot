@@ -159,7 +159,7 @@ export function registerAlertCommands(
       `Portfolio: ${s.portfolioHours > 0 ? escapeMarkdown(`every ${s.portfolioHours}h`) : "off"}`,
       `Tracked pools: ${s.trackedPools.length === 0 ? "none" : escapeMarkdown(String(s.trackedPools.length))}`,
     ];
-    for (const p of s.trackedPools) lines.push(`  • ${escapeMarkdown(p)}`);
+    for (const p of s.trackedPools) lines.push(`  • \`${p}\``);
     await ctx.reply(lines.join("\n"), MD);
   });
 

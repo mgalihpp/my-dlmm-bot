@@ -38,21 +38,25 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
       if (parts.length < 6) {
         await ctx.reply(
-          "Usage: `/create <poolAddr> <strategy> <xAmt> <yAmt> <minBin> <maxBin>`",
+          "Usage: `/create <poolAddr> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single]`\n" +
+            "Optional `single` \\(or `single-x`\\) = single\\-sided X deposit",
           MD
         );
         return;
       }
-      const [poolAddress, strategy, xAmt, yAmt, minBin, maxBin] = parts;
+      const [poolAddress, strategy, xAmt, yAmt, minBin, maxBin, sideArg] = parts;
       if (!STRATEGIES.has(strategy as StrategyType)) {
         await ctx.reply("Strategy must be: spot, bidask, or curve", MD);
         return;
       }
+      const singleSidedX =
+        sideArg === "single" || sideArg === "single-x" || sideArg === "singlex";
       const summary = [
         "*Create position?*",
         `Pool: ${tgCode(poolAddress)}`,
         `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(`${minBin} to ${maxBin}`)}`,
         `X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
+        `Mode: ${escapeMarkdown(singleSidedX ? "single-sided (X)" : "two-sided")}`,
       ].join("\n");
       await present(ctx, summary, (dlmm) =>
         dlmm.createPosition({
@@ -62,7 +66,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           totalYAmount: yAmt,
           minBinId: parseInt(minBin, 10),
           maxBinId: parseInt(maxBin, 10),
-          singleSidedX: false,
+          singleSidedX,
         })
       );
     } catch (e) {

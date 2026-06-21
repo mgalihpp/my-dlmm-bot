@@ -93,13 +93,15 @@ npm run build && npm run bot:start   # via compiled dist
 
 **On-chain (butuh privateKey):** — setiap operasi tampil tombol konfirmasi `✅ Confirm` / `❌ Cancel`
 ```
-/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin>
+/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single]
 /close <pool> <position>
 /addliq <pool> <position> <strategy> <xAmt> <yAmt>
 /removeliq <pool> <position> <bps>      # bps: 1-10000
 /claimfee <pool> <position>
 /claimreward <pool> <position>
 ```
+
+Tambahkan `single` di akhir `/create` untuk single-sided deposit (hanya token X). Contoh: `/create <pool> spot 1000000 0 -100 100 single`.
 
 **Alerts:**
 ```

@@ -29,7 +29,7 @@ const HELP = [
   escapeMarkdown("/config - show active config"),
   "",
   tgBold("On-chain"),
-  escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin>"),
+  escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single]"),
   escapeMarkdown("/close <pool> <position>"),
   escapeMarkdown("/addliq <pool> <position> <strategy> <xAmt> <yAmt>"),
   escapeMarkdown("/removeliq <pool> <position> <bps>"),
