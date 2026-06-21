@@ -63,12 +63,7 @@ export class MeteoraClient {
     query?: string;
     page?: number;
     pageSize?: number;
-    minMarketCap?: number;
-    maxMarketCap?: number;
-    minHolders?: number;
-    maxHolders?: number;
     filterBy?: string;
-    verified?: boolean;
   }): Promise<DlmmPoolsResponse> {
     const sortBy = opts?.sortBy?.includes(":") ? opts.sortBy : (opts?.sortBy ? `${opts.sortBy}:desc` : "fee_tvl_ratio_24h:desc");
     const res = await this.get<DlmmPoolsResponse>("/pools", {
@@ -76,12 +71,7 @@ export class MeteoraClient {
       query: opts?.query,
       page: opts?.page ?? 1,
       page_size: opts?.pageSize,
-      min_market_cap: opts?.minMarketCap,
-      max_market_cap: opts?.maxMarketCap,
-      min_holders: opts?.minHolders,
-      max_holders: opts?.maxHolders,
       filter_by: opts?.filterBy,
-      verified: opts?.verified === true ? 1 : undefined,
     });
     return res;
   }

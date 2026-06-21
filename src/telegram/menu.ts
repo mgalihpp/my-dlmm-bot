@@ -75,8 +75,14 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading pools\\.\\.\\.", MD);
     try {
-      const res = await client.pools({ pageSize: 10, maxMarketCap: 2000000, filterBy: "tvl>100" });
-      const text = tgPoolList(res.data);
+      const poolCfg = config.pools ?? {};
+      const pageSize = poolCfg.pageSize ?? 10;
+      const filterBy = poolCfg.filterBy ?? "tvl>100";
+      const minMc = poolCfg.minMarketCap ?? 100000;
+      const maxMc = poolCfg.maxMarketCap ?? 2000000;
+
+      const res = await client.pools({ pageSize, filterBy });
+      const text = tgPoolList(res.data.filter((p) => p.token_x.market_cap >= minMc && p.token_x.market_cap <= maxMc));
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

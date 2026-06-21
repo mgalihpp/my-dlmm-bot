@@ -630,12 +630,12 @@ poolCmd
   )
   .option("--query <q>", "search by pool name, symbol, or address")
   .option("--min-mc <n>", "minimum market cap")
-  .option("--max-mc <n>", "maximum market cap (default 2000000)", "2000000")
+  .option("--max-mc <n>", "maximum market cap")
   .option("--min-holders <n>", "minimum holders")
   .option("--max-holders <n>", "maximum holders")
-  .option("--filter <expr>", "filter expression (e.g. tvl>1000, volume_24h>=50000)", "tvl>100")
+  .option("--filter <expr>", "filter expression (e.g. tvl>1000, volume_24h>=50000)")
   .option("-p, --page <n>", "page number", "1")
-  .option("-s, --page-size <n>", "page size (max 1000)", "20")
+  .option("-s, --page-size <n>", "page size (max 1000)")
   .option("--json", "output raw JSON")
   .action(
     async (opts: {
@@ -653,36 +653,65 @@ poolCmd
       try {
         const c = new MeteoraClient({ dev: config.dev });
         const pageNum = parseInt(opts.page);
-        const pageSize = parseInt(opts.pageSize ?? "20");
 
-        const sortBy = opts.sort
-          ? `${opts.sort}:desc`
-          : "fee_tvl_ratio_30m:desc";
+        const poolCfg = config.pools ?? {};
+        const defaultFilter = poolCfg.filterBy ?? "tvl>100";
+        const defaultSort = poolCfg.sortBy ?? "fee_tvl_ratio_30m:desc";
+        const defaultPageSize = poolCfg.pageSize ?? 20;
+        const defaultMaxMc = poolCfg.maxMarketCap ?? 2000000;
+        const defaultMinMc = poolCfg.minMarketCap;
+
+        const sortBy = opts.sort ? `${opts.sort}:desc` : defaultSort;
+        const filterBy = opts.filter ?? defaultFilter;
+        const maxMc = opts.maxMc ?? String(defaultMaxMc);
+        const minMc = opts.minMc ?? (defaultMinMc != null ? String(defaultMinMc) : undefined);
+        const pageSizeRaw = opts.pageSize ?? String(defaultPageSize);
+        const pageSize = (minMc || maxMc || opts.minHolders || opts.maxHolders)
+          ? 1000
+          : parseInt(pageSizeRaw);
 
         const data = await c.pools({
           sortBy,
           query: opts.query,
           page: pageNum,
           pageSize,
-          minMarketCap: opts.minMc ? parseInt(opts.minMc) : undefined,
-          maxMarketCap: opts.maxMc ? parseInt(opts.maxMc) : undefined,
-          minHolders: opts.minHolders ? parseInt(opts.minHolders) : undefined,
-          maxHolders: opts.maxHolders ? parseInt(opts.maxHolders) : undefined,
-          filterBy: opts.filter,
+          filterBy,
         });
+
+        let filtered = data.data;
+        if (minMc) {
+          const v = parseInt(minMc);
+          filtered = filtered.filter((p) => p.token_x.market_cap >= v);
+        }
+        if (maxMc) {
+          const v = parseInt(maxMc);
+          filtered = filtered.filter((p) => p.token_x.market_cap <= v);
+        }
+        if (opts.minHolders) {
+          const v = parseInt(opts.minHolders);
+          filtered = filtered.filter((p) => p.token_x.holders >= v);
+        }
+        if (opts.maxHolders) {
+          const v = parseInt(opts.maxHolders);
+          filtered = filtered.filter((p) => p.token_x.holders <= v);
+        }
 
         if (opts.json) {
           console.log(JSON.stringify(data, null, 2));
           return;
         }
 
-        console.log(`\n${bold("Top Pools")} ${gray(`(${data.total} total)`)}`);
-        if (!data.data.length) {
-          console.log(dim("  No pools found."));
+        const clientFiltered = minMc || maxMc || opts.minHolders || opts.maxHolders;
+        const label = clientFiltered
+          ? `${bold("Top Pools")} ${gray(`(${filtered.length} shown · ${data.total} total`)}`
+          : `\n${bold("Top Pools")} ${gray(`(${data.total} total)`)}`;
+        console.log(label);
+        if (!filtered.length) {
+          console.log(dim("  No pools match the current filters."));
           return;
         }
 
-        const rows = data.data.map((p: DlmmPool) => [
+        const rows = filtered.map((p: DlmmPool) => [
           cyan(`${p.token_x.symbol}/${p.token_y.symbol}`),
           gray(shortAddr(p.address)),
           usd(p.tvl),
@@ -714,7 +743,7 @@ poolCmd
             ),
         );
 
-        const hasNext = pageNum < data.pages;
+        const hasNext = clientFiltered ? false : pageNum < data.pages;
         pageHint(hasNext, pageNum);
       } catch (e) {
         fail(e);

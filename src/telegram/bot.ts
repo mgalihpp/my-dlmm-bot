@@ -89,7 +89,7 @@ async function main() {
   });
 
   registerPortfolio(bot, client, config);
-  registerPool(bot, client);
+  registerPool(bot, client, config);
   registerOnchain(bot, config);
   registerWatchlist(bot, client);
   registerMenu(bot, client, config);

@@ -6,5 +6,12 @@
   "pageSize": 50,
   "telegramBotToken": "123456:ABC-your-bot-token-from-BotFather",
   "telegramChatId": "your-numeric-chat-id",
-  "alertInterval": 0
+  "alertInterval": 0,
+  "pools": {
+    "sortBy": "fee_tvl_ratio_30m:desc",
+    "filterBy": "tvl>100",
+    "pageSize": 20,
+    "minMarketCap": 100000,
+    "maxMarketCap": 2000000
+  }
 }

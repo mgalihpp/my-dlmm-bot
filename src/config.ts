@@ -25,6 +25,14 @@ export interface VexisConfig {
   telegramChatId?: string;
   /** Periodic portfolio alert interval in hours (0 = off). */
   alertInterval?: number;
+  /** Default pool list filters/sort. */
+  pools?: {
+    sortBy?: string;
+    filterBy?: string;
+    pageSize?: number;
+    minMarketCap?: number;
+    maxMarketCap?: number;
+  };
 }
 
 function candidatePaths(): string[] {

@@ -1,19 +1,23 @@
 import type { Bot, Context } from "grammy";
 import type { MeteoraClient } from "../../api.js";
+import type { VexisConfig } from "../../config.js";
 import { tgPoolList, tgPoolDetail, escapeMarkdown } from "../format.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
 
-export function registerPool(bot: Bot, client: MeteoraClient) {
+export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   bot.command("pools", async (ctx: Context) => {
     try {
-      const res = await client.pools({
-        pageSize: 15,
-        maxMarketCap: 2000000,
-        filterBy: "tvl>100",
-        sortBy: "fee_tvl_ratio_30m:desc",
-      });
-      await ctx.reply(tgPoolList(res.data), MD);
+      const poolCfg = config.pools ?? {};
+      const sortBy = poolCfg.sortBy ?? "fee_tvl_ratio_30m:desc";
+      const filterBy = poolCfg.filterBy ?? "tvl>100";
+      const pageSize = poolCfg.pageSize ?? 15;
+      const minMc = poolCfg.minMarketCap ?? 100000;
+      const maxMc = poolCfg.maxMarketCap ?? 2000000;
+
+      const res = await client.pools({ pageSize, filterBy, sortBy });
+      const filtered = res.data.filter((p) => p.token_x.market_cap >= minMc && p.token_x.market_cap <= maxMc);
+      await ctx.reply(tgPoolList(filtered), MD);
     } catch (e) {
       await replyError(ctx, e);
     }
