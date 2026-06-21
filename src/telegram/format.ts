@@ -42,9 +42,15 @@ export function tgSol(value: string | number | null): string {
   return escapeMarkdown(`${sign}${formatNum(Math.abs(n), 3)} ◎`);
 }
 
-export function tgShortAddr(addr: string, len = 4): string {
-  if (!addr || addr.length <= len * 2 + 2) return tgCode(addr);
-  return tgCode(`${addr.slice(0, len)}…${addr.slice(-len)}`);
+/** Full address in a code span — tap to copy in Telegram. */
+export function tgShortAddr(addr: string): string {
+  return tgCode(addr);
+}
+
+/** Full pool address as a tappable code span + a link to the Meteora app. */
+export function tgPoolAddr(addr: string): string {
+  const url = `https://app.meteora.ag/dlmm/${addr}`;
+  return `${tgCode(addr)}\n  🔗 [Open in Meteora](${escapeMarkdown(url)})`;
 }
 
 const tgPair = (x: string, y: string) => escapeMarkdown(`${x ?? "?"}/${y ?? "?"}`);
@@ -67,7 +73,8 @@ export function tgOpenPools(pools: OpenPool[]): string {
   for (const p of pools) {
     const range = p.outOfRange ? " ⚠️ out of range" : "";
     lines.push(
-      `${tgBold(tgPair(p.tokenX, p.tokenY))} ${tgShortAddr(p.poolAddress)}${escapeMarkdown(range)}`,
+      `${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
+      `  ${tgPoolAddr(p.poolAddress)}`,
       `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
       `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
       ""
@@ -82,7 +89,8 @@ export function tgClosedPools(pools: ClosedPool[]): string {
   const lines = [tgBold("📉 Closed Positions"), ""];
   for (const p of pools) {
     lines.push(
-      `${tgBold(tgPair(p.tokenX, p.tokenY))} ${tgShortAddr(p.poolAddress)}`,
+      `${tgBold(tgPair(p.tokenX, p.tokenY))}`,
+      `  ${tgPoolAddr(p.poolAddress)}`,
       `  Deposit: ${tgUsd(p.totalDeposit)} \\| Withdraw: ${tgUsd(p.totalWithdrawal)}`,
       `  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\)`,
       ""
@@ -97,7 +105,8 @@ export function tgPoolList(pools: DlmmPool[]): string {
   const lines = [tgBold("🏆 Top Pools \\(by fee/TVL 24h\\)"), ""];
   pools.forEach((p, i) => {
     lines.push(
-      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))} ${tgShortAddr(p.address)}`,
+      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(p.name))}`,
+      `  ${tgPoolAddr(p.address)}`,
       `  TVL: ${tgUsd(p.tvl)} \\| APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 24h: ${tgUsd(p.volume["24h"])}`,
       `  Fee/TVL 24h: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["24h"])}%`)}`,
       ""
@@ -110,7 +119,8 @@ export function tgPoolList(pools: DlmmPool[]): string {
 export function tgPoolDetail(p: DlmmPool): string {
   const farm = p.has_farm ? ` \\(Farm: ${escapeMarkdown(`${formatNum(p.farm_apr)}%`)}\\)` : "";
   const lines = [
-    `${tgBold("🔍 " + p.name)} ${tgShortAddr(p.address)}`,
+    tgBold("🔍 " + p.name),
+    `${tgPoolAddr(p.address)}`,
     "",
     `Tokens: ${escapeMarkdown(`${p.token_x.symbol} / ${p.token_y.symbol}`)}`,
     `Price: ${escapeMarkdown(formatNum(p.current_price, 6))}`,
