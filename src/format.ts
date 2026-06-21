@@ -55,7 +55,8 @@ export function pnlSol(value: string | number | null): string {
   return c(n > 0 ? ansi.green : ansi.red, n > 0 ? `+${s}` : `-${s}`);
 }
 
-export function pct(value: string | number): string {
+export function pct(value: string | number | null): string {
+  if (value === null || value === undefined) return dim("-");
   const n = typeof value === "number" ? value : parseFloat(value);
   if (Number.isNaN(n)) return String(value);
   const s = `${formatNum(Math.abs(n))}%`;

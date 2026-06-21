@@ -8,3 +8,6 @@ vexis.config.json
 
 # telegram alert state (per-machine runtime state)
 .vexis-alerts.json
+
+# watchlist state (per-machine runtime state)
+.vexis-watchlist.json

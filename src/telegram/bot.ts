@@ -9,6 +9,7 @@ import {
 import { registerPortfolio } from "./handlers/portfolio.js";
 import { registerPool } from "./handlers/pool.js";
 import { registerOnchain } from "./handlers/onchain.js";
+import { registerWatchlist } from "./handlers/watchlist.js";
 import {
   createAlerts,
   registerAlertCommands,
@@ -28,6 +29,13 @@ const HELP = [
   escapeMarkdown("/pools - top pools by fee/TVL"),
   escapeMarkdown("/pool <address> - pool detail"),
   escapeMarkdown("/config - show active config"),
+  "",
+  tgBold("Watchlist"),
+  escapeMarkdown("/watchadd <wallet> [label] - add wallet"),
+  escapeMarkdown("/watchremove <wallet> - remove wallet"),
+  escapeMarkdown("/watchlist - list watched wallets"),
+  escapeMarkdown("/watchpositions - positions of all watched wallets"),
+  escapeMarkdown("/wallets <w1> [w2]... - query any wallets"),
   "",
   tgBold("On-chain"),
   escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]"),
@@ -83,6 +91,7 @@ async function main() {
   registerPortfolio(bot, client, config);
   registerPool(bot, client);
   registerOnchain(bot, config);
+  registerWatchlist(bot, client);
   registerMenu(bot, client, config);
 
   // Alerts need a destination chat. Only enable if one is configured.
@@ -111,6 +120,11 @@ async function main() {
     { command: "removeliq", description: "Remove liquidity from position" },
     { command: "claimfee", description: "Claim fees from position" },
     { command: "claimreward", description: "Claim rewards from position" },
+    { command: "watchadd", description: "Add wallet to watchlist" },
+    { command: "watchremove", description: "Remove wallet from watchlist" },
+    { command: "watchlist", description: "List watched wallets" },
+    { command: "watchpositions", description: "Positions of watched wallets" },
+    { command: "wallets", description: "Query any wallets" },
     { command: "alerts", description: "Show active alerts" },
     { command: "setalert", description: "Set price/pool alert" },
     { command: "stopalert", description: "Stop an alert" },

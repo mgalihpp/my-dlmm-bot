@@ -1,12 +1,13 @@
 // Telegram MarkdownV2 formatters. Reuses the plain number-formatting helpers
 // from ../format.js (the ANSI color wrappers are skipped — no TTY in a bot).
-import { formatNum } from "../format.js";
+import { formatNum, shortAddr } from "../format.js";
 import type {
   PortfolioTotal,
   OpenPool,
   ClosedPool,
   DlmmPool,
 } from "../types.js";
+import type { WatchedWallet } from "../watchlist.js";
 
 // MarkdownV2 requires escaping these characters everywhere except inside
 // code/pre entities: _ * [ ] ( ) ~ ` > # + - = | { } . !
@@ -148,6 +149,56 @@ export function tgPositionAlert(
     `  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`,
     `  Positions: ${escapeMarkdown(String(opts.positions))}${escapeMarkdown(range)}`,
   ];
+  return lines.join("\n");
+}
+
+export interface WalletPositions {
+  wallet: WatchedWallet;
+  pools: OpenPool[];
+}
+
+export function tgWatchedList(wallets: WatchedWallet[]): string {
+  if (wallets.length === 0) return tgBold("📭 No watched wallets");
+  const lines = [tgBold("👁️ Watched Wallets"), ""];
+  for (const w of wallets) {
+    const label = w.label ? ` \\(${escapeMarkdown(w.label)}\\)` : "";
+    lines.push(
+      `• ${tgCode(w.address)}${label}`,
+    );
+  }
+  lines.push(
+    "",
+    `Total: ${escapeMarkdown(String(wallets.length))} wallets`,
+  );
+  return lines.join("\n");
+}
+
+export function tgMultiWalletPositions(results: WalletPositions[]): string {
+  const lines = [tgBold("👁️ All Watched Positions"), ""];
+  let totalPositions = 0;
+  for (const r of results) {
+    const label = r.wallet.label
+      ? ` \\(${escapeMarkdown(r.wallet.label)}\\)`
+      : "";
+    lines.push(
+      `${tgBold(`🔹 ${shortAddr(r.wallet.address)}`)}${label}`,
+    );
+    if (r.pools.length === 0) {
+      lines.push(`  ${escapeMarkdown("No open positions")}`);
+    } else {
+      for (const p of r.pools) {
+        totalPositions += p.openPositionCount;
+        const range = p.outOfRange ? " ⚠️" : "";
+        lines.push(
+          `  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
+          `  Balance: ${tgUsd(p.balances)} \\| PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\)`,
+          `  Positions: ${escapeMarkdown(String(p.openPositionCount))} \\| Pool: ${tgCode(shortAddr(p.poolAddress, 8))}`,
+        );
+      }
+    }
+    lines.push("");
+  }
+  lines.push(escapeMarkdown(`Total: ${totalPositions} positions across ${results.length} wallets`));
   return lines.join("\n");
 }
 

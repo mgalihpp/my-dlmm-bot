@@ -782,6 +782,156 @@ poolCmd
     }
   });
 
+// ---- watch ----
+const watchCmd = program
+  .command("watch")
+  .description("manage watched wallets");
+
+watchCmd
+  .command("add <wallet>")
+  .description("add a wallet to the watchlist")
+  .option("-l, --label <label>", "friendly label for the wallet")
+  .action(
+    async (
+      wallet: string,
+      opts: { label?: string },
+    ) => {
+      try {
+        const { addWallet } = await import("./watchlist.js");
+        const entry = addWallet(wallet, opts.label);
+        const desc = entry.label ? ` (${entry.label})` : "";
+        console.log(`${bold("✓ Added")} ${gray(wallet)}${desc}`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+watchCmd
+  .command("remove <wallet>")
+  .description("remove a wallet from the watchlist")
+  .action(
+    async (wallet: string) => {
+      try {
+        const { removeWallet } = await import("./watchlist.js");
+        if (removeWallet(wallet)) {
+          console.log(`${bold("✓ Removed")} ${gray(wallet)}`);
+        } else {
+          console.log(dim("Wallet not found in watchlist."));
+        }
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+watchCmd
+  .command("list")
+  .description("list all watched wallets")
+  .action(
+    async () => {
+      try {
+        const { listWallets } = await import("./watchlist.js");
+        const wallets = listWallets();
+        if (wallets.length === 0) {
+          console.log(dim("No watched wallets. Add one with: vexis watch add <wallet>"));
+          return;
+        }
+        console.log(`\n${bold("Watched Wallets")}`);
+        for (const w of wallets) {
+          const label = w.label ? ` ${dim(`(${w.label})`)}` : "";
+          console.log(`  ${gray(shortAddr(w.address))}${label}`);
+        }
+        console.log(dim(`\n  ${wallets.length} wallet(s)\n`));
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+watchCmd
+  .command("positions")
+  .description("show open positions for all watched wallets")
+  .option("--json", "output raw JSON")
+  .action(
+    async (opts: { json?: boolean }) => {
+      try {
+        const { listWallets } = await import("./watchlist.js");
+        const wallets = listWallets();
+        if (wallets.length === 0) {
+          console.log(dim("No watched wallets. Add one with: vexis watch add <wallet>"));
+          return;
+        }
+        const c = new MeteoraClient({ dev: config.dev });
+        for (const w of wallets) {
+          const label = w.label ? ` (${w.label})` : "";
+          console.log(`\n${bold(cyan(shortAddr(w.address)))}${gray(label)}`);
+          try {
+            const data = await c.openPortfolio(w.address, 1, 50);
+            if (!data.pools.length) {
+              console.log(dim("  No open positions."));
+            } else {
+              for (const p of data.pools) {
+                const range = p.outOfRange ? " ⚠ out of range" : "";
+                console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
+                console.log(`    Pool: ${p.poolAddress}`);
+                console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
+                console.log(`    Positions: ${p.openPositionCount}`);
+              }
+            }
+          } catch {
+            console.log(dim("  Failed to fetch positions."));
+          }
+        }
+        console.log();
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+// ---- wallets ----
+program
+  .command("wallets <addresses...>")
+  .description("query open positions for one or more wallets on-the-fly")
+  .option("--json", "output raw JSON")
+  .action(
+    async (
+      addresses: string[],
+      opts: { json?: boolean },
+    ) => {
+      try {
+        const c = new MeteoraClient({ dev: config.dev });
+        for (const wallet of addresses) {
+          console.log(`\n${bold(cyan(shortAddr(wallet)))}`);
+          try {
+            const data = await c.openPortfolio(wallet, 1, 50);
+            if (opts.json) {
+              console.log(JSON.stringify(data, null, 2));
+              continue;
+            }
+            if (!data.pools.length) {
+              console.log(dim("  No open positions."));
+            } else {
+              for (const p of data.pools) {
+                const range = p.outOfRange ? " ⚠ out of range" : "";
+                console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
+                console.log(`    Pool: ${p.poolAddress}`);
+                console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
+                console.log(`    Positions: ${p.openPositionCount}`);
+              }
+            }
+          } catch {
+            console.log(dim("  Failed to fetch positions."));
+          }
+        }
+        console.log();
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
 function pageHint(hasNext: boolean, page: number): void {
   if (hasNext) console.log(dim(`\n  More results — use --page ${page + 1}`));
 }

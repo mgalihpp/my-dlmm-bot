@@ -9,6 +9,7 @@ import {
   tgPoolList,
   escapeMarkdown,
   tgBold,
+  type WalletPositions,
 } from "./format.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
@@ -83,6 +84,68 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     }
   });
 
+  // ─── Watchlist ───────────────────────────────────────────────────────────
+  bot.callbackQuery(/^menu:watchlist$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const text = [
+      tgBold("👁️ Watchlist"),
+      "",
+      "`/watchadd <wallet> [label]` — add wallet",
+      "`/watchremove <wallet>` — remove wallet",
+      "`/watchlist` — lihat watched wallets",
+      "`/watchpositions` — positions semua wallet",
+      "`/wallets <w1> [w2]...` — query any wallets",
+      "",
+    ].join("\n");
+    const kb = new InlineKeyboard()
+      .text("📋 List Wallets", "menu:watchlist_list")
+      .text("📈 Positions", "menu:watchlist_positions")
+      .row()
+      .text("⬅️ Back", "menu:main");
+    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^menu:watchlist_list$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const { listWallets } = await import("../watchlist.js");
+    const wallets = listWallets();
+    const { tgWatchedList } = await import("./format.js");
+    const text = tgWatchedList(wallets);
+    const kb = new InlineKeyboard()
+      .text("📈 Positions", "menu:watchlist_positions")
+      .row()
+      .text("⬅️ Watchlist", "menu:watchlist");
+    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+  });
+
+  bot.callbackQuery(/^menu:watchlist_positions$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    await ctx.editMessageText("⏳ Loading positions\\.\\.\\.", MD);
+    try {
+      const { listWallets } = await import("../watchlist.js");
+      const wallets = listWallets();
+      const { tgMultiWalletPositions } = await import("./format.js");
+      const results: WalletPositions[] = [];
+      for (const w of wallets) {
+        try {
+          const res = await client.openPortfolio(w.address, 1, 10);
+          results.push({ wallet: w, pools: res.pools ?? [] });
+        } catch {
+          results.push({ wallet: w, pools: [] });
+        }
+      }
+      const text = tgMultiWalletPositions(results);
+      const kb = new InlineKeyboard()
+        .text("🔄 Refresh", "menu:watchlist_positions")
+        .row()
+        .text("⬅️ Watchlist", "menu:watchlist");
+      await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, { ...MD, reply_markup: backKeyboard("watchlist") });
+    }
+  });
+
   // ─── Alerts ──────────────────────────────────────────────────────────────
   bot.callbackQuery(/^menu:alerts$/, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -119,6 +182,13 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       "`/claimfee` — claim fees",
       "`/claimreward` — claim rewards",
       "",
+      tgBold("Watchlist"),
+      "`/watchadd <wallet>` — add to watchlist",
+      "`/watchremove <wallet>` — remove from watchlist",
+      "`/watchlist` — list watched wallets",
+      "`/watchpositions` — positions semua wallet",
+      "`/wallets <w1> [w2]...` — query any wallets",
+      "",
       tgBold("Alerts"),
       "`/setalert` — enable alerts",
       "`/stopalert` — disable alerts",
@@ -136,6 +206,7 @@ function mainMenuKeyboard(): InlineKeyboard {
     .text("📈 Open", "menu:open")
     .text("📉 Closed", "menu:closed")
     .row()
+    .text("👁️ Watch", "menu:watchlist")
     .text("🔥 Pools", "menu:pools")
     .text("🔔 Alerts", "menu:alerts")
     .row()
