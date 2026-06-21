@@ -33,15 +33,25 @@ export interface ZapOutResult {
   zapSig?: string;
 }
 
+const JUPITER_API_URL = "https://api.jup.ag";
+const JUPITER_API_KEY = "jup_c5bbdfe316b65f3db508f78f9ece2508b7d7e3e7704f4d04e282b273a60b14c9";
+
 export class ZapClient {
   private connection: Connection;
   private keypair: Keypair;
   private jupiterApiUrl: string;
+  private jupiterApiKey: string;
 
-  constructor(keypair: Keypair, rpcUrl: string, jupiterApiUrl: string = "https://lite-api.jup.ag") {
+  constructor(keypair: Keypair, rpcUrl: string, jupiterApiUrl: string = JUPITER_API_URL) {
     this.connection = new Connection(rpcUrl, "confirmed");
     this.keypair = keypair;
     this.jupiterApiUrl = jupiterApiUrl;
+    this.jupiterApiKey = JUPITER_API_KEY;
+  }
+
+  /** Jupiter SDK config (url + key) passed to every swap call. */
+  private get jupiterConfig() {
+    return { jupiterApiUrl: this.jupiterApiUrl, jupiterApiKey: this.jupiterApiKey };
   }
 
   // ─── Public API ────────────────────────────────────────────────────────────
@@ -263,7 +273,7 @@ export class ZapClient {
           40,    // maxAccounts
           slippageBps,
           undefined,
-          { jupiterApiUrl: this.jupiterApiUrl }
+          this.jupiterConfig
         );
         swapTx.feePayer = this.keypair.publicKey;
         swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
