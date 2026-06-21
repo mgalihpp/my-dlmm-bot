@@ -1,6 +1,37 @@
 // Meteora DLMM Data API response types
 // Docs: https://docs.meteora.ag/api-reference/dlmm/portfolio
 
+// On-chain operation types
+export type StrategyType = "spot" | "bidask" | "curve";
+
+export interface CreatePositionParams {
+  poolAddress: string;
+  strategy: StrategyType;
+  totalXAmount: string;
+  totalYAmount: string;
+  minBinId: number;
+  maxBinId: number;
+  singleSidedX: boolean;
+}
+
+export interface AddLiquidityParams {
+  poolAddress: string;
+  positionPubkey: string;
+  totalXAmount: string;
+  totalYAmount: string;
+  strategy: StrategyType;
+  minBinId: number;
+  maxBinId: number;
+}
+
+export interface RemoveLiquidityParams {
+  poolAddress: string;
+  positionPubkey: string;
+  bpsToRemove: number;
+  shouldClaimAndClose: boolean;
+}
+
+// Portfolio data types
 export interface PortfolioTotal {
   totalPnlUsd: string;
   totalPnlSol: string;
@@ -78,4 +109,64 @@ export interface ClosedPortfolioResponse {
   totalCount: number;
   totalPositions: number;
   pools: ClosedPool[];
+}
+
+// Pool info types
+export interface TokenInfo {
+  address: string;
+  symbol: string;
+  decimals: number;
+  price: number;
+  is_verified: boolean;
+  holders: number;
+}
+
+export interface TimeWindowData {
+  "30m": number;
+  "1h": number;
+  "2h": number;
+  "4h": number;
+  "12h": number;
+  "24h": number;
+}
+
+export interface DlmmPool {
+  address: string;
+  name: string;
+  token_x: TokenInfo;
+  token_y: TokenInfo;
+  tvl: number;
+  current_price: number;
+  apr: number;
+  apy: number;
+  farm_apr: number;
+  has_farm: boolean;
+  dynamic_fee_pct: number;
+  pool_config: {
+    bin_step: number;
+    base_fee_pct: number;
+    max_fee_pct: number;
+    protocol_fee_pct: number;
+  };
+  volume: TimeWindowData;
+  fees: TimeWindowData;
+  protocol_fees: TimeWindowData;
+  fee_tvl_ratio: TimeWindowData;
+  cumulative_metrics: {
+    volume: number;
+    fees: number;
+  };
+}
+
+export interface DlmmPoolsResponse {
+  total: number;
+  pages: number;
+  current_page: number;
+  page_size: number;
+  data: DlmmPool[];
+}
+
+export interface PoolHistoricalVolume {
+  timestamp: number;
+  volume: number;
 }

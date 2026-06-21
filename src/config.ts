@@ -5,10 +5,15 @@
 import { readFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
+import { Keypair } from "@solana/web3.js";
 
 export interface VexisConfig {
   /** Default wallet address used when none is passed on the CLI. */
   wallet?: string;
+  /** Private key (base58) for on-chain operations. */
+  privateKey?: string;
+  /** RPC endpoint (defaults to mainnet-beta if not set). */
+  rpcUrl?: string;
   /** Use the dev API server by default. */
   dev?: boolean;
   /** Default page size (max 50). */
@@ -44,4 +49,24 @@ export function resolveWallet(arg: string | undefined, config: VexisConfig): str
   throw new Error(
     "No wallet given and no default in config. Pass a wallet address or set one in vexis.config.json."
   );
+}
+
+/** Load keypair for signing: env VEXIS_PRIVATE_KEY → config.privateKey. */
+export function resolveKeypair(config: VexisConfig): Keypair {
+  const privateKeyBase58 = process.env.VEXIS_PRIVATE_KEY || config.privateKey;
+  if (!privateKeyBase58) {
+    throw new Error(
+      "No private key found. Set VEXIS_PRIVATE_KEY env var or privateKey in vexis.config.json."
+    );
+  }
+  try {
+    return Keypair.fromSecretKey(Buffer.from(privateKeyBase58, "base64"));
+  } catch {
+    throw new Error("Invalid private key format (expected base64 or solana CLI base58).");
+  }
+}
+
+/** Get RPC URL: config.rpcUrl → mainnet-beta default. */
+export function resolveRpc(config: VexisConfig): string {
+  return config.rpcUrl || "https://api.mainnet-beta.solana.com";
 }

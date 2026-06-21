@@ -1,5 +1,7 @@
 {
   "wallet": "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt",
+  "privateKey": "your-base64-private-key-or-base58",
+  "rpcUrl": "https://api.mainnet-beta.solana.com",
   "dev": false,
   "pageSize": 50
 }

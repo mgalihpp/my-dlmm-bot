@@ -1,6 +1,10 @@
 # vexis-dlmm-bot
 
-CLI untuk menampilkan portfolio Meteora DLMM — posisi terbuka (open) maupun yang sudah ditutup (closed) — langsung dari [Meteora Data API](https://docs.meteora.ag/api-reference/dlmm/portfolio). Hanya butuh wallet address, tanpa RPC.
+**Read-only portfolio viewer + On-chain liquidity manager** untuk Meteora DLMM.
+
+**Read-only**: Lihat posisi terbuka/tertutup dan total PnL langsung dari [Meteora Data API](https://docs.meteora.ag/api-reference/dlmm/portfolio). Hanya butuh wallet address.
+
+**On-chain operations**: Buat, close, dan manage posisi DLMM langsung dari CLI. Butuh private key + RPC endpoint.
 
 ## Install
 
@@ -17,10 +21,35 @@ npm run dev -- open <wallet>
 
 ## Perintah
 
+### Portfolio (Read-only)
 ```bash
 vexis open <wallet>      # posisi terbuka, dikelompokkan per pool
 vexis closed <wallet>    # pool yang berisi posisi tertutup (deposit/withdraw/fee/PnL)
 vexis summary <wallet>   # total PnL portfolio (USD & SOL)
+```
+
+### Operasi On-Chain (Requires private key)
+```bash
+# Position management
+vexis position create <poolAddress> --strategy spot|bidask|curve --x-amount <n> --y-amount <n> --min-bin <n> --max-bin <n>
+vexis position close <poolAddress> <positionPubkey>
+
+# Liquidity management
+vexis liquidity add <poolAddress> <positionPubkey> --strategy spot|bidask|curve --x-amount <n> --y-amount <n>
+vexis liquidity remove <poolAddress> <positionPubkey> --bps <1-10000> [--close]
+
+# Claim earnings
+vexis claim fee <poolAddress> <positionPubkey>
+vexis claim reward <poolAddress> <positionPubkey>
+```
+
+### Pool Analytics (Read-only)
+```bash
+vexis pool list                                  # daftar top 20 pools (default sort: fee/TVL ratio 24h)
+vexis pool list --sort tvl:desc -s 5            # top 5 pools by TVL
+vexis pool list --sort volume_24h:desc          # pools by 24h volume
+vexis pool info <poolAddress>                   # detail satu pool (TVL, APR, volume, fees, sparkline)
+vexis pool list --json                          # raw JSON output
 ```
 
 ## Config
@@ -30,13 +59,21 @@ Buat `vexis.config.json` (lihat `vexis.config.example.json`) supaya tidak perlu 
 ```json
 {
   "wallet": "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt",
+  "privateKey": "base64-encoded-secret-key",
+  "rpcUrl": "https://api.mainnet-beta.solana.com",
   "dev": false,
   "pageSize": 50
 }
 ```
 
-- `wallet` — wallet default saat argumen tidak diberikan.
-- `dev`, `pageSize` — default untuk `--dev` dan `--page-size`.
+Field config:
+- `wallet` — wallet display (digunakan untuk read-only commands)
+- `privateKey` — base64-encoded secret key (hanya diperlukan untuk on-chain operations)
+- `rpcUrl` — RPC endpoint (default: mainnet-beta, bisa override)
+- `dev` — gunakan dev API server (default: false)
+- `pageSize` — default page size (default: 50)
+
+Alternatif: set `VEXIS_PRIVATE_KEY` env var untuk private key (lebih aman dari config).
 
 Lokasi config dicari berurutan: `$VEXIS_CONFIG` → `./vexis.config.json` → `~/.vexis/config.json`.
 
@@ -47,26 +84,81 @@ vexis config          # tampilkan config aktif & lokasinya
 
 CLI argument & flag selalu menimpa nilai dari config.
 
-### Opsi
+### Opsi Global
 
 | Opsi | Berlaku di | Keterangan |
 |------|-----------|------------|
 | `--json` | semua | output JSON mentah |
 | `--dev` | semua | pakai server API dev (`dlmm.dev.metdev.io`) |
-| `-p, --page <n>` | open/closed | nomor halaman (default 1) |
-| `-s, --page-size <n>` | open/closed | jumlah per halaman, maks 50 (default 50) |
+| `-p, --page <n>` | pool list, open, closed | nomor halaman (default 1) |
+| `-s, --page-size <n>` | pool list, open, closed | jumlah per halaman (default 20 untuk pool, 50 untuk portfolio) |
 
 Set `NO_COLOR=1` untuk menonaktifkan warna.
 
+### Pool List Sort Options
+
+`vexis pool list --sort <field>:<asc|desc>`
+
+Opsi sort yang valid:
+- `tvl:desc` — TVL terbesar
+- `volume_24h:desc` — Volume 24h terbesar
+- `volume_30m:desc` — Volume 30m terbesar (cocok untuk detecting momentum)
+- `fee_24h:desc` — Fee revenue terbesar
+- `fee_tvl_ratio_24h:desc` — Fee/TVL ratio (default) — yield efisiensi terbaik
+- `apr_24h:desc` — APR terbesar (jika farm aktif)
+
+Contoh: `vexis pool list --sort volume_24h:desc` atau `vexis pool list --sort tvl:desc`
+
 ## Contoh
 
+### Portfolio
 ```bash
 vexis open DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt
 vexis summary <wallet> --json
 ```
 
+### On-Chain Operations
+```bash
+# Preview sebelum execute
+vexis position create <poolAddress> --strategy spot --x-amount 1000000 --y-amount 1000000 --min-bin -100 --max-bin 100 --dry-run
+
+# Execute dengan confirmation
+vexis position create <poolAddress> --strategy spot --x-amount 1000000 --y-amount 1000000 --min-bin -100 --max-bin 100 --yes
+
+# Add liquidity
+vexis liquidity add <poolAddress> <positionPubkey> --strategy spot --x-amount 500000 --y-amount 500000 --yes
+
+# Remove 50% of liquidity
+vexis liquidity remove <poolAddress> <positionPubkey> --bps 5000 --yes
+
+# Close position
+vexis position close <poolAddress> <positionPubkey> --yes
+
+# Claim fees dan rewards
+vexis claim fee <poolAddress> <positionPubkey> --yes
+vexis claim reward <poolAddress> <positionPubkey> --yes
+```
+
+## Safety
+
+- **`--dry-run`** — Preview transaction tanpa mengirim ke chain
+- **`--yes`** — Skip confirmation prompt (gunakan dengan hati-hati!)
+- **Private key** — Disimpan di config atau env var, jangan commit ke git
+- **RPC** — Defaultnya mainnet-beta public node (rate-limited), pertimbangkan private RPC untuk production
+
 ## Endpoint yang dipakai
 
+**Portfolio** (Meteora Data API):
 - `GET /portfolio/open` — posisi terbuka per-pool
 - `GET /portfolio` — pool dengan posisi tertutup
 - `GET /portfolio/total` — total PnL agregat
+
+**Pool Analytics** (Meteora Data API):
+- `GET /pools` — daftar pool dengan sorting & filtering
+- `GET /pools/{address}` — detail pool spesifik
+- `GET /pools/{address}/historical-volume` — volume history untuk sparkline
+
+**On-chain Operations** (Meteora DLMM SDK):
+- Create/close positions
+- Add/remove liquidity
+- Claim fees & rewards

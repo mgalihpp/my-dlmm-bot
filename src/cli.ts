@@ -1,7 +1,18 @@
 #!/usr/bin/env node
 import { Command } from "commander";
 import { MeteoraClient } from "./api.js";
-import { loadConfig, resolveWallet, type VexisConfig } from "./config.js";
+import {
+  loadConfig,
+  resolveWallet,
+  resolveKeypair,
+  resolveRpc,
+  type VexisConfig,
+} from "./config.js";
+
+const lazyLoadDLMM = async () => {
+  const { DLMMClient } = await import("./dlmm.js");
+  return DLMMClient;
+};
 import {
   bold,
   cyan,
@@ -15,8 +26,9 @@ import {
   pair,
   timeAgo,
   table,
+  sparkline,
 } from "./format.js";
-import type { OpenPool, ClosedPool } from "./types.js";
+import type { OpenPool, ClosedPool, DlmmPool } from "./types.js";
 
 const program = new Command();
 
@@ -45,7 +57,7 @@ Examples:
 Config (vexis.config.json):
   { "wallet": "<address>", "dev": false, "pageSize": 50 }
   Lookup order: $VEXIS_CONFIG -> ./vexis.config.json -> ~/.vexis/config.json
-`
+`,
   );
 
 interface CommonOpts {
@@ -75,7 +87,9 @@ function addCommon(cmd: Command): Command {
 }
 
 function fail(err: unknown): never {
-  console.error(`\n${bold("✖ Error:")} ${err instanceof Error ? err.message : String(err)}`);
+  console.error(
+    `\n${bold("✖ Error:")} ${err instanceof Error ? err.message : String(err)}`,
+  );
   process.exit(1);
 }
 
@@ -83,12 +97,16 @@ function fail(err: unknown): never {
 addCommon(
   program
     .command("open [wallet]")
-    .description("show open positions grouped by pool")
+    .description("show open positions grouped by pool"),
 ).action(async (walletArg: string | undefined, opts: CommonOpts) => {
   try {
     const wallet = resolveWallet(walletArg, config);
     const c = new MeteoraClient({ dev: useDev(opts, config) });
-    const data = await c.openPortfolio(wallet, +opts.page, pageSize(opts, config));
+    const data = await c.openPortfolio(
+      wallet,
+      +opts.page,
+      pageSize(opts, config),
+    );
     if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
     console.log(`\n${bold("Open Positions")} ${gray(shortAddr(wallet, 6))}`);
@@ -112,9 +130,19 @@ addCommon(
     console.log(
       "\n" +
         table(
-          ["Pair", "Pool", "#Pos", "Balance", "Unclaimed", "PnL", "PnL SOL", "PnL%", "Range"],
-          rows
-        )
+          [
+            "Pair",
+            "Pool",
+            "#Pos",
+            "Balance",
+            "Unclaimed",
+            "PnL",
+            "PnL SOL",
+            "PnL%",
+            "Range",
+          ],
+          rows,
+        ),
     );
 
     const t = data.total;
@@ -127,7 +155,7 @@ addCommon(
             `  Unclaimed: ${usd(t.unclaimedFees)}`,
             `  PnL:       ${pnlColor(t.pnl)}  (${pct(t.pnlPctChange)})`,
             `  PnL (SOL): ${pnlSol(t.pnlSol)}`,
-          ].join("\n")
+          ].join("\n"),
       );
     }
     pageHint(data.hasNext, +opts.page);
@@ -140,12 +168,16 @@ addCommon(
 addCommon(
   program
     .command("closed [wallet]")
-    .description("show pools that contain closed positions")
+    .description("show pools that contain closed positions"),
 ).action(async (walletArg: string | undefined, opts: CommonOpts) => {
   try {
     const wallet = resolveWallet(walletArg, config);
     const c = new MeteoraClient({ dev: useDev(opts, config) });
-    const data = await c.closedPortfolio(wallet, +opts.page, pageSize(opts, config));
+    const data = await c.closedPortfolio(
+      wallet,
+      +opts.page,
+      pageSize(opts, config),
+    );
     if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
     console.log(`\n${bold("Closed Positions")} ${gray(shortAddr(wallet, 6))}`);
@@ -169,9 +201,19 @@ addCommon(
     console.log(
       "\n" +
         table(
-          ["Pair", "Pool", "Deposit", "Withdraw", "Fees", "PnL", "PnL SOL", "PnL%", "Closed"],
-          rows
-        )
+          [
+            "Pair",
+            "Pool",
+            "Deposit",
+            "Withdraw",
+            "Fees",
+            "PnL",
+            "PnL SOL",
+            "PnL%",
+            "Closed",
+          ],
+          rows,
+        ),
     );
     pageHint(data.hasNext, +opts.page);
   } catch (e) {
@@ -185,20 +227,31 @@ program
   .description("show total portfolio PnL across all pools")
   .option("--dev", "use the dev API server")
   .option("--json", "output raw JSON")
-  .action(async (walletArg: string | undefined, opts: { dev?: boolean; json?: boolean }) => {
-    try {
-      const wallet = resolveWallet(walletArg, config);
-      const c = new MeteoraClient({ dev: useDev(opts, config) });
-      const data = await c.totalPnl(wallet);
-      if (opts.json) return void console.log(JSON.stringify(data, null, 2));
+  .action(
+    async (
+      walletArg: string | undefined,
+      opts: { dev?: boolean; json?: boolean },
+    ) => {
+      try {
+        const wallet = resolveWallet(walletArg, config);
+        const c = new MeteoraClient({ dev: useDev(opts, config) });
+        const data = await c.totalPnl(wallet);
+        if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
-      console.log(`\n${bold("Portfolio Summary")} ${gray(shortAddr(wallet, 6))}\n`);
-      console.log(`  Total PnL (USD): ${pnlColor(data.totalPnlUsd)}  (${pct(data.totalPnlPctChange)})`);
-      console.log(`  Total PnL (SOL): ${pnlColor(data.totalPnlSol)}  (${pct(data.totalPnlSolPctChange)})`);
-    } catch (e) {
-      fail(e);
-    }
-  });
+        console.log(
+          `\n${bold("Portfolio Summary")} ${gray(shortAddr(wallet, 6))}\n`,
+        );
+        console.log(
+          `  Total PnL (USD): ${pnlColor(data.totalPnlUsd)}  (${pct(data.totalPnlPctChange)})`,
+        );
+        console.log(
+          `  Total PnL (SOL): ${pnlColor(data.totalPnlSol)}  (${pct(data.totalPnlSolPctChange)})`,
+        );
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
 
 // ---- config ----
 program
@@ -206,11 +259,482 @@ program
   .description("show the active config and where it was loaded from")
   .action(() => {
     if (!configPath) {
-      console.log(dim("No config file found. Create vexis.config.json (see vexis.config.example.json)."));
+      console.log(
+        dim(
+          "No config file found. Create vexis.config.json (see vexis.config.example.json).",
+        ),
+      );
       return;
     }
     console.log(`${bold("Config")} ${gray(configPath)}\n`);
     console.log(JSON.stringify(config, null, 2));
+  });
+
+// ---- position ----
+const positionCmd = program
+  .command("position")
+  .description("manage DLMM positions (create, close)");
+
+positionCmd
+  .command("create <poolAddress>")
+  .description("create a new position in a DLMM pool")
+  .requiredOption("--strategy <type>", "strategy: spot, bidask, or curve")
+  .requiredOption("--x-amount <n>", "amount of token X")
+  .requiredOption("--y-amount <n>", "amount of token Y")
+  .requiredOption("--min-bin <n>", "minimum bin ID")
+  .requiredOption("--max-bin <n>", "maximum bin ID")
+  .requiredOption("--single-sided", "is single side?")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      opts: {
+        strategy: string;
+        xAmount: string;
+        yAmount: string;
+        minBin: string;
+        maxBin: string;
+        singleSidedX?: boolean;
+        dryRun?: boolean;
+        yes?: boolean;
+      },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+
+        console.log(`\n${bold("Create Position")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Strategy: ${opts.strategy}`);
+        console.log(`  Token X:  ${usd(opts.xAmount)}`);
+        console.log(`  Token Y:  ${usd(opts.yAmount)}`);
+        console.log(`  Bin range: ${opts.minBin} to ${opts.maxBin}`);
+        console.log(
+          `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}`,
+        );
+        console.log(`  RPC:      ${gray(rpcUrl)}\n`);
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.createPosition({
+          poolAddress,
+          strategy: opts.strategy as "spot" | "bidask" | "curve",
+          totalXAmount: opts.xAmount,
+          totalYAmount: opts.yAmount,
+          minBinId: parseInt(opts.minBin),
+          maxBinId: parseInt(opts.maxBin),
+          singleSidedX: opts.singleSidedX ?? false,
+        });
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+positionCmd
+  .command("close <poolAddress> <positionPubkey>")
+  .description("close an existing position and withdraw all liquidity")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      positionPubkey: string,
+      opts: { dryRun?: boolean; yes?: boolean },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+
+        console.log(`\n${bold("Close Position")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Position: ${gray(shortAddr(positionPubkey))}`);
+        console.log(
+          `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}\n`,
+        );
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.closePosition(poolAddress, positionPubkey);
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+// ---- liquidity ----
+const liquidityCmd = program
+  .command("liquidity")
+  .description("manage liquidity (add, remove)");
+
+liquidityCmd
+  .command("add <poolAddress> <positionPubkey>")
+  .description("add liquidity to an existing position")
+  .requiredOption("--strategy <type>", "strategy: spot, bidask, or curve")
+  .requiredOption("--x-amount <n>", "amount of token X to add")
+  .requiredOption("--y-amount <n>", "amount of token Y to add")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      positionPubkey: string,
+      opts: {
+        strategy: string;
+        xAmount: string;
+        yAmount: string;
+        dryRun?: boolean;
+        yes?: boolean;
+      },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+
+        console.log(`\n${bold("Add Liquidity")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Position: ${gray(shortAddr(positionPubkey))}`);
+        console.log(`  Strategy: ${opts.strategy}`);
+        console.log(`  Token X:  ${usd(opts.xAmount)}`);
+        console.log(`  Token Y:  ${usd(opts.yAmount)}\n`);
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.addLiquidity({
+          poolAddress,
+          positionPubkey,
+          strategy: opts.strategy as "spot" | "bidask" | "curve",
+          totalXAmount: opts.xAmount,
+          totalYAmount: opts.yAmount,
+          minBinId: 0,
+          maxBinId: 0,
+        });
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+liquidityCmd
+  .command("remove <poolAddress> <positionPubkey>")
+  .description("remove liquidity from a position")
+  .requiredOption("--bps <n>", "basis points to remove (1-10000)")
+  .option("--close", "close position after removing all liquidity")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      positionPubkey: string,
+      opts: {
+        bps: string;
+        close?: boolean;
+        dryRun?: boolean;
+        yes?: boolean;
+      },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+        const bps = parseInt(opts.bps);
+
+        if (bps < 1 || bps > 10000) {
+          throw new Error("BPS must be between 1 and 10000");
+        }
+
+        console.log(`\n${bold("Remove Liquidity")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Position: ${gray(shortAddr(positionPubkey))}`);
+        console.log(`  BPS:      ${bps} (${(bps / 100) | 0}%)`);
+        if (opts.close) console.log(`  Will close position after removal`);
+        console.log();
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.removeLiquidity({
+          poolAddress,
+          positionPubkey,
+          bpsToRemove: bps,
+          shouldClaimAndClose: opts.close || false,
+        });
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+// ---- claim ----
+const claimCmd = program.command("claim").description("claim fees or rewards");
+
+claimCmd
+  .command("fee <poolAddress> <positionPubkey>")
+  .description("claim accumulated trading fees")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      positionPubkey: string,
+      opts: { dryRun?: boolean; yes?: boolean },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+
+        console.log(`\n${bold("Claim Fee")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Position: ${gray(shortAddr(positionPubkey))}\n`);
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.claimFee(poolAddress, positionPubkey);
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+claimCmd
+  .command("reward <poolAddress> <positionPubkey>")
+  .description("claim liquidity mining rewards")
+  .option("--dry-run", "preview without sending transaction")
+  .option("--yes", "skip confirmation prompt")
+  .action(
+    async (
+      poolAddress: string,
+      positionPubkey: string,
+      opts: { dryRun?: boolean; yes?: boolean },
+    ) => {
+      try {
+        const keypair = resolveKeypair(config);
+        const rpcUrl = resolveRpc(config);
+
+        console.log(`\n${bold("Claim Reward")}`);
+        console.log(`  Pool:     ${cyan(poolAddress)}`);
+        console.log(`  Position: ${gray(shortAddr(positionPubkey))}\n`);
+
+        if (opts.dryRun) {
+          console.log(dim("(--dry-run: transaction not sent)\n"));
+          return;
+        }
+
+        if (!opts.yes) {
+          console.log(dim("(Use --yes to skip confirmation)\n"));
+          return;
+        }
+
+        const DLMMClient = await lazyLoadDLMM();
+        const dlmm = new DLMMClient(keypair, rpcUrl);
+        console.log(dim("Sending transaction..."));
+
+        const sig = await dlmm.claimReward(poolAddress, positionPubkey);
+
+        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
+        console.log(`  https://solscan.io/tx/${sig}\n`);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+// ---- pool ----
+const poolCmd = program.command("pool").description("browse and analyze DLMM pools");
+
+poolCmd
+  .command("list")
+  .description("list top pools sorted by fee/TVL ratio (30m)")
+  .option("--sort <key>", "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy")
+  .option("--query <q>", "search by pool name, symbol, or address")
+  .option("-p, --page <n>", "page number", "1")
+  .option("-s, --page-size <n>", "page size (max 1000)", "20")
+  .option("--json", "output raw JSON")
+  .action(
+    async (opts: {
+      sort?: string;
+      query?: string;
+      page: string;
+      pageSize?: string;
+      json?: boolean;
+    }) => {
+      try {
+        const c = new MeteoraClient({ dev: config.dev });
+        const pageNum = parseInt(opts.page);
+        const pageSize = parseInt(opts.pageSize ?? "20");
+
+        const sortBy = opts.sort ? `${opts.sort}:desc` : "fee_tvl_ratio_30m:desc";
+
+        const data = await c.pools({
+          sortBy,
+          query: opts.query,
+          page: pageNum,
+          pageSize,
+        });
+
+        if (opts.json) {
+          console.log(JSON.stringify(data, null, 2));
+          return;
+        }
+
+        console.log(`\n${bold("Top Pools")} ${gray(`(${data.total} total)`)}`);
+        if (!data.data.length) {
+          console.log(dim("  No pools found."));
+          return;
+        }
+
+        const rows = data.data.map((p: DlmmPool) => [
+          cyan(`${p.token_x.symbol}/${p.token_y.symbol}`),
+          gray(shortAddr(p.address)),
+          usd(p.tvl),
+          usd(p.volume["30m"]),
+          usd(p.fees["30m"]),
+          pct(p.fee_tvl_ratio["30m"]),
+          pct(p.apr),
+          p.has_farm ? pct(p.farm_apr) : dim("-"),
+        ]);
+
+        console.log(
+          "\n" +
+            table(
+              ["Pair", "Pool", "TVL", "Vol 30m", "Fee 30m", "Fee/TVL", "APR", "Farm APR"],
+              rows,
+            ),
+        );
+
+        const hasNext = pageNum < data.pages;
+        pageHint(hasNext, pageNum);
+      } catch (e) {
+        fail(e);
+      }
+    },
+  );
+
+poolCmd
+  .command("info <address>")
+  .description("show detailed pool information")
+  .option("--json", "output raw JSON")
+  .action(async (address: string, opts: { json?: boolean }) => {
+    try {
+      const c = new MeteoraClient({ dev: config.dev });
+      const pool = await c.pool(address);
+
+      if (opts.json) {
+        console.log(JSON.stringify(pool, null, 2));
+        return;
+      }
+
+      const isOutOfRange = (decimals: number) => decimals < 0 || decimals > 18;
+      const decimalsX = parseInt(pool.token_x.decimals.toString());
+      const decimalsY = parseInt(pool.token_y.decimals.toString());
+
+      console.log(`\n${bold("Pool Info")}  ${cyan(`${pool.token_x.symbol}/${pool.token_y.symbol}`)}  ${gray(shortAddr(address))}\n`);
+
+      console.log(`  Tokens:   ${pool.token_x.symbol} / ${pool.token_y.symbol}`);
+      console.log(`  Price:    ${usd(pool.current_price)}`);
+      console.log(`  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`);
+      console.log(`  TVL:      ${usd(pool.tvl)}`);
+      console.log(
+        `  APR:      ${pct(pool.apr)}${pool.has_farm ? `  (Farm: ${pct(pool.farm_apr)})` : ""}`,
+      );
+
+      console.log(
+        `\n  Volume:   1h: ${usd(pool.volume["1h"])}  4h: ${usd(pool.volume["4h"])}  24h: ${usd(pool.volume["24h"])}`,
+      );
+
+      console.log(
+        `  Fees:     30m: ${usd(pool.fees["30m"])}  1h: ${usd(pool.fees["1h"])}  4h: ${usd(pool.fees["4h"])}  24h: ${usd(pool.fees["24h"])}`,
+      );
+      console.log(`  Fee/TVL:  ${pct(pool.fee_tvl_ratio["30m"])} (30m)  ${pct(pool.fee_tvl_ratio["24h"])} (24h)`);
+
+      try {
+        const histData = await c.poolHistoricalVolume(address);
+        if (histData.length > 0) {
+          const volumes = histData.map((h) => h.volume);
+          console.log(`\n  Volume History`);
+          console.log(`  ${sparkline(volumes, 40)}`);
+        }
+      } catch {
+      }
+
+      console.log();
+    } catch (e) {
+      fail(e);
+    }
   });
 
 function pageHint(hasNext: boolean, page: number): void {

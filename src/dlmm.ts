@@ -1,0 +1,175 @@
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  sendAndConfirmTransaction,
+  Transaction,
+} from "@solana/web3.js";
+import DLMM, { StrategyType } from "@meteora-ag/dlmm";
+import BN from "bn.js";
+import type {
+  CreatePositionParams,
+  AddLiquidityParams,
+  RemoveLiquidityParams,
+  StrategyType as VexisStrategyType,
+} from "./types.js";
+
+export class DLMMClient {
+  private connection: Connection;
+  private keypair: Keypair;
+
+  constructor(keypair: Keypair, rpcUrl: string) {
+    this.connection = new Connection(rpcUrl, "confirmed");
+    this.keypair = keypair;
+  }
+
+  async createPosition(params: CreatePositionParams): Promise<string> {
+    const poolPubkey = new PublicKey(params.poolAddress);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const strategyMap: Record<VexisStrategyType, StrategyType> = {
+      spot: StrategyType.Spot,
+      bidask: StrategyType.BidAsk,
+      curve: StrategyType.Curve,
+    };
+
+    const positionKeypair = Keypair.generate();
+    const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
+      positionPubKey: positionKeypair.publicKey,
+      totalXAmount: new BN(params.totalXAmount),
+      totalYAmount: new BN(params.totalYAmount),
+      strategy: {
+        strategyType: strategyMap[params.strategy],
+        minBinId: params.minBinId,
+        maxBinId: params.maxBinId,
+        singleSidedX: params.singleSidedX,
+      },
+      user: this.keypair.publicKey,
+      slippage: 0.5,
+    });
+
+    const sig = await sendAndConfirmTransaction(this.connection, tx, [
+      this.keypair,
+      positionKeypair,
+    ]);
+    return sig;
+  }
+
+  async closePosition(
+    poolAddress: string,
+    positionPubkey: string,
+  ): Promise<string> {
+    const poolPubkey = new PublicKey(poolAddress);
+    const posPubkey = new PublicKey(positionPubkey);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const positionData = await dlmm.getPosition(posPubkey);
+
+    const tx = await dlmm.closePosition({
+      owner: this.keypair.publicKey,
+      position: positionData,
+    });
+
+    const sig = await sendAndConfirmTransaction(this.connection, tx, [
+      this.keypair,
+    ]);
+    return sig;
+  }
+
+  async addLiquidity(params: AddLiquidityParams): Promise<string> {
+    const poolPubkey = new PublicKey(params.poolAddress);
+    const posPubkey = new PublicKey(params.positionPubkey);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const strategyMap: Record<VexisStrategyType, StrategyType> = {
+      spot: StrategyType.Spot,
+      bidask: StrategyType.BidAsk,
+      curve: StrategyType.Curve,
+    };
+
+    const tx = await dlmm.addLiquidityByStrategy({
+      positionPubKey: posPubkey,
+      totalXAmount: new BN(params.totalXAmount),
+      totalYAmount: new BN(params.totalYAmount),
+      strategy: {
+        strategyType: strategyMap[params.strategy],
+        minBinId: params.minBinId,
+        maxBinId: params.maxBinId,
+      },
+      user: this.keypair.publicKey,
+      slippage: 0.5,
+    });
+
+    const sig = await sendAndConfirmTransaction(this.connection, tx, [
+      this.keypair,
+    ]);
+    return sig;
+  }
+
+  async removeLiquidity(params: RemoveLiquidityParams): Promise<string> {
+    const poolPubkey = new PublicKey(params.poolAddress);
+    const posPubkey = new PublicKey(params.positionPubkey);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const positionData = await dlmm.getPosition(posPubkey);
+
+    const txs = await dlmm.removeLiquidity({
+      user: this.keypair.publicKey,
+      position: posPubkey,
+      fromBinId: positionData.positionData.lowerBinId,
+      toBinId: positionData.positionData.upperBinId,
+      bps: new BN(params.bpsToRemove),
+      shouldClaimAndClose: params.shouldClaimAndClose,
+    });
+
+    if (txs.length === 0) throw new Error("No transactions generated");
+
+    const sig = await sendAndConfirmTransaction(this.connection, txs[0], [
+      this.keypair,
+    ]);
+    return sig;
+  }
+
+  async claimFee(poolAddress: string, positionPubkey: string): Promise<string> {
+    const poolPubkey = new PublicKey(poolAddress);
+    const posPubkey = new PublicKey(positionPubkey);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const positionData = await dlmm.getPosition(posPubkey);
+
+    const txs = await dlmm.claimSwapFee({
+      owner: this.keypair.publicKey,
+      position: positionData,
+    });
+
+    if (txs.length === 0) throw new Error("No transactions generated");
+
+    const sig = await sendAndConfirmTransaction(this.connection, txs[0], [
+      this.keypair,
+    ]);
+    return sig;
+  }
+
+  async claimReward(
+    poolAddress: string,
+    positionPubkey: string,
+  ): Promise<string> {
+    const poolPubkey = new PublicKey(poolAddress);
+    const posPubkey = new PublicKey(positionPubkey);
+    const dlmm = await DLMM.create(this.connection, poolPubkey);
+
+    const positionData = await dlmm.getPosition(posPubkey);
+
+    const txs = await dlmm.claimLMReward({
+      owner: this.keypair.publicKey,
+      position: positionData,
+    });
+
+    if (txs.length === 0) throw new Error("No transactions generated");
+
+    const sig = await sendAndConfirmTransaction(this.connection, txs[0], [
+      this.keypair,
+    ]);
+    return sig;
+  }
+}

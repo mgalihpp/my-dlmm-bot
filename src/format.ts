@@ -101,3 +101,33 @@ export function table(headers: string[], rows: string[][]): string {
   const body = rows.map((r) => r.map((cell, i) => pad(cell ?? "", widths[i])).join("  "));
   return [headerLine, sep, ...body].join("\n");
 }
+
+export function sparkline(values: number[], width = 10): string {
+  if (values.length === 0) return "-";
+  const chars = ["▁", "▂", "▃", "▄", "▅", "▆", "▇", "█"];
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+
+  const step = Math.max(1, Math.ceil(values.length / width));
+  const samples = [];
+  for (let i = 0; i < values.length; i += step) {
+    samples.push(values[i]);
+  }
+  while (samples.length < width && samples.length < values.length) {
+    samples.push(values[values.length - 1]);
+  }
+  samples.splice(width);
+
+  const bars = samples.map((v) => {
+    const normalized = (v - min) / range;
+    const idx = Math.floor(normalized * (chars.length - 1));
+    return chars[Math.max(0, Math.min(idx, chars.length - 1))];
+  });
+
+  const maxIdx = samples.indexOf(Math.max(...samples));
+  const result = bars
+    .map((char, i) => (i === maxIdx ? cyan(char) : gray(char)))
+    .join("");
+  return result;
+}
