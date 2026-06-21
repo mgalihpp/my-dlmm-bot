@@ -202,23 +202,55 @@ export class ZapClient {
         continue;
       }
       console.log(`[swapToOutput] Swapping ${amount} of ${mint} → ${outputMint}`);
-      const { transaction: swapTx } = await buildJupiterSwapTransaction(
-        this.keypair.publicKey,
-        mint,
-        outputMint,
-        amount,
-        40,    // maxAccounts
-        300,   // slippageBps (3%) — meme tokens need wider tolerance
-        undefined,
-        { jupiterApiUrl: this.jupiterApiUrl }
-      );
-      swapTx.feePayer = this.keypair.publicKey;
-      swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
-      lastSig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
-      console.log(`[swapToOutput] Swap sent. sig=${lastSig}`);
-      transactions.push(swapTx);
+      lastSig = await this.swapOneWithRetry(mint, outputMint, amount, transactions);
     }
     return lastSig;
+  }
+
+  /**
+   * Swap a single token to output, re-quoting with escalating slippage on
+   * SlippageToleranceExceeded (Jupiter error 0x1789 / 6025). Claimed-fee /
+   * dust amounts have high price impact, so a tight slippage often fails.
+   */
+  private async swapOneWithRetry(
+    mint: PublicKey,
+    outputMint: PublicKey,
+    amount: BN,
+    transactions: Transaction[]
+  ): Promise<string> {
+    const slippageLevels = [300, 500, 1000, 2000]; // 3% → 5% → 10% → 20%
+    let lastErr: unknown;
+    for (const slippageBps of slippageLevels) {
+      try {
+        // Re-quote each attempt so the route reflects current price.
+        const { transaction: swapTx } = await buildJupiterSwapTransaction(
+          this.keypair.publicKey,
+          mint,
+          outputMint,
+          amount,
+          40,    // maxAccounts
+          slippageBps,
+          undefined,
+          { jupiterApiUrl: this.jupiterApiUrl }
+        );
+        swapTx.feePayer = this.keypair.publicKey;
+        swapTx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+        const sig = await sendAndConfirmTransaction(this.connection, swapTx, [this.keypair]);
+        console.log(`[swapToOutput] Swap sent at ${slippageBps}bps slippage. sig=${sig}`);
+        transactions.push(swapTx);
+        return sig;
+      } catch (e) {
+        const msg = String((e as Error)?.message ?? e);
+        // 0x1789 = 6025 = SlippageToleranceExceeded — retry with more slippage.
+        if (msg.includes("0x1789") || msg.includes("6025")) {
+          console.warn(`[swapToOutput] Slippage exceeded at ${slippageBps}bps, retrying wider...`);
+          lastErr = e;
+          continue;
+        }
+        throw e;
+      }
+    }
+    throw lastErr ?? new Error("Swap failed after slippage retries");
   }
 
   private async getWalletTokenBalance(mint: PublicKey): Promise<BN> {
