@@ -27,6 +27,7 @@ interface PoolSnapshot {
   pnl: string;
   pnlPctChange: string;
   pnlSol: string | null;
+  pnlSolPctChange: string | null;
   balances: string;
   unclaimedFees: string;
   openPositionCount: number;
@@ -82,6 +83,7 @@ function toSnapshot(p: {
   pnl: string;
   pnlPctChange: string;
   pnlSol: string | null;
+  pnlSolPctChange: string | null;
   balances: string;
   unclaimedFees: string;
   openPositionCount: number;
@@ -95,6 +97,7 @@ function toSnapshot(p: {
     pnl: p.pnl,
     pnlPctChange: p.pnlPctChange,
     pnlSol: p.pnlSol,
+    pnlSolPctChange: p.pnlSolPctChange,
     balances: p.balances,
     unclaimedFees: p.unclaimedFees,
     openPositionCount: p.openPositionCount,
@@ -193,6 +196,7 @@ function schedulePositionChecks(
               pnl: pool.pnl,
               pnlPctChange: pool.pnlPctChange,
               pnlSol: pool.pnlSol,
+              pnlSolPctChange: pool.pnlSolPctChange,
               balances: pool.balances,
               fees: pool.unclaimedFees,
               positions: pool.openPositionCount,
@@ -216,6 +220,7 @@ function schedulePositionChecks(
                 pnl: pool.pnl,
                 pnlPctChange: pool.pnlPctChange,
                 pnlSol: pool.pnlSol,
+                pnlSolPctChange: pool.pnlSolPctChange,
                 balances: pool.balances,
                 fees: pool.unclaimedFees,
                 positions: pool.openPositionCount,
@@ -257,6 +262,7 @@ function schedulePositionChecks(
               pnl: pool.pnl,
               pnlPctChange: pool.pnlPctChange,
               pnlSol: pool.pnlSol,
+              pnlSolPctChange: pool.pnlSolPctChange,
               balances: pool.balances,
               fees: pool.unclaimedFees,
               positions: pool.openPositionCount,
@@ -277,6 +283,7 @@ function schedulePositionChecks(
               pnl: prev.pnl,
               pnlPctChange: prev.pnlPctChange,
               pnlSol: prev.pnlSol,
+              pnlSolPctChange: prev.pnlSolPctChange,
               balances: "0",
               fees: "0",
               positions: prev.openPositionCount,
