@@ -208,7 +208,7 @@ export class ZapClient {
         outputMint,
         amount,
         40,    // maxAccounts
-        100,   // slippageBps (1%)
+        300,   // slippageBps (3%) — meme tokens need wider tolerance
         undefined,
         { jupiterApiUrl: this.jupiterApiUrl }
       );
