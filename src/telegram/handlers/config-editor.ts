@@ -74,7 +74,7 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
     const shortKey = field.key.replace("pools.", "");
     const val = getNestedValue(pools, shortKey);
     const display = val === undefined || val === null ? "(default)" : String(val);
-    lines.push(`  ${field.label}: ${tgCode(display)}`);
+    lines.push(`  ${escapeMarkdown(field.label)}: ${tgCode(display)}`);
   }
   return lines.join("\n");
 }
