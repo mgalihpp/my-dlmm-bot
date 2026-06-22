@@ -5,10 +5,12 @@ import type {
   DlmmPool,
   DlmmPoolsResponse,
   PoolHistoricalVolume,
+  DiscoveryPoolsResponse,
 } from "./types.js";
 
 const PROD = "https://dlmm.datapi.meteora.ag";
 const DEV = "https://dlmm.dev.metdev.io";
+const DISCOVERY_API = "https://pool-discovery-api.datapi.meteora.ag";
 
 export interface ClientOptions {
   dev?: boolean;
@@ -78,5 +80,24 @@ export class MeteoraClient {
 
   poolHistoricalVolume(address: string): Promise<PoolHistoricalVolume[]> {
     return this.get<PoolHistoricalVolume[]>(`/pools/${address}/historical-volume`, {});
+  }
+
+  async discoverPools(opts?: {
+    pageSize?: number;
+    filterBy?: string;
+    timeframe?: string;
+    category?: string;
+  }): Promise<DiscoveryPoolsResponse> {
+    const url = new URL("/pools", DISCOVERY_API);
+    url.searchParams.set("page_size", String(opts?.pageSize ?? 50));
+    if (opts?.filterBy) url.searchParams.set("filter_by", opts.filterBy);
+    if (opts?.timeframe) url.searchParams.set("timeframe", opts.timeframe);
+    if (opts?.category) url.searchParams.set("category", opts.category);
+    const res = await fetch(url, { headers: { accept: "application/json" } });
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      throw new Error(`Pool Discovery API ${res.status} ${res.statusText}${body ? `: ${body}` : ""}`);
+    }
+    return (await res.json()) as DiscoveryPoolsResponse;
   }
 }

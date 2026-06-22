@@ -6,8 +6,10 @@ import type {
   OpenPool,
   ClosedPool,
   DlmmPool,
+  ScreenedPool,
 } from "../types.js";
 import type { WatchedWallet } from "../watchlist.js";
+import type { ScreenResult } from "../screening.js";
 
 // MarkdownV2 requires escaping these characters everywhere except inside
 // code/pre entities: _ * [ ] ( ) ~ ` > # + - = | { } . !
@@ -111,7 +113,7 @@ export function tgClosedPools(pools: ClosedPool[]): string {
   return lines.join("\n");
 }
 
-/** Pool list summary (top N). */
+/** Pool list summary (top N) — legacy DlmmPool[]. */
 export function tgPoolList(pools: DlmmPool[]): string {
   if (pools.length === 0) return tgBold("📭 No pools found");
   const lines = [tgBold("📈 Trending Pools \\(30m fee/TVL\\)"), ""];
@@ -124,6 +126,52 @@ export function tgPoolList(pools: DlmmPool[]): string {
       `  TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(mc)} \\| Holders: ${escapeMarkdown(formatNum(holders))}`,
       `  APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)} \\| Vol 30m: ${tgUsd(p.volume["30m"])}`,
       `  Fee/TVL 30m: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["30m"])}%`)}`,
+      ""
+    );
+  });
+  return lines.join("\n");
+}
+
+/** Age string for token. */
+function tgAge(hours: number | null): string {
+  if (hours == null) return "\\-";
+  if (hours < 1) return escapeMarkdown(`${Math.round(hours * 60)}m`);
+  if (hours < 24) return escapeMarkdown(`${Math.round(hours)}h`);
+  const d = Math.floor(hours / 24);
+  const h = Math.round(hours % 24);
+  return escapeMarkdown(h > 0 ? `${d}d ${h}h` : `${d}d`);
+}
+
+/** Organic score with emoji indicator. */
+function tgOrganic(score: number): string {
+  const emoji = score >= 80 ? "🟢" : score >= 60 ? "🟡" : "🔴";
+  return `${emoji} ${escapeMarkdown(String(score))}`;
+}
+
+/** Screened pool list with full screening data. */
+export function tgScreenedPoolList(result: ScreenResult): string {
+  if (result.pools.length === 0) return tgBold("📭 No pools found");
+  const lines = [
+    tgBold("🔥 Screened Pools"),
+    escapeMarkdown(`Found ${result.total} total, ${result.pools.length} shown, ${result.filtered} filtered`),
+    "",
+  ];
+  result.pools.forEach((p, i) => {
+    const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
+    const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
+    const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
+    lines.push(
+      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}`,
+      `  ${tgPoolAddr(p.pool)}`,
+      `  ${escapeMarkdown(p.name)}`,
+      `  Mint: ${tgCode(p.baseMint)}`,
+      `  TVL: ${tgUsd(p.tvl)} \\| Active TVL: ${tgUsd(p.activeTvl)} \\| MC: ${tgUsd(p.mcap)}`,
+      `  Holders: ${escapeMarkdown(formatNum(p.holders))} \\| Organic: ${tgOrganic(p.organicScore)} \\| Quote Organic: ${tgOrganic(p.quoteOrganic)}`,
+      `  Fee/TVL: ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Fee: ${tgUsd(p.fee)} \\| Vol: ${tgUsd(p.volume)}`,
+      `  Volatility: ${escapeMarkdown(formatNum(p.volatility))} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Base Fee: ${escapeMarkdown(`${p.baseFeePct}%`)}`,
+      `  Price: ${escapeMarkdown(formatNum(p.price, 6))} \\| Price Chg: ${priceChg} \\| Vol Chg: ${volChg}`,
+      `  Positions: ${escapeMarkdown(String(p.activePositions))} active / ${escapeMarkdown(String(p.openPositions))} open \\| Age: ${tgAge(p.tokenAgeHours)}`,
+      `  RugScore: ${rug} \\| Score: ${escapeMarkdown(formatNum(p.score))}`,
       ""
     );
   });

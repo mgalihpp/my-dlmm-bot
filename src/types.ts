@@ -200,3 +200,101 @@ export interface PoolHistoricalVolume {
   timestamp: number;
   volume: number;
 }
+
+// Pool Discovery API types
+// Docs: https://docs.meteora.ag/api-reference/pool-discovery
+
+export interface DiscoveryTokenInfo {
+  address: string;
+  symbol: string;
+  name: string;
+  decimals: number;
+  price: number;
+  market_cap: number;
+  holders: number;
+  organic_score: number;
+  created_at: number; // timestamp ms
+  dev?: string;
+  launchpad?: string;
+  warnings?: string[];
+}
+
+export interface DiscoveryPoolConfig {
+  bin_step: number;
+  base_fee_pct: number;
+}
+
+export interface DiscoveryDlmmParams {
+  bin_step: number;
+  collect_fee_mode: string;
+}
+
+export interface DiscoveryPool {
+  pool_address: string;
+  name: string;
+  pool_type: string;
+  token_x: DiscoveryTokenInfo;
+  token_y: DiscoveryTokenInfo;
+  tvl: number;
+  active_tvl: number;
+  pool_price: number;
+  volatility: number;
+  volume: number;
+  fee: number;
+  fee_active_tvl_ratio: number;
+  active_positions: number;
+  active_positions_pct: number;
+  open_positions: number;
+  pool_config?: DiscoveryPoolConfig;
+  dlmm_params?: DiscoveryDlmmParams;
+  base_token_has_critical_warnings: boolean;
+  quote_token_has_critical_warnings: boolean;
+  base_token_has_high_supply_concentration: boolean;
+  base_token_has_high_single_ownership: boolean;
+  pool_price_change_pct?: number;
+  volume_change_pct?: number;
+  fee_change_pct?: number;
+  swap_count?: number;
+  unique_traders?: number;
+  min_price?: number;
+  max_price?: number;
+  price_trend?: string;
+}
+
+export interface DiscoveryPoolsResponse {
+  total: number;
+  pages: number;
+  current_page: number;
+  page_size: number;
+  data: DiscoveryPool[];
+}
+
+/** Condensed pool for Telegram display after screening. */
+export interface ScreenedPool {
+  pool: string;
+  name: string;
+  baseSymbol: string;
+  baseMint: string;
+  quoteSymbol: string;
+  tvl: number;
+  activeTvl: number;
+  mcap: number;
+  holders: number;
+  organicScore: number;
+  quoteOrganic: number;
+  feeActiveTvlRatio: number;
+  volatility: number;
+  binStep: number;
+  baseFeePct: number;
+  volume: number;
+  fee: number;
+  activePositions: number;
+  openPositions: number;
+  tokenAgeHours: number | null;
+  score: number;
+  price: number;
+  priceChangePct: number | null;
+  volumeChangePct: number | null;
+  tokenXAddress: string;
+  rugScore?: number | null;
+}

@@ -21,6 +21,8 @@ export const bold = (s: string) => c(ansi.bold, s);
 export const dim = (s: string) => c(ansi.dim, s);
 export const cyan = (s: string) => c(ansi.cyan, s);
 export const gray = (s: string) => c(ansi.gray, s);
+export const green = (s: string) => c(ansi.green, s);
+export const red = (s: string) => c(ansi.red, s);
 
 /** Color a number-ish string by sign (green positive, red negative). */
 export function pnlColor(value: string | number): string {

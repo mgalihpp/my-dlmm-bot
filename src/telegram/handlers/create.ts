@@ -4,6 +4,7 @@ import type { VexisConfig } from "../../config.js";
 import { resolveWallet } from "../../config.js";
 import { escapeMarkdown, tgBold, tgCode } from "../format.js";
 import { MD } from "../utils.js";
+import { screenPools } from "../../screening.js";
 import {
   createWizard,
   getWizard,
@@ -49,21 +50,10 @@ export function registerCreate(
 
   bot.callbackQuery("crt:from:trending", async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText("⏳ Loading trending pools\\.\\.\\.", MD);
+    await ctx.editMessageText("⏳ Screening trending pools\\.\\.\\.", MD);
     try {
-      const poolCfg = config.pools ?? {};
-      const filterBy = poolCfg.filterBy ?? "tvl>100";
-      const minMc = poolCfg.minMarketCap ?? 100000;
-      const maxMc = poolCfg.maxMarketCap ?? 2000000;
-      const res = await client.pools({
-        pageSize: 15,
-        filterBy,
-        sortBy: "fee_tvl_ratio_30m:desc",
-      });
-      const pools = res.data.filter(
-        (p) => p.token_x.market_cap >= minMc && p.token_x.market_cap <= maxMc,
-      );
-      if (pools.length === 0) {
+      const result = await screenPools(client, config);
+      if (result.pools.length === 0) {
         await ctx.editMessageText("No pools found\\.", {
           ...MD,
           reply_markup: backToSourceKb(),
@@ -72,17 +62,17 @@ export function registerCreate(
       }
       const lines = [tgBold("🔥 Trending Pools — Select"), ""];
       const kb = new InlineKeyboard();
-      for (const p of pools.slice(0, 10)) {
+      for (const p of result.pools.slice(0, 10)) {
         lines.push(
-          `• ${tgBold(escapeMarkdown(p.name))} — TVL: ${escapeMarkdown(`$${Math.round(p.tvl).toLocaleString()}`)} \\| APR: ${escapeMarkdown(`${p.apr.toFixed(1)}%`)}`,
+          `• ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))} — TVL: ${escapeMarkdown(`$${p.tvl.toLocaleString()}`)} \\| Fee/TVL: ${escapeMarkdown(`${p.feeActiveTvlRatio.toFixed(2)}%`)}`,
         );
         const wid = createWizard({
-          poolAddress: p.address,
-          poolName: p.name,
-          binStep: p.pool_config.bin_step,
-          currentPrice: p.current_price,
+          poolAddress: p.pool,
+          poolName: `${p.baseSymbol}/${p.quoteSymbol}`,
+          binStep: p.binStep,
+          currentPrice: p.price,
         });
-        kb.text(p.name.slice(0, 20), `crt:strategy:${wid}`).row();
+        kb.text(`${p.baseSymbol}/${p.quoteSymbol}`.slice(0, 20), `crt:strategy:${wid}`).row();
       }
       lines.push("");
       await ctx.editMessageText(lines.join("\n"), {

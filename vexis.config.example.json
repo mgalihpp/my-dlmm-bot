@@ -8,10 +8,24 @@
   "telegramChatId": "your-numeric-chat-id",
   "alertInterval": 0,
   "pools": {
-    "sortBy": "fee_tvl_ratio_30m:desc",
-    "filterBy": "tvl>100",
-    "pageSize": 20,
-    "minMarketCap": 100000,
-    "maxMarketCap": 2000000
+    "pageSize": 50,
+    "timeframe": "5m",
+    "category": "trending",
+    "minMcap": 150000,
+    "maxMcap": 10000000,
+    "minHolders": 500,
+    "minVolume": 500,
+    "minTvl": 10000,
+    "maxTvl": 150000,
+    "minBinStep": 50,
+    "maxBinStep": 125,
+    "minFeeActiveTvlRatio": 0.05,
+    "minOrganic": 60,
+    "minQuoteOrganic": 60,
+    "excludeHighSupplyConcentration": true,
+    "minTokenAgeHours": null,
+    "maxTokenAgeHours": null,
+    "blockedLaunchpads": [],
+    "displayLimit": 15
   }
 }

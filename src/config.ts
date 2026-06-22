@@ -25,13 +25,34 @@ export interface VexisConfig {
   telegramChatId?: string;
   /** Periodic portfolio alert interval in hours (0 = off). */
   alertInterval?: number;
-  /** Default pool list filters/sort. */
+  /** Pool screening and display config. */
   pools?: {
-    sortBy?: string;
-    filterBy?: string;
+    /** Page size for API requests (default: 50). */
     pageSize?: number;
-    minMarketCap?: number;
-    maxMarketCap?: number;
+    /** Screening timeframe (default: "5m"). */
+    timeframe?: string;
+    /** Pool category: "trending" | "new" | "top" (default: "trending"). */
+    category?: string;
+
+    // --- Screening thresholds ---
+    minMcap?: number;
+    maxMcap?: number;
+    minHolders?: number;
+    minVolume?: number;
+    minTvl?: number;
+    maxTvl?: number;
+    minBinStep?: number;
+    maxBinStep?: number;
+    minFeeActiveTvlRatio?: number;
+    minOrganic?: number;
+    minQuoteOrganic?: number;
+    excludeHighSupplyConcentration?: boolean;
+    minTokenAgeHours?: number | null;
+    maxTokenAgeHours?: number | null;
+    blockedLaunchpads?: string[];
+
+    // --- Display ---
+    displayLimit?: number;
   };
 }
 

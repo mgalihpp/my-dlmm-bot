@@ -1,22 +1,26 @@
 import type { Bot, Context } from "grammy";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
-import { tgPoolList, tgPoolDetail } from "../format.js";
+import { tgScreenedPoolList, tgPoolDetail } from "../format.js";
 import { MD, replyError } from "../utils.js";
+import { screenPools, parseTimeframe } from "../../screening.js";
 
 export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   bot.command("pools", async (ctx: Context) => {
     try {
-      const poolCfg = config.pools ?? {};
-      const sortBy = poolCfg.sortBy ?? "fee_tvl_ratio_30m:desc";
-      const filterBy = poolCfg.filterBy ?? "tvl>100";
-      const pageSize = poolCfg.pageSize ?? 15;
-      const minMc = poolCfg.minMarketCap ?? 100000;
-      const maxMc = poolCfg.maxMarketCap ?? 2000000;
+      const rawArg = (ctx.match as string)?.trim();
+      const timeframe = parseTimeframe(rawArg);
 
-      const res = await client.pools({ pageSize, filterBy, sortBy });
-      const filtered = res.data.filter((p) => p.token_x.market_cap >= minMc && p.token_x.market_cap <= maxMc);
-      await ctx.reply(tgPoolList(filtered), MD);
+      if (rawArg && !timeframe) {
+        await ctx.reply(
+          "Usage: `/pools` or `/pools <timeframe>`\nValid timeframes: 5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h",
+          MD,
+        );
+        return;
+      }
+
+      const result = await screenPools(client, config, timeframe ?? undefined);
+      await ctx.reply(tgScreenedPoolList(result), MD);
     } catch (e) {
       await replyError(ctx, e);
     }

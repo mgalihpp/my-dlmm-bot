@@ -23,8 +23,11 @@ import {
   cyan,
   dim,
   gray,
+  green,
+  red,
   usd,
   pct,
+  formatNum,
   pnlColor,
   pnlSol,
   shortAddr,
@@ -33,7 +36,8 @@ import {
   table,
   sparkline,
 } from "./format.js";
-import type { OpenPool, ClosedPool, DlmmPool } from "./types.js";
+import type { OpenPool, ClosedPool, DlmmPool, ScreenedPool } from "./types.js";
+import { screenPools } from "./screening.js";
 
 const program = new Command();
 
@@ -647,128 +651,68 @@ const poolCmd = program
 
 poolCmd
   .command("list")
-  .description("list top pools sorted by 30m fee/TVL (max 2M MC, TVL > $100)")
-  .option(
-    "--sort <key>",
-    "sort by: tvl, volume_30m|1h|4h|24h, fee_30m|1h|4h|24h, apr, farm_apy",
-  )
-  .option("--query <q>", "search by pool name, symbol, or address")
-  .option("--min-mc <n>", "minimum market cap")
-  .option("--max-mc <n>", "maximum market cap")
-  .option("--min-holders <n>", "minimum holders")
-  .option("--max-holders <n>", "maximum holders")
-  .option("--filter <expr>", "filter expression (e.g. tvl>1000, volume_24h>=50000)")
-  .option("-p, --page <n>", "page number", "1")
-  .option("-s, --page-size <n>", "page size (max 1000)")
+  .description("list top pools via discovery API screening")
+  .option("--timeframe <tf>", "screening timeframe (5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h)")
+  .option("--category <cat>", "pool category: trending, new, top")
+  .option("--limit <n>", "max pools to show", "15")
   .option("--json", "output raw JSON")
   .action(
     async (opts: {
-      sort?: string;
-      query?: string;
-      minMc?: string;
-      maxMc?: string;
-      minHolders?: string;
-      maxHolders?: string;
-      filter?: string;
-      page: string;
-      pageSize?: string;
+      timeframe?: string;
+      category?: string;
+      limit?: string;
       json?: boolean;
     }) => {
       try {
         const c = new MeteoraClient({ dev: config.dev });
-        const pageNum = parseInt(opts.page);
+        const limit = parseInt(opts.limit ?? "15");
 
-        const poolCfg = config.pools ?? {};
-        const defaultFilter = poolCfg.filterBy ?? "tvl>100";
-        const defaultSort = poolCfg.sortBy ?? "fee_tvl_ratio_30m:desc";
-        const defaultPageSize = poolCfg.pageSize ?? 20;
-        const defaultMaxMc = poolCfg.maxMarketCap ?? 2000000;
-        const defaultMinMc = poolCfg.minMarketCap;
-
-        const sortBy = opts.sort ? `${opts.sort}:desc` : defaultSort;
-        const filterBy = opts.filter ?? defaultFilter;
-        const maxMc = opts.maxMc ?? String(defaultMaxMc);
-        const minMc = opts.minMc ?? (defaultMinMc != null ? String(defaultMinMc) : undefined);
-        const pageSizeRaw = opts.pageSize ?? String(defaultPageSize);
-        const pageSize = (minMc || maxMc || opts.minHolders || opts.maxHolders)
-          ? 1000
-          : parseInt(pageSizeRaw);
-
-        const data = await c.pools({
-          sortBy,
-          query: opts.query,
-          page: pageNum,
-          pageSize,
-          filterBy,
-        });
-
-        let filtered = data.data;
-        if (minMc) {
-          const v = parseInt(minMc);
-          filtered = filtered.filter((p) => p.token_x.market_cap >= v);
-        }
-        if (maxMc) {
-          const v = parseInt(maxMc);
-          filtered = filtered.filter((p) => p.token_x.market_cap <= v);
-        }
-        if (opts.minHolders) {
-          const v = parseInt(opts.minHolders);
-          filtered = filtered.filter((p) => p.token_x.holders >= v);
-        }
-        if (opts.maxHolders) {
-          const v = parseInt(opts.maxHolders);
-          filtered = filtered.filter((p) => p.token_x.holders <= v);
-        }
+        const result = await screenPools(
+          c,
+          { pools: { ...config.pools, displayLimit: limit, category: opts.category ?? config.pools?.category } } as VexisConfig,
+          opts.timeframe,
+        );
 
         if (opts.json) {
-          console.log(JSON.stringify(data, null, 2));
+          console.log(JSON.stringify(result, null, 2));
           return;
         }
 
-        const clientFiltered = minMc || maxMc || opts.minHolders || opts.maxHolders;
-        const label = clientFiltered
-          ? `${bold("Top Pools")} ${gray(`(${filtered.length} shown · ${data.total} total`)}`
-          : `\n${bold("Top Pools")} ${gray(`(${data.total} total)`)}`;
-        console.log(label);
-        if (!filtered.length) {
+        console.log(
+          `\n${bold("Screened Pools")} ${gray(`(${result.total} total · ${result.pools.length} shown · ${result.filtered} filtered)`)}`,
+        );
+
+        if (!result.pools.length) {
           console.log(dim("  No pools match the current filters."));
           return;
         }
 
-        const rows = filtered.map((p: DlmmPool) => [
-          cyan(`${p.token_x.symbol}/${p.token_y.symbol}`),
-          gray(shortAddr(p.address)),
-          usd(p.tvl),
-          usd(p.token_x.market_cap),
-          String(p.token_x.holders),
-          usd(p.volume["30m"]),
-          usd(p.fees["30m"]),
-          pct(p.fee_tvl_ratio["30m"]),
-          pct(p.apr),
-          p.has_farm ? pct(p.farm_apr) : dim("-"),
-        ]);
-
-        console.log(
-          "\n" +
-            table(
-              [
-                "Pair",
-                "Pool",
-                "TVL",
-                "MC",
-                "Holders",
-                "Vol 30m",
-                "Fee 30m",
-                "Fee/TVL",
-                "APR",
-                "Farm APR",
-              ],
-              rows,
-            ),
-        );
-
-        const hasNext = clientFiltered ? false : pageNum < data.pages;
-        pageHint(hasNext, pageNum);
+        for (let i = 0; i < result.pools.length; i++) {
+          const p = result.pools[i];
+          const sep = gray("─".repeat(50));
+          console.log(`\n${sep}`);
+          console.log(`${bold(cyan(`${i + 1}. ${p.baseSymbol}/${p.quoteSymbol}`))}  ${gray(p.pool)}`);
+          console.log(sep);
+          console.log(`  ${gray("Name")}      ${p.name}`);
+          console.log(`  ${gray("Mint")}      ${p.baseMint}`);
+          console.log(`  ${gray("MC")}        ${usd(p.mcap)}`);
+          console.log(`  ${gray("TVL")}       ${usd(p.tvl)}  ${gray("(")}${usd(p.activeTvl)}${gray(" active)")}`);
+          console.log(`  ${gray("Volume")}    ${usd(p.volume)}  ${gray("Fee")} ${usd(p.fee)}`);
+          console.log(`  ${gray("Fee/TVL")}   ${pct(p.feeActiveTvlRatio)}  ${gray("Volat")} ${p.volatility}`);
+          console.log(`  ${gray("Bin")}       ${p.binStep}  ${gray("BaseFee")} ${p.baseFeePct}%`);
+          console.log(`  ${gray("Holders")}   ${p.holders}  ${gray("Organic")} ${p.organicScore}  ${gray("Q.Org")} ${p.quoteOrganic}`);
+          console.log(`  ${gray("Pos(A/O)")}  ${p.activePositions}/${p.openPositions}  ${gray("Age")} ${p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : dim("-")}`);
+          if (p.priceChangePct != null) {
+            const arrow = p.priceChangePct > 0 ? "+" : "";
+            console.log(`  ${gray("Price")}     ${p.price}  ${p.priceChangePct > 0 ? green(`${arrow}${p.priceChangePct.toFixed(1)}%`) : red(`${p.priceChangePct.toFixed(1)}%`)}`);
+          }
+          if (p.volumeChangePct != null) {
+            const arrow = p.volumeChangePct > 0 ? "+" : "";
+            console.log(`  ${gray("VolChg")}    ${p.volumeChangePct > 0 ? green(`${arrow}${p.volumeChangePct.toFixed(1)}%`) : red(`${p.volumeChangePct.toFixed(1)}%`)}`);
+          }
+          console.log(`  ${gray("Rug Score")} ${p.rugScore != null ? String(p.rugScore) : dim("-")}  ${gray("Score")} ${formatNum(p.score)}`);
+        }
+        console.log(`\n${gray("─".repeat(50))}\n`);
       } catch (e) {
         fail(e);
       }
@@ -794,7 +738,7 @@ poolCmd
       const decimalsY = parseInt(pool.token_y.decimals.toString());
 
       console.log(
-        `\n${bold("Pool Info")}  ${cyan(`${pool.token_x.symbol}/${pool.token_y.symbol}`)}  ${gray(shortAddr(address))}\n`,
+        `\n${bold("Pool Info")}  ${cyan(`${pool.token_x.symbol}/${pool.token_y.symbol}`)}  ${gray(address)}\n`,
       );
 
       console.log(

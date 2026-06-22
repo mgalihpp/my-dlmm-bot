@@ -6,12 +6,13 @@ import {
   tgPortfolioSummary,
   tgOpenPools,
   tgClosedPools,
-  tgPoolList,
+  tgScreenedPoolList,
   escapeMarkdown,
   tgBold,
   type WalletPositions,
 } from "./format.js";
 import { MD } from "./utils.js";
+import { screenPools } from "../screening.js";
 
 export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   bot.command("menu", async (ctx) => {
@@ -72,16 +73,10 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
   // ─── Pools ───────────────────────────────────────────────────────────────
   bot.callbackQuery(/^menu:pools$/, async (ctx) => {
     await ctx.answerCallbackQuery();
-    await ctx.editMessageText("⏳ Loading pools\\.\\.\\.", MD);
+    await ctx.editMessageText("⏳ Screening pools\\.\\.\\.", MD);
     try {
-      const poolCfg = config.pools ?? {};
-      const pageSize = poolCfg.pageSize ?? 10;
-      const filterBy = poolCfg.filterBy ?? "tvl>100";
-      const minMc = poolCfg.minMarketCap ?? 100000;
-      const maxMc = poolCfg.maxMarketCap ?? 2000000;
-
-      const res = await client.pools({ pageSize, filterBy });
-      const text = tgPoolList(res.data.filter((p) => p.token_x.market_cap >= minMc && p.token_x.market_cap <= maxMc));
+      const result = await screenPools(client, config);
+      const text = tgScreenedPoolList(result);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
