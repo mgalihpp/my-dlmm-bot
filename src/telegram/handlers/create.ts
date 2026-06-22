@@ -146,36 +146,76 @@ export function registerCreate(
     }
   });
 
+  // ─── crt:from:address — prompt user to paste a pool address ─────────────
+  bot.callbackQuery("crt:from:address", async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const userId = ctx.from?.id;
+    if (userId != null) awaitingPoolAddress.set(userId, Date.now() + 5 * 60 * 1000);
+    await ctx.editMessageText(
+      [
+        tgBold("📍 Paste Pool Address"),
+        "",
+        "Send the DLMM pool address as your next message\\.",
+        escapeMarkdown("Example: AvuVMMivvzaSS3m4phTRppbUQ1jAG3xnk2TenSyEWM5g"),
+      ].join("\n"),
+      { ...MD, reply_markup: backToSourceKb() },
+    );
+  });
+
+  // ─── capture the pasted pool address ────────────────────────────────────
+  bot.on("message:text", async (ctx, next) => {
+    const userId = ctx.from?.id;
+    const text = ctx.message.text.trim();
+    const expiresAt = userId != null ? awaitingPoolAddress.get(userId) : undefined;
+    // Only handle when we asked for an address; otherwise pass through.
+    if (userId == null || expiresAt == null || text.startsWith("/")) return next();
+    awaitingPoolAddress.delete(userId);
+    if (Date.now() > expiresAt) {
+      await ctx.reply("⌛ Session expired\\. Tap /create again\\.", MD);
+      return;
+    }
+    if (!isLikelyPubkey(text)) {
+      await ctx.reply("✖ That doesn't look like a valid address\\. Tap /create to retry\\.", MD);
+      return;
+    }
+    const loading = await ctx.reply("⏳ Loading pool\\.\\.\\.", MD);
+    try {
+      const detail = await client.pool(text);
+      const wid = createWizard({
+        poolAddress: detail.address,
+        poolName: detail.name,
+        binStep: detail.pool_config.bin_step,
+        currentPrice: detail.current_price,
+      });
+      await ctx.api.editMessageText(
+        loading.chat.id,
+        loading.message_id,
+        await renderStrategyStep(wid),
+        { ...MD, reply_markup: strategyKb(wid) },
+      );
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      await ctx.api.editMessageText(
+        loading.chat.id,
+        loading.message_id,
+        `✖ ${escapeMarkdown(msg)}`,
+        { ...MD, reply_markup: backToSourceKb() },
+      );
+    }
+  });
+
   // ─── crt:strategy:<wid> — pick strategy ─────────────────────────────────
   bot.callbackQuery(/^crt:strategy:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
-    const state = getWizard(wid);
-    if (!state) {
+    if (!getWizard(wid)) {
       await expired(ctx);
       return;
     }
-
-    const text = [
-      tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
-      `Pool: ${tgCode(state.poolAddress)}`,
-      `Bin step: ${escapeMarkdown(String(state.binStep))} \\| Price: ${escapeMarkdown(String(state.currentPrice))}`,
-      "",
-      tgBold("Step 1/3 — Pick strategy:"),
-      "",
-      "• *Spot* — uniform liquidity across range",
-      "• *Bid\\-Ask* — concentrated at edges \\(volatility\\)",
-      "• *Curve* — bell curve centered on price",
-    ].join("\n");
-
-    const kb = new InlineKeyboard()
-      .text("📊 Spot", `crt:mode:${wid}:spot`)
-      .text("📈 Bid-Ask", `crt:mode:${wid}:bidask`)
-      .text("🔔 Curve", `crt:mode:${wid}:curve`)
-      .row()
-      .text("⬅️ Back", "crt:source");
-
-    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+    await ctx.editMessageText(await renderStrategyStep(wid), {
+      ...MD,
+      reply_markup: strategyKb(wid),
+    });
   });
 
   // ─── crt:mode:<wid>:<strategy> — pick side ──────────────────────────────
@@ -392,6 +432,37 @@ export function registerCreate(
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+// userId → expiry timestamp; set while we wait for a pasted pool address.
+const awaitingPoolAddress = new Map<number, number>();
+
+function isLikelyPubkey(s: string): boolean {
+  return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
+}
+
+async function renderStrategyStep(wid: string): Promise<string> {
+  const state = getWizard(wid)!;
+  return [
+    tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
+    `Pool: ${tgCode(state.poolAddress)}`,
+    `Bin step: ${escapeMarkdown(String(state.binStep))} \\| Price: ${escapeMarkdown(String(state.currentPrice))}`,
+    "",
+    tgBold("Step 1/3 — Pick strategy:"),
+    "",
+    "• *Spot* — uniform liquidity across range",
+    "• *Bid\\-Ask* — concentrated at edges \\(volatility\\)",
+    "• *Curve* — bell curve centered on price",
+  ].join("\n");
+}
+
+function strategyKb(wid: string): InlineKeyboard {
+  return new InlineKeyboard()
+    .text("📊 Spot", `crt:mode:${wid}:spot`)
+    .text("📈 Bid-Ask", `crt:mode:${wid}:bidask`)
+    .text("🔔 Curve", `crt:mode:${wid}:curve`)
+    .row()
+    .text("⬅️ Back", "crt:source");
+}
+
 function calcBins(
   binStep: number,
   pct: number,
@@ -411,7 +482,9 @@ async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
   const kb = new InlineKeyboard()
     .text("🔥 Trending Pools", "crt:from:trending")
     .row()
-    .text("📈 My Active Pools", "crt:from:my");
+    .text("📈 My Active Pools", "crt:from:my")
+    .row()
+    .text("📍 Paste Pool Address", "crt:from:address");
 
   if (mode === "reply") {
     await (ctx as any).reply(text, { ...MD, reply_markup: kb });

@@ -229,10 +229,10 @@ export function tgPoolDetail(p: DlmmPool): string {
     `APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)}${farm}`,
     "",
     tgBold("Volume"),
-    `  1h: ${tgUsd(p.volume["1h"])} \\| 4h: ${tgUsd(p.volume["4h"])} \\| 24h: ${tgUsd(p.volume["24h"])}`,
+    `  30m: ${tgUsd(p.volume["30m"])} \\| 1h: ${tgUsd(p.volume["1h"])} \\| 4h: ${tgUsd(p.volume["4h"])} \\| 24h: ${tgUsd(p.volume["24h"])}`,
     "",
     tgBold("Fees"),
-    `  30m: ${tgUsd(p.fees["30m"])} \\| 1h: ${tgUsd(p.fees["1h"])} \\| 24h: ${tgUsd(p.fees["24h"])}`,
+    `  30m: ${tgUsd(p.fees["30m"])} \\| 1h: ${tgUsd(p.fees["1h"])} \\| 4h: ${tgUsd(p.fees["4h"])} \\| 24h: ${tgUsd(p.fees["24h"])}`,
     `  Fee/TVL 24h: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["24h"])}%`)}`,
   ];
   return lines.join("\n");

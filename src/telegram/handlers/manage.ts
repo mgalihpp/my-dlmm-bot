@@ -20,18 +20,24 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
 
   // ─── /manage — entry point ─────────────────────────────────────────────────
   bot.command("manage", async (ctx) => {
-    await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+    const loading = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+    const editTarget = { chatId: loading.chat.id, messageId: loading.message_id };
     try {
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 50);
       const pools = res.pools;
       if (pools.length === 0) {
-        await ctx.reply(tgBold("📭 No open positions"), MD);
+        await ctx.api.editMessageText(editTarget.chatId, editTarget.messageId, tgBold("📭 No open positions"), MD);
         return;
       }
-      await sendPoolList(ctx, pools, "reply");
+      await sendPoolList(ctx, pools, "edit", editTarget);
     } catch (e) {
-      await replyError(ctx, e);
+      await ctx.api.editMessageText(
+        editTarget.chatId,
+        editTarget.messageId,
+        `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        MD,
+      );
     }
   });
 
@@ -296,7 +302,8 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
 async function sendPoolList(
   ctx: Context,
   pools: { poolAddress: string; tokenX: string; tokenY: string; openPositionCount: number; outOfRange: boolean | null; unclaimedFees: string }[],
-  mode: "reply" | "edit"
+  mode: "reply" | "edit",
+  editTarget?: { chatId: number; messageId: number }
 ) {
   const lines = [tgBold("📈 Open Positions — Select Pool"), ""];
   const kb = new InlineKeyboard();
@@ -309,7 +316,9 @@ async function sendPoolList(
   }
   kb.row().text("➕ Create New Position", "crt:source");
   const text = lines.join("\n");
-  if (mode === "reply") {
+  if (editTarget) {
+    await ctx.api.editMessageText(editTarget.chatId, editTarget.messageId, text, { ...MD, reply_markup: kb });
+  } else if (mode === "reply") {
     await (ctx as any).reply(text, { ...MD, reply_markup: kb });
   } else {
     await (ctx as any).editMessageText(text, { ...MD, reply_markup: kb });
