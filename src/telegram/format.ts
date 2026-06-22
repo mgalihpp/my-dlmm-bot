@@ -14,6 +14,7 @@ import type { ScreenResult } from "../screening.js";
 // MarkdownV2 requires escaping these characters everywhere except inside
 // code/pre entities: _ * [ ] ( ) ~ ` > # + - = | { } . !
 const MD_SPECIAL = /[_*\[\]()~`>#+\-=|{}.!\\]/g;
+const MD_URL_SPECIAL = /[)\\]]/g;
 
 export function escapeMarkdown(s: string): string {
   return String(s).replace(MD_SPECIAL, (m) => `\\${m}`);
@@ -51,16 +52,21 @@ export function tgShortAddr(addr: string): string {
   return tgCode(addr);
 }
 
+/** Escape only what's required inside MarkdownV2 link URL (...) part: ) and \ */
+function escapeUrl(url: string): string {
+  return url.replace(MD_URL_SPECIAL, (m) => `\\${m}`);
+}
+
 /** Full pool address as a tappable link to Meteora. */
 export function tgPoolAddr(addr: string): string {
   const url = `https://app.meteora.ag/dlmm/${addr}`;
-  return `[🔗 ${addr}](${escapeMarkdown(url)})`;
+  return `[🔗 ${escapeMarkdown(addr)}](${escapeUrl(url)})`;
 }
 
 /** Transaction signature with Solscan link. */
 export function tgTxLink(sig: string): string {
   const url = `https://solscan.io/tx/${sig}`;
-  return `${tgCode(sig)}\n  🔗 [Solscan](${escapeMarkdown(url)})`;
+  return `${tgCode(sig)}\n  🔗 [Solscan](${escapeUrl(url)})`;
 }
 
 const tgPair = (x: string, y: string) => escapeMarkdown(`${x ?? "?"}/${y ?? "?"}`);
@@ -171,7 +177,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
     );
   });
   const text = lines.join("\n");
-  return text.length > 4096 ? text.slice(0, 4090) + "\\.\.\." : text;
+  return text.length > 4096 ? text.slice(0, 4090) + "\\.\\.\\." : text;
 }
 
 /** Position alert message for a single pool. */
