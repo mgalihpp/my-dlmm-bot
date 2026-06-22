@@ -693,6 +693,7 @@ poolCmd
           console.log(`\n${sep}`);
           console.log(`${bold(cyan(`${i + 1}. ${p.baseSymbol}/${p.quoteSymbol}`))}  ${gray(p.pool)}`);
           console.log(sep);
+          console.log(`  ${gray("Meteora")}   https://app.meteora.ag/dlmm/${p.pool}`);
           console.log(`  ${gray("Name")}      ${p.name}`);
           console.log(`  ${gray("Mint")}      ${p.baseMint}`);
           console.log(`  ${gray("MC")}        ${usd(p.mcap)}`);

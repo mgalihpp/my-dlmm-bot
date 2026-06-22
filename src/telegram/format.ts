@@ -51,10 +51,10 @@ export function tgShortAddr(addr: string): string {
   return tgCode(addr);
 }
 
-/** Full pool address as a tappable code span + a link to the Meteora app. */
+/** Full pool address as a tappable link to Meteora. */
 export function tgPoolAddr(addr: string): string {
   const url = `https://app.meteora.ag/dlmm/${addr}`;
-  return `${tgCode(addr)}\n  🔗 [Open in Meteora](${escapeMarkdown(url)})`;
+  return `[🔗 ${addr}](${escapeMarkdown(url)})`;
 }
 
 /** Transaction signature with Solscan link. */
