@@ -14,7 +14,6 @@ import type { ScreenResult } from "../screening.js";
 // MarkdownV2 requires escaping these characters everywhere except inside
 // code/pre entities: _ * [ ] ( ) ~ ` > # + - = | { } . !
 const MD_SPECIAL = /[_*\[\]()~`>#+\-=|{}.!\\]/g;
-const MD_URL_SPECIAL = /[)\\]]/g;
 
 export function escapeMarkdown(s: string): string {
   return String(s).replace(MD_SPECIAL, (m) => `\\${m}`);
@@ -52,9 +51,9 @@ export function tgShortAddr(addr: string): string {
   return tgCode(addr);
 }
 
-/** Escape only what's required inside MarkdownV2 link URL (...) part: ) and \ */
+/** Escape only `)` and `\` inside MarkdownV2 link URL `(...)` part. */
 function escapeUrl(url: string): string {
-  return url.replace(MD_URL_SPECIAL, (m) => `\\${m}`);
+  return url.replace(/\\/g, "\\\\").replace(/\)/g, "\\)");
 }
 
 /** Full pool address as a tappable link to Meteora. */
