@@ -2,7 +2,7 @@
 //   1. $VEXIS_CONFIG (explicit path)
 //   2. ./vexis.config.json   (current directory)
 //   3. ~/.vexis/config.json  (home directory)
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
@@ -76,6 +76,11 @@ export function loadConfig(): { config: VexisConfig; path: string | null } {
     }
   }
   return { config: {}, path: null };
+}
+
+/** Save config to disk (overwrites the file). */
+export function saveConfig(configPath: string, config: VexisConfig): void {
+  writeFileSync(configPath, JSON.stringify(config, null, 2), "utf8");
 }
 
 /** Resolve which wallet to use: CLI arg → config default. */

@@ -12,6 +12,7 @@ import { registerOnchain } from "./handlers/onchain.js";
 import { registerManage } from "./handlers/manage.js";
 import { registerCreate } from "./handlers/create.js";
 import { registerWatchlist } from "./handlers/watchlist.js";
+import { registerConfigEditor } from "./handlers/config-editor.js";
 import {
   createAlerts,
   registerAlertCommands,
@@ -29,7 +30,7 @@ const HELP = [
   escapeMarkdown("/closed - closed positions"),
   escapeMarkdown("/pools - top pools by fee/TVL"),
   escapeMarkdown("/pool <address> - pool detail"),
-  escapeMarkdown("/config - show active config"),
+  escapeMarkdown("/config - view & edit config"),
   "",
   tgBold("Watchlist"),
   escapeMarkdown("/watchadd <wallet> [label] - add wallet"),
@@ -74,22 +75,7 @@ async function main() {
   bot.command("start", (ctx) => ctx.reply(HELP, MD));
   bot.command("help", (ctx) => ctx.reply(HELP, MD));
 
-  bot.command("config", (ctx) => {
-    const masked = {
-      wallet: config.wallet ?? "(none)",
-      rpcUrl: config.rpcUrl ?? "(default mainnet)",
-      dev: !!config.dev,
-      privateKey: config.privateKey ? "****" : "(none)",
-      telegramBotToken: "****",
-      configPath: configPath ?? "(none)",
-    };
-    const lines = [tgBold("⚙️ Config"), ""];
-    for (const [k, v] of Object.entries(masked)) {
-      lines.push(`${escapeMarkdown(k)}: ${escapeMarkdown(String(v))}`);
-    }
-    return ctx.reply(lines.join("\n"), MD);
-  });
-
+  registerConfigEditor(bot, config, configPath);
   registerPortfolio(bot, client, config);
   registerPool(bot, client, config);
   registerCreate(bot, client, config);

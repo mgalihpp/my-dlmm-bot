@@ -153,29 +153,25 @@ export function tgScreenedPoolList(result: ScreenResult): string {
   if (result.pools.length === 0) return tgBold("📭 No pools found");
   const lines = [
     tgBold("🔥 Screened Pools"),
-    escapeMarkdown(`Found ${result.total} total, ${result.pools.length} shown, ${result.filtered} filtered`),
+    escapeMarkdown(`${result.pools.length} shown / ${result.total} total / ${result.filtered} filtered`),
     "",
   ];
   result.pools.forEach((p, i) => {
     const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
     const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
     const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
+    const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
     lines.push(
-      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}`,
-      `  ${tgPoolAddr(p.pool)}`,
-      `  ${escapeMarkdown(p.name)}`,
-      `  Mint: ${tgCode(p.baseMint)}`,
-      `  TVL: ${tgUsd(p.tvl)} \\| Active TVL: ${tgUsd(p.activeTvl)} \\| MC: ${tgUsd(p.mcap)}`,
-      `  Holders: ${escapeMarkdown(formatNum(p.holders))} \\| Organic: ${tgOrganic(p.organicScore)} \\| Quote Organic: ${tgOrganic(p.quoteOrganic)}`,
-      `  Fee/TVL: ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Fee: ${tgUsd(p.fee)} \\| Vol: ${tgUsd(p.volume)}`,
-      `  Volatility: ${escapeMarkdown(formatNum(p.volatility))} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Base Fee: ${escapeMarkdown(`${p.baseFeePct}%`)}`,
-      `  Price: ${escapeMarkdown(formatNum(p.price, 6))} \\| Price Chg: ${priceChg} \\| Vol Chg: ${volChg}`,
-      `  Positions: ${escapeMarkdown(String(p.activePositions))} active / ${escapeMarkdown(String(p.openPositions))} open \\| Age: ${tgAge(p.tokenAgeHours)}`,
-      `  RugScore: ${rug} \\| Score: ${escapeMarkdown(formatNum(p.score))}`,
+      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
+      `MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
+      `Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
+      `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| Age ${escapeMarkdown(age)}`,
+      `Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
       ""
     );
   });
-  return lines.join("\n");
+  const text = lines.join("\n");
+  return text.length > 4096 ? text.slice(0, 4090) + "\\.\.\." : text;
 }
 
 /** Position alert message for a single pool. */
