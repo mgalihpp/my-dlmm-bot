@@ -4,14 +4,22 @@ import {
   PublicKey,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
-import DLMM, { StrategyType } from "@meteora-ag/dlmm";
+import DLMM, {
+  StrategyType,
+  DEFAULT_BIN_PER_POSITION,
+  autoFillYByStrategy,
+  autoFillXByStrategy,
+} from "@meteora-ag/dlmm";
 import BN from "bn.js";
 import type {
   CreatePositionParams,
+  CreatePositionResult,
   AddLiquidityParams,
   RemoveLiquidityParams,
   StrategyType as VexisStrategyType,
 } from "./types.js";
+
+const MAX_BINS_PER_POSITION = DEFAULT_BIN_PER_POSITION.toNumber();
 
 const STRATEGY_MAP: Record<VexisStrategyType, StrategyType> = {
   spot: StrategyType.Spot,
@@ -38,29 +46,119 @@ export class DLMMClient {
     return dlmm.getPosition(posPubkey);
   }
 
-  async createPosition(params: CreatePositionParams): Promise<string> {
+  async createPosition(params: CreatePositionParams): Promise<CreatePositionResult> {
     const dlmm = await this.getDlmm(params.poolAddress);
+    const strategyType = STRATEGY_MAP[params.strategy];
 
-    const positionKeypair = Keypair.generate();
-    const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
-      positionPubKey: positionKeypair.publicKey,
-      totalXAmount: new BN(params.totalXAmount),
-      totalYAmount: new BN(params.totalYAmount),
-      strategy: {
-        strategyType: STRATEGY_MAP[params.strategy],
-        minBinId: params.minBinId,
-        maxBinId: params.maxBinId,
-        singleSidedX: params.singleSidedX,
-      },
-      user: this.keypair.publicKey,
-      slippage: 0.5,
-    });
+    const activeBin = await dlmm.getActiveBin();
+    const activeBinId = activeBin.binId;
+    const binStep = dlmm.lbPair.binStep;
+    const decimalsX = dlmm.tokenX.mint.decimals;
+    const decimalsY = dlmm.tokenY.mint.decimals;
 
-    const sig = await sendAndConfirmTransaction(this.connection, tx, [
-      this.keypair,
-      positionKeypair,
-    ]);
-    return sig;
+    // ── Resolve range → absolute bin ids ─────────────────────────────────
+    let minBinId: number;
+    let maxBinId: number;
+    if (params.minPct != null && params.maxPct != null) {
+      // Percentage range relative to current price (chart-free; ideal for bots).
+      // bin offset = ln(1 + pct) / ln(1 + binStep/10000)
+      minBinId = activeBinId + pctToBinOffset(params.minPct, binStep);
+      maxBinId = activeBinId + pctToBinOffset(params.maxPct, binStep);
+    } else if (params.minPrice != null && params.maxPrice != null) {
+      // Price range (UI-style). SDK expects price-per-lamport.
+      minBinId = dlmm.getBinIdFromPrice(Number(dlmm.toPricePerLamport(params.minPrice)), true);
+      maxBinId = dlmm.getBinIdFromPrice(Number(dlmm.toPricePerLamport(params.maxPrice)), false);
+    } else if (params.minBinId != null && params.maxBinId != null) {
+      const offset = params.relativeBins ? activeBinId : 0;
+      minBinId = params.minBinId + offset;
+      maxBinId = params.maxBinId + offset;
+    } else {
+      throw new Error("Provide one of: minPct/maxPct, minPrice/maxPrice, or minBinId/maxBinId");
+    }
+    if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
+    const binCount = maxBinId - minBinId + 1;
+
+    // ── Resolve amounts → atomic BN ──────────────────────────────────────
+    let totalXAmount = params.amountsAreHuman
+      ? scaleAmount(params.totalXAmount, decimalsX)
+      : new BN(params.totalXAmount);
+    let totalYAmount = params.amountsAreHuman
+      ? scaleAmount(params.totalYAmount, decimalsY)
+      : new BN(params.totalYAmount);
+
+    // ── Auto-fill the missing side from the active-bin ratio ─────────────
+    if (params.autoFill) {
+      const amountXInActiveBin = activeBin.xAmount;
+      const amountYInActiveBin = activeBin.yAmount;
+      if (totalXAmount.gtn(0) && totalYAmount.isZero()) {
+        totalYAmount = autoFillYByStrategy(
+          activeBinId, binStep, totalXAmount,
+          amountXInActiveBin, amountYInActiveBin,
+          minBinId, maxBinId, strategyType,
+        );
+      } else if (totalYAmount.gtn(0) && totalXAmount.isZero()) {
+        totalXAmount = autoFillXByStrategy(
+          activeBinId, binStep, totalYAmount,
+          amountXInActiveBin, amountYInActiveBin,
+          minBinId, maxBinId, strategyType,
+        );
+      }
+    }
+
+    // ── Single position (fits within one) ────────────────────────────────
+    if (binCount <= MAX_BINS_PER_POSITION) {
+      const positionKeypair = Keypair.generate();
+      const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
+        positionPubKey: positionKeypair.publicKey,
+        totalXAmount,
+        totalYAmount,
+        strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
+        user: this.keypair.publicKey,
+        slippage: 0.5,
+      });
+      const sig = await sendAndConfirmTransaction(this.connection, tx, [
+        this.keypair,
+        positionKeypair,
+      ]);
+      return { signatures: [sig], positions: [positionKeypair.publicKey.toBase58()], minBinId, maxBinId, binCount };
+    }
+
+    // ── Wide range → split into chunks of ≤ MAX_BINS_PER_POSITION ─────────
+    const chunks = chunkRange(minBinId, maxBinId, MAX_BINS_PER_POSITION);
+    const signatures: string[] = [];
+    const positions: string[] = [];
+    let remainingX = totalXAmount;
+    let remainingY = totalYAmount;
+    let remainingBins = binCount;
+
+    for (const chunk of chunks) {
+      const chunkBins = chunk.maxBinId - chunk.minBinId + 1;
+      // Proportional split; last chunk takes the remainder to avoid dust loss.
+      const isLast = chunk === chunks[chunks.length - 1];
+      const chunkX = isLast ? remainingX : remainingX.muln(chunkBins).divn(remainingBins);
+      const chunkY = isLast ? remainingY : remainingY.muln(chunkBins).divn(remainingBins);
+      remainingX = remainingX.sub(chunkX);
+      remainingY = remainingY.sub(chunkY);
+      remainingBins -= chunkBins;
+
+      const positionKeypair = Keypair.generate();
+      const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
+        positionPubKey: positionKeypair.publicKey,
+        totalXAmount: chunkX,
+        totalYAmount: chunkY,
+        strategy: { strategyType, minBinId: chunk.minBinId, maxBinId: chunk.maxBinId, singleSidedX: params.singleSidedX },
+        user: this.keypair.publicKey,
+        slippage: 0.5,
+      });
+      const sig = await sendAndConfirmTransaction(this.connection, tx, [
+        this.keypair,
+        positionKeypair,
+      ]);
+      signatures.push(sig);
+      positions.push(positionKeypair.publicKey.toBase58());
+    }
+
+    return { signatures, positions, minBinId, maxBinId, binCount };
   }
 
   async closePosition(
@@ -162,4 +260,42 @@ export class DLMMClient {
     ]);
     return sig;
   }
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────
+
+/**
+ * Convert a signed percentage move (e.g. -0.5 = -50%) into a bin-id offset
+ * relative to the active bin. Each bin is a (1 + binStep/10000) price step, so
+ * offset = ln(1 + pct) / ln(1 + binStep/10000). Chart-free — ideal for bots.
+ */
+function pctToBinOffset(pct: number, binStep: number): number {
+  if (pct <= -1) throw new Error("Percentage must be greater than -100%");
+  if (pct === 0) return 0;
+  return Math.round(Math.log(1 + pct) / Math.log(1 + binStep / 10000));
+}
+
+/** Convert a human amount (e.g. "0.12671") to atomic units as BN. */
+function scaleAmount(human: string, decimals: number): BN {
+  const cleaned = human.trim();
+  if (cleaned === "" || isNaN(Number(cleaned))) return new BN(0);
+  const neg = cleaned.startsWith("-");
+  const [intPart, fracPart = ""] = cleaned.replace(/^[-+]/, "").split(".");
+  const frac = (fracPart + "0".repeat(decimals)).slice(0, decimals);
+  const digits = (intPart + frac).replace(/^0+(?=\d)/, "");
+  const bn = new BN(digits || "0");
+  return neg ? bn.neg() : bn;
+}
+
+/** Split [minBinId, maxBinId] into contiguous chunks of at most `size` bins. */
+function chunkRange(
+  minBinId: number,
+  maxBinId: number,
+  size: number,
+): Array<{ minBinId: number; maxBinId: number }> {
+  const chunks: Array<{ minBinId: number; maxBinId: number }> = [];
+  for (let lo = minBinId; lo <= maxBinId; lo += size) {
+    chunks.push({ minBinId: lo, maxBinId: Math.min(lo + size - 1, maxBinId) });
+  }
+  return chunks;
 }

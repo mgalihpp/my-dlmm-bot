@@ -256,10 +256,16 @@ positionCmd
   .command("create <poolAddress>")
   .description("create a new position in a DLMM pool")
   .requiredOption("--strategy <type>", "strategy: spot, bidask, or curve")
-  .requiredOption("--x-amount <n>", "amount of token X")
-  .requiredOption("--y-amount <n>", "amount of token Y")
-  .requiredOption("--min-bin <n>", "minimum bin ID")
-  .requiredOption("--max-bin <n>", "maximum bin ID")
+  .requiredOption("--x-amount <n>", "amount of token X (human, e.g. 0.5)")
+  .requiredOption("--y-amount <n>", "amount of token Y (human, e.g. 0.5)")
+  .option("--min-bin <n>", "minimum bin ID (absolute)")
+  .option("--max-bin <n>", "maximum bin ID (absolute)")
+  .option("--min-price <n>", "minimum price (UI-style; converted to bins)")
+  .option("--max-price <n>", "maximum price (UI-style; converted to bins)")
+  .option("--min-pct <n>", "min % vs current price, e.g. -50 (chart-free; best for bots)")
+  .option("--max-pct <n>", "max % vs current price, e.g. 0")
+  .option("--atomic", "treat --x-amount/--y-amount as atomic units, not human")
+  .option("--auto-fill", "auto-fill the missing side from the active-bin ratio")
   .option("--single-sided", "single-sided: deposit only token X (meme)")
   .option("--single-sided-y", "single-sided: deposit only token Y (SOL)")
   .option("--dry-run", "preview without sending transaction")
@@ -271,8 +277,14 @@ positionCmd
         strategy: string;
         xAmount: string;
         yAmount: string;
-        minBin: string;
-        maxBin: string;
+        minBin?: string;
+        maxBin?: string;
+        minPrice?: string;
+        maxPrice?: string;
+        minPct?: string;
+        maxPct?: string;
+        atomic?: boolean;
+        autoFill?: boolean;
         singleSided?: boolean;
         singleSidedY?: boolean;
         dryRun?: boolean;
@@ -286,12 +298,23 @@ positionCmd
         const singleSidedX = opts.singleSided ?? false;
         const mode = opts.singleSidedY ? "single-sided Y (SOL)" : singleSidedX ? "single-sided X (meme)" : "two-sided";
 
+        const isPctMode = opts.minPct != null && opts.maxPct != null;
+        const isPriceMode = opts.minPrice != null && opts.maxPrice != null;
+        if (!isPctMode && !isPriceMode && (opts.minBin == null || opts.maxBin == null)) {
+          throw new Error("Provide one of: --min-pct/--max-pct, --min-price/--max-price, or --min-bin/--max-bin");
+        }
+        const rangeLabel = isPctMode
+          ? `${opts.minPct}% to ${opts.maxPct}% (vs current price)`
+          : isPriceMode
+          ? `price ${opts.minPrice} to ${opts.maxPrice}`
+          : `bins ${opts.minBin} to ${opts.maxBin} (absolute)`;
+
         console.log(`\n${bold("Create Position")}`);
         console.log(`  Pool:     ${cyan(poolAddress)}`);
         console.log(`  Strategy: ${opts.strategy}`);
         console.log(`  Token X:  ${usd(opts.xAmount)}`);
         console.log(`  Token Y:  ${usd(opts.yAmount)}`);
-        console.log(`  Bin range: ${opts.minBin} to ${opts.maxBin}`);
+        console.log(`  Range:    ${rangeLabel}`);
         console.log(`  Mode:     ${mode}`);
         console.log(
           `  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}`,
@@ -312,18 +335,28 @@ positionCmd
         const dlmm = new DLMMClient(keypair, rpcUrl);
         console.log(dim("Sending transaction..."));
 
-        const sig = await dlmm.createPosition({
+        const res = await dlmm.createPosition({
           poolAddress,
           strategy: opts.strategy as "spot" | "bidask" | "curve",
           totalXAmount: opts.xAmount,
           totalYAmount: opts.yAmount,
-          minBinId: parseInt(opts.minBin),
-          maxBinId: parseInt(opts.maxBin),
+          amountsAreHuman: !opts.atomic,
+          autoFill: opts.autoFill,
           singleSidedX,
+          ...(isPctMode
+            ? { minPct: parseFloat(opts.minPct!) / 100, maxPct: parseFloat(opts.maxPct!) / 100 }
+            : isPriceMode
+            ? { minPrice: parseFloat(opts.minPrice!), maxPrice: parseFloat(opts.maxPrice!) }
+            : { minBinId: parseInt(opts.minBin!), maxBinId: parseInt(opts.maxBin!) }),
         });
 
-        console.log(`${bold("✓ Success")} ${cyan(sig)}`);
-        console.log(`  https://solscan.io/tx/${sig}\n`);
+        console.log(
+          `${bold("✓ Success")} — ${res.positions.length} position(s), bins ${res.minBinId}..${res.maxBinId} (${res.binCount})`,
+        );
+        for (const sig of res.signatures) {
+          console.log(`  ${cyan(sig)}  https://solscan.io/tx/${sig}`);
+        }
+        console.log("");
       } catch (e) {
         fail(e);
       }

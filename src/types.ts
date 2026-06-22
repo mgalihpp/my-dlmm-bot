@@ -9,9 +9,37 @@ export interface CreatePositionParams {
   strategy: StrategyType;
   totalXAmount: string;
   totalYAmount: string;
+  singleSidedX: boolean;
+  // Range — provide EITHER absolute bin ids OR a price range.
+  // Bin ids are anchored to the active bin via `relativeBins`.
+  minBinId?: number;
+  maxBinId?: number;
+  // When true, minBinId/maxBinId are offsets relative to the active bin
+  // (e.g. -34..34). When false/omitted they are treated as absolute bin ids.
+  relativeBins?: boolean;
+  // Price range (human units, e.g. USDC/SOL). Converted to bins via the SDK.
+  // Takes precedence over minBinId/maxBinId when both are present.
+  minPrice?: number;
+  maxPrice?: number;
+  // Percentage range relative to current price (signed fractions, e.g.
+  // minPct -0.5 / maxPct 0 = "-50% up to current price"). Highest precedence —
+  // chart-free, best for automated bots.
+  minPct?: number;
+  maxPct?: number;
+  // When true, totalXAmount/totalYAmount are human amounts (e.g. "0.5 SOL")
+  // and get scaled by the token decimals. When false they are atomic units.
+  amountsAreHuman?: boolean;
+  // When true, the missing side amount is auto-filled from the provided side
+  // based on the active bin ratio (mirrors the UI "Auto-Fill" toggle).
+  autoFill?: boolean;
+}
+
+export interface CreatePositionResult {
+  signatures: string[];
+  positions: string[];
   minBinId: number;
   maxBinId: number;
-  singleSidedX: boolean;
+  binCount: number;
 }
 
 export interface AddLiquidityParams {

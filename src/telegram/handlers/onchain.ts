@@ -59,16 +59,32 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     try {
       requireKeypair();
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
+      // Two range syntaxes:
+      //   /create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [side]      (bins, relative to active)
+      //   /create <pool> <strategy> <xAmt> <yAmt> price <minPrice> <maxPrice> [side]
+      const usage =
+        "Usage:\n" +
+        "`/create <poolAddr> <strategy> <xAmt> <yAmt> pct <minPct> <maxPct> [single|single-y]`\n" +
+        "`/create <poolAddr> <strategy> <xAmt> <yAmt> price <minPrice> <maxPrice> [single|single-y]`\n" +
+        "`/create <poolAddr> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]`\n" +
+        "Pct example: `pct -50 0` \\= from \\-50% to current price\\. Amounts are human \\(e\\.g\\. 0\\.5\\)\\.\n" +
+        "`single` = single\\-sided X \\(meme\\), `single-y` = single\\-sided Y \\(SOL\\)";
       if (parts.length < 6) {
-        await ctx.reply(
-          "Usage: `/create <poolAddr> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single]`\n" +
-            "Optional `single` = single\\-sided X \\(meme\\)\n" +
-            "`single-y` = single\\-sided Y \\(SOL\\)",
-          MD
-        );
+        await ctx.reply(usage, MD);
         return;
       }
-      const [poolAddress, strategy, xAmt, yAmt, minBin, maxBin, sideArg] = parts;
+      const keyword = parts[4].toLowerCase();
+      const isPctMode = keyword === "pct" || keyword === "%";
+      const isPriceMode = keyword === "price";
+      const keyed = isPctMode || isPriceMode;
+      const [poolAddress, strategy, xAmt, yAmt] = parts;
+      const rangeA = keyed ? parts[5] : parts[4];
+      const rangeB = keyed ? parts[6] : parts[5];
+      const sideArg = keyed ? parts[7] : parts[6];
+      if (rangeA == null || rangeB == null) {
+        await ctx.reply(usage, MD);
+        return;
+      }
       if (!STRATEGIES.has(strategy as StrategyType)) {
         await ctx.reply("Strategy must be: spot, bidask, or curve", MD);
         return;
@@ -77,24 +93,34 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         sideArg === "single" || sideArg === "single-x" || sideArg === "singlex";
       const singleSidedY = sideArg === "single-y" || sideArg === "singley";
       const mode = singleSidedX ? "single-sided X (meme)" : singleSidedY ? "single-sided Y (SOL)" : "two-sided";
+      const rangeLabel = isPctMode
+        ? `${rangeA}% to ${rangeB}% (vs current price)`
+        : isPriceMode
+        ? `price ${rangeA} to ${rangeB}`
+        : `bins ${rangeA} to ${rangeB} (relative)`;
       const summary = [
         "*Create position?*",
         `Pool: ${tgCode(poolAddress)}`,
-        `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(`${minBin} to ${maxBin}`)}`,
+        `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(rangeLabel)}`,
         `X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
         `Mode: ${escapeMarkdown(mode)}`,
       ].join("\n");
-      await present(ctx, summary, makeDlmmRunner((dlmm) =>
-        dlmm.createPosition({
+      await present(ctx, summary, makeDlmmRunner(async (dlmm) => {
+        const res = await dlmm.createPosition({
           poolAddress,
           strategy: strategy as StrategyType,
           totalXAmount: xAmt,
           totalYAmount: yAmt,
-          minBinId: parseInt(minBin, 10),
-          maxBinId: parseInt(maxBin, 10),
+          amountsAreHuman: true,
           singleSidedX,
-        })
-      ));
+          ...(isPctMode
+            ? { minPct: parseFloat(rangeA) / 100, maxPct: parseFloat(rangeB) / 100 }
+            : isPriceMode
+            ? { minPrice: parseFloat(rangeA), maxPrice: parseFloat(rangeB) }
+            : { minBinId: parseInt(rangeA, 10), maxBinId: parseInt(rangeB, 10), relativeBins: true }),
+        });
+        return res.signatures.join("\n");
+      }));
     } catch (e) {
       await replyError(ctx, e);
     }
