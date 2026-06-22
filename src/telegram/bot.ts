@@ -108,31 +108,18 @@ async function main() {
     console.error("Bot error:", err.error);
   });
 
+  // Keep the native Telegram command menu (blue button) short — only the
+  // essentials. Everything else is reachable via /start (full list) or the
+  // interactive /menu buttons.
   await bot.api.setMyCommands([
-    { command: "start", description: "Start the bot" },
+    { command: "start", description: "Start the bot / show all commands" },
     { command: "menu", description: "Open interactive menu" },
-    { command: "help", description: "Show all commands" },
-    { command: "config", description: "Show current config" },
-    { command: "portfolio", description: "Total PnL summary" },
-    { command: "open", description: "Open positions" },
-    { command: "closed", description: "Closed positions" },
-    { command: "pools", description: "Top pools by fee/TVL" },
-    { command: "pool", description: "Pool detail <address>" },
     { command: "manage", description: "Interactive position manager" },
     { command: "create", description: "Create a DLMM position (guided wizard)" },
-    { command: "close", description: "Close a position" },
-    { command: "addliq", description: "Add liquidity to position" },
-    { command: "removeliq", description: "Remove liquidity from position" },
-    { command: "claimfee", description: "Claim fees from position" },
-    { command: "claimreward", description: "Claim rewards from position" },
-    { command: "watchadd", description: "Add wallet to watchlist" },
-    { command: "watchremove", description: "Remove wallet from watchlist" },
-    { command: "watchlist", description: "List watched wallets" },
-    { command: "watchpositions", description: "Positions of watched wallets" },
-    { command: "wallets", description: "Query any wallets" },
-    { command: "alerts", description: "Show active alerts" },
-    { command: "setalert", description: "Set price/pool alert" },
-    { command: "stopalert", description: "Stop an alert" },
+    { command: "portfolio", description: "Total PnL summary" },
+    { command: "open", description: "Open positions" },
+    { command: "pools", description: "Top pools by fee/TVL" },
+    { command: "help", description: "Show all commands" },
   ]);
 
   console.log("Bot started" + (chatId ? ` (locked to chat ${chatId})` : " (open to all chats)"));

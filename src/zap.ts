@@ -87,16 +87,19 @@ export class ZapClient {
 
     const transactions: Transaction[] = [];
     let claimSig = "";
+    const claimBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
     for (const tx of claimTxs) {
       tx.feePayer = this.keypair.publicKey;
-      tx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+      tx.recentBlockhash = claimBlockhash;
       claimSig = await sendAndConfirmTransaction(this.connection, tx, [this.keypair]);
       transactions.push(tx);
     }
     console.log(`[claimAndZapOut] Claim done. sig=${claimSig}`);
 
-    // Wait for balance to settle before reading delta
-    await this.connection.confirmTransaction(claimSig, "finalized");
+    // Wait for balance to settle before reading delta. "confirmed" is enough —
+    // the balance is already updated once the tx confirms, and waiting for
+    // "finalized" here adds ~15-25s for no accuracy gain.
+    if (claimSig) await this.connection.confirmTransaction(claimSig, "confirmed");
 
     // Delta = only the newly claimed tokens
     const [balXAfter, balYAfter] = await Promise.all([
@@ -154,16 +157,19 @@ export class ZapClient {
 
     const transactions: Transaction[] = [];
     let closeSig = "";
+    const closeBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
     for (const tx of removeTxs) {
       tx.feePayer = this.keypair.publicKey;
-      tx.recentBlockhash = (await this.connection.getLatestBlockhash()).blockhash;
+      tx.recentBlockhash = closeBlockhash;
       closeSig = await sendAndConfirmTransaction(this.connection, tx, [this.keypair]);
       transactions.push(tx);
     }
     console.log(`[closeAndZapOut] Position closed. sig=${closeSig}`);
 
-    // Wait for balance to settle before reading delta
-    await this.connection.confirmTransaction(closeSig, "finalized");
+    // Wait for balance to settle before reading delta. "confirmed" is enough —
+    // the balance is already updated once the tx confirms, and waiting for
+    // "finalized" here adds ~15-25s for no accuracy gain.
+    if (closeSig) await this.connection.confirmTransaction(closeSig, "confirmed");
 
     // Delta = only the withdrawn tokens
     const [balXAfter, balYAfter] = await Promise.all([
