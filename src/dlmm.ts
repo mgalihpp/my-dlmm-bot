@@ -135,21 +135,47 @@ export class DLMMClient {
     const positionKeypair = Keypair.generate();
     const posPubkey = positionKeypair.publicKey;
 
-    // Pick 70 contiguous bins that include the active bin (where fees flow).
-    let initMin = Math.max(
-      minBinId,
-      Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
-    );
-    let initMax = initMin + INITIAL_POSITION_WIDTH - 1;
-    if (initMax > maxBinId) {
-      initMax = maxBinId;
-      initMin = initMax - INITIAL_POSITION_WIDTH + 1;
-    }
-    const initCount = initMax - initMin + 1;
+    // ── pick initial 70-bin range ───────────────────────────────────────
+    // For bidask, put the initial slot at the EDGE that matches the deposit
+    // side so the strategy's concentrated bins get their full amount in the
+    // first call.  The opposite-side token (auto-filled) goes entirely in the
+    // second call after the position has been expanded to cover the real edge.
+    let initMin: number;
+    let initMax: number;
+    let initX: BN;
+    let initY: BN;
 
-    // Proportional liquidity for the initial 70 bins.
-    const initX = totalXAmount.muln(initCount).divn(binCount);
-    const initY = totalYAmount.muln(initCount).divn(binCount);
+    const isBidAsk = strategyType === StrategyType.BidAsk;
+
+    if (isBidAsk && !params.singleSidedX) {
+      // single-sided Y (deposit Y only) – Y lives at the ASK edge (upper bins).
+      // Init at the top so Y lands on the ask side immediately.
+      initMax = maxBinId;
+      initMin = maxBinId - INITIAL_POSITION_WIDTH + 1;
+      initX = new BN(0);
+      initY = totalYAmount;
+    } else if (isBidAsk && params.singleSidedX) {
+      // single-sided X (deposit X only) – X lives at the BID edge (lower bins).
+      // Init at the bottom so X lands on the bid side immediately.
+      initMin = minBinId;
+      initMax = minBinId + INITIAL_POSITION_WIDTH - 1;
+      initX = totalXAmount;
+      initY = new BN(0);
+    } else {
+      // Spot / Curve / two-sided BidAsk → centre on the active bin.
+      initMin = Math.max(
+        minBinId,
+        Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
+      );
+      initMax = initMin + INITIAL_POSITION_WIDTH - 1;
+      if (initMax > maxBinId) {
+        initMax = maxBinId;
+        initMin = initMax - INITIAL_POSITION_WIDTH + 1;
+      }
+      const initCount = initMax - initMin + 1;
+      initX = totalXAmount.muln(initCount).divn(binCount);
+      initY = totalYAmount.muln(initCount).divn(binCount);
+    }
 
     const initTx = await dlmm.initializePositionAndAddLiquidityByStrategy({
       positionPubKey: posPubkey,
@@ -185,14 +211,23 @@ export class DLMMClient {
     }
 
     // Top up the expanded bins with the remaining liquidity.
+    // singleSidedX must match whichever token actually has remaining amount
+    // so the strategy puts it on the correct edge (bidask: X→bid, Y→ask).
     const remainingX = totalXAmount.sub(initX);
     const remainingY = totalYAmount.sub(initY);
     if (remainingX.gtn(0) || remainingY.gtn(0)) {
+      const isXOnly = remainingX.gtn(0) && remainingY.isZero();
+      const isYOnly = remainingY.gtn(0) && remainingX.isZero();
       const addTx = await dlmm.addLiquidityByStrategy({
         positionPubKey: posPubkey,
         totalXAmount: remainingX,
         totalYAmount: remainingY,
-        strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
+        strategy: {
+          strategyType,
+          minBinId,
+          maxBinId,
+          singleSidedX: isXOnly ? true : isYOnly ? false : params.singleSidedX,
+        },
         user: this.keypair.publicKey,
         slippage: 0.5,
       });
