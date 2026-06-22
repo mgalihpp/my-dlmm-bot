@@ -69,16 +69,12 @@ export class DLMMClient {
       // bin offset = ln(1 + pct) / ln(1 + binStep/10000)
       minBinId = activeBinId + pctToBinOffset(params.minPct, binStep);
       maxBinId = activeBinId + pctToBinOffset(params.maxPct, binStep);
-    } else if (params.minPrice != null && params.maxPrice != null) {
-      // Price range (UI-style). SDK expects price-per-lamport.
-      minBinId = dlmm.getBinIdFromPrice(Number(dlmm.toPricePerLamport(params.minPrice)), true);
-      maxBinId = dlmm.getBinIdFromPrice(Number(dlmm.toPricePerLamport(params.maxPrice)), false);
     } else if (params.minBinId != null && params.maxBinId != null) {
       const offset = params.relativeBins ? activeBinId : 0;
       minBinId = params.minBinId + offset;
       maxBinId = params.maxBinId + offset;
     } else {
-      throw new Error("Provide one of: minPct/maxPct, minPrice/maxPrice, or minBinId/maxBinId");
+      throw new Error("Provide one of: minPct/maxPct, or minBinId/maxBinId");
     }
     if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
     const binCount = maxBinId - minBinId + 1;

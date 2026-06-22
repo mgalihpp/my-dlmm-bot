@@ -12,21 +12,14 @@ import {
   deleteWizard,
 } from "../wizard-store.js";
 
-const RANGE_PRESETS = [
-  { label: "±1%", pct: 0.01 },
-  { label: "±2%", pct: 0.02 },
-  { label: "±5%", pct: 0.05 },
-  { label: "±10%", pct: 0.1 },
-] as const;
+const DEFAULT_BIN_RANGE = 70; // ±70 bins relative to active bin
 
-// Wide single-sided price ranges (relative to current price). minPct/maxPct
-// are signed fractions, e.g. -0.90 → 0 means "from -90% up to current price".
 const WIDE_PRESETS = [
-  { label: "-90% → 0% (SOL bid)", minPct: -0.9, maxPct: 0 },
-  { label: "-80% → 0% (SOL bid)", minPct: -0.8, maxPct: 0 },
-  { label: "-70% → 0% (SOL bid)", minPct: -0.7, maxPct: 0 },
-  { label: "-60% → 0% (SOL bid)", minPct: -0.6, maxPct: 0 },
-  { label: "-50% → 0% (SOL bid)", minPct: -0.5, maxPct: 0 },
+  { label: "-90% → 0%", minPct: -0.9, maxPct: 0 },
+  { label: "-80% → 0%", minPct: -0.8, maxPct: 0 },
+  { label: "-70% → 0%", minPct: -0.7, maxPct: 0 },
+  { label: "-60% → 0%", minPct: -0.6, maxPct: 0 },
+  { label: "-50% → 0%", minPct: -0.5, maxPct: 0 },
 ] as const;
 
 export function registerCreate(
@@ -255,41 +248,89 @@ export function registerCreate(
     }
     updateWizard(wid, { mode });
 
-    const { currentPrice, binStep } = state;
     const strategy = state.strategy!;
+    const sideArg =
+      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
+    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
+    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
+    const defaultCmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} ${-DEFAULT_BIN_RANGE} ${DEFAULT_BIN_RANGE}${sideArg}`;
 
-    const presetLines = RANGE_PRESETS.map(({ label, pct }) => {
-      const { minBin, maxBin } = calcBins(binStep, pct);
-      return `• ${label} → bins ${minBin} to ${maxBin}`;
-    });
+    const hint =
+      mode === "two-sided"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
+        : mode === "single-x"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
+        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
 
     const text = [
       tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
       `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Current price: ${escapeMarkdown(String(currentPrice))} \\| Bin step: ${escapeMarkdown(String(binStep))}`,
       "",
       tgBold("Step 3/3 — Pick range:"),
       "",
-      ...presetLines.map(escapeMarkdown),
+      `🎯 *Default* — ±${DEFAULT_BIN_RANGE} bins \\(relative to active bin\\)`,
+      `\`${defaultCmd}\``,
+      "",
+      hint,
     ].join("\n");
 
-    const kb = new InlineKeyboard();
-    for (const { label, pct } of RANGE_PRESETS) {
-      kb.text(label, `crt:amt:${wid}:${pct}`);
-    }
-    kb.row();
-    // Wide single-sided price presets (mirror UI -90%/0% style ranges)
+    const kb = new InlineKeyboard()
+      .text(`🎯 Default (±${DEFAULT_BIN_RANGE} bins)`, `crt:default:${wid}`)
+      .row();
     WIDE_PRESETS.forEach(({ label }, i) => {
       kb.text(label, `crt:wide:${wid}:${i}`).row();
     });
-    kb.text("✏️ Custom range", `crt:custom:${wid}`)
+    kb.text("✏️ Custom", `crt:custom:${wid}`)
       .row()
       .text("⬅️ Back", `crt:mode:${wid}:${strategy}`);
 
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
   });
 
-  // ─── crt:wide:<wid>:<idx> — wide price-range preset → price command ──────
+  // ─── crt:default:<wid> — confirm default ±70 bin command ────────────────
+  bot.callbackQuery(/^crt:default:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const state = getWizard(wid);
+    if (!state) {
+      await expired(ctx);
+      return;
+    }
+
+    const strategy = state.strategy!;
+    const mode = state.mode!;
+    const sideArg =
+      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
+    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
+    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
+    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} ${-DEFAULT_BIN_RANGE} ${DEFAULT_BIN_RANGE}${sideArg}`;
+
+    const hint =
+      mode === "two-sided"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
+        : mode === "single-x"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
+        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
+
+    const text = [
+      tgBold("✅ Ready to create\\!"),
+      "",
+      `Pool: ${tgCode(state.poolAddress)}`,
+      `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
+      `Range: ±${DEFAULT_BIN_RANGE} bins \\(relative to active bin\\)`,
+      "",
+      "Copy the command below and fill in the amounts:",
+      `\`${cmd}\``,
+      "",
+      hint,
+    ].join("\n");
+
+    deleteWizard(wid);
+    const kb = new InlineKeyboard().text("🔄 Start over", "crt:source");
+    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+  });
+
+  // ─── crt:wide:<wid>:<idx> — wide pct preset ─────────────────────────────
   bot.callbackQuery(/^crt:wide:([^:]+):(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
@@ -308,84 +349,34 @@ export function registerCreate(
       mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
     const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
     const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
-
     const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct ${minPctNum} ${maxPctNum}${sideArg}`;
+
+    const hint =
+      mode === "two-sided"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
+        : mode === "single-x"
+        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
+        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
 
     const text = [
       tgBold("✅ Wide range ready\\!"),
       "",
       `Pool: ${tgCode(state.poolAddress)}`,
       `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Range: ${escapeMarkdown(preset.label)} → pct ${escapeMarkdown(`${minPctNum}% to ${maxPctNum}%`)}`,
+      `Range: ${escapeMarkdown(preset.label)} \\(pct ${escapeMarkdown(`${minPctNum}% to ${maxPctNum}%`)}\\)`,
       "",
-      escapeMarkdown(
-        "Wide ranges create 1 position with higher rent (expanded beyond 70 bins).",
-      ),
       "Copy the command and fill the amount:",
       `\`${cmd}\``,
+      "",
+      hint,
     ].join("\n");
-
-    const kb = new InlineKeyboard()
-      .text("⬅️ Back", `crt:range:${wid}:${mode}`)
-      .text("🔄 Start over", "crt:source");
-
-    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
-  });
-
-  // ─── crt:amt:<wid>:<pct> — show pre-filled command ──────────────────────
-  bot.callbackQuery(/^crt:amt:([^:]+):(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const wid = ctx.match![1];
-    const pct = parseFloat(ctx.match![2]);
-    const state = getWizard(wid);
-    if (!state) {
-      await expired(ctx);
-      return;
-    }
-
-    const { minBin, maxBin } = calcBins(state.binStep, pct);
-    const strategy = state.strategy!;
-    const mode = state.mode!;
-
-    const sideArg =
-      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
-    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
-    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
-
-    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} ${minBin} ${maxBin}${sideArg}`;
-
-    const text = [
-      tgBold("✅ Ready to create\\!"),
-      "",
-      `Pool: ${tgCode(state.poolAddress)}`,
-      `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Range: ${escapeMarkdown(`±${(pct * 100).toFixed(0)}%`)} → bins ${escapeMarkdown(`${minBin}`)} to ${escapeMarkdown(`${maxBin}`)}`,
-      "",
-      "Copy the command below and fill in the amounts:",
-      `\`${cmd}\``,
-      "",
-      mode === "two-sided"
-        ? escapeMarkdown(
-            "Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.",
-          )
-        : mode === "single-x"
-          ? escapeMarkdown(
-              "Replace <xAmt> with meme token amount. Y is already set to 0.",
-            )
-          : escapeMarkdown(
-              "Replace <yAmt> with SOL/stable amount. X is already set to 0.",
-            ),
-    ].join("\n");
-
-    const kb = new InlineKeyboard()
-      .text("⬅️ Back", `crt:range:${wid}:${mode}`)
-      .text("🔄 Start over", "crt:source");
 
     deleteWizard(wid);
+    const kb = new InlineKeyboard().text("🔄 Start over", "crt:source");
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
   });
 
-  // ─── crt:custom:<wid> — show pre-filled command with bin placeholders ────
+  // ─── crt:custom:<wid> — show pre-filled command with placeholders ────────
   bot.callbackQuery(/^crt:custom:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
@@ -402,25 +393,22 @@ export function registerCreate(
     const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
     const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
 
-    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} <minBin> <maxBin>${sideArg}`;
-
+    const cmdBin = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} <minBin> <maxBin>${sideArg}`;
     const cmdPct = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct <minPct> <maxPct>${sideArg}`;
 
     const text = [
       tgBold("✏️ Custom Range"),
       "",
-      `Current price: ${escapeMarkdown(String(state.currentPrice))}`,
       `Bin step: ${escapeMarkdown(String(state.binStep))} \\(1 bin ≈ ${escapeMarkdown(`${state.binStep / 100}%`)}\\)`,
       "",
       tgBold("Bin mode") + " \\(relative to active bin\\):",
-      `\`${cmd}\``,
+      `\`${cmdBin}\``,
       "",
       tgBold("Pct mode") + " \\(% vs current price\\):",
       `\`${cmdPct}\``,
     ].join("\n");
 
     const kb = new InlineKeyboard().text("⬅️ Back", `crt:range:${wid}:${mode}`);
-
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
   });
 }
@@ -458,15 +446,6 @@ function strategyKb(wid: string): InlineKeyboard {
     .text("⬅️ Back", "crt:source");
 }
 
-function calcBins(
-  binStep: number,
-  pct: number,
-): { minBin: number; maxBin: number } {
-  // Each bin represents binStep basis points of price movement.
-  // bins_needed = pct / (binStep / 10000)
-  const binsPerSide = Math.round(pct / (binStep / 10000));
-  return { minBin: -binsPerSide, maxBin: binsPerSide };
-}
 
 async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
   const text = [

@@ -17,10 +17,6 @@ export interface CreatePositionParams {
   // When true, minBinId/maxBinId are offsets relative to the active bin
   // (e.g. -34..34). When false/omitted they are treated as absolute bin ids.
   relativeBins?: boolean;
-  // Price range (human units, e.g. USDC/SOL). Converted to bins via the SDK.
-  // Takes precedence over minBinId/maxBinId when both are present.
-  minPrice?: number;
-  maxPrice?: number;
   // Percentage range relative to current price (signed fractions, e.g.
   // minPct -0.5 / maxPct 0 = "-50% up to current price"). Highest precedence —
   // chart-free, best for automated bots.

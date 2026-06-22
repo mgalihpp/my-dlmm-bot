@@ -264,8 +264,6 @@ positionCmd
   .requiredOption("--y-amount <n>", "amount of token Y (human, e.g. 0.5)")
   .option("--min-bin <n>", "minimum bin ID (absolute)")
   .option("--max-bin <n>", "maximum bin ID (absolute)")
-  .option("--min-price <n>", "minimum price (UI-style; converted to bins)")
-  .option("--max-price <n>", "maximum price (UI-style; converted to bins)")
   .option("--min-pct <n>", "min % vs current price, e.g. -50 (chart-free; best for bots)")
   .option("--max-pct <n>", "max % vs current price, e.g. 0")
   .option("--atomic", "treat --x-amount/--y-amount as atomic units, not human")
@@ -283,8 +281,6 @@ positionCmd
         yAmount: string;
         minBin?: string;
         maxBin?: string;
-        minPrice?: string;
-        maxPrice?: string;
         minPct?: string;
         maxPct?: string;
         atomic?: boolean;
@@ -303,14 +299,11 @@ positionCmd
         const mode = opts.singleSidedY ? "single-sided Y (SOL)" : singleSidedX ? "single-sided X (meme)" : "two-sided";
 
         const isPctMode = opts.minPct != null && opts.maxPct != null;
-        const isPriceMode = opts.minPrice != null && opts.maxPrice != null;
-        if (!isPctMode && !isPriceMode && (opts.minBin == null || opts.maxBin == null)) {
-          throw new Error("Provide one of: --min-pct/--max-pct, --min-price/--max-price, or --min-bin/--max-bin");
+        if (!isPctMode && (opts.minBin == null || opts.maxBin == null)) {
+          throw new Error("Provide one of: --min-pct/--max-pct, or --min-bin/--max-bin");
         }
         const rangeLabel = isPctMode
           ? `${opts.minPct}% to ${opts.maxPct}% (vs current price)`
-          : isPriceMode
-          ? `price ${opts.minPrice} to ${opts.maxPrice}`
           : `bins ${opts.minBin} to ${opts.maxBin} (absolute)`;
 
         console.log(`\n${bold("Create Position")}`);
@@ -349,8 +342,6 @@ positionCmd
           singleSidedX,
           ...(isPctMode
             ? { minPct: parseFloat(opts.minPct!) / 100, maxPct: parseFloat(opts.maxPct!) / 100 }
-            : isPriceMode
-            ? { minPrice: parseFloat(opts.minPrice!), maxPrice: parseFloat(opts.maxPrice!) }
             : { minBinId: parseInt(opts.minBin!), maxBinId: parseInt(opts.maxBin!) }),
         });
 

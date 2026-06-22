@@ -60,8 +60,8 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
       // Two range syntaxes:
-      //   /create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [side]      (bins, relative to active)
-      //   /create <pool> <strategy> <xAmt> <yAmt> price <minPrice> <maxPrice> [side]
+      //   /create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [side]   (bins, relative to active)
+      //   /create <pool> <strategy> <xAmt> <yAmt> pct <minPct> <maxPct> [side]
       const usage =
         "Usage:\n" +
         "`/create <poolAddr> <strategy> <xAmt> <yAmt> pct <minPct> <maxPct> [single|single-y]`\n" +
