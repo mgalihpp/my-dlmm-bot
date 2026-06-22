@@ -109,6 +109,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           totalYAmount: yAmt,
           amountsAreHuman: true,
           singleSidedX,
+          singleSidedY,
           ...(isPctMode
             ? { minPct: parseFloat(rangeA) / 100, maxPct: parseFloat(rangeB) / 100 }
             : { minBinId: parseInt(rangeA, 10), maxBinId: parseInt(rangeB, 10), relativeBins: true }),

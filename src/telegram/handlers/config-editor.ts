@@ -79,18 +79,24 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
   return lines.join("\n");
 }
 
-function buildConfigKeyboard(): InlineKeyboard {
+// Page 1 = General + display settings; Page 2 = screening filters.
+// Splitting avoids Telegram clients truncating keyboards with > ~6 rows.
+function buildConfigKeyboard(page = 1): InlineKeyboard {
+  if (page === 1) {
+    return new InlineKeyboard()
+      .text("✏️ Wallet", "cfg:set:wallet")
+      .text("✏️ RPC", "cfg:set:rpcUrl")
+      .text("🔄 Dev", "cfg:toggle:dev")
+      .row()
+      .text("✏️ Timeframe", "cfg:set:pools.timeframe")
+      .text("✏️ Category", "cfg:set:pools.category")
+      .row()
+      .text("✏️ Page Size", "cfg:set:pools.pageSize")
+      .text("✏️ Display Limit", "cfg:set:pools.displayLimit")
+      .row()
+      .text("Filters »", "cfg:page:2");
+  }
   return new InlineKeyboard()
-    .text("✏️ Wallet", "cfg:set:wallet")
-    .text("✏️ RPC", "cfg:set:rpcUrl")
-    .text("🔄 Dev", "cfg:toggle:dev")
-    .row()
-    .text("✏️ Timeframe", "cfg:set:pools.timeframe")
-    .text("✏️ Category", "cfg:set:pools.category")
-    .row()
-    .text("✏️ Page Size", "cfg:set:pools.pageSize")
-    .text("✏️ Display Limit", "cfg:set:pools.displayLimit")
-    .row()
     .text("✏️ Min MC", "cfg:set:pools.minMcap")
     .text("✏️ Max MC", "cfg:set:pools.maxMcap")
     .row()
@@ -111,11 +117,17 @@ function buildConfigKeyboard(): InlineKeyboard {
     .row()
     .text("✏️ Min Age (h)", "cfg:set:pools.minTokenAgeHours")
     .text("✏️ Max Age (h)", "cfg:set:pools.maxTokenAgeHours")
-    .row();
+    .row()
+    .text("« General", "cfg:page:1");
 }
 
-/** Pending edits: chatId → { field, key, type } */
-const pendingEdits = new Map<string, { field: string; key: string; type: string }>();
+function pageForKey(key: string): number {
+  const page1 = new Set(["wallet", "rpcUrl", "dev", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
+  return page1.has(key) ? 1 : 2;
+}
+
+/** Pending edits: chatId → { field, key, type, page } */
+const pendingEdits = new Map<string, { field: string; key: string; type: string; page: number }>();
 
 export function registerConfigEditor(
   bot: Bot,
@@ -139,13 +151,21 @@ export function registerConfigEditor(
     }
     const current = formatValue(field, config);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-    pendingEdits.set(chatId, { field: editable.label, key: editable.key, type: editable.type });
+    pendingEdits.set(chatId, { field: editable.label, key: editable.key, type: editable.type, page: pageForKey(editable.key) });
 
     const typeHint = editable.type === "number" ? " (number)" : editable.type === "boolean" ? " (on/off)" : "";
     await ctx.editMessageText(
       `${tgBold(`✏️ Edit ${editable.label}`)}\n\nCurrent: ${tgCode(current)}\n\nSend new value${typeHint}:`,
       MD,
     );
+  });
+
+  // cfg:page:<n> — switch keyboard page
+  bot.callbackQuery(/^cfg:page:(\d+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const page = parseInt(ctx.match![1], 10);
+    const text = buildConfigText(config, configPath);
+    await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(page) });
   });
 
   // cfg:toggle:<field> — toggle boolean
@@ -156,7 +176,7 @@ export function registerConfigEditor(
     setNestedValue(config, field, !current);
     if (configPath) saveConfig(configPath, config);
     const text = buildConfigText(config, configPath);
-    await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard() });
+    await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(pageForKey(field)) });
   });
 
   // cfg:back — back to config view
@@ -165,7 +185,7 @@ export function registerConfigEditor(
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     pendingEdits.delete(chatId);
     const text = buildConfigText(config, configPath);
-    await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard() });
+    await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(1) });
   });
 
   // Handle text replies for pending edits
@@ -179,7 +199,7 @@ export function registerConfigEditor(
 
     if (raw === "/cancel" || raw === "/config") {
       const text = buildConfigText(config, configPath);
-      await ctx.reply(text, { ...MD, reply_markup: buildConfigKeyboard() });
+      await ctx.reply(text, { ...MD, reply_markup: buildConfigKeyboard(1) });
       return;
     }
 
@@ -212,7 +232,7 @@ export function registerConfigEditor(
     const text = buildConfigText(config, configPath);
     await ctx.reply(
       `${tgBold(`✅ ${pending.field} updated`)}\n\n${text}`,
-      { ...MD, reply_markup: buildConfigKeyboard() },
+      { ...MD, reply_markup: buildConfigKeyboard(pending.page) },
     );
   });
 }

@@ -77,6 +77,17 @@ export class DLMMClient {
       throw new Error("Provide one of: minPct/maxPct, or minBinId/maxBinId");
     }
     if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
+
+    // The active bin is a mixed bin (holds both X and Y). Including it in a
+    // single-sided range with the wrong token amount makes the BidAsk SDK
+    // crash with "Cannot read properties of null (reading 'data')".
+    if (params.singleSidedY && maxBinId >= activeBinId) {
+      maxBinId = activeBinId - 1;
+    }
+    if (params.singleSidedX && minBinId <= activeBinId) {
+      minBinId = activeBinId + 1;
+    }
+
     const binCount = maxBinId - minBinId + 1;
 
     // ── Resolve amounts → atomic BN ──────────────────────────────────────
