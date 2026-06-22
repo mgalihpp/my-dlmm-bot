@@ -293,9 +293,15 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     }
     await ctx.editMessageText("⏳ Sending transaction\\.\\.\\.", MD);
     try {
-      const sig = await op.run();
+      const result = await op.run();
+      // run() may return several signatures joined by newlines (e.g. a wide
+      // range that creates + expands across multiple txs). Render one Solscan
+      // link per signature — joining them into a single tgTxLink would produce
+      // an invalid `/tx/<sig1>\n<sig2>` URL that Solscan reports as not found.
+      const sigs = result.split("\n").map((s) => s.trim()).filter(Boolean);
+      const body = sigs.map(tgTxLink).join("\n");
       await ctx.editMessageText(
-        `✅ Done\\!\n${tgTxLink(sig)}`,
+        `✅ Done\\!\n${body}`,
         MD
       );
     } catch (e) {
