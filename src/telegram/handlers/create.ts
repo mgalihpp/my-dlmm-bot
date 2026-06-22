@@ -156,7 +156,7 @@ export function registerCreate(
         tgBold("📍 Paste Pool Address"),
         "",
         "Send the DLMM pool address as your next message\\.",
-        escapeMarkdown("Example: AvuVMMivvzaSS3m4phTRppbUQ1jAG3xnk2TenSyEWM5g"),
+        escapeMarkdown("Example: 5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6"),
       ].join("\n"),
       { ...MD, reply_markup: backToSourceKb() },
     );
@@ -414,14 +414,23 @@ export function registerCreate(
 
     const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} <minBin> <maxBin>${sideArg}`;
 
+    const cmdPct = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct <minPct> <maxPct>${sideArg}`;
+    const cmdPrice = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} price <minPrice> <maxPrice>${sideArg}`;
+
     const text = [
       tgBold("✏️ Custom Range"),
       "",
       `Current price: ${escapeMarkdown(String(state.currentPrice))}`,
       `Bin step: ${escapeMarkdown(String(state.binStep))} \\(1 bin ≈ ${escapeMarkdown(`${state.binStep / 100}%`)}\\)`,
       "",
-      "Copy the command and fill all values:",
+      tgBold("Bin mode") + " \\(relative to active bin\\):",
       `\`${cmd}\``,
+      "",
+      tgBold("Pct mode") + " \\(% vs current price\\):",
+      `\`${cmdPct}\``,
+      "",
+      tgBold("Price mode") + " \\(absolute price range\\):",
+      `\`${cmdPrice}\``,
     ].join("\n");
 
     const kb = new InlineKeyboard().text("⬅️ Back", `crt:range:${wid}:${mode}`);
