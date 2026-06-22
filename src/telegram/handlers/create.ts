@@ -319,7 +319,7 @@ export function registerCreate(
       `Range: ${escapeMarkdown(preset.label)} → price ${escapeMarkdown(`${minPrice} to ${maxPrice}`)}`,
       "",
       escapeMarkdown(
-        "Wide ranges auto-split into multiple positions (≤69 bins each).",
+        "Wide ranges create 1 position with higher rent (expanded beyond 70 bins).",
       ),
       "Copy the command and fill the amount:",
       `\`${cmd}\``,

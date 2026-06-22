@@ -6,6 +6,7 @@ import {
 } from "@solana/web3.js";
 import DLMM, {
   StrategyType,
+  ResizeSide,
   DEFAULT_BIN_PER_POSITION,
   autoFillYByStrategy,
   autoFillXByStrategy,
@@ -19,7 +20,9 @@ import type {
   StrategyType as VexisStrategyType,
 } from "./types.js";
 
-const MAX_BINS_PER_POSITION = DEFAULT_BIN_PER_POSITION.toNumber();
+// Protocol: initializePosition max width is DEFAULT_BIN_PER_POSITION (70).
+// Wider positions must use increasePositionLength to expand beyond 70.
+const INITIAL_POSITION_WIDTH = DEFAULT_BIN_PER_POSITION.toNumber();
 
 const STRATEGY_MAP: Record<VexisStrategyType, StrategyType> = {
   spot: StrategyType.Spot,
@@ -106,7 +109,7 @@ export class DLMMClient {
     }
 
     // ── Single position (fits within one) ────────────────────────────────
-    if (binCount <= MAX_BINS_PER_POSITION) {
+    if (binCount <= INITIAL_POSITION_WIDTH) {
       const positionKeypair = Keypair.generate();
       const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
         positionPubKey: positionKeypair.publicKey,
@@ -123,42 +126,80 @@ export class DLMMClient {
       return { signatures: [sig], positions: [positionKeypair.publicKey.toBase58()], minBinId, maxBinId, binCount };
     }
 
-    // ── Wide range → split into chunks of ≤ MAX_BINS_PER_POSITION ─────────
-    const chunks = chunkRange(minBinId, maxBinId, MAX_BINS_PER_POSITION);
+    // ── Wide range → init position (70 bins) + expand to full width ──────
+    // Protocol: initializePosition max width is 70 bins. For wider ranges the
+    // SDK creates a 70-bin position, then calls increasePositionLength to
+    // expand, then adds the remaining liquidity.  This matches the web UI
+    // behaviour (single position, higher rent for wide ranges).
     const signatures: string[] = [];
-    const positions: string[] = [];
-    let remainingX = totalXAmount;
-    let remainingY = totalYAmount;
-    let remainingBins = binCount;
+    const positionKeypair = Keypair.generate();
+    const posPubkey = positionKeypair.publicKey;
 
-    for (const chunk of chunks) {
-      const chunkBins = chunk.maxBinId - chunk.minBinId + 1;
-      // Proportional split; last chunk takes the remainder to avoid dust loss.
-      const isLast = chunk === chunks[chunks.length - 1];
-      const chunkX = isLast ? remainingX : remainingX.muln(chunkBins).divn(remainingBins);
-      const chunkY = isLast ? remainingY : remainingY.muln(chunkBins).divn(remainingBins);
-      remainingX = remainingX.sub(chunkX);
-      remainingY = remainingY.sub(chunkY);
-      remainingBins -= chunkBins;
+    // Pick 70 contiguous bins that include the active bin (where fees flow).
+    let initMin = Math.max(
+      minBinId,
+      Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
+    );
+    let initMax = initMin + INITIAL_POSITION_WIDTH - 1;
+    if (initMax > maxBinId) {
+      initMax = maxBinId;
+      initMin = initMax - INITIAL_POSITION_WIDTH + 1;
+    }
+    const initCount = initMax - initMin + 1;
 
-      const positionKeypair = Keypair.generate();
-      const tx = await dlmm.initializePositionAndAddLiquidityByStrategy({
-        positionPubKey: positionKeypair.publicKey,
-        totalXAmount: chunkX,
-        totalYAmount: chunkY,
-        strategy: { strategyType, minBinId: chunk.minBinId, maxBinId: chunk.maxBinId, singleSidedX: params.singleSidedX },
+    // Proportional liquidity for the initial 70 bins.
+    const initX = totalXAmount.muln(initCount).divn(binCount);
+    const initY = totalYAmount.muln(initCount).divn(binCount);
+
+    const initTx = await dlmm.initializePositionAndAddLiquidityByStrategy({
+      positionPubKey: posPubkey,
+      totalXAmount: initX,
+      totalYAmount: initY,
+      strategy: { strategyType, minBinId: initMin, maxBinId: initMax, singleSidedX: params.singleSidedX },
+      user: this.keypair.publicKey,
+      slippage: 0.5,
+    });
+    signatures.push(
+      await sendAndConfirmTransaction(this.connection, initTx, [this.keypair, positionKeypair]),
+    );
+
+    // Expand to fill the full range.
+    const expandLower = initMin - minBinId;
+    const expandUpper = maxBinId - initMax;
+
+    if (expandLower > 0) {
+      const txs = await dlmm.increasePositionLength(posPubkey, ResizeSide.Lower, new BN(expandLower), this.keypair.publicKey);
+      if (txs) {
+        for (const tx of txs) {
+          signatures.push(await sendAndConfirmTransaction(this.connection, tx, [this.keypair]));
+        }
+      }
+    }
+    if (expandUpper > 0) {
+      const txs = await dlmm.increasePositionLength(posPubkey, ResizeSide.Upper, new BN(expandUpper), this.keypair.publicKey);
+      if (txs) {
+        for (const tx of txs) {
+          signatures.push(await sendAndConfirmTransaction(this.connection, tx, [this.keypair]));
+        }
+      }
+    }
+
+    // Top up the expanded bins with the remaining liquidity.
+    const remainingX = totalXAmount.sub(initX);
+    const remainingY = totalYAmount.sub(initY);
+    if (remainingX.gtn(0) || remainingY.gtn(0)) {
+      const addTx = await dlmm.addLiquidityByStrategy({
+        positionPubKey: posPubkey,
+        totalXAmount: remainingX,
+        totalYAmount: remainingY,
+        strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
         user: this.keypair.publicKey,
         slippage: 0.5,
       });
-      const sig = await sendAndConfirmTransaction(this.connection, tx, [
-        this.keypair,
-        positionKeypair,
-      ]);
-      signatures.push(sig);
-      positions.push(positionKeypair.publicKey.toBase58());
+      signatures.push(await sendAndConfirmTransaction(this.connection, addTx, [this.keypair]));
     }
 
-    return { signatures, positions, minBinId, maxBinId, binCount };
+    return { signatures, positions: [posPubkey.toBase58()], minBinId, maxBinId, binCount };
   }
 
   async closePosition(
@@ -287,15 +328,4 @@ function scaleAmount(human: string, decimals: number): BN {
   return neg ? bn.neg() : bn;
 }
 
-/** Split [minBinId, maxBinId] into contiguous chunks of at most `size` bins. */
-function chunkRange(
-  minBinId: number,
-  maxBinId: number,
-  size: number,
-): Array<{ minBinId: number; maxBinId: number }> {
-  const chunks: Array<{ minBinId: number; maxBinId: number }> = [];
-  for (let lo = minBinId; lo <= maxBinId; lo += size) {
-    chunks.push({ minBinId: lo, maxBinId: Math.min(lo + size - 1, maxBinId) });
-  }
-  return chunks;
-}
+
