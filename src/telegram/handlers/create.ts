@@ -302,21 +302,21 @@ export function registerCreate(
 
     const strategy = state.strategy!;
     const mode = state.mode!;
-    const minPrice = +(state.currentPrice * (1 + preset.minPct)).toPrecision(8);
-    const maxPrice = +(state.currentPrice * (1 + preset.maxPct)).toPrecision(8);
+    const minPctNum = +(preset.minPct * 100).toFixed(2);
+    const maxPctNum = +(preset.maxPct * 100).toFixed(2);
     const sideArg =
       mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
     const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
     const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
 
-    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} price ${minPrice} ${maxPrice}${sideArg}`;
+    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct ${minPctNum} ${maxPctNum}${sideArg}`;
 
     const text = [
       tgBold("✅ Wide range ready\\!"),
       "",
       `Pool: ${tgCode(state.poolAddress)}`,
       `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Range: ${escapeMarkdown(preset.label)} → price ${escapeMarkdown(`${minPrice} to ${maxPrice}`)}`,
+      `Range: ${escapeMarkdown(preset.label)} → pct ${escapeMarkdown(`${minPctNum}% to ${maxPctNum}%`)}`,
       "",
       escapeMarkdown(
         "Wide ranges create 1 position with higher rent (expanded beyond 70 bins).",
@@ -405,7 +405,6 @@ export function registerCreate(
     const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} <minBin> <maxBin>${sideArg}`;
 
     const cmdPct = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct <minPct> <maxPct>${sideArg}`;
-    const cmdPrice = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} price <minPrice> <maxPrice>${sideArg}`;
 
     const text = [
       tgBold("✏️ Custom Range"),
@@ -418,9 +417,6 @@ export function registerCreate(
       "",
       tgBold("Pct mode") + " \\(% vs current price\\):",
       `\`${cmdPct}\``,
-      "",
-      tgBold("Price mode") + " \\(absolute price range\\):",
-      `\`${cmdPrice}\``,
     ].join("\n");
 
     const kb = new InlineKeyboard().text("⬅️ Back", `crt:range:${wid}:${mode}`);

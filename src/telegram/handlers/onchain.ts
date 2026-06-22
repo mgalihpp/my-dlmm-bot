@@ -65,7 +65,6 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       const usage =
         "Usage:\n" +
         "`/create <poolAddr> <strategy> <xAmt> <yAmt> pct <minPct> <maxPct> [single|single-y]`\n" +
-        "`/create <poolAddr> <strategy> <xAmt> <yAmt> price <minPrice> <maxPrice> [single|single-y]`\n" +
         "`/create <poolAddr> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]`\n" +
         "Pct example: `pct -50 0` \\= from \\-50% to current price\\. Amounts are human \\(e\\.g\\. 0\\.5\\)\\.\n" +
         "`single` = single\\-sided X \\(meme\\), `single-y` = single\\-sided Y \\(SOL\\)";
@@ -75,8 +74,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       }
       const keyword = parts[4].toLowerCase();
       const isPctMode = keyword === "pct" || keyword === "%";
-      const isPriceMode = keyword === "price";
-      const keyed = isPctMode || isPriceMode;
+      const keyed = isPctMode;
       const [poolAddress, strategy, xAmt, yAmt] = parts;
       const rangeA = keyed ? parts[5] : parts[4];
       const rangeB = keyed ? parts[6] : parts[5];
@@ -95,8 +93,6 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       const mode = singleSidedX ? "single-sided X (meme)" : singleSidedY ? "single-sided Y (SOL)" : "two-sided";
       const rangeLabel = isPctMode
         ? `${rangeA}% to ${rangeB}% (vs current price)`
-        : isPriceMode
-        ? `price ${rangeA} to ${rangeB}`
         : `bins ${rangeA} to ${rangeB} (relative)`;
       const summary = [
         "*Create position?*",
@@ -115,8 +111,6 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           singleSidedX,
           ...(isPctMode
             ? { minPct: parseFloat(rangeA) / 100, maxPct: parseFloat(rangeB) / 100 }
-            : isPriceMode
-            ? { minPrice: parseFloat(rangeA), maxPrice: parseFloat(rangeB) }
             : { minBinId: parseInt(rangeA, 10), maxBinId: parseInt(rangeB, 10), relativeBins: true }),
         });
         return res.signatures.join("\n");
