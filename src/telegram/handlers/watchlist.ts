@@ -73,7 +73,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         await ctx.reply("📭 No watched wallets\\. Add one with `/watchadd <wallet>`", MD);
         return;
       }
-      await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+      const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
@@ -84,6 +84,9 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         }
       }
       const text = tgMultiWalletPositions(results);
+      try {
+        await ctx.api.deleteMessage(ctx.chat!.id, loadingMsg.message_id);
+      } catch {}
       await splitSend(ctx, text);
     } catch (e) {
       await replyError(ctx, e);
@@ -97,7 +100,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         await ctx.reply("Usage: `/wallets <wallet1> [wallet2] \\.\\.\\.`", MD);
         return;
       }
-      await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+      const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
       const results: WalletPositions[] = [];
       for (const addr of parts) {
         const w = { address: addr, addedAt: "" };
@@ -109,6 +112,9 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         }
       }
       const text = tgMultiWalletPositions(results);
+      try {
+        await ctx.api.deleteMessage(ctx.chat!.id, loadingMsg.message_id);
+      } catch {}
       await splitSend(ctx, text);
     } catch (e) {
       await replyError(ctx, e);

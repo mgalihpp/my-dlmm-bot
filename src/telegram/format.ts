@@ -203,7 +203,8 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
         lines.push(
           `  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
           `  Balance: ${tgUsd(p.balances)} \\| PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\)`,
-          `  Positions: ${escapeMarkdown(String(p.openPositionCount))} \\| Pool: ${tgCode(p.poolAddress)}`,
+          `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
+          `  Pool: ${tgPoolAddr(p.poolAddress)}`,
         );
       }
     }
