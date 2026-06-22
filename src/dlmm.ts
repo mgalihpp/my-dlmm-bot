@@ -2,6 +2,8 @@ import {
   Connection,
   Keypair,
   PublicKey,
+  SYSVAR_RENT_PUBKEY,
+  Transaction,
   sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import DLMM, {
@@ -127,69 +129,48 @@ export class DLMMClient {
     }
 
     // ── Wide range → init position (70 bins) + expand to full width ──────
-    // Protocol: initializePosition max width is 70 bins. For wider ranges the
-    // SDK creates a 70-bin position, then calls increasePositionLength to
-    // expand, then adds the remaining liquidity.  This matches the web UI
-    // behaviour (single position, higher rent for wide ranges).
+    // Protocol: initializePosition max width is 70 bins. For wider ranges we:
+    //   1. Create the position account covering a 70-bin seed range
+    //   2. Expand to cover the full range
+    //   3. Add ALL liquidity in one shot via addLiquidityByStrategy
+    // This matches the web UI behaviour (single position, higher rent).
     const signatures: string[] = [];
     const positionKeypair = Keypair.generate();
     const posPubkey = positionKeypair.publicKey;
 
-    // ── pick initial 70-bin range ───────────────────────────────────────
-    // For bidask, put the initial slot at the EDGE that matches the deposit
-    // side so the strategy's concentrated bins get their full amount in the
-    // first call.  The opposite-side token (auto-filled) goes entirely in the
-    // second call after the position has been expanded to cover the real edge.
-    let initMin: number;
-    let initMax: number;
-    let initX: BN;
-    let initY: BN;
-
-    const isBidAsk = strategyType === StrategyType.BidAsk;
-
-    if (isBidAsk && !params.singleSidedX) {
-      // single-sided Y (deposit Y only) – Y lives at the ASK edge (upper bins).
-      // Init at the top so Y lands on the ask side immediately.
+    // ── Step 1: Initialize position account (70-bin seed range) ──────────
+    // initMin centered on active bin for best fee capture.
+    let initMin = Math.max(
+      minBinId,
+      Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
+    );
+    let initMax = initMin + INITIAL_POSITION_WIDTH - 1;
+    if (initMax > maxBinId) {
       initMax = maxBinId;
-      initMin = maxBinId - INITIAL_POSITION_WIDTH + 1;
-      initX = new BN(0);
-      initY = totalYAmount;
-    } else if (isBidAsk && params.singleSidedX) {
-      // single-sided X (deposit X only) – X lives at the BID edge (lower bins).
-      // Init at the bottom so X lands on the bid side immediately.
-      initMin = minBinId;
-      initMax = minBinId + INITIAL_POSITION_WIDTH - 1;
-      initX = totalXAmount;
-      initY = new BN(0);
-    } else {
-      // Spot / Curve / two-sided BidAsk → centre on the active bin.
-      initMin = Math.max(
-        minBinId,
-        Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
-      );
-      initMax = initMin + INITIAL_POSITION_WIDTH - 1;
-      if (initMax > maxBinId) {
-        initMax = maxBinId;
-        initMin = initMax - INITIAL_POSITION_WIDTH + 1;
-      }
-      const initCount = initMax - initMin + 1;
-      initX = totalXAmount.muln(initCount).divn(binCount);
-      initY = totalYAmount.muln(initCount).divn(binCount);
+      initMin = initMax - INITIAL_POSITION_WIDTH + 1;
     }
 
-    const initTx = await dlmm.initializePositionAndAddLiquidityByStrategy({
-      positionPubKey: posPubkey,
-      totalXAmount: initX,
-      totalYAmount: initY,
-      strategy: { strategyType, minBinId: initMin, maxBinId: initMax, singleSidedX: params.singleSidedX },
-      user: this.keypair.publicKey,
-      slippage: 0.5,
-    });
+    const program = (dlmm as any).program;
+    const initPositionIx = await program.methods
+      .initializePosition(new BN(initMin), new BN(INITIAL_POSITION_WIDTH))
+      .accountsPartial({
+        payer: this.keypair.publicKey,
+        position: posPubkey,
+        lbPair: dlmm.pubkey,
+        owner: this.keypair.publicKey,
+        rent: SYSVAR_RENT_PUBKEY,
+      })
+      .instruction();
+
+    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("confirmed");
+    const initTx = new Transaction({ feePayer: this.keypair.publicKey, blockhash, lastValidBlockHeight }).add(
+      initPositionIx,
+    );
     signatures.push(
       await sendAndConfirmTransaction(this.connection, initTx, [this.keypair, positionKeypair]),
     );
 
-    // Expand to fill the full range.
+    // ── Step 2: Expand to fill the full range ────────────────────────────
     const expandLower = initMin - minBinId;
     const expandUpper = maxBinId - initMax;
 
@@ -210,29 +191,16 @@ export class DLMMClient {
       }
     }
 
-    // Top up the expanded bins with the remaining liquidity.
-    // singleSidedX must match whichever token actually has remaining amount
-    // so the strategy puts it on the correct edge (bidask: X→bid, Y→ask).
-    const remainingX = totalXAmount.sub(initX);
-    const remainingY = totalYAmount.sub(initY);
-    if (remainingX.gtn(0) || remainingY.gtn(0)) {
-      const isXOnly = remainingX.gtn(0) && remainingY.isZero();
-      const isYOnly = remainingY.gtn(0) && remainingX.isZero();
-      const addTx = await dlmm.addLiquidityByStrategy({
-        positionPubKey: posPubkey,
-        totalXAmount: remainingX,
-        totalYAmount: remainingY,
-        strategy: {
-          strategyType,
-          minBinId,
-          maxBinId,
-          singleSidedX: isXOnly ? true : isYOnly ? false : params.singleSidedX,
-        },
-        user: this.keypair.publicKey,
-        slippage: 0.5,
-      });
-      signatures.push(await sendAndConfirmTransaction(this.connection, addTx, [this.keypair]));
-    }
+    // ── Step 3: Add ALL liquidity in one shot ────────────────────────────
+    const addTx = await dlmm.addLiquidityByStrategy({
+      positionPubKey: posPubkey,
+      totalXAmount,
+      totalYAmount,
+      strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
+      user: this.keypair.publicKey,
+      slippage: 0.5,
+    });
+    signatures.push(await sendAndConfirmTransaction(this.connection, addTx, [this.keypair]));
 
     return { signatures, positions: [posPubkey.toBase58()], minBinId, maxBinId, binCount };
   }
