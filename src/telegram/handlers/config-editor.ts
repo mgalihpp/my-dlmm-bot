@@ -161,7 +161,7 @@ export function registerConfigEditor(
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     pendingEdits.set(chatId, { field: editable.label, key: editable.key, type: editable.type, page: pageForKey(editable.key) });
 
-    const typeHint = editable.type === "number" ? " (number)" : editable.type === "boolean" ? " (on/off)" : "";
+    const typeHint = editable.type === "number" ? " \\(number\\)" : editable.type === "boolean" ? " \\(on/off\\)" : "";
     await ctx.editMessageText(
       `${tgBold(`✏️ Edit ${editable.label}`)}\n\nCurrent: ${tgCode(current)}\n\nSend new value${typeHint}:`,
       MD,
