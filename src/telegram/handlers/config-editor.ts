@@ -79,8 +79,8 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
   return lines.join("\n");
 }
 
-// Page 1 = General + display settings; Page 2 = screening filters.
-// Splitting avoids Telegram clients truncating keyboards with > ~6 rows.
+// 3 pages so no page exceeds ~4 rows — Telegram clients truncate tall keyboards.
+// Page 1: General  |  Page 2: Volume/TVL/MC  |  Page 3: Bin/Ratio/Age
 function buildConfigKeyboard(page = 1): InlineKeyboard {
   if (page === 1) {
     return new InlineKeyboard()
@@ -94,18 +94,23 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
       .text("✏️ Page Size", "cfg:set:pools.pageSize")
       .text("✏️ Display Limit", "cfg:set:pools.displayLimit")
       .row()
-      .text("Filters »", "cfg:page:2");
+      .text("Vol/TVL/MC »", "cfg:page:2");
+  }
+  if (page === 2) {
+    return new InlineKeyboard()
+      .text("✏️ Min MC", "cfg:set:pools.minMcap")
+      .text("✏️ Max MC", "cfg:set:pools.maxMcap")
+      .row()
+      .text("✏️ Min Holders", "cfg:set:pools.minHolders")
+      .text("✏️ Min Volume", "cfg:set:pools.minVolume")
+      .row()
+      .text("✏️ Min TVL", "cfg:set:pools.minTvl")
+      .text("✏️ Max TVL", "cfg:set:pools.maxTvl")
+      .row()
+      .text("« General", "cfg:page:1")
+      .text("Bin/Ratio »", "cfg:page:3");
   }
   return new InlineKeyboard()
-    .text("✏️ Min MC", "cfg:set:pools.minMcap")
-    .text("✏️ Max MC", "cfg:set:pools.maxMcap")
-    .row()
-    .text("✏️ Min Holders", "cfg:set:pools.minHolders")
-    .text("✏️ Min Volume", "cfg:set:pools.minVolume")
-    .row()
-    .text("✏️ Min TVL", "cfg:set:pools.minTvl")
-    .text("✏️ Max TVL", "cfg:set:pools.maxTvl")
-    .row()
     .text("✏️ Min Bin", "cfg:set:pools.minBinStep")
     .text("✏️ Max Bin", "cfg:set:pools.maxBinStep")
     .row()
@@ -118,12 +123,15 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
     .text("✏️ Min Age (h)", "cfg:set:pools.minTokenAgeHours")
     .text("✏️ Max Age (h)", "cfg:set:pools.maxTokenAgeHours")
     .row()
-    .text("« General", "cfg:page:1");
+    .text("« Vol/TVL/MC", "cfg:page:2");
 }
 
 function pageForKey(key: string): number {
   const page1 = new Set(["wallet", "rpcUrl", "dev", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
-  return page1.has(key) ? 1 : 2;
+  const page2 = new Set(["pools.minMcap", "pools.maxMcap", "pools.minHolders", "pools.minVolume", "pools.minTvl", "pools.maxTvl"]);
+  if (page1.has(key)) return 1;
+  if (page2.has(key)) return 2;
+  return 3;
 }
 
 /** Pending edits: chatId → { field, key, type, page } */
