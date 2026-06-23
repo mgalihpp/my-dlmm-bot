@@ -180,6 +180,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           strategy: strategy as StrategyType,
           totalXAmount: xAmt,
           totalYAmount: yAmt,
+          amountsAreHuman: true,
           minBinId: 0,
           maxBinId: 0,
         })

@@ -13,6 +13,7 @@ import { registerManage } from "./handlers/manage.js";
 import { registerCreate } from "./handlers/create.js";
 import { registerWatchlist } from "./handlers/watchlist.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
+import { registerBalance } from "./handlers/balance.js";
 import {
   createAlerts,
   registerAlertCommands,
@@ -25,6 +26,7 @@ const HELP = [
   tgBold("🤖 Vexis DLMM Bot"),
   "",
   tgBold("Read-only"),
+  escapeMarkdown("/balance [wallet] - SOL & token balances"),
   escapeMarkdown("/portfolio - total PnL summary"),
   escapeMarkdown("/open - open positions"),
   escapeMarkdown("/closed - closed positions"),
@@ -82,6 +84,7 @@ async function main() {
   registerOnchain(bot, config);
   registerManage(bot, client, config);
   registerWatchlist(bot, client);
+  registerBalance(bot, config);
   registerMenu(bot, client, config);
 
   // Alerts need a destination chat. Only enable if one is configured.
@@ -102,6 +105,7 @@ async function main() {
     { command: "menu", description: "Open interactive menu" },
     { command: "manage", description: "Interactive position manager" },
     { command: "create", description: "Create a DLMM position (guided wizard)" },
+    { command: "balance", description: "SOL & token balances" },
     { command: "portfolio", description: "Total PnL summary" },
     { command: "open", description: "Open positions" },
     { command: "pools", description: "Top pools by fee/TVL" },

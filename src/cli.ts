@@ -36,7 +36,7 @@ import {
   table,
   sparkline,
 } from "./format.js";
-import type { OpenPool, ClosedPool, DlmmPool, ScreenedPool } from "./types.js";
+import type { ClosedPool } from "./types.js";
 import { screenPools } from "./screening.js";
 
 const program = new Command();
@@ -122,8 +122,12 @@ addCommon(
       for (const pos of p.listPositions) {
         console.log(`  Position: ${pos}`);
       }
-      console.log(`  Balance:  ${usd(p.balances)}  |  Fees: ${usd(p.unclaimedFees)}`);
-      console.log(`  PnL:      ${pnlColor(p.pnl)}  (${pct(p.pnlPctChange)})  |  PnL SOL: ${pnlSol(p.pnlSol)}  (${pct(p.pnlSolPctChange)})`);
+      console.log(
+        `  Balance:  ${usd(p.balances)}  |  Fees: ${usd(p.unclaimedFees)}`,
+      );
+      console.log(
+        `  PnL:      ${pnlColor(p.pnl)}  (${pct(p.pnlPctChange)})  |  PnL SOL: ${pnlSol(p.pnlSol)}  (${pct(p.pnlSolPctChange)})`,
+      );
     }
 
     const t = data.total;
@@ -219,9 +223,7 @@ program
         const data = await c.totalPnl(wallet);
         if (opts.json) return void console.log(JSON.stringify(data, null, 2));
 
-        console.log(
-          `\n${bold("Portfolio Summary")} ${gray(wallet)}\n`,
-        );
+        console.log(`\n${bold("Portfolio Summary")} ${gray(wallet)}\n`);
         console.log(
           `  Total PnL (USD): ${pnlColor(data.totalPnlUsd)}  (${pct(data.totalPnlPctChange)})`,
         );
@@ -264,7 +266,10 @@ positionCmd
   .requiredOption("--y-amount <n>", "amount of token Y (human, e.g. 0.5)")
   .option("--min-bin <n>", "minimum bin ID (absolute)")
   .option("--max-bin <n>", "maximum bin ID (absolute)")
-  .option("--min-pct <n>", "min % vs current price, e.g. -50 (chart-free; best for bots)")
+  .option(
+    "--min-pct <n>",
+    "min % vs current price, e.g. -50 (chart-free; best for bots)",
+  )
   .option("--max-pct <n>", "max % vs current price, e.g. 0")
   .option("--atomic", "treat --x-amount/--y-amount as atomic units, not human")
   .option("--auto-fill", "auto-fill the missing side from the active-bin ratio")
@@ -296,11 +301,17 @@ positionCmd
         const rpcUrl = resolveRpc(config);
 
         const singleSidedX = opts.singleSided ?? false;
-        const mode = opts.singleSidedY ? "single-sided Y (SOL)" : singleSidedX ? "single-sided X (meme)" : "two-sided";
+        const mode = opts.singleSidedY
+          ? "single-sided Y (SOL)"
+          : singleSidedX
+            ? "single-sided X (meme)"
+            : "two-sided";
 
         const isPctMode = opts.minPct != null && opts.maxPct != null;
         if (!isPctMode && (opts.minBin == null || opts.maxBin == null)) {
-          throw new Error("Provide one of: --min-pct/--max-pct, or --min-bin/--max-bin");
+          throw new Error(
+            "Provide one of: --min-pct/--max-pct, or --min-bin/--max-bin",
+          );
         }
         const rangeLabel = isPctMode
           ? `${opts.minPct}% to ${opts.maxPct}% (vs current price)`
@@ -341,8 +352,14 @@ positionCmd
           autoFill: opts.autoFill,
           singleSidedX,
           ...(isPctMode
-            ? { minPct: parseFloat(opts.minPct!) / 100, maxPct: parseFloat(opts.maxPct!) / 100 }
-            : { minBinId: parseInt(opts.minBin!), maxBinId: parseInt(opts.maxBin!) }),
+            ? {
+                minPct: parseFloat(opts.minPct!) / 100,
+                maxPct: parseFloat(opts.maxPct!) / 100,
+              }
+            : {
+                minBinId: parseInt(opts.minBin!),
+                maxBinId: parseInt(opts.maxBin!),
+              }),
         });
 
         console.log(
@@ -643,7 +660,10 @@ const poolCmd = program
 poolCmd
   .command("list")
   .description("list top pools via discovery API screening")
-  .option("--timeframe <tf>", "screening timeframe (5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h)")
+  .option(
+    "--timeframe <tf>",
+    "screening timeframe (5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h)",
+  )
   .option("--category <cat>", "pool category: trending, new, top")
   .option("--limit <n>", "max pools to show", "15")
   .option("--json", "output raw JSON")
@@ -660,7 +680,13 @@ poolCmd
 
         const result = await screenPools(
           c,
-          { pools: { ...config.pools, displayLimit: limit, category: opts.category ?? config.pools?.category } } as VexisConfig,
+          {
+            pools: {
+              ...config.pools,
+              displayLimit: limit,
+              category: opts.category ?? config.pools?.category,
+            },
+          } as VexisConfig,
           opts.timeframe,
         );
 
@@ -682,27 +708,49 @@ poolCmd
           const p = result.pools[i];
           const sep = gray("─".repeat(50));
           console.log(`\n${sep}`);
-          console.log(`${bold(cyan(`${i + 1}. ${p.baseSymbol}/${p.quoteSymbol}`))}  ${gray(p.pool)}`);
+          console.log(
+            `${bold(cyan(`${i + 1}. ${p.baseSymbol}/${p.quoteSymbol}`))}  ${gray(p.pool)}`,
+          );
           console.log(sep);
-          console.log(`  ${gray("Meteora")}   https://app.meteora.ag/dlmm/${p.pool}`);
+          console.log(
+            `  ${gray("Meteora")}   https://app.meteora.ag/dlmm/${p.pool}`,
+          );
           console.log(`  ${gray("Name")}      ${p.name}`);
           console.log(`  ${gray("Mint")}      ${p.baseMint}`);
           console.log(`  ${gray("MC")}        ${usd(p.mcap)}`);
-          console.log(`  ${gray("TVL")}       ${usd(p.tvl)}  ${gray("(")}${usd(p.activeTvl)}${gray(" active)")}`);
-          console.log(`  ${gray("Volume")}    ${usd(p.volume)}  ${gray("Fee")} ${usd(p.fee)}`);
-          console.log(`  ${gray("Fee/TVL")}   ${pct(p.feeActiveTvlRatio)}  ${gray("Volat")} ${p.volatility}`);
-          console.log(`  ${gray("Bin")}       ${p.binStep}  ${gray("BaseFee")} ${p.baseFeePct}%`);
-          console.log(`  ${gray("Holders")}   ${p.holders}  ${gray("Organic")} ${p.organicScore}  ${gray("Q.Org")} ${p.quoteOrganic}`);
-          console.log(`  ${gray("Pos(A/O)")}  ${p.activePositions}/${p.openPositions}  ${gray("Age")} ${p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : dim("-")}`);
+          console.log(
+            `  ${gray("TVL")}       ${usd(p.tvl)}  ${gray("(")}${usd(p.activeTvl)}${gray(" active)")}`,
+          );
+          console.log(
+            `  ${gray("Volume")}    ${usd(p.volume)}  ${gray("Fee")} ${usd(p.fee)}`,
+          );
+          console.log(
+            `  ${gray("Fee/TVL")}   ${pct(p.feeActiveTvlRatio)}  ${gray("Volat")} ${p.volatility}`,
+          );
+          console.log(
+            `  ${gray("Bin")}       ${p.binStep}  ${gray("BaseFee")} ${p.baseFeePct}%`,
+          );
+          console.log(
+            `  ${gray("Holders")}   ${p.holders}  ${gray("Organic")} ${p.organicScore}  ${gray("Q.Org")} ${p.quoteOrganic}`,
+          );
+          console.log(
+            `  ${gray("Pos(A/O)")}  ${p.activePositions}/${p.openPositions}  ${gray("Age")} ${p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : dim("-")}`,
+          );
           if (p.priceChangePct != null) {
             const arrow = p.priceChangePct > 0 ? "+" : "";
-            console.log(`  ${gray("Price")}     ${p.price}  ${p.priceChangePct > 0 ? green(`${arrow}${p.priceChangePct.toFixed(1)}%`) : red(`${p.priceChangePct.toFixed(1)}%`)}`);
+            console.log(
+              `  ${gray("Price")}     ${p.price}  ${p.priceChangePct > 0 ? green(`${arrow}${p.priceChangePct.toFixed(1)}%`) : red(`${p.priceChangePct.toFixed(1)}%`)}`,
+            );
           }
           if (p.volumeChangePct != null) {
             const arrow = p.volumeChangePct > 0 ? "+" : "";
-            console.log(`  ${gray("VolChg")}    ${p.volumeChangePct > 0 ? green(`${arrow}${p.volumeChangePct.toFixed(1)}%`) : red(`${p.volumeChangePct.toFixed(1)}%`)}`);
+            console.log(
+              `  ${gray("VolChg")}    ${p.volumeChangePct > 0 ? green(`${arrow}${p.volumeChangePct.toFixed(1)}%`) : red(`${p.volumeChangePct.toFixed(1)}%`)}`,
+            );
           }
-          console.log(`  ${gray("Rug Score")} ${p.rugScore != null ? String(p.rugScore) : dim("-")}  ${gray("Score")} ${formatNum(p.score)}`);
+          console.log(
+            `  ${gray("Rug Score")} ${p.rugScore != null ? String(p.rugScore) : dim("-")}  ${gray("Score")} ${formatNum(p.score)}`,
+          );
         }
         console.log(`\n${gray("─".repeat(50))}\n`);
       } catch (e) {
@@ -740,7 +788,9 @@ poolCmd
       console.log(
         `  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`,
       );
-      console.log(`  TVL:      ${usd(pool.tvl)}  |  MC: ${usd(pool.token_x.market_cap)}  |  Holders: ${pool.token_x.holders}`);
+      console.log(
+        `  TVL:      ${usd(pool.tvl)}  |  MC: ${usd(pool.token_x.market_cap)}  |  Holders: ${pool.token_x.holders}`,
+      );
       console.log(
         `  APR:      ${pct(pool.apr)}${pool.has_farm ? `  (Farm: ${pct(pool.farm_apr)})` : ""}`,
       );
@@ -772,156 +822,154 @@ poolCmd
   });
 
 // ---- watch ----
-const watchCmd = program
-  .command("watch")
-  .description("manage watched wallets");
+const watchCmd = program.command("watch").description("manage watched wallets");
 
 watchCmd
   .command("add <wallet>")
   .description("add a wallet to the watchlist")
   .option("-l, --label <label>", "friendly label for the wallet")
-  .action(
-    async (
-      wallet: string,
-      opts: { label?: string },
-    ) => {
-      try {
-        const { addWallet } = await import("./watchlist.js");
-        const entry = addWallet(wallet, opts.label);
-        const desc = entry.label ? ` (${entry.label})` : "";
-        console.log(`${bold("✓ Added")} ${gray(wallet)}${desc}`);
-      } catch (e) {
-        fail(e);
-      }
-    },
-  );
+  .action(async (wallet: string, opts: { label?: string }) => {
+    try {
+      const { addWallet } = await import("./watchlist.js");
+      const entry = addWallet(wallet, opts.label);
+      const desc = entry.label ? ` (${entry.label})` : "";
+      console.log(`${bold("✓ Added")} ${gray(wallet)}${desc}`);
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 watchCmd
   .command("remove <wallet>")
   .description("remove a wallet from the watchlist")
-  .action(
-    async (wallet: string) => {
-      try {
-        const { removeWallet } = await import("./watchlist.js");
-        if (removeWallet(wallet)) {
-          console.log(`${bold("✓ Removed")} ${gray(wallet)}`);
-        } else {
-          console.log(dim("Wallet not found in watchlist."));
-        }
-      } catch (e) {
-        fail(e);
+  .action(async (wallet: string) => {
+    try {
+      const { removeWallet } = await import("./watchlist.js");
+      if (removeWallet(wallet)) {
+        console.log(`${bold("✓ Removed")} ${gray(wallet)}`);
+      } else {
+        console.log(dim("Wallet not found in watchlist."));
       }
-    },
-  );
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 watchCmd
   .command("list")
   .description("list all watched wallets")
-  .action(
-    async () => {
-      try {
-        const { listWallets } = await import("./watchlist.js");
-        const wallets = listWallets();
-        if (wallets.length === 0) {
-          console.log(dim("No watched wallets. Add one with: vexis watch add <wallet>"));
-          return;
-        }
-        console.log(`\n${bold("Watched Wallets")}`);
-        for (const w of wallets) {
-          const label = w.label ? ` ${dim(`(${w.label})`)}` : "";
-          console.log(`  ${gray(w.address)}${label}`);
-        }
-        console.log(dim(`\n  ${wallets.length} wallet(s)\n`));
-      } catch (e) {
-        fail(e);
+  .action(async () => {
+    try {
+      const { listWallets } = await import("./watchlist.js");
+      const wallets = listWallets();
+      if (wallets.length === 0) {
+        console.log(
+          dim("No watched wallets. Add one with: vexis watch add <wallet>"),
+        );
+        return;
       }
-    },
-  );
+      console.log(`\n${bold("Watched Wallets")}`);
+      for (const w of wallets) {
+        const label = w.label ? ` ${dim(`(${w.label})`)}` : "";
+        console.log(`  ${gray(w.address)}${label}`);
+      }
+      console.log(dim(`\n  ${wallets.length} wallet(s)\n`));
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 watchCmd
   .command("positions")
   .description("show open positions for all watched wallets")
   .option("--json", "output raw JSON")
-  .action(
-    async (opts: { json?: boolean }) => {
-      try {
-        const { listWallets } = await import("./watchlist.js");
-        const wallets = listWallets();
-        if (wallets.length === 0) {
-          console.log(dim("No watched wallets. Add one with: vexis watch add <wallet>"));
-          return;
-        }
-        const c = new MeteoraClient({ dev: config.dev });
-        for (const w of wallets) {
-          const label = w.label ? ` (${w.label})` : "";
-          console.log(`\n${bold(cyan(w.address))}${gray(label)}`);
-          try {
-            const data = await c.openPortfolio(w.address, 1, 50);
-            if (!data.pools.length) {
-              console.log(dim("  No open positions."));
-            } else {
-              for (const p of data.pools) {
-                const range = p.outOfRange ? " ⚠ out of range" : "";
-                console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
-                console.log(`    Pool: ${p.poolAddress}`);
-                console.log(`    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`);
-                console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
-                console.log(`    Positions: ${p.openPositionCount}`);
-              }
-            }
-          } catch {
-            console.log(dim("  Failed to fetch positions."));
-          }
-        }
-        console.log();
-      } catch (e) {
-        fail(e);
+  .action(async (opts: { json?: boolean }) => {
+    try {
+      const { listWallets } = await import("./watchlist.js");
+      const wallets = listWallets();
+      if (wallets.length === 0) {
+        console.log(
+          dim("No watched wallets. Add one with: vexis watch add <wallet>"),
+        );
+        return;
       }
-    },
-  );
+      const c = new MeteoraClient({ dev: config.dev });
+      for (const w of wallets) {
+        const label = w.label ? ` (${w.label})` : "";
+        console.log(`\n${bold(cyan(w.address))}${gray(label)}`);
+        try {
+          const data = await c.openPortfolio(w.address, 1, 50);
+          if (!data.pools.length) {
+            console.log(dim("  No open positions."));
+          } else {
+            for (const p of data.pools) {
+              const range = p.outOfRange ? " ⚠ out of range" : "";
+              console.log(
+                `  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`,
+              );
+              console.log(`    Pool: ${p.poolAddress}`);
+              console.log(
+                `    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`,
+              );
+              console.log(
+                `    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`,
+              );
+              console.log(`    Positions: ${p.openPositionCount}`);
+            }
+          }
+        } catch {
+          console.log(dim("  Failed to fetch positions."));
+        }
+      }
+      console.log();
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 // ---- wallets ----
 program
   .command("wallets <addresses...>")
   .description("query open positions for one or more wallets on-the-fly")
   .option("--json", "output raw JSON")
-  .action(
-    async (
-      addresses: string[],
-      opts: { json?: boolean },
-    ) => {
-      try {
-        const c = new MeteoraClient({ dev: config.dev });
-        for (const wallet of addresses) {
-          console.log(`\n${bold(cyan(wallet))}`);
-          try {
-            const data = await c.openPortfolio(wallet, 1, 50);
-            if (opts.json) {
-              console.log(JSON.stringify(data, null, 2));
-              continue;
-            }
-            if (!data.pools.length) {
-              console.log(dim("  No open positions."));
-            } else {
-              for (const p of data.pools) {
-                const range = p.outOfRange ? " ⚠ out of range" : "";
-                console.log(`  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`);
-                console.log(`    Pool: ${p.poolAddress}`);
-                console.log(`    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`);
-                console.log(`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`);
-                console.log(`    Positions: ${p.openPositionCount}`);
-              }
-            }
-          } catch {
-            console.log(dim("  Failed to fetch positions."));
+  .action(async (addresses: string[], opts: { json?: boolean }) => {
+    try {
+      const c = new MeteoraClient({ dev: config.dev });
+      for (const wallet of addresses) {
+        console.log(`\n${bold(cyan(wallet))}`);
+        try {
+          const data = await c.openPortfolio(wallet, 1, 50);
+          if (opts.json) {
+            console.log(JSON.stringify(data, null, 2));
+            continue;
           }
+          if (!data.pools.length) {
+            console.log(dim("  No open positions."));
+          } else {
+            for (const p of data.pools) {
+              const range = p.outOfRange ? " ⚠ out of range" : "";
+              console.log(
+                `  ${bold(cyan(pair(p.tokenX, p.tokenY)))}${dim(range)}`,
+              );
+              console.log(`    Pool: ${p.poolAddress}`);
+              console.log(
+                `    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`,
+              );
+              console.log(
+                `    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`,
+              );
+              console.log(`    Positions: ${p.openPositionCount}`);
+            }
+          }
+        } catch {
+          console.log(dim("  Failed to fetch positions."));
         }
-        console.log();
-      } catch (e) {
-        fail(e);
       }
-    },
-  );
+      console.log();
+    } catch (e) {
+      fail(e);
+    }
+  });
 
 function pageHint(hasNext: boolean, page: number): void {
   if (hasNext) console.log(dim(`\n  More results — use --page ${page + 1}`));

@@ -51,7 +51,9 @@ export class DLMMClient {
     return dlmm.getPosition(posPubkey);
   }
 
-  async createPosition(params: CreatePositionParams): Promise<CreatePositionResult> {
+  async createPosition(
+    params: CreatePositionParams,
+  ): Promise<CreatePositionResult> {
     const dlmm = await this.getDlmm(params.poolAddress);
     const strategyType = STRATEGY_MAP[params.strategy];
 
@@ -77,17 +79,6 @@ export class DLMMClient {
       throw new Error("Provide one of: minPct/maxPct, or minBinId/maxBinId");
     }
     if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
-
-    // The active bin is a mixed bin (holds both X and Y). Including it in a
-    // single-sided range with the wrong token amount makes the BidAsk SDK
-    // crash with "Cannot read properties of null (reading 'data')".
-    if (params.singleSidedY && maxBinId >= activeBinId) {
-      maxBinId = activeBinId - 1;
-    }
-    if (params.singleSidedX && minBinId <= activeBinId) {
-      minBinId = activeBinId + 1;
-    }
-
     const binCount = maxBinId - minBinId + 1;
 
     // ── Resolve amounts → atomic BN ──────────────────────────────────────
@@ -104,15 +95,25 @@ export class DLMMClient {
       const amountYInActiveBin = activeBin.yAmount;
       if (totalXAmount.gtn(0) && totalYAmount.isZero()) {
         totalYAmount = autoFillYByStrategy(
-          activeBinId, binStep, totalXAmount,
-          amountXInActiveBin, amountYInActiveBin,
-          minBinId, maxBinId, strategyType,
+          activeBinId,
+          binStep,
+          totalXAmount,
+          amountXInActiveBin,
+          amountYInActiveBin,
+          minBinId,
+          maxBinId,
+          strategyType,
         );
       } else if (totalYAmount.gtn(0) && totalXAmount.isZero()) {
         totalXAmount = autoFillXByStrategy(
-          activeBinId, binStep, totalYAmount,
-          amountXInActiveBin, amountYInActiveBin,
-          minBinId, maxBinId, strategyType,
+          activeBinId,
+          binStep,
+          totalYAmount,
+          amountXInActiveBin,
+          amountYInActiveBin,
+          minBinId,
+          maxBinId,
+          strategyType,
         );
       }
     }
@@ -124,15 +125,26 @@ export class DLMMClient {
         positionPubKey: positionKeypair.publicKey,
         totalXAmount,
         totalYAmount,
-        strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
+        strategy: {
+          strategyType,
+          minBinId,
+          maxBinId,
+          singleSidedX: params.singleSidedX,
+        },
         user: this.keypair.publicKey,
-        slippage: 0.5,
+        slippage: 1,
       });
       const sig = await sendAndConfirmTransaction(this.connection, tx, [
         this.keypair,
         positionKeypair,
       ]);
-      return { signatures: [sig], positions: [positionKeypair.publicKey.toBase58()], minBinId, maxBinId, binCount };
+      return {
+        signatures: [sig],
+        positions: [positionKeypair.publicKey.toBase58()],
+        minBinId,
+        maxBinId,
+        binCount,
+      };
     }
 
     // ── Wide range → init position (70 bins) + expand to full width ──────
@@ -149,7 +161,10 @@ export class DLMMClient {
     // initMin centered on active bin for best fee capture.
     let initMin = Math.max(
       minBinId,
-      Math.min(activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2), maxBinId - INITIAL_POSITION_WIDTH + 1),
+      Math.min(
+        activeBinId - Math.floor(INITIAL_POSITION_WIDTH / 2),
+        maxBinId - INITIAL_POSITION_WIDTH + 1,
+      ),
     );
     let initMax = initMin + INITIAL_POSITION_WIDTH - 1;
     if (initMax > maxBinId) {
@@ -169,12 +184,18 @@ export class DLMMClient {
       })
       .instruction();
 
-    const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash("confirmed");
-    const initTx = new Transaction({ feePayer: this.keypair.publicKey, blockhash, lastValidBlockHeight }).add(
-      initPositionIx,
-    );
+    const { blockhash, lastValidBlockHeight } =
+      await this.connection.getLatestBlockhash("confirmed");
+    const initTx = new Transaction({
+      feePayer: this.keypair.publicKey,
+      blockhash,
+      lastValidBlockHeight,
+    }).add(initPositionIx);
     signatures.push(
-      await sendAndConfirmTransaction(this.connection, initTx, [this.keypair, positionKeypair]),
+      await sendAndConfirmTransaction(this.connection, initTx, [
+        this.keypair,
+        positionKeypair,
+      ]),
     );
 
     // ── Step 2: Expand to fill the full range ────────────────────────────
@@ -182,18 +203,36 @@ export class DLMMClient {
     const expandUpper = maxBinId - initMax;
 
     if (expandLower > 0) {
-      const txs = await dlmm.increasePositionLength(posPubkey, ResizeSide.Lower, new BN(expandLower), this.keypair.publicKey);
+      const txs = await dlmm.increasePositionLength(
+        posPubkey,
+        ResizeSide.Lower,
+        new BN(expandLower),
+        this.keypair.publicKey,
+      );
       if (txs) {
         for (const tx of txs) {
-          signatures.push(await sendAndConfirmTransaction(this.connection, tx, [this.keypair]));
+          signatures.push(
+            await sendAndConfirmTransaction(this.connection, tx, [
+              this.keypair,
+            ]),
+          );
         }
       }
     }
     if (expandUpper > 0) {
-      const txs = await dlmm.increasePositionLength(posPubkey, ResizeSide.Upper, new BN(expandUpper), this.keypair.publicKey);
+      const txs = await dlmm.increasePositionLength(
+        posPubkey,
+        ResizeSide.Upper,
+        new BN(expandUpper),
+        this.keypair.publicKey,
+      );
       if (txs) {
         for (const tx of txs) {
-          signatures.push(await sendAndConfirmTransaction(this.connection, tx, [this.keypair]));
+          signatures.push(
+            await sendAndConfirmTransaction(this.connection, tx, [
+              this.keypair,
+            ]),
+          );
         }
       }
     }
@@ -203,13 +242,26 @@ export class DLMMClient {
       positionPubKey: posPubkey,
       totalXAmount,
       totalYAmount,
-      strategy: { strategyType, minBinId, maxBinId, singleSidedX: params.singleSidedX },
+      strategy: {
+        strategyType,
+        minBinId,
+        maxBinId,
+        singleSidedX: params.singleSidedX,
+      },
       user: this.keypair.publicKey,
-      slippage: 0.5,
+      slippage: 1,
     });
-    signatures.push(await sendAndConfirmTransaction(this.connection, addTx, [this.keypair]));
+    signatures.push(
+      await sendAndConfirmTransaction(this.connection, addTx, [this.keypair]),
+    );
 
-    return { signatures, positions: [posPubkey.toBase58()], minBinId, maxBinId, binCount };
+    return {
+      signatures,
+      positions: [posPubkey.toBase58()],
+      minBinId,
+      maxBinId,
+      binCount,
+    };
   }
 
   async closePosition(
@@ -234,17 +286,26 @@ export class DLMMClient {
     const dlmm = await this.getDlmm(params.poolAddress);
     const posPubkey = new PublicKey(params.positionPubkey);
 
+    const decimalsX = dlmm.tokenX.mint.decimals;
+    const decimalsY = dlmm.tokenY.mint.decimals;
+    const totalXAmount = params.amountsAreHuman
+      ? scaleAmount(params.totalXAmount, decimalsX)
+      : new BN(params.totalXAmount);
+    const totalYAmount = params.amountsAreHuman
+      ? scaleAmount(params.totalYAmount, decimalsY)
+      : new BN(params.totalYAmount);
+
     const tx = await dlmm.addLiquidityByStrategy({
       positionPubKey: posPubkey,
-      totalXAmount: new BN(params.totalXAmount),
-      totalYAmount: new BN(params.totalYAmount),
+      totalXAmount,
+      totalYAmount,
       strategy: {
         strategyType: STRATEGY_MAP[params.strategy],
         minBinId: params.minBinId,
         maxBinId: params.maxBinId,
       },
       user: this.keypair.publicKey,
-      slippage: 0.5,
+      slippage: 1,
     });
 
     const sig = await sendAndConfirmTransaction(this.connection, tx, [
@@ -256,7 +317,10 @@ export class DLMMClient {
   async removeLiquidity(params: RemoveLiquidityParams): Promise<string> {
     const dlmm = await this.getDlmm(params.poolAddress);
     const posPubkey = new PublicKey(params.positionPubkey);
-    const positionData = await this.getPositionData(dlmm, params.positionPubkey);
+    const positionData = await this.getPositionData(
+      dlmm,
+      params.positionPubkey,
+    );
 
     const txs = await dlmm.removeLiquidity({
       user: this.keypair.publicKey,
@@ -337,5 +401,3 @@ function scaleAmount(human: string, decimals: number): BN {
   const bn = new BN(digits || "0");
   return neg ? bn.neg() : bn;
 }
-
-

@@ -10,7 +10,6 @@ export interface CreatePositionParams {
   totalXAmount: string;
   totalYAmount: string;
   singleSidedX: boolean;
-  singleSidedY?: boolean;
   // Range — provide EITHER absolute bin ids OR a price range.
   // Bin ids are anchored to the active bin via `relativeBins`.
   minBinId?: number;
@@ -47,6 +46,7 @@ export interface AddLiquidityParams {
   strategy: StrategyType;
   minBinId: number;
   maxBinId: number;
+  amountsAreHuman?: boolean;
 }
 
 export interface RemoveLiquidityParams {
