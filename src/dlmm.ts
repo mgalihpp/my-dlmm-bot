@@ -295,14 +295,23 @@ export class DLMMClient {
       ? scaleAmount(params.totalYAmount, decimalsY)
       : new BN(params.totalYAmount);
 
+    // Derive bin range from the position itself when not explicitly provided.
+    let minBinId = params.minBinId;
+    let maxBinId = params.maxBinId;
+    if (!minBinId && !maxBinId) {
+      const positionData = await this.getPositionData(dlmm, params.positionPubkey);
+      minBinId = positionData.positionData.lowerBinId;
+      maxBinId = positionData.positionData.upperBinId;
+    }
+
     const tx = await dlmm.addLiquidityByStrategy({
       positionPubKey: posPubkey,
       totalXAmount,
       totalYAmount,
       strategy: {
         strategyType: STRATEGY_MAP[params.strategy],
-        minBinId: params.minBinId,
-        maxBinId: params.maxBinId,
+        minBinId,
+        maxBinId,
       },
       user: this.keypair.publicKey,
       slippage: 1,
