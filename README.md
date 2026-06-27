@@ -1,4 +1,4 @@
-# Vexis DLMM Bot
+# DLMM Bot
 
 A Telegram bot and CLI tool for managing liquidity positions on [Meteora DLMM](https://app.meteora.ag/dlmm) — Solana's dynamic liquidity market maker.
 
