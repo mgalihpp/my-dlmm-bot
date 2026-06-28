@@ -469,8 +469,6 @@ async function confirmAndExecute(ctx: Context, wid: string, xAmt: string, yAmt: 
     .text("✅ Confirm", `crt:execute:${wid}:${xAmt}:${yAmt}`)
     .text("❌ Cancel", `crt:cancel:${wid}`);
 
-  deleteWizard(wid);
-
   try {
     await ctx.reply(summary, { ...MD, reply_markup: kb });
   } catch (e) {
