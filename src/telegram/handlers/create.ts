@@ -53,9 +53,19 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
 
   bot.callbackQuery("crt:from:trending", async (ctx) => {
     await ctx.answerCallbackQuery();
+    const kb = new InlineKeyboard();
+    for (const tf of ["5m", "30m", "1h", "2h", "4h", "12h", "24h"]) {
+      kb.text(tf, `crt:trending:tf:${tf}`);
+    }
+    await ctx.editMessageText("Select timeframe:", { ...MD, reply_markup: kb.row().text("⬅️ Back", "crt:source") });
+  });
+
+  bot.callbackQuery(/^crt:trending:tf:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const timeframe = ctx.match![1];
     await ctx.editMessageText("⏳ Screening trending pools\\.\\.\\.", MD);
     try {
-      const result = await screenPools(client, config);
+      const result = await screenPools(client, config, timeframe);
       if (result.pools.length === 0) {
         await ctx.editMessageText("No pools found\\.", { ...MD, reply_markup: backToSourceKb() });
         return;
