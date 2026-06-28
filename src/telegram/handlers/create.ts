@@ -2,7 +2,17 @@ import { Bot, Context, InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
-import { escapeMarkdown, tgBold, tgCode, tgTxLink, tgUsd, tgPct, tgPoolAddr, tgOrganic, formatNum } from "../format.js";
+import {
+  escapeMarkdown,
+  tgBold,
+  tgCode,
+  tgTxLink,
+  tgUsd,
+  tgPct,
+  tgPoolAddr,
+  tgOrganic,
+  formatNum,
+} from "../format.js";
 import { MD } from "../utils.js";
 import { screenPools } from "../../screening.js";
 import { setInputSession } from "../input-store.js";
@@ -14,10 +24,13 @@ import {
 } from "../wizard-store.js";
 import type { StrategyType } from "../../types.js";
 
-const DEFAULT_BINS: Record<string, { minBin: number; maxBin: number; label: string }> = {
-  "two-sided": { minBin: -34, maxBin: 35, label: "-34+35 bins" },
-  "single-x": { minBin: 0, maxBin: 70, label: "0+70 bins (above price)" },
-  "single-y": { minBin: -70, maxBin: 0, label: "-70+0 bins (below price)" },
+const DEFAULT_BINS: Record<
+  string,
+  { minBin: number; maxBin: number; label: string }
+> = {
+  "two-sided": { minBin: -33, maxBin: 34, label: "-33+34 bins" },
+  "single-x": { minBin: 0, maxBin: 69, label: "0+70 bins (above price)" },
+  "single-y": { minBin: -69, maxBin: 0, label: "-70+0 bins (below price)" },
 };
 
 const WIDE_PRESETS = [
@@ -37,7 +50,11 @@ async function lazyDLMM() {
   return DLMMClientCtor;
 }
 
-export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisConfig) {
+export function registerCreate(
+  bot: Bot,
+  client: MeteoraClient,
+  config: VexisConfig,
+) {
   // ─── Entry: /create without args ────────────────────────────────────────
   bot.command("create", async (ctx, next) => {
     const args = (ctx.match as string).trim();
@@ -57,7 +74,10 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     for (const tf of ["5m", "30m", "1h", "2h", "4h", "12h", "24h"]) {
       kb.text(tf, `crt:trending:tf:${tf}`);
     }
-    await ctx.editMessageText("Select timeframe:", { ...MD, reply_markup: kb.row().text("⬅️ Back", "crt:source") });
+    await ctx.editMessageText("Select timeframe:", {
+      ...MD,
+      reply_markup: kb.row().text("⬅️ Back", "crt:source"),
+    });
   });
 
   bot.callbackQuery(/^crt:trending:tf:(.+)$/, async (ctx) => {
@@ -67,15 +87,21 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     try {
       const result = await screenPools(client, config, timeframe);
       if (result.pools.length === 0) {
-        await ctx.editMessageText("No pools found\\.", { ...MD, reply_markup: backToSourceKb() });
+        await ctx.editMessageText("No pools found\\.", {
+          ...MD,
+          reply_markup: backToSourceKb(),
+        });
         return;
       }
       const lines = [tgBold("🔥 Trending Pools — Select"), ""];
       const kb = new InlineKeyboard();
       for (const p of result.pools.slice(0, 10)) {
-        const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
-        const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
-        const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
+        const rug =
+          p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
+        const priceChg =
+          p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
+        const volChg =
+          p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
         const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
         lines.push(
           `${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
@@ -91,12 +117,21 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
           binStep: p.binStep,
           currentPrice: p.price,
         });
-        kb.text(`${p.baseSymbol}/${p.quoteSymbol}`.slice(0, 20), `crt:strategy:${wid}`).row();
+        kb.text(
+          `${p.baseSymbol}/${p.quoteSymbol}`.slice(0, 20),
+          `crt:strategy:${wid}`,
+        ).row();
       }
       lines.push("");
-      await ctx.editMessageText(lines.join("\n"), { ...MD, reply_markup: kb.text("⬅️ Back", "crt:source") });
+      await ctx.editMessageText(lines.join("\n"), {
+        ...MD,
+        reply_markup: kb.text("⬅️ Back", "crt:source"),
+      });
     } catch (e) {
-      await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
+      await ctx.editMessageText(
+        `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        { ...MD, reply_markup: backToSourceKb() },
+      );
     }
   });
 
@@ -107,14 +142,19 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 50);
       if (res.pools.length === 0) {
-        await ctx.editMessageText("No open positions\\. Choose Trending instead\\.", { ...MD, reply_markup: backToSourceKb() });
+        await ctx.editMessageText(
+          "No open positions\\. Choose Trending instead\\.",
+          { ...MD, reply_markup: backToSourceKb() },
+        );
         return;
       }
       const lines = [tgBold("📈 Your Pools — Select"), ""];
       const kb = new InlineKeyboard();
       for (const p of res.pools) {
         const label = `${p.tokenX}/${p.tokenY}`;
-        lines.push(`• ${tgBold(escapeMarkdown(label))} — fees: ${escapeMarkdown(`$${Number(p.unclaimedFees).toFixed(2)}`)}`);
+        lines.push(
+          `• ${tgBold(escapeMarkdown(label))} — fees: ${escapeMarkdown(`$${Number(p.unclaimedFees).toFixed(2)}`)}`,
+        );
         try {
           const detail = await client.pool(p.poolAddress);
           const wid = createWizard({
@@ -127,9 +167,15 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
         } catch {}
       }
       lines.push("");
-      await ctx.editMessageText(lines.join("\n"), { ...MD, reply_markup: kb.text("⬅️ Back", "crt:source") });
+      await ctx.editMessageText(lines.join("\n"), {
+        ...MD,
+        reply_markup: kb.text("⬅️ Back", "crt:source"),
+      });
     } catch (e) {
-      await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
+      await ctx.editMessageText(
+        `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        { ...MD, reply_markup: backToSourceKb() },
+      );
     }
   });
 
@@ -143,10 +189,16 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
         if (!isLikelyPubkey(text)) {
           retry++;
           if (retry >= 2) {
-            await sessionCtx.reply("✖ Invalid address\\. Use /create to retry\\.", MD);
+            await sessionCtx.reply(
+              "✖ Invalid address\\. Use /create to retry\\.",
+              MD,
+            );
             return;
           }
-          await sessionCtx.reply("✖ That doesn't look like a valid address\\. Send a valid Solana address:", MD);
+          await sessionCtx.reply(
+            "✖ That doesn't look like a valid address\\. Send a valid Solana address:",
+            MD,
+          );
           setInputSession(chatId, addrHandler);
           return;
         }
@@ -159,9 +211,19 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
             binStep: detail.pool_config.bin_step,
             currentPrice: detail.current_price,
           });
-          await sessionCtx.api.editMessageText(loading.chat.id, loading.message_id, await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
+          await sessionCtx.api.editMessageText(
+            loading.chat.id,
+            loading.message_id,
+            await renderStrategyStep(wid),
+            { ...MD, reply_markup: strategyKb(wid) },
+          );
         } catch (e) {
-          await sessionCtx.api.editMessageText(loading.chat.id, loading.message_id, `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
+          await sessionCtx.api.editMessageText(
+            loading.chat.id,
+            loading.message_id,
+            `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+            { ...MD, reply_markup: backToSourceKb() },
+          );
         }
       };
       setInputSession(chatId, addrHandler);
@@ -182,7 +244,10 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
     if (!getWizard(wid)) return await expired(ctx);
-    await ctx.editMessageText(await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
+    await ctx.editMessageText(await renderStrategyStep(wid), {
+      ...MD,
+      reply_markup: strategyKb(wid),
+    });
   });
 
   // ─── crt:mode:<wid>:<strategy> — pick side ──────────────────────────────
@@ -206,9 +271,12 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     ].join("\n");
 
     const kb = new InlineKeyboard()
-      .text("↔️ Two-sided", `crt:range:${wid}:two-sided`).row()
-      .text("➡️ Single X (meme)", `crt:range:${wid}:single-x`).row()
-      .text("⬅️ Single Y (SOL)", `crt:range:${wid}:single-y`).row()
+      .text("↔️ Two-sided", `crt:range:${wid}:two-sided`)
+      .row()
+      .text("➡️ Single X (meme)", `crt:range:${wid}:single-x`)
+      .row()
+      .text("⬅️ Single Y (SOL)", `crt:range:${wid}:single-y`)
+      .row()
       .text("⬅️ Back", `crt:strategy:${wid}`);
 
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
@@ -236,11 +304,13 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     ].join("\n");
 
     const kb = new InlineKeyboard()
-      .text(`🎯 Default (${escapeMarkdown(def.label)})`, `crt:default:${wid}`).row();
+      .text(`🎯 Default (${escapeMarkdown(def.label)})`, `crt:default:${wid}`)
+      .row();
     WIDE_PRESETS.forEach(({ label }, i) => {
       kb.text(label, `crt:wide:${wid}:${i}`).row();
     });
-    kb.text("✏️ Custom", `crt:custom:${wid}`).row()
+    kb.text("✏️ Custom", `crt:custom:${wid}`)
+      .row()
       .text("⬅️ Back", `crt:mode:${wid}:${state.strategy}`);
 
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
@@ -252,8 +322,13 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     const wid = ctx.match![1];
     const state = getWizard(wid);
     if (!state) return await expired(ctx);
-    const def = DEFAULT_BINS[state.mode ?? "two-sided"] ?? DEFAULT_BINS["two-sided"];
-    updateWizard(wid, { minBin: def.minBin, maxBin: def.maxBin, isPctMode: false });
+    const def =
+      DEFAULT_BINS[state.mode ?? "two-sided"] ?? DEFAULT_BINS["two-sided"];
+    updateWizard(wid, {
+      minBin: def.minBin,
+      maxBin: def.maxBin,
+      isPctMode: false,
+    });
     await promptAmounts(ctx, wid);
   });
 
@@ -264,7 +339,11 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     const preset = WIDE_PRESETS[parseInt(ctx.match![2], 10)];
     const state = getWizard(wid);
     if (!state || !preset) return await expired(ctx);
-    updateWizard(wid, { minPct: preset.minPct, maxPct: preset.maxPct, isPctMode: true });
+    updateWizard(wid, {
+      minPct: preset.minPct,
+      maxPct: preset.maxPct,
+      isPctMode: true,
+    });
     await promptAmounts(ctx, wid);
   });
 
@@ -285,8 +364,10 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
       {
         ...MD,
         reply_markup: new InlineKeyboard()
-          .text("📊 Bin mode (relative)", `crt:custom:bin:${wid}`).row()
-          .text("📈 Pct mode (% vs price)", `crt:custom:pct:${wid}`).row()
+          .text("📊 Bin mode (relative)", `crt:custom:bin:${wid}`)
+          .row()
+          .text("📈 Pct mode (% vs price)", `crt:custom:pct:${wid}`)
+          .row()
           .text("⬅️ Back", `crt:range:${wid}:${state.mode ?? "two-sided"}`),
       },
     );
@@ -303,21 +384,33 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     setInputSession(chatId, async (minBinText, sessionCtx) => {
       const minBin = parseInt(minBinText, 10);
       if (Number.isNaN(minBin)) {
-        await sessionCtx.reply("✖ Invalid number\\. Send min bin \\(e\\.g\\. \\-70\\):", MD);
+        await sessionCtx.reply(
+          "✖ Invalid number\\. Send min bin \\(e\\.g\\. \\-70\\):",
+          MD,
+        );
         return;
       }
       setInputSession(chatId, async (maxBinText, sessionCtx2) => {
         const maxBin = parseInt(maxBinText, 10);
         if (Number.isNaN(maxBin) || maxBin <= minBin) {
-          await sessionCtx2.reply("✖ Max bin must be a number greater than min bin\\. Send max bin:", MD);
+          await sessionCtx2.reply(
+            "✖ Max bin must be a number greater than min bin\\. Send max bin:",
+            MD,
+          );
           return;
         }
         updateWizard(wid, { minBin, maxBin, isPctMode: false });
         await promptAmounts(sessionCtx2, wid);
       });
-      await sessionCtx.reply(`✏️ Min bin: ${escapeMarkdown(minBinText)}\n\nNow send *max bin* \\(e\\.g\\. 70\\):`, MD);
+      await sessionCtx.reply(
+        `✏️ Min bin: ${escapeMarkdown(minBinText)}\n\nNow send *max bin* \\(e\\.g\\. 70\\):`,
+        MD,
+      );
     });
-    await ctx.editMessageText("✏️ Send *min bin* \\(relative to active bin, e\\.g\\. \\-70\\):", MD);
+    await ctx.editMessageText(
+      "✏️ Send *min bin* \\(relative to active bin, e\\.g\\. \\-70\\):",
+      MD,
+    );
   });
 
   // ─── crt:custom:pct:<wid> — ask for min/max pct ─────────────────────────
@@ -331,21 +424,33 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     setInputSession(chatId, async (minPctText, sessionCtx) => {
       const minPct = parseFloat(minPctText) / 100;
       if (Number.isNaN(minPct)) {
-        await sessionCtx.reply("✖ Invalid number\\. Send min %% \\(e\\.g\\. \\-50\\):", MD);
+        await sessionCtx.reply(
+          "✖ Invalid number\\. Send min %% \\(e\\.g\\. \\-50\\):",
+          MD,
+        );
         return;
       }
       setInputSession(chatId, async (maxPctText, sessionCtx2) => {
         const maxPct = parseFloat(maxPctText) / 100;
         if (Number.isNaN(maxPct) || maxPct <= minPct) {
-          await sessionCtx2.reply("✖ Max %% must be a number greater than min %%\\. Send max %% \\(e\\.g\\. 0\\):", MD);
+          await sessionCtx2.reply(
+            "✖ Max %% must be a number greater than min %%\\. Send max %% \\(e\\.g\\. 0\\):",
+            MD,
+          );
           return;
         }
         updateWizard(wid, { minPct, maxPct, isPctMode: true });
         await promptAmounts(sessionCtx2, wid);
       });
-      await sessionCtx.reply(`✏️ Min: ${escapeMarkdown(minPctText)}%\n\nNow send *max %%* \\(e\\.g\\. 0\\):`, MD);
+      await sessionCtx.reply(
+        `✏️ Min: ${escapeMarkdown(minPctText)}%\n\nNow send *max %%* \\(e\\.g\\. 0\\):`,
+        MD,
+      );
     });
-    await ctx.editMessageText("✏️ Send *min %%* \\(negative, e\\.g\\. \\-50 means 50% below price\\):", MD);
+    await ctx.editMessageText(
+      "✏️ Send *min %%* \\(negative, e\\.g\\. \\-50 means 50% below price\\):",
+      MD,
+    );
   });
 
   // ─── crt:execute — execute create position ───────────────────────────────
@@ -356,7 +461,10 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     const yAmt = ctx.match![3];
     const state = getWizard(wid);
     if (!state) {
-      await ctx.editMessageText("⌛ Session expired\\. Run /create again\\.", MD);
+      await ctx.editMessageText(
+        "⌛ Session expired\\. Run /create again\\.",
+        MD,
+      );
       return;
     }
     deleteWizard(wid);
@@ -383,13 +491,25 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
         singleSidedY,
         ...(isPctMode
           ? { minPct: state.minPct!, maxPct: state.maxPct! }
-          : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+          : {
+              minBinId: state.minBin!,
+              maxBinId: state.maxBin!,
+              relativeBins: true,
+            }),
       });
       const sigs = (res.signatures ?? [res]).join("\n");
-      const body = sigs.split("\n").map((s: string) => s.trim()).filter(Boolean).map((s: string) => tgTxLink(s)).join("\n");
+      const body = sigs
+        .split("\n")
+        .map((s: string) => s.trim())
+        .filter(Boolean)
+        .map((s: string) => tgTxLink(s))
+        .join("\n");
       await ctx.editMessageText(`✅ Done\\!\n${body}`, MD);
     } catch (e) {
-      await ctx.editMessageText(`✖ Failed: ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
+      await ctx.editMessageText(
+        `✖ Failed: ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        MD,
+      );
     }
   });
 
@@ -416,53 +536,88 @@ async function promptAmounts(ctx: Context, wid: string) {
     setInputSession(chatId, async (yAmtText, sessionCtx) => {
       const yAmt = parseFloat(yAmtText);
       if (Number.isNaN(yAmt) || yAmt <= 0) {
-        await sessionCtx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+        await sessionCtx.reply(
+          "✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):",
+          MD,
+        );
         return;
       }
       await confirmAndExecute(sessionCtx, wid, "0", yAmtText);
     });
     await ctx.editMessageText(
-      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided Y \\(SOL/stable\\)`, "", "✏️ Send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):"].join("\n"),
+      [
+        tgBold(`📋 ${escapeMarkdown(poolName)}`),
+        `Mode: single\\-sided Y \\(SOL/stable\\)`,
+        "",
+        "✏️ Send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):",
+      ].join("\n"),
       MD,
     );
   } else if (mode === "single-x") {
     setInputSession(chatId, async (xAmtText, sessionCtx) => {
       const xAmt = parseFloat(xAmtText);
       if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await sessionCtx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        await sessionCtx.reply(
+          "✖ Invalid amount\\. Send X amount \\(meme token\\):",
+          MD,
+        );
         return;
       }
       await confirmAndExecute(sessionCtx, wid, xAmtText, "0");
     });
     await ctx.editMessageText(
-      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided X \\(meme\\)`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),
+      [
+        tgBold(`📋 ${escapeMarkdown(poolName)}`),
+        `Mode: single\\-sided X \\(meme\\)`,
+        "",
+        "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):",
+      ].join("\n"),
       MD,
     );
   } else {
     setInputSession(chatId, async (xAmtText, sessionCtxX) => {
       const xAmt = parseFloat(xAmtText);
       if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await sessionCtxX.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        await sessionCtxX.reply(
+          "✖ Invalid amount\\. Send X amount \\(meme token\\):",
+          MD,
+        );
         return;
       }
       setInputSession(chatId, async (yAmtText, sessionCtxY) => {
         const yAmt = parseFloat(yAmtText);
         if (Number.isNaN(yAmt) || yAmt <= 0) {
-          await sessionCtxY.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+          await sessionCtxY.reply(
+            "✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):",
+            MD,
+          );
           return;
         }
         await confirmAndExecute(sessionCtxY, wid, xAmtText, yAmtText);
       });
-      await sessionCtxX.reply(`✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
+      await sessionCtxX.reply(
+        `✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`,
+        MD,
+      );
     });
     await ctx.editMessageText(
-      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: two\\-sided`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),
+      [
+        tgBold(`📋 ${escapeMarkdown(poolName)}`),
+        `Mode: two\\-sided`,
+        "",
+        "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):",
+      ].join("\n"),
       MD,
     );
   }
 }
 
-async function confirmAndExecute(ctx: Context, wid: string, xAmt: string, yAmt: string) {
+async function confirmAndExecute(
+  ctx: Context,
+  wid: string,
+  xAmt: string,
+  yAmt: string,
+) {
   const state = getWizard(wid);
   if (!state) {
     await ctx.reply("⌛ Session expired\\. Run /create again\\.", MD);
@@ -491,7 +646,10 @@ async function confirmAndExecute(ctx: Context, wid: string, xAmt: string, yAmt: 
   try {
     await ctx.reply(summary, { ...MD, reply_markup: kb });
   } catch (e) {
-    await ctx.reply(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
+    await ctx.reply(
+      `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+      MD,
+    );
   }
 }
 
@@ -526,10 +684,16 @@ function strategyKb(wid: string): InlineKeyboard {
 }
 
 async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
-  const text = [tgBold("➕ Create Position"), "", "Which pool do you want to use?"].join("\n");
+  const text = [
+    tgBold("➕ Create Position"),
+    "",
+    "Which pool do you want to use?",
+  ].join("\n");
   const kb = new InlineKeyboard()
-    .text("🔥 Trending Pools", "crt:from:trending").row()
-    .text("📈 My Active Pools", "crt:from:my").row()
+    .text("🔥 Trending Pools", "crt:from:trending")
+    .row()
+    .text("📈 My Active Pools", "crt:from:my")
+    .row()
     .text("📍 Paste Pool Address", "crt:from:address");
 
   if (mode === "reply") {
@@ -540,10 +704,13 @@ async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
 }
 
 async function expired(ctx: Context) {
-  await ctx.editMessageText("⌛ Session expired\\. Please run /create again\\.", {
-    ...MD,
-    reply_markup: new InlineKeyboard().text("🔄 Start over", "crt:source"),
-  });
+  await ctx.editMessageText(
+    "⌛ Session expired\\. Please run /create again\\.",
+    {
+      ...MD,
+      reply_markup: new InlineKeyboard().text("🔄 Start over", "crt:source"),
+    },
+  );
 }
 
 function backToSourceKb() {
