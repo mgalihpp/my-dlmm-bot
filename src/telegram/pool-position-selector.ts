@@ -1,0 +1,187 @@
+// Shared pool & position selection utilities for interactive flows.
+import { Context, InlineKeyboard } from "grammy";
+import { InlineKeyboardButton } from "grammy/types";
+import type { MeteoraClient } from "../api.js";
+import type { VexisConfig } from "../config.js";
+import { resolveWallet } from "../config.js";
+import { escapeMarkdown, tgBold, tgCode } from "./format.js";
+import { MD } from "./utils.js";
+import { registerAction } from "./action-store.js";
+
+export interface PoolInfo {
+  poolAddress: string;
+  tokenX: string;
+  tokenY: string;
+  openPositionCount: number;
+  outOfRange: boolean | null;
+  unclaimedFees: string;
+}
+
+/** Fetch open positions from API.
+ *  Optionally accepts a client; if not provided, creates one from config. */
+export async function fetchOpenPools(
+  client: MeteoraClient | null,
+  config: VexisConfig,
+): Promise<PoolInfo[]> {
+  let c = client;
+  if (!c) {
+    const { MeteoraClient } = await import("../api.js");
+    c = new MeteoraClient({ dev: config.dev });
+  }
+  const wallet = resolveWallet(undefined, config);
+  const res = await c.openPortfolio(wallet, 1, 50);
+  return res.pools;
+}
+
+/** Build inline keyboard for pool list with given callback prefix.
+ *  Each button callback: `{prefix}:pool:{poolAddress}` */
+export function buildPoolKeyboard(
+  pools: PoolInfo[],
+  prefix: string,
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  for (const p of pools) {
+    const range = p.outOfRange ? " ⚠️" : "";
+    const label = `${p.tokenX}/${p.tokenY}${range} · ${p.openPositionCount} pos · fees $${Number(p.unclaimedFees).toFixed(2)}`;
+    kb.text(label.slice(0, 30), `${prefix}:pool:${p.poolAddress}`).row();
+  }
+  return kb;
+}
+
+/** Render pool list message. */
+export function poolListMessage(pools: PoolInfo[]): string {
+  const lines = [tgBold("📈 Open Positions — Select Pool"), ""];
+  for (const p of pools) {
+    const range = p.outOfRange ? " ⚠️" : "";
+    lines.push(
+      `• ${tgBold(escapeMarkdown(`${p.tokenX}/${p.tokenY}`))}${escapeMarkdown(range)} — ${escapeMarkdown(`${p.openPositionCount} pos · fees $${Number(p.unclaimedFees).toFixed(2)}`)}`,
+    );
+  }
+  return lines.join("\n");
+}
+
+/** Show pool list (edit or reply) with a given prefix for callbacks. */
+export async function showPoolList(
+  ctx: Context,
+  pools: PoolInfo[],
+  prefix: string,
+  mode: "edit" | "reply" = "edit",
+  editTarget?: { chatId: number; messageId: number },
+) {
+  const kb = buildPoolKeyboard(pools, prefix);
+  const text = poolListMessage(pools);
+  if (editTarget) {
+    await ctx.api.editMessageText(editTarget.chatId, editTarget.messageId, text, { ...MD, reply_markup: kb });
+  } else if (mode === "edit") {
+    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+  } else {
+    await ctx.reply(text, { ...MD, reply_markup: kb });
+  }
+}
+
+/** Build inline keyboard for position list.
+ *  Each button callback: `{prefix}:pos:{actionId}:{poolAddr}` */
+export function buildPositionKeyboard(
+  positions: string[],
+  poolAddr: string,
+  prefix: string,
+): { kb: InlineKeyboard; actionIds: string[] } {
+  const actionIds = positions.map((p) => registerAction(poolAddr, p));
+  const kb = new InlineKeyboard();
+  positions.forEach((pos, i) => {
+    kb.text(`#${i + 1}: ${pos.slice(0, 6)}…${pos.slice(-4)}`, `${prefix}:pos:${actionIds[i]}:${poolAddr}`).row();
+  });
+  return { kb, actionIds };
+}
+
+/** Render position selection message. */
+export function positionListMessage(
+  tokenX: string,
+  tokenY: string,
+  poolAddr: string,
+): string {
+  return [
+    tgBold(`📋 ${escapeMarkdown(tokenX)}/${escapeMarkdown(tokenY)}`),
+    `Pool: ${tgCode(poolAddr)}`,
+    "",
+    "Select a position:",
+  ].join("\n");
+}
+
+/** Show position list for a pool (edits current message). */
+export async function showPositionList(
+  ctx: Context,
+  poolAddr: string,
+  tokenX: string,
+  tokenY: string,
+  positions: string[],
+  prefix: string,
+  backCallback: string,
+) {
+  const { kb } = buildPositionKeyboard(positions, poolAddr, prefix);
+  kb.text("⬅️ Back", backCallback);
+  await ctx.editMessageText(positionListMessage(tokenX, tokenY, poolAddr), {
+    ...MD,
+    reply_markup: kb,
+  });
+}
+
+/** Resolve pool detail from open portfolio.
+ *  Optionally accepts a client; if not provided, creates one from config. */
+export async function resolvePoolDetail(
+  client: MeteoraClient | null,
+  config: VexisConfig,
+  poolAddr: string,
+): Promise<{ tokenX: string; tokenY: string; positions: string[] } | null> {
+  try {
+    let c = client;
+    if (!c) {
+      const { MeteoraClient } = await import("../api.js");
+      c = new MeteoraClient({ dev: config.dev });
+    }
+    const wallet = resolveWallet(undefined, config);
+    const res = await c.openPortfolio(wallet, 1, 50);
+    const pool = res.pools.find((p) => p.poolAddress === poolAddr);
+    if (!pool) return null;
+    return {
+      tokenX: pool.tokenX,
+      tokenY: pool.tokenY,
+      positions: pool.listPositions,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Build an action panel keyboard for a position.
+ *  prefix determines callback names: e.g. "close" → "close:run:{actionId}" */
+export function actionPanelKeyboard(
+  actionId: string,
+  prefix: string,
+  backTarget: string,
+  actions: { label: string; action: string }[],
+): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  for (const a of actions) {
+    kb.text(a.label, `${prefix}:${a.action}:${actionId}`);
+    kb.row();
+  }
+  kb.text("⬅️ Back", backTarget);
+  return kb;
+}
+
+/** Render action panel title. */
+export function actionPanelMessage(
+  tokenX: string,
+  tokenY: string,
+  poolAddress: string,
+  positionPubkey: string,
+): string {
+  return [
+    tgBold(`⚡ ${escapeMarkdown(tokenX)}/${escapeMarkdown(tokenY)}`),
+    `Pool: ${tgCode(poolAddress)}`,
+    `Position: ${tgCode(positionPubkey)}`,
+    "",
+    "Select action:",
+  ].join("\n");
+}

@@ -8,6 +8,12 @@ export interface WizardState {
   currentPrice: number;
   strategy?: string;
   mode?: "two-sided" | "single-x" | "single-y";
+  // Range parameters (set after range selection, used for execution)
+  minBin?: number;
+  maxBin?: number;
+  minPct?: number;
+  maxPct?: number;
+  isPctMode?: boolean;
 }
 
 interface Entry {

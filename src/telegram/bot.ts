@@ -1,11 +1,7 @@
 // Telegram bot entry point. Run with: npm run bot
 import { Bot } from "grammy";
 import { MeteoraClient } from "../api.js";
-import {
-  loadConfig,
-  resolveBotToken,
-  resolveChatId,
-} from "../config.js";
+import { loadConfig, resolveBotToken, resolveChatId } from "../config.js";
 import { registerPortfolio } from "./handlers/portfolio.js";
 import { registerPool } from "./handlers/pool.js";
 import { registerOnchain } from "./handlers/onchain.js";
@@ -14,11 +10,9 @@ import { registerCreate } from "./handlers/create.js";
 import { registerWatchlist } from "./handlers/watchlist.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
 import { registerBalance } from "./handlers/balance.js";
-import {
-  createAlerts,
-  registerAlertCommands,
-} from "./alerts.js";
+import { createAlerts, registerAlertCommands } from "./alerts.js";
 import { registerMenu } from "./menu.js";
+import { getInputSession, deleteInputSession } from "./input-store.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { MD } from "./utils.js";
 
@@ -26,35 +20,34 @@ const HELP = [
   tgBold("🤖 Vexis DLMM Bot"),
   "",
   tgBold("Read-only"),
-  escapeMarkdown("/balance [wallet] - SOL & token balances"),
+  escapeMarkdown("/balance - SOL & token balances (interactive)"),
   escapeMarkdown("/portfolio - total PnL summary"),
   escapeMarkdown("/open - open positions"),
   escapeMarkdown("/closed - closed positions"),
-  escapeMarkdown("/pools - top pools by fee/TVL"),
-  escapeMarkdown("/pool <address> - pool detail"),
+  escapeMarkdown("/pools - top pools by fee/TVL (interactive)"),
+  escapeMarkdown("/pool <address> or /pool - pool detail (interactive)"),
   escapeMarkdown("/config - view & edit config"),
   "",
   tgBold("Watchlist"),
-  escapeMarkdown("/watchadd <wallet> [label] - add wallet"),
-  escapeMarkdown("/watchremove <wallet> - remove wallet"),
+  escapeMarkdown("/watchadd - add wallet (interactive)"),
+  escapeMarkdown("/watchremove - remove wallet (interactive)"),
   escapeMarkdown("/watchlist - list watched wallets"),
   escapeMarkdown("/watchpositions - positions of all watched wallets"),
-  escapeMarkdown("/wallets <w1> [w2]... - query any wallets"),
+  escapeMarkdown("/wallets - query any wallets (interactive)"),
   "",
   tgBold("On-chain"),
-  escapeMarkdown("/manage — interactive position manager (close/claim/add/remove)"),
-  escapeMarkdown("/create <pool> <strategy> <xAmt> <yAmt> <minBin> <maxBin> [single|single-y]"),
-  escapeMarkdown("/close <pool> <position> — close + zap out to SOL"),
-  escapeMarkdown("/addliq <pool> <position> <strategy> <xAmt> <yAmt>"),
-  escapeMarkdown("/removeliq <pool> <position> <bps>"),
-  escapeMarkdown("/claimfee <pool> <position>"),
-  escapeMarkdown("/claimreward <pool> <position>"),
+  escapeMarkdown("/manage - interactive position manager"),
+  escapeMarkdown("/create - guided position creation wizard (interactive)"),
+  escapeMarkdown("/close - close & zap out (interactive)"),
+  escapeMarkdown("/addliq - add liquidity (interactive)"),
+  escapeMarkdown("/removeliq - remove liquidity (interactive)"),
+  escapeMarkdown("/claimfee - claim fees (interactive)"),
+  escapeMarkdown("/claimreward - claim rewards (interactive)"),
   "",
   tgBold("Alerts"),
+  escapeMarkdown("/setalert - enable alerts (interactive)"),
+  escapeMarkdown("/stopalert - disable alerts (interactive)"),
   escapeMarkdown("/alerts - show active alerts"),
-  escapeMarkdown("/setalert portfolio <hours>"),
-  escapeMarkdown("/setalert position - track open positions every 15m"),
-  escapeMarkdown("/stopalert portfolio | /stopalert position"),
 ].join("\n");
 
 async function main() {
@@ -69,10 +62,25 @@ async function main() {
   if (chatId) {
     bot.use(async (ctx, next) => {
       const incoming = ctx.chat?.id ?? ctx.from?.id;
-      if (String(incoming) !== String(chatId)) return; // silently drop
+      if (String(incoming) !== String(chatId)) return;
       await next();
     });
   }
+
+  // ══════════════════════════════════════════════════════════════════════════
+  // Input store handler — MUST be first to catch text input for interactive
+  // flows before other text handlers.
+  // ══════════════════════════════════════════════════════════════════════════
+  bot.on("message:text", async (ctx, next) => {
+    const chatIdStr = String(ctx.chat?.id ?? ctx.from?.id);
+    const session = getInputSession(chatIdStr);
+    if (session) {
+      deleteInputSession(chatIdStr);
+      await session.handler(ctx.message.text.trim(), ctx);
+      return; // consumed
+    }
+    await next(); // pass through
+  });
 
   bot.command("start", (ctx) => ctx.reply(HELP, MD));
   bot.command("help", (ctx) => ctx.reply(HELP, MD));
@@ -97,9 +105,6 @@ async function main() {
     console.error("Bot error:", err.error);
   });
 
-  // Keep the native Telegram command menu (blue button) short — only the
-  // essentials. Everything else is reachable via /start (full list) or the
-  // interactive /menu buttons.
   await bot.api.setMyCommands([
     { command: "start", description: "Start the bot / show all commands" },
     { command: "menu", description: "Open interactive menu" },

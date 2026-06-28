@@ -1,18 +1,24 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
-import { resolveWallet } from "../../config.js";
-import { escapeMarkdown, tgBold, tgCode } from "../format.js";
+import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
+import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { MD } from "../utils.js";
 import { screenPools } from "../../screening.js";
+import { setInputSession } from "../input-store.js";
 import {
   createWizard,
   getWizard,
   updateWizard,
   deleteWizard,
 } from "../wizard-store.js";
+import type { StrategyType } from "../../types.js";
 
-const DEFAULT_BIN_RANGE = 70; // ±70 bins relative to active bin
+const DEFAULT_BINS: Record<string, { minBin: number; maxBin: number; label: string }> = {
+  "two-sided": { minBin: -34, maxBin: 35, label: "-34+35 bins" },
+  "single-x": { minBin: -70, maxBin: 0, label: "-70+0 bins (below price)" },
+  "single-y": { minBin: 0, maxBin: 70, label: "0+70 bins (above price)" },
+};
 
 const WIDE_PRESETS = [
   { label: "-90% → 0%", minPct: -0.9, maxPct: 0 },
@@ -22,16 +28,20 @@ const WIDE_PRESETS = [
   { label: "-50% → 0%", minPct: -0.5, maxPct: 0 },
 ] as const;
 
-export function registerCreate(
-  bot: Bot,
-  client: MeteoraClient,
-  config: VexisConfig,
-) {
+let DLMMClientCtor: any = null;
+async function lazyDLMM() {
+  if (!DLMMClientCtor) {
+    const mod = await import("../../dlmm.js");
+    DLMMClientCtor = mod.DLMMClient;
+  }
+  return DLMMClientCtor;
+}
+
+export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   // ─── Entry: /create without args ────────────────────────────────────────
-  // Falls through to onchain.ts handler when args are present
   bot.command("create", async (ctx, next) => {
     const args = (ctx.match as string).trim();
-    if (args) return next(); // has args — let onchain.ts handle it
+    if (args) return next();
     await showSourceMenu(ctx, "reply");
   });
 
@@ -47,10 +57,7 @@ export function registerCreate(
     try {
       const result = await screenPools(client, config);
       if (result.pools.length === 0) {
-        await ctx.editMessageText("No pools found\\.", {
-          ...MD,
-          reply_markup: backToSourceKb(),
-        });
+        await ctx.editMessageText("No pools found\\.", { ...MD, reply_markup: backToSourceKb() });
         return;
       }
       const lines = [tgBold("🔥 Trending Pools — Select"), ""];
@@ -68,16 +75,9 @@ export function registerCreate(
         kb.text(`${p.baseSymbol}/${p.quoteSymbol}`.slice(0, 20), `crt:strategy:${wid}`).row();
       }
       lines.push("");
-      await ctx.editMessageText(lines.join("\n"), {
-        ...MD,
-        reply_markup: kb.text("⬅️ Back", "crt:source"),
-      });
+      await ctx.editMessageText(lines.join("\n"), { ...MD, reply_markup: kb.text("⬅️ Back", "crt:source") });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
-        ...MD,
-        reply_markup: backToSourceKb(),
-      });
+      await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
     }
   });
 
@@ -88,20 +88,14 @@ export function registerCreate(
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 50);
       if (res.pools.length === 0) {
-        await ctx.editMessageText(
-          "No open positions\\. Choose Trending instead\\.",
-          { ...MD, reply_markup: backToSourceKb() },
-        );
+        await ctx.editMessageText("No open positions\\. Choose Trending instead\\.", { ...MD, reply_markup: backToSourceKb() });
         return;
       }
       const lines = [tgBold("📈 Your Pools — Select"), ""];
       const kb = new InlineKeyboard();
       for (const p of res.pools) {
         const label = `${p.tokenX}/${p.tokenY}`;
-        lines.push(
-          `• ${tgBold(escapeMarkdown(label))} — fees: ${escapeMarkdown(`$${Number(p.unclaimedFees).toFixed(2)}`)}`,
-        );
-        // Fetch pool detail for binStep + currentPrice
+        lines.push(`• ${tgBold(escapeMarkdown(label))} — fees: ${escapeMarkdown(`$${Number(p.unclaimedFees).toFixed(2)}`)}`);
         try {
           const detail = await client.pool(p.poolAddress);
           const wid = createWizard({
@@ -111,29 +105,48 @@ export function registerCreate(
             currentPrice: detail.current_price,
           });
           kb.text(label.slice(0, 20), `crt:strategy:${wid}`).row();
-        } catch {
-          // skip pools where detail fetch fails
-        }
+        } catch {}
       }
       lines.push("");
-      await ctx.editMessageText(lines.join("\n"), {
-        ...MD,
-        reply_markup: kb.text("⬅️ Back", "crt:source"),
-      });
+      await ctx.editMessageText(lines.join("\n"), { ...MD, reply_markup: kb.text("⬅️ Back", "crt:source") });
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
-        ...MD,
-        reply_markup: backToSourceKb(),
-      });
+      await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
     }
   });
 
   // ─── crt:from:address — prompt user to paste a pool address ─────────────
   bot.callbackQuery("crt:from:address", async (ctx) => {
     await ctx.answerCallbackQuery();
-    const userId = ctx.from?.id;
-    if (userId != null) awaitingPoolAddress.set(userId, Date.now() + 5 * 60 * 1000);
+    const chatId = ctx.chat?.id ?? ctx.from?.id;
+    if (chatId != null) {
+      let retry = 0;
+      const addrHandler = async (text: string) => {
+        if (!isLikelyPubkey(text)) {
+          retry++;
+          if (retry >= 2) {
+            await ctx.reply("✖ Invalid address\\. Use /create to retry\\.", MD);
+            return;
+          }
+          await ctx.reply("✖ That doesn't look like a valid address\\. Send a valid Solana address:", MD);
+          setInputSession(chatId, addrHandler);
+          return;
+        }
+        const loading = await ctx.reply("⏳ Loading pool\\.\\.\\.", MD);
+        try {
+          const detail = await client.pool(text);
+          const wid = createWizard({
+            poolAddress: detail.address,
+            poolName: detail.name,
+            binStep: detail.pool_config.bin_step,
+            currentPrice: detail.current_price,
+          });
+          await ctx.api.editMessageText(loading.chat.id, loading.message_id, await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
+        } catch (e) {
+          await ctx.api.editMessageText(loading.chat.id, loading.message_id, `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
+        }
+      };
+      setInputSession(chatId, addrHandler);
+    }
     await ctx.editMessageText(
       [
         tgBold("📍 Paste Pool Address"),
@@ -145,60 +158,12 @@ export function registerCreate(
     );
   });
 
-  // ─── capture the pasted pool address ────────────────────────────────────
-  bot.on("message:text", async (ctx, next) => {
-    const userId = ctx.from?.id;
-    const text = ctx.message.text.trim();
-    const expiresAt = userId != null ? awaitingPoolAddress.get(userId) : undefined;
-    // Only handle when we asked for an address; otherwise pass through.
-    if (userId == null || expiresAt == null || text.startsWith("/")) return next();
-    awaitingPoolAddress.delete(userId);
-    if (Date.now() > expiresAt) {
-      await ctx.reply("⌛ Session expired\\. Tap /create again\\.", MD);
-      return;
-    }
-    if (!isLikelyPubkey(text)) {
-      await ctx.reply("✖ That doesn't look like a valid address\\. Tap /create to retry\\.", MD);
-      return;
-    }
-    const loading = await ctx.reply("⏳ Loading pool\\.\\.\\.", MD);
-    try {
-      const detail = await client.pool(text);
-      const wid = createWizard({
-        poolAddress: detail.address,
-        poolName: detail.name,
-        binStep: detail.pool_config.bin_step,
-        currentPrice: detail.current_price,
-      });
-      await ctx.api.editMessageText(
-        loading.chat.id,
-        loading.message_id,
-        await renderStrategyStep(wid),
-        { ...MD, reply_markup: strategyKb(wid) },
-      );
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      await ctx.api.editMessageText(
-        loading.chat.id,
-        loading.message_id,
-        `✖ ${escapeMarkdown(msg)}`,
-        { ...MD, reply_markup: backToSourceKb() },
-      );
-    }
-  });
-
   // ─── crt:strategy:<wid> — pick strategy ─────────────────────────────────
   bot.callbackQuery(/^crt:strategy:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
-    if (!getWizard(wid)) {
-      await expired(ctx);
-      return;
-    }
-    await ctx.editMessageText(await renderStrategyStep(wid), {
-      ...MD,
-      reply_markup: strategyKb(wid),
-    });
+    if (!getWizard(wid)) return await expired(ctx);
+    await ctx.editMessageText(await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
   });
 
   // ─── crt:mode:<wid>:<strategy> — pick side ──────────────────────────────
@@ -207,10 +172,7 @@ export function registerCreate(
     const wid = ctx.match![1];
     const strategy = ctx.match![2];
     const state = getWizard(wid);
-    if (!state) {
-      await expired(ctx);
-      return;
-    }
+    if (!state) return await expired(ctx);
     updateWizard(wid, { strategy });
 
     const text = [
@@ -225,12 +187,9 @@ export function registerCreate(
     ].join("\n");
 
     const kb = new InlineKeyboard()
-      .text("↔️ Two-sided", `crt:range:${wid}:two-sided`)
-      .row()
-      .text("➡️ Single X (meme)", `crt:range:${wid}:single-x`)
-      .row()
-      .text("⬅️ Single Y (SOL)", `crt:range:${wid}:single-y`)
-      .row()
+      .text("↔️ Two-sided", `crt:range:${wid}:two-sided`).row()
+      .text("➡️ Single X (meme)", `crt:range:${wid}:single-x`).row()
+      .text("⬅️ Single Y (SOL)", `crt:range:${wid}:single-y`).row()
       .text("⬅️ Back", `crt:strategy:${wid}`);
 
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
@@ -242,181 +201,284 @@ export function registerCreate(
     const wid = ctx.match![1];
     const mode = ctx.match![2] as "two-sided" | "single-x" | "single-y";
     const state = getWizard(wid);
-    if (!state) {
-      await expired(ctx);
-      return;
-    }
+    if (!state) return await expired(ctx);
     updateWizard(wid, { mode });
 
-    const strategy = state.strategy!;
-    const sideArg =
-      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
-    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
-    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
-    const defaultCmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} ${-DEFAULT_BIN_RANGE} ${DEFAULT_BIN_RANGE}${sideArg}`;
-
-    const hint =
-      mode === "two-sided"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
-        : mode === "single-x"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
-        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
-
+    const def = DEFAULT_BINS[mode] ?? DEFAULT_BINS["two-sided"];
     const text = [
       tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
-      `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
+      `Strategy: ${escapeMarkdown(state.strategy!)} \\| Mode: ${escapeMarkdown(mode)}`,
       "",
-      tgBold("Step 3/3 — Pick range:"),
+      tgBold("Step 3/4 — Pick range:"),
       "",
-      `🎯 *Default* — ±${DEFAULT_BIN_RANGE} bins \\(relative to active bin\\)`,
-      `\`${defaultCmd}\``,
+      `🎯 *Default* — ${escapeMarkdown(def.label)}`,
       "",
-      hint,
+      "• *Wide presets* — pct\\-based ranges below current price",
     ].join("\n");
 
     const kb = new InlineKeyboard()
-      .text(`🎯 Default (±${DEFAULT_BIN_RANGE} bins)`, `crt:default:${wid}`)
-      .row();
+      .text(`🎯 Default (${escapeMarkdown(def.label)})`, `crt:default:${wid}`).row();
     WIDE_PRESETS.forEach(({ label }, i) => {
       kb.text(label, `crt:wide:${wid}:${i}`).row();
     });
-    kb.text("✏️ Custom", `crt:custom:${wid}`)
-      .row()
-      .text("⬅️ Back", `crt:mode:${wid}:${strategy}`);
+    kb.text("✏️ Custom", `crt:custom:${wid}`).row()
+      .text("⬅️ Back", `crt:mode:${wid}:${state.strategy}`);
 
     await ctx.editMessageText(text, { ...MD, reply_markup: kb });
   });
 
-  // ─── crt:default:<wid> — confirm default ±70 bin command ────────────────
+  // ─── crt:default:<wid> — default bins by mode → prompt amounts → execute ──
   bot.callbackQuery(/^crt:default:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
     const state = getWizard(wid);
-    if (!state) {
-      await expired(ctx);
-      return;
-    }
-
-    const strategy = state.strategy!;
-    const mode = state.mode!;
-    const sideArg =
-      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
-    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
-    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
-    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} ${-DEFAULT_BIN_RANGE} ${DEFAULT_BIN_RANGE}${sideArg}`;
-
-    const hint =
-      mode === "two-sided"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
-        : mode === "single-x"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
-        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
-
-    const text = [
-      tgBold("✅ Ready to create\\!"),
-      "",
-      `Pool: ${tgCode(state.poolAddress)}`,
-      `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Range: ±${DEFAULT_BIN_RANGE} bins \\(relative to active bin\\)`,
-      "",
-      "Copy the command below and fill in the amounts:",
-      `\`${cmd}\``,
-      "",
-      hint,
-    ].join("\n");
-
-    deleteWizard(wid);
-    const kb = new InlineKeyboard().text("🔄 Start over", "crt:source");
-    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+    if (!state) return await expired(ctx);
+    const def = DEFAULT_BINS[state.mode ?? "two-sided"] ?? DEFAULT_BINS["two-sided"];
+    updateWizard(wid, { minBin: def.minBin, maxBin: def.maxBin, isPctMode: false });
+    await promptAmounts(ctx, wid);
   });
 
-  // ─── crt:wide:<wid>:<idx> — wide pct preset ─────────────────────────────
+  // ─── crt:wide:<wid>:<idx> — wide pct preset → prompt amounts → execute ──
   bot.callbackQuery(/^crt:wide:([^:]+):(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
     const preset = WIDE_PRESETS[parseInt(ctx.match![2], 10)];
     const state = getWizard(wid);
-    if (!state || !preset) {
-      await expired(ctx);
-      return;
-    }
-
-    const strategy = state.strategy!;
-    const mode = state.mode!;
-    const minPctNum = +(preset.minPct * 100).toFixed(2);
-    const maxPctNum = +(preset.maxPct * 100).toFixed(2);
-    const sideArg =
-      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
-    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
-    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
-    const cmd = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct ${minPctNum} ${maxPctNum}${sideArg}`;
-
-    const hint =
-      mode === "two-sided"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount, <yAmt> with SOL/stable amount.")
-        : mode === "single-x"
-        ? escapeMarkdown("Replace <xAmt> with meme token amount. Y is already set to 0.")
-        : escapeMarkdown("Replace <yAmt> with SOL/stable amount. X is already set to 0.");
-
-    const text = [
-      tgBold("✅ Wide range ready\\!"),
-      "",
-      `Pool: ${tgCode(state.poolAddress)}`,
-      `Strategy: ${escapeMarkdown(strategy)} \\| Mode: ${escapeMarkdown(mode)}`,
-      `Range: ${escapeMarkdown(preset.label)} \\(pct ${escapeMarkdown(`${minPctNum}% to ${maxPctNum}%`)}\\)`,
-      "",
-      "Copy the command and fill the amount:",
-      `\`${cmd}\``,
-      "",
-      hint,
-    ].join("\n");
-
-    deleteWizard(wid);
-    const kb = new InlineKeyboard().text("🔄 Start over", "crt:source");
-    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+    if (!state || !preset) return await expired(ctx);
+    updateWizard(wid, { minPct: preset.minPct, maxPct: preset.maxPct, isPctMode: true });
+    await promptAmounts(ctx, wid);
   });
 
-  // ─── crt:custom:<wid> — show pre-filled command with placeholders ────────
+  // ─── crt:custom:<wid> — custom range → ask mode → input values → amounts ─
   bot.callbackQuery(/^crt:custom:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
     const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    await ctx.editMessageText(
+      [
+        tgBold("✏️ Custom Range"),
+        "",
+        `Bin step: ${escapeMarkdown(String(state.binStep))} \\(1 bin ≈ ${escapeMarkdown(`${state.binStep / 100}%`)}\\)`,
+        "",
+        "Choose range mode:",
+      ].join("\n"),
+      {
+        ...MD,
+        reply_markup: new InlineKeyboard()
+          .text("📊 Bin mode (relative)", `crt:custom:bin:${wid}`).row()
+          .text("📈 Pct mode (% vs price)", `crt:custom:pct:${wid}`).row()
+          .text("⬅️ Back", `crt:range:${wid}:${state.mode ?? "two-sided"}`),
+      },
+    );
+  });
+
+  // ─── crt:custom:bin:<wid> — ask for min/max bin ─────────────────────────
+  bot.callbackQuery(/^crt:custom:bin:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+
+    setInputSession(chatId, async (minBinText) => {
+      const minBin = parseInt(minBinText, 10);
+      if (Number.isNaN(minBin)) {
+        await ctx.reply("✖ Invalid number\\. Send min bin \\(e\\.g\\. \\-70\\):", MD);
+        return;
+      }
+      setInputSession(chatId, async (maxBinText) => {
+        const maxBin = parseInt(maxBinText, 10);
+        if (Number.isNaN(maxBin) || maxBin <= minBin) {
+          await ctx.reply("✖ Max bin must be a number greater than min bin\\. Send max bin:", MD);
+          return;
+        }
+        updateWizard(wid, { minBin, maxBin, isPctMode: false });
+        await promptAmounts(ctx, wid);
+      });
+      await ctx.reply(`✏️ Min bin: ${escapeMarkdown(minBinText)}\n\nNow send *max bin* \\(e\\.g\\. 70\\):`, MD);
+    });
+    await ctx.editMessageText("✏️ Send *min bin* \\(relative to active bin, e\\.g\\. \\-70\\):", MD);
+  });
+
+  // ─── crt:custom:pct:<wid> — ask for min/max pct ─────────────────────────
+  bot.callbackQuery(/^crt:custom:pct:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+
+    setInputSession(chatId, async (minPctText) => {
+      const minPct = parseFloat(minPctText) / 100;
+      if (Number.isNaN(minPct)) {
+        await ctx.reply("✖ Invalid number\\. Send min %% \\(e\\.g\\. \\-50\\):", MD);
+        return;
+      }
+      setInputSession(chatId, async (maxPctText) => {
+        const maxPct = parseFloat(maxPctText) / 100;
+        if (Number.isNaN(maxPct) || maxPct <= minPct) {
+          await ctx.reply("✖ Max %% must be a number greater than min %%\\. Send max %% \\(e\\.g\\. 0\\):", MD);
+          return;
+        }
+        updateWizard(wid, { minPct, maxPct, isPctMode: true });
+        await promptAmounts(ctx, wid);
+      });
+      await ctx.reply(`✏️ Min: ${escapeMarkdown(minPctText)}%\n\nNow send *max %%* \\(e\\.g\\. 0\\):`, MD);
+    });
+    await ctx.editMessageText("✏️ Send *min %%* \\(negative, e\\.g\\. \\-50 means 50% below price\\):", MD);
+  });
+
+  // ─── crt:execute — execute create position ───────────────────────────────
+  bot.callbackQuery(/^crt:execute:([^:]+):(.+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const xAmt = ctx.match![2];
+    const yAmt = ctx.match![3];
+    const state = getWizard(wid);
     if (!state) {
-      await expired(ctx);
+      await ctx.editMessageText("⌛ Session expired\\. Run /create again\\.", MD);
       return;
     }
+    deleteWizard(wid);
 
-    const strategy = state.strategy!;
-    const mode = state.mode!;
-    const sideArg =
-      mode === "single-x" ? " single" : mode === "single-y" ? " single-y" : "";
-    const xPlaceholder = mode === "single-y" ? "0" : "<xAmt>";
-    const yPlaceholder = mode === "single-x" ? "0" : "<yAmt>";
+    const strategy = state.strategy! as StrategyType;
+    const mode = state.mode ?? "two-sided";
+    const singleSidedX = mode === "single-x";
+    const singleSidedY = mode === "single-y";
+    const isPctMode = state.isPctMode;
 
-    const cmdBin = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} <minBin> <maxBin>${sideArg}`;
-    const cmdPct = `/create ${state.poolAddress} ${strategy} ${xPlaceholder} ${yPlaceholder} pct <minPct> <maxPct>${sideArg}`;
+    await ctx.editMessageText("⏳ Creating position\\.\\.\\.", MD);
+    try {
+      const keypair = resolveKeypair(config);
+      const rpc = resolveRpc(config);
+      const Ctor = await lazyDLMM();
+      const dlmm = new Ctor(keypair, rpc);
+      const res = await dlmm.createPosition({
+        poolAddress: state.poolAddress,
+        strategy,
+        totalXAmount: xAmt,
+        totalYAmount: yAmt,
+        amountsAreHuman: true,
+        singleSidedX,
+        singleSidedY,
+        ...(isPctMode
+          ? { minPct: state.minPct!, maxPct: state.maxPct! }
+          : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+      });
+      const sigs = (res.signatures ?? [res]).join("\n");
+      const body = sigs.split("\n").map((s: string) => s.trim()).filter(Boolean).map((s: string) => tgTxLink(s)).join("\n");
+      await ctx.editMessageText(`✅ Done\\!\n${body}`, MD);
+    } catch (e) {
+      await ctx.editMessageText(`✖ Failed: ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
+    }
+  });
 
-    const text = [
-      tgBold("✏️ Custom Range"),
-      "",
-      `Bin step: ${escapeMarkdown(String(state.binStep))} \\(1 bin ≈ ${escapeMarkdown(`${state.binStep / 100}%`)}\\)`,
-      "",
-      tgBold("Bin mode") + " \\(relative to active bin\\):",
-      `\`${cmdBin}\``,
-      "",
-      tgBold("Pct mode") + " \\(% vs current price\\):",
-      `\`${cmdPct}\``,
-    ].join("\n");
-
-    const kb = new InlineKeyboard().text("⬅️ Back", `crt:range:${wid}:${mode}`);
-    await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+  // ─── crt:cancel — cancel create ──────────────────────────────────────────
+  bot.callbackQuery(/^crt:cancel:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    deleteWizard(wid);
+    await ctx.editMessageText("❌ Cancelled\\.", MD);
   });
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Amount prompt & execution ───────────────────────────────────────────────
 
-// userId → expiry timestamp; set while we wait for a pasted pool address.
-const awaitingPoolAddress = new Map<number, number>();
+async function promptAmounts(ctx: Context, wid: string) {
+  const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+  const state = getWizard(wid);
+  if (!state) return;
+
+  const mode = state.mode ?? "two-sided";
+  const poolName = state.poolName;
+
+  if (mode === "single-y") {
+    setInputSession(chatId, async (yAmtText) => {
+      const yAmt = parseFloat(yAmtText);
+      if (Number.isNaN(yAmt) || yAmt <= 0) {
+        await ctx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+        return;
+      }
+      await confirmAndExecute(ctx, wid, "0", yAmtText);
+    });
+    await ctx.editMessageText(
+      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided Y \\(SOL/stable\\)`, "", "✏️ Send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):"].join("\n"),
+      MD,
+    );
+  } else if (mode === "single-x") {
+    setInputSession(chatId, async (xAmtText) => {
+      const xAmt = parseFloat(xAmtText);
+      if (Number.isNaN(xAmt) || xAmt <= 0) {
+        await ctx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        return;
+      }
+      await confirmAndExecute(ctx, wid, xAmtText, "0");
+    });
+    await ctx.editMessageText(
+      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided X \\(meme\\)`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),
+      MD,
+    );
+  } else {
+    setInputSession(chatId, async (xAmtText) => {
+      const xAmt = parseFloat(xAmtText);
+      if (Number.isNaN(xAmt) || xAmt <= 0) {
+        await ctx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        return;
+      }
+      setInputSession(chatId, async (yAmtText) => {
+        const yAmt = parseFloat(yAmtText);
+        if (Number.isNaN(yAmt) || yAmt <= 0) {
+          await ctx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+          return;
+        }
+        await confirmAndExecute(ctx, wid, xAmtText, yAmtText);
+      });
+      await ctx.reply(`✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
+    });
+    await ctx.editMessageText(
+      [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: two\\-sided`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),
+      MD,
+    );
+  }
+}
+
+async function confirmAndExecute(ctx: Context, wid: string, xAmt: string, yAmt: string) {
+  const state = getWizard(wid);
+  if (!state) {
+    await ctx.reply("⌛ Session expired\\. Run /create again\\.", MD);
+    return;
+  }
+
+  const strategy = state.strategy!;
+  const mode = state.mode ?? "two-sided";
+  const isPctMode = state.isPctMode;
+  const rangeLabel = isPctMode
+    ? `${(state.minPct! * 100).toFixed(2)}% to ${(state.maxPct! * 100).toFixed(2)}%`
+    : `bins ${state.minBin!} to ${state.maxBin!}`;
+
+  const summary = [
+    "*Create position?*",
+    `Pool: ${tgCode(state.poolAddress)}`,
+    `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(rangeLabel)}`,
+    `X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
+    `Mode: ${escapeMarkdown(mode === "single-x" ? "single-sided X" : mode === "single-y" ? "single-sided Y" : "two-sided")}`,
+  ].join("\n");
+
+  const kb = new InlineKeyboard()
+    .text("✅ Confirm", `crt:execute:${wid}:${xAmt}:${yAmt}`)
+    .text("❌ Cancel", `crt:cancel:${wid}`);
+
+  deleteWizard(wid);
+
+  try {
+    await ctx.reply(summary, { ...MD, reply_markup: kb });
+  } catch (e) {
+    await ctx.reply(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
+  }
+}
+
+// ─── Helpers ─────────────────────────────────────────────────────────────────
 
 function isLikelyPubkey(s: string): boolean {
   return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
@@ -446,18 +508,11 @@ function strategyKb(wid: string): InlineKeyboard {
     .text("⬅️ Back", "crt:source");
 }
 
-
 async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
-  const text = [
-    tgBold("➕ Create Position"),
-    "",
-    "Which pool do you want to use?",
-  ].join("\n");
+  const text = [tgBold("➕ Create Position"), "", "Which pool do you want to use?"].join("\n");
   const kb = new InlineKeyboard()
-    .text("🔥 Trending Pools", "crt:from:trending")
-    .row()
-    .text("📈 My Active Pools", "crt:from:my")
-    .row()
+    .text("🔥 Trending Pools", "crt:from:trending").row()
+    .text("📈 My Active Pools", "crt:from:my").row()
     .text("📍 Paste Pool Address", "crt:from:address");
 
   if (mode === "reply") {
@@ -468,13 +523,10 @@ async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
 }
 
 async function expired(ctx: Context) {
-  await ctx.editMessageText(
-    "⌛ Session expired\\. Please run /create again\\.",
-    {
-      ...MD,
-      reply_markup: new InlineKeyboard().text("🔄 Start over", "crt:source"),
-    },
-  );
+  await ctx.editMessageText("⌛ Session expired\\. Please run /create again\\.", {
+    ...MD,
+    reply_markup: new InlineKeyboard().text("🔄 Start over", "crt:source"),
+  });
 }
 
 function backToSourceKb() {

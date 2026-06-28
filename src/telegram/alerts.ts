@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import cron, { type ScheduledTask } from "node-cron";
 import type { Bot } from "grammy";
+import { InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../api.js";
 import type { VexisConfig } from "../config.js";
 import { resolveWallet } from "../config.js";
@@ -14,6 +15,7 @@ import {
   escapeMarkdown,
   tgBold,
 } from "./format.js";
+import { setInputSession } from "./input-store.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
 const STATE_FILE = join(process.cwd(), ".vexis-alerts.json");
@@ -348,6 +350,7 @@ export function registerAlertCommands(
   bot.command("setalert", async (ctx) => {
     const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
     const [kind, arg] = parts;
+
     if (kind === "portfolio") {
       const hours = parseInt(arg, 10);
       if (Number.isNaN(hours) || hours < 1) {
@@ -358,43 +361,133 @@ export function registerAlertCommands(
       saveState(rt.state);
       schedulePortfolio(rt, bot, client, config, chatId, hours);
       await ctx.reply(`✅ Portfolio alert every ${escapeMarkdown(String(hours))}h`, MD);
-    } else if (kind === "position") {
+      return;
+    }
+    if (kind === "position") {
       rt.state.positionCheckEnabled = true;
-      rt.state.lastOpenSnapshot = []; // reset snapshot so first check sends initial notifications
+      rt.state.lastOpenSnapshot = [];
       saveState(rt.state);
       schedulePositionChecks(rt, bot, client, config, chatId);
       await ctx.reply(
         `✅ Position alerts enabled \\(every 15m\\)\nDetects: PnL ±0\\.5%\\, new/closed positions\\, balance changes\\, fee changes\\, out of range`,
         MD
       );
-    } else {
-      await ctx.reply(
-        "Usage:\n`/setalert portfolio <hours>`\n`/setalert position`",
+      return;
+    }
+
+    // No args — interactive selection
+    const kb = new InlineKeyboard()
+      .text("📊 Portfolio", "setalert:type:portfolio")
+      .row()
+      .text("📈 Position", "setalert:type:position");
+    await ctx.reply("Enable which alert?", { ...MD, reply_markup: kb });
+  });
+
+  // ─── setalert:type:portfolio — show hours selection ─────────────────────
+  bot.callbackQuery(/^setalert:type:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const type = ctx.match![1];
+    if (type === "portfolio") {
+      const kb = new InlineKeyboard()
+        .text("1h", `setalert:hours:1`).text("4h", `setalert:hours:4`).row()
+        .text("12h", `setalert:hours:12`).text("24h", `setalert:hours:24`).row()
+        .text("✏️ Custom", "setalert:hours:custom");
+      await ctx.editMessageText("Portfolio alert — select interval:", { ...MD, reply_markup: kb });
+    } else if (type === "position") {
+      rt.state.positionCheckEnabled = true;
+      rt.state.lastOpenSnapshot = [];
+      saveState(rt.state);
+      schedulePositionChecks(rt, bot, client, config, chatId);
+      await ctx.editMessageText(
+        `✅ Position alerts enabled \\(every 15m\\)\nDetects: PnL ±0\\.5%\\, new/closed positions\\, balance changes\\, fee changes\\, out of range`,
         MD
       );
     }
   });
 
+  // ─── setalert:hours:<n> — set portfolio hours ────────────────────────────
+  bot.callbackQuery(/^setalert:hours:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const val = ctx.match![1];
+    if (val === "custom") {
+      const chatIdCapture = String(ctx.chat?.id ?? ctx.from?.id);
+      setInputSession(chatIdCapture, async (text) => {
+        const hours = parseInt(text, 10);
+        if (Number.isNaN(hours) || hours < 1) {
+          await ctx.reply("✖ Invalid number\\. Send hours \\(e\\.g\\. 4\\):", MD);
+          return;
+        }
+        rt.state.portfolioHours = hours;
+        saveState(rt.state);
+        schedulePortfolio(rt, bot, client, config, chatId, hours);
+        await ctx.reply(`✅ Portfolio alert every ${escapeMarkdown(String(hours))}h`, MD);
+      });
+      await ctx.editMessageText("✏️ Send hours interval \\(e\\.g\\. 6\\):", MD);
+      return;
+    }
+    const hours = parseInt(val, 10);
+    if (Number.isNaN(hours) || hours < 1) return;
+    rt.state.portfolioHours = hours;
+    saveState(rt.state);
+    schedulePortfolio(rt, bot, client, config, chatId, hours);
+    await ctx.editMessageText(`✅ Portfolio alert every ${escapeMarkdown(String(hours))}h`, MD);
+  });
+
   bot.command("stopalert", async (ctx) => {
     const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
     const [kind] = parts;
+
     if (kind === "portfolio") {
       rt.state.portfolioHours = 0;
       rt.portfolioTask?.stop();
       rt.portfolioTask = null;
       saveState(rt.state);
       await ctx.reply("✅ Portfolio alert disabled", MD);
-    } else if (kind === "position") {
+      return;
+    }
+    if (kind === "position") {
       rt.state.positionCheckEnabled = false;
       rt.positionTask?.stop();
       rt.positionTask = null;
       saveState(rt.state);
       await ctx.reply("✅ Position alert disabled", MD);
-    } else {
-      await ctx.reply(
-        "Usage:\n`/stopalert portfolio`\n`/stopalert position`",
-        MD
-      );
+      return;
+    }
+
+    // No args — show active alerts as buttons
+    const kb = new InlineKeyboard();
+    let hasActive = false;
+    if (rt.state.portfolioHours > 0) {
+      kb.text("📊 Portfolio", "stopalert:type:portfolio").row();
+      hasActive = true;
+    }
+    if (rt.state.positionCheckEnabled) {
+      kb.text("📈 Position", "stopalert:type:position").row();
+      hasActive = true;
+    }
+    if (!hasActive) {
+      await ctx.reply("No active alerts\\. Use /setalert to enable one\\.", MD);
+      return;
+    }
+    await ctx.reply("Disable which alert?", { ...MD, reply_markup: kb });
+  });
+
+  // ─── stopalert:type:<kind> — stop specific alert ─────────────────────────
+  bot.callbackQuery(/^stopalert:type:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const kind = ctx.match![1];
+    if (kind === "portfolio") {
+      rt.state.portfolioHours = 0;
+      rt.portfolioTask?.stop();
+      rt.portfolioTask = null;
+      saveState(rt.state);
+      await ctx.editMessageText("✅ Portfolio alert disabled", MD);
+    } else if (kind === "position") {
+      rt.state.positionCheckEnabled = false;
+      rt.positionTask?.stop();
+      rt.positionTask = null;
+      saveState(rt.state);
+      await ctx.editMessageText("✅ Position alert disabled", MD);
     }
   });
 }
