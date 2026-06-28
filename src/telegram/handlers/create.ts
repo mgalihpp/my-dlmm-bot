@@ -16,8 +16,8 @@ import type { StrategyType } from "../../types.js";
 
 const DEFAULT_BINS: Record<string, { minBin: number; maxBin: number; label: string }> = {
   "two-sided": { minBin: -34, maxBin: 35, label: "-34+35 bins" },
-  "single-x": { minBin: -70, maxBin: 0, label: "-70+0 bins (below price)" },
-  "single-y": { minBin: 0, maxBin: 70, label: "0+70 bins (above price)" },
+  "single-x": { minBin: 0, maxBin: 70, label: "0+70 bins (above price)" },
+  "single-y": { minBin: -70, maxBin: 0, label: "-70+0 bins (below price)" },
 };
 
 const WIDE_PRESETS = [
