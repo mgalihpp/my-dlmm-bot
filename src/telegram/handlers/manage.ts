@@ -288,7 +288,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
           `Position: ${tgCode(s2.positionPubkey)}`,
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| ${escapeMarkdown(xToken)}: ${escapeMarkdown(s2.xAmt!)} \\| ${escapeMarkdown(yToken)}: ${escapeMarkdown(s2.yAmt!)}`,
         ].join("\n");
-        await presentEdit(sessionCtx2, summary, async () => {
+        await presentNew(sessionCtx2, summary, async () => {
           const kp = resolveKeypair(config);
           const rpc = resolveRpc(config);
           const Ctor = await lazyDLMM();
@@ -387,7 +387,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
         `Position: ${tgCode(positionPubkey)}`,
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
       ].join("\n");
-      await presentEdit(sessionCtx, summary, async () => {
+      await presentNew(sessionCtx, summary, async () => {
         const kp = resolveKeypair(config);
         const rpc = resolveRpc(config);
         const Ctor = await lazyDLMM();
@@ -461,6 +461,15 @@ async function presentEdit(ctx: Context, summary: string, run: () => Promise<str
     .text("✅ Confirm", `mconfirm:${opId}`)
     .text("❌ Cancel", `mcancel:${opId}`);
   await ctx.editMessageText(summary, { ...MD, reply_markup: kb });
+}
+
+async function presentNew(ctx: Context, summary: string, run: () => Promise<string>) {
+  const opId = nextOpId();
+  pending.set(opId, { summary, run });
+  const kb = new InlineKeyboard()
+    .text("✅ Confirm", `mconfirm:${opId}`)
+    .text("❌ Cancel", `mcancel:${opId}`);
+  await ctx.reply(summary, { ...MD, reply_markup: kb });
 }
 
 async function expired(ctx: Context) {
