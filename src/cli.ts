@@ -662,7 +662,7 @@ poolCmd
   .description("list top pools via discovery API screening")
   .option(
     "--timeframe <tf>",
-    "screening timeframe (5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h)",
+    "screening timeframe (5m, 30m, 1h, 2h, 4h, 12h, 24h)",
   )
   .option("--category <cat>", "pool category: trending, new, top")
   .option("--limit <n>", "max pools to show", "15")

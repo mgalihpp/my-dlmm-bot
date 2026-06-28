@@ -7,7 +7,7 @@ import { MD, replyError } from "../utils.js";
 import { screenPools, parseTimeframe } from "../../screening.js";
 import { setInputSession } from "../input-store.js";
 
-const TIMEFRAMES = ["5m", "15m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
+const TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
 
 export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   // ─── /pools — show pool list ─────────────────────────────────────────────
@@ -17,7 +17,7 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
       const timeframe = parseTimeframe(rawArg);
 
       if (rawArg && !timeframe) {
-        await ctx.reply("Usage: `/pools` or `/pools <timeframe>`\nValid timeframes: 5m, 15m, 30m, 1h, 2h, 4h, 12h, 24h", MD);
+        await ctx.reply("Usage: `/pools` or `/pools <timeframe>`\nValid timeframes: 5m, 30m, 1h, 2h, 4h, 12h, 24h", MD);
         return;
       }
 

@@ -3,7 +3,7 @@ import type { VexisConfig } from "./config.js";
 import type { DiscoveryPool, ScreenedPool } from "./types.js";
 
 /** Valid screening timeframes. */
-const VALID_TIMEFRAMES = ["5m", "15m", "30m", "1h", "2h", "4h", "12h", "24h"];
+const VALID_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"];
 
 /** Parse a timeframe string, return null if invalid. */
 export function parseTimeframe(input: string | undefined): string | null {
