@@ -260,10 +260,10 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const xToken = session.tokenX || "X";
     const yToken = session.tokenY || "Y";
     // prompt for X amount
-    const xHandler = async (text: string) => {
+    const xHandler = async (text: string, sessionCtx: Context) => {
       const val = parseFloat(text);
       if (Number.isNaN(val) || val < 0) {
-        await ctx.reply(`✖ Invalid amount\\. Send a positive number for ${escapeMarkdown(xToken)}:`, MD);
+        await sessionCtx.reply(`✖ Invalid amount\\. Send a positive number for ${escapeMarkdown(xToken)}:`, MD);
         setInputSession(chatId, xHandler);
         return;
       }
@@ -271,10 +271,10 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       if (!s) return;
       s.xAmt = text;
       addLiqSessions.set(chatId, s);
-      const yHandler = async (text2: string) => {
+      const yHandler = async (text2: string, sessionCtx2: Context) => {
         const val2 = parseFloat(text2);
         if (Number.isNaN(val2) || val2 < 0) {
-          await ctx.reply(`✖ Invalid amount\\. Send a positive number for ${escapeMarkdown(yToken)}:`, MD);
+          await sessionCtx2.reply(`✖ Invalid amount\\. Send a positive number for ${escapeMarkdown(yToken)}:`, MD);
           setInputSession(chatId, yHandler);
           return;
         }
@@ -288,7 +288,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
           `Position: ${tgCode(s2.positionPubkey)}`,
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| ${escapeMarkdown(xToken)}: ${escapeMarkdown(s2.xAmt!)} \\| ${escapeMarkdown(yToken)}: ${escapeMarkdown(s2.yAmt!)}`,
         ].join("\n");
-        await presentEdit(ctx, summary, async () => {
+        await presentEdit(sessionCtx2, summary, async () => {
           const kp = resolveKeypair(config);
           const rpc = resolveRpc(config);
           const Ctor = await lazyDLMM();
@@ -305,7 +305,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
           });
         });
       };
-      await ctx.reply(`✅ ${escapeMarkdown(xToken)}: ${escapeMarkdown(text)}\n\nNow send ${escapeMarkdown(yToken)} amount \\(or 0 if single\\-sided\\):`, MD);
+      await sessionCtx.reply(`✅ ${escapeMarkdown(xToken)}: ${escapeMarkdown(text)}\n\nNow send ${escapeMarkdown(yToken)} amount \\(or 0 if single\\-sided\\):`, MD);
       setInputSession(chatId, yHandler);
     };
     setInputSession(chatId, xHandler);
@@ -374,10 +374,10 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!pair) return await expired(ctx);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     const { poolAddress, positionPubkey } = pair;
-    const bpsHandler = async (text: string) => {
+    const bpsHandler = async (text: string, sessionCtx: Context) => {
       const bps = parseInt(text, 10);
       if (Number.isNaN(bps) || bps < 1 || bps > 10000) {
-        await ctx.reply("✖ BPS must be between 1 and 10000\\. Send a number:", MD);
+        await sessionCtx.reply("✖ BPS must be between 1 and 10000\\. Send a number:", MD);
         setInputSession(chatId, bpsHandler);
         return;
       }
@@ -387,7 +387,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
         `Position: ${tgCode(positionPubkey)}`,
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
       ].join("\n");
-      await presentEdit(ctx, summary, async () => {
+      await presentEdit(sessionCtx, summary, async () => {
         const kp = resolveKeypair(config);
         const rpc = resolveRpc(config);
         const Ctor = await lazyDLMM();

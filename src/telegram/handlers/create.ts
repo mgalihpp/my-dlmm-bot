@@ -120,18 +120,18 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     const chatId = ctx.chat?.id ?? ctx.from?.id;
     if (chatId != null) {
       let retry = 0;
-      const addrHandler = async (text: string) => {
+      const addrHandler = async (text: string, sessionCtx: Context) => {
         if (!isLikelyPubkey(text)) {
           retry++;
           if (retry >= 2) {
-            await ctx.reply("✖ Invalid address\\. Use /create to retry\\.", MD);
+            await sessionCtx.reply("✖ Invalid address\\. Use /create to retry\\.", MD);
             return;
           }
-          await ctx.reply("✖ That doesn't look like a valid address\\. Send a valid Solana address:", MD);
+          await sessionCtx.reply("✖ That doesn't look like a valid address\\. Send a valid Solana address:", MD);
           setInputSession(chatId, addrHandler);
           return;
         }
-        const loading = await ctx.reply("⏳ Loading pool\\.\\.\\.", MD);
+        const loading = await sessionCtx.reply("⏳ Loading pool\\.\\.\\.", MD);
         try {
           const detail = await client.pool(text);
           const wid = createWizard({
@@ -140,9 +140,9 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
             binStep: detail.pool_config.bin_step,
             currentPrice: detail.current_price,
           });
-          await ctx.api.editMessageText(loading.chat.id, loading.message_id, await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
+          await sessionCtx.api.editMessageText(loading.chat.id, loading.message_id, await renderStrategyStep(wid), { ...MD, reply_markup: strategyKb(wid) });
         } catch (e) {
-          await ctx.api.editMessageText(loading.chat.id, loading.message_id, `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
+          await sessionCtx.api.editMessageText(loading.chat.id, loading.message_id, `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: backToSourceKb() });
         }
       };
       setInputSession(chatId, addrHandler);
@@ -281,22 +281,22 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!state) return await expired(ctx);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
 
-    setInputSession(chatId, async (minBinText) => {
+    setInputSession(chatId, async (minBinText, sessionCtx) => {
       const minBin = parseInt(minBinText, 10);
       if (Number.isNaN(minBin)) {
-        await ctx.reply("✖ Invalid number\\. Send min bin \\(e\\.g\\. \\-70\\):", MD);
+        await sessionCtx.reply("✖ Invalid number\\. Send min bin \\(e\\.g\\. \\-70\\):", MD);
         return;
       }
-      setInputSession(chatId, async (maxBinText) => {
+      setInputSession(chatId, async (maxBinText, sessionCtx2) => {
         const maxBin = parseInt(maxBinText, 10);
         if (Number.isNaN(maxBin) || maxBin <= minBin) {
-          await ctx.reply("✖ Max bin must be a number greater than min bin\\. Send max bin:", MD);
+          await sessionCtx2.reply("✖ Max bin must be a number greater than min bin\\. Send max bin:", MD);
           return;
         }
         updateWizard(wid, { minBin, maxBin, isPctMode: false });
-        await promptAmounts(ctx, wid);
+        await promptAmounts(sessionCtx2, wid);
       });
-      await ctx.reply(`✏️ Min bin: ${escapeMarkdown(minBinText)}\n\nNow send *max bin* \\(e\\.g\\. 70\\):`, MD);
+      await sessionCtx.reply(`✏️ Min bin: ${escapeMarkdown(minBinText)}\n\nNow send *max bin* \\(e\\.g\\. 70\\):`, MD);
     });
     await ctx.editMessageText("✏️ Send *min bin* \\(relative to active bin, e\\.g\\. \\-70\\):", MD);
   });
@@ -309,22 +309,22 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!state) return await expired(ctx);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
 
-    setInputSession(chatId, async (minPctText) => {
+    setInputSession(chatId, async (minPctText, sessionCtx) => {
       const minPct = parseFloat(minPctText) / 100;
       if (Number.isNaN(minPct)) {
-        await ctx.reply("✖ Invalid number\\. Send min %% \\(e\\.g\\. \\-50\\):", MD);
+        await sessionCtx.reply("✖ Invalid number\\. Send min %% \\(e\\.g\\. \\-50\\):", MD);
         return;
       }
-      setInputSession(chatId, async (maxPctText) => {
+      setInputSession(chatId, async (maxPctText, sessionCtx2) => {
         const maxPct = parseFloat(maxPctText) / 100;
         if (Number.isNaN(maxPct) || maxPct <= minPct) {
-          await ctx.reply("✖ Max %% must be a number greater than min %%\\. Send max %% \\(e\\.g\\. 0\\):", MD);
+          await sessionCtx2.reply("✖ Max %% must be a number greater than min %%\\. Send max %% \\(e\\.g\\. 0\\):", MD);
           return;
         }
         updateWizard(wid, { minPct, maxPct, isPctMode: true });
-        await promptAmounts(ctx, wid);
+        await promptAmounts(sessionCtx2, wid);
       });
-      await ctx.reply(`✏️ Min: ${escapeMarkdown(minPctText)}%\n\nNow send *max %%* \\(e\\.g\\. 0\\):`, MD);
+      await sessionCtx.reply(`✏️ Min: ${escapeMarkdown(minPctText)}%\n\nNow send *max %%* \\(e\\.g\\. 0\\):`, MD);
     });
     await ctx.editMessageText("✏️ Send *min %%* \\(negative, e\\.g\\. \\-50 means 50% below price\\):", MD);
   });
@@ -394,47 +394,47 @@ async function promptAmounts(ctx: Context, wid: string) {
   const poolName = state.poolName;
 
   if (mode === "single-y") {
-    setInputSession(chatId, async (yAmtText) => {
+    setInputSession(chatId, async (yAmtText, sessionCtx) => {
       const yAmt = parseFloat(yAmtText);
       if (Number.isNaN(yAmt) || yAmt <= 0) {
-        await ctx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+        await sessionCtx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
         return;
       }
-      await confirmAndExecute(ctx, wid, "0", yAmtText);
+      await confirmAndExecute(sessionCtx, wid, "0", yAmtText);
     });
     await ctx.editMessageText(
       [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided Y \\(SOL/stable\\)`, "", "✏️ Send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):"].join("\n"),
       MD,
     );
   } else if (mode === "single-x") {
-    setInputSession(chatId, async (xAmtText) => {
+    setInputSession(chatId, async (xAmtText, sessionCtx) => {
       const xAmt = parseFloat(xAmtText);
       if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await ctx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        await sessionCtx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
         return;
       }
-      await confirmAndExecute(ctx, wid, xAmtText, "0");
+      await confirmAndExecute(sessionCtx, wid, xAmtText, "0");
     });
     await ctx.editMessageText(
       [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: single\\-sided X \\(meme\\)`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),
       MD,
     );
   } else {
-    setInputSession(chatId, async (xAmtText) => {
+    setInputSession(chatId, async (xAmtText, sessionCtxX) => {
       const xAmt = parseFloat(xAmtText);
       if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await ctx.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
+        await sessionCtxX.reply("✖ Invalid amount\\. Send X amount \\(meme token\\):", MD);
         return;
       }
-      setInputSession(chatId, async (yAmtText) => {
+      setInputSession(chatId, async (yAmtText, sessionCtxY) => {
         const yAmt = parseFloat(yAmtText);
         if (Number.isNaN(yAmt) || yAmt <= 0) {
-          await ctx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
+          await sessionCtxY.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):", MD);
           return;
         }
-        await confirmAndExecute(ctx, wid, xAmtText, yAmtText);
+        await confirmAndExecute(sessionCtxY, wid, xAmtText, yAmtText);
       });
-      await ctx.reply(`✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
+      await sessionCtxX.reply(`✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
     });
     await ctx.editMessageText(
       [tgBold(`📋 ${escapeMarkdown(poolName)}`), `Mode: two\\-sided`, "", "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):"].join("\n"),

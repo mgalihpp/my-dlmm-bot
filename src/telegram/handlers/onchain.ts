@@ -281,12 +281,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     addLiqSessions.set(chatId, session);
 
     let retry = 0;
-    setInputSession(chatId, async (text) => {
+    setInputSession(chatId, async (text, sessionCtx) => {
       const val = parseFloat(text);
       if (Number.isNaN(val) || val < 0) {
         retry++;
-        if (retry >= 3) { await ctx.reply("✖ Too many invalid attempts\\. Use /addliq to retry\\.", MD); return; }
-        await ctx.reply("✖ Invalid amount\\. Send X amount \\(meme token, e\\.g\\. 1000\\):", MD);
+        if (retry >= 3) { await sessionCtx.reply("✖ Too many invalid attempts\\. Use /addliq to retry\\.", MD); return; }
+        await sessionCtx.reply("✖ Invalid amount\\. Send X amount \\(meme token, e\\.g\\. 1000\\):", MD);
         return;
       }
       const s = addLiqSessions.get(chatId);
@@ -295,12 +295,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       addLiqSessions.set(chatId, s);
 
       let retryY = 0;
-      setInputSession(chatId, async (text2) => {
+      setInputSession(chatId, async (text2, sessionCtx2) => {
         const val2 = parseFloat(text2);
         if (Number.isNaN(val2) || val2 < 0) {
           retryY++;
-          if (retryY >= 3) { await ctx.reply("✖ Too many invalid attempts\\. Use /addliq to retry\\.", MD); return; }
-          await ctx.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable, e\\.g\\. 0\\.5\\):", MD);
+          if (retryY >= 3) { await sessionCtx2.reply("✖ Too many invalid attempts\\. Use /addliq to retry\\.", MD); return; }
+          await sessionCtx2.reply("✖ Invalid amount\\. Send Y amount \\(SOL/stable, e\\.g\\. 0\\.5\\):", MD);
           return;
         }
         const s2 = addLiqSessions.get(chatId);
@@ -313,7 +313,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           `Position: ${tgCode(s2.positionPubkey)}`,
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| X: ${escapeMarkdown(s2.xAmt!)} \\| Y: ${escapeMarkdown(s2.yAmt!)}`,
         ].join("\n");
-        await present(ctx, summary, makeDlmmRunner((dlmm) =>
+        await present(sessionCtx2, summary, makeDlmmRunner((dlmm) =>
           dlmm.addLiquidity({
             poolAddress: s2.poolAddress,
             positionPubkey: s2.positionPubkey,
@@ -326,7 +326,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
           })
         ));
       });
-      await ctx.reply(`✅ X: ${escapeMarkdown(text)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
+      await sessionCtx.reply(`✅ X: ${escapeMarkdown(text)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`, MD);
     });
     await ctx.editMessageText("✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):", MD);
   });
@@ -421,12 +421,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     let retry = 0;
-    setInputSession(chatId, async (text) => {
+    setInputSession(chatId, async (text, sessionCtx) => {
       const bps = parseInt(text, 10);
       if (Number.isNaN(bps) || bps < 1 || bps > 10000) {
         retry++;
-        if (retry >= 3) { await ctx.reply("✖ Too many invalid attempts\\. Use /removeliq to retry\\.", MD); return; }
-        await ctx.reply("✖ BPS must be between 1 and 10000\\. Send a number:", MD);
+        if (retry >= 3) { await sessionCtx.reply("✖ Too many invalid attempts\\. Use /removeliq to retry\\.", MD); return; }
+        await sessionCtx.reply("✖ BPS must be between 1 and 10000\\. Send a number:", MD);
         return;
       }
       const { poolAddress, positionPubkey } = pair!;
@@ -436,7 +436,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         `Position: ${tgCode(positionPubkey)}`,
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
       ].join("\n");
-      await present(ctx, summary, makeDlmmRunner((dlmm) =>
+      await present(sessionCtx, summary, makeDlmmRunner((dlmm) =>
         dlmm.removeLiquidity({ poolAddress, positionPubkey, bpsToRemove: bps, shouldClaimAndClose: false })
       ));
     });

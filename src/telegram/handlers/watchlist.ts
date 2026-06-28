@@ -35,9 +35,9 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
       const chatId = String(ctx.chat?.id ?? ctx.from?.id);
       let capturedAddr = "";
 
-      setInputSession(chatId, async (text) => {
+      setInputSession(chatId, async (text, sessionCtx) => {
         if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text)) {
-          await ctx.reply("✖ Invalid address\\. Send a valid Solana wallet address:", MD);
+          await sessionCtx.reply("✖ Invalid address\\. Send a valid Solana wallet address:", MD);
           return;
         }
         capturedAddr = text;
@@ -45,7 +45,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         const kb = new InlineKeyboard()
           .text("✏️ Add Label", `watchadd:label:${text}`)
           .text("⏭️ Skip", `watchadd:confirm:${text}:`);
-        await ctx.reply(`✅ Address: ${tgCode(text)}\n\nAdd a label?`, { ...MD, reply_markup: kb });
+        await sessionCtx.reply(`✅ Address: ${tgCode(text)}\n\nAdd a label?`, { ...MD, reply_markup: kb });
       });
       await ctx.reply("✏️ Send wallet address to watch:", MD);
     } catch (e) {
@@ -58,9 +58,9 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
     await ctx.answerCallbackQuery();
     const addr = ctx.match![1];
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-    setInputSession(chatId, async (text) => {
+    setInputSession(chatId, async (text, sessionCtx) => {
       const wallet = addWallet(addr, text);
-      await ctx.reply(`✅ Added ${tgCode(wallet.address)} \\(${escapeMarkdown(wallet.label!)}\\)`, MD);
+      await sessionCtx.reply(`✅ Added ${tgCode(wallet.address)} \\(${escapeMarkdown(wallet.label!)}\\)`, MD);
     });
     await ctx.editMessageText("✏️ Send label for this wallet:", MD);
   });

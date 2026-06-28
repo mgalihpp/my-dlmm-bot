@@ -411,16 +411,16 @@ export function registerAlertCommands(
     const val = ctx.match![1];
     if (val === "custom") {
       const chatIdCapture = String(ctx.chat?.id ?? ctx.from?.id);
-      setInputSession(chatIdCapture, async (text) => {
+      setInputSession(chatIdCapture, async (text, sessionCtx) => {
         const hours = parseInt(text, 10);
         if (Number.isNaN(hours) || hours < 1) {
-          await ctx.reply("✖ Invalid number\\. Send hours \\(e\\.g\\. 4\\):", MD);
+          await sessionCtx.reply("✖ Invalid number\\. Send hours \\(e\\.g\\. 4\\):", MD);
           return;
         }
         rt.state.portfolioHours = hours;
         saveState(rt.state);
         schedulePortfolio(rt, bot, client, config, chatId, hours);
-        await ctx.reply(`✅ Portfolio alert every ${escapeMarkdown(String(hours))}h`, MD);
+        await sessionCtx.reply(`✅ Portfolio alert every ${escapeMarkdown(String(hours))}h`, MD);
       });
       await ctx.editMessageText("✏️ Send hours interval \\(e\\.g\\. 6\\):", MD);
       return;
