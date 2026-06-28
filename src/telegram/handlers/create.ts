@@ -2,7 +2,7 @@ import { Bot, Context, InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
-import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
+import { escapeMarkdown, tgBold, tgCode, tgTxLink, tgUsd, tgPct, tgPoolAddr, tgOrganic, formatNum } from "../format.js";
 import { MD } from "../utils.js";
 import { screenPools } from "../../screening.js";
 import { setInputSession } from "../input-store.js";
@@ -63,8 +63,17 @@ export function registerCreate(bot: Bot, client: MeteoraClient, config: VexisCon
       const lines = [tgBold("🔥 Trending Pools — Select"), ""];
       const kb = new InlineKeyboard();
       for (const p of result.pools.slice(0, 10)) {
+        const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
+        const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
+        const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
+        const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
         lines.push(
-          `• ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))} — TVL: ${escapeMarkdown(`$${p.tvl.toLocaleString()}`)} \\| Fee/TVL: ${escapeMarkdown(`${p.feeActiveTvlRatio.toFixed(2)}%`)}`,
+          `${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
+          `MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
+          `Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
+          `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| Age ${escapeMarkdown(age)}`,
+          `Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
+          "",
         );
         const wid = createWizard({
           poolAddress: p.pool,

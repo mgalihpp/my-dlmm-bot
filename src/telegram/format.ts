@@ -1,6 +1,7 @@
 // Telegram MarkdownV2 formatters. Reuses the plain number-formatting helpers
 // from ../format.js (the ANSI color wrappers are skipped — no TTY in a bot).
 import { formatNum } from "../format.js";
+export { formatNum } from "../format.js";
 import type {
   PortfolioTotal,
   OpenPool,
@@ -148,7 +149,7 @@ function tgAge(hours: number | null): string {
 }
 
 /** Organic score with emoji indicator. */
-function tgOrganic(score: number): string {
+export function tgOrganic(score: number): string {
   const emoji = score >= 80 ? "🟢" : score >= 60 ? "🟡" : "🔴";
   return `${emoji} ${escapeMarkdown(String(score))}`;
 }
