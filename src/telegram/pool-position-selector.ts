@@ -4,7 +4,7 @@ import { InlineKeyboardButton } from "grammy/types";
 import type { MeteoraClient } from "../api.js";
 import type { VexisConfig } from "../config.js";
 import { resolveWallet } from "../config.js";
-import { escapeMarkdown, tgBold, tgCode } from "./format.js";
+import { escapeMarkdown, tgBold, tgCode, tgUsd, tgSol, tgPct } from "./format.js";
 import { MD } from "./utils.js";
 import { registerAction } from "./action-store.js";
 
@@ -132,7 +132,7 @@ export async function resolvePoolDetail(
   client: MeteoraClient | null,
   config: VexisConfig,
   poolAddr: string,
-): Promise<{ tokenX: string; tokenY: string; positions: string[] } | null> {
+): Promise<{ tokenX: string; tokenY: string; positions: string[]; pnl: string; pnlPctChange: string; pnlSol: string | null; pnlSolPctChange: string | null } | null> {
   try {
     let c = client;
     if (!c) {
@@ -147,6 +147,10 @@ export async function resolvePoolDetail(
       tokenX: pool.tokenX,
       tokenY: pool.tokenY,
       positions: pool.listPositions,
+      pnl: pool.pnl,
+      pnlPctChange: pool.pnlPctChange,
+      pnlSol: pool.pnlSol,
+      pnlSolPctChange: pool.pnlSolPctChange,
     };
   } catch {
     return null;
@@ -176,12 +180,28 @@ export function actionPanelMessage(
   tokenY: string,
   poolAddress: string,
   positionPubkey: string,
+  opts?: {
+    pnl: string;
+    pnlPctChange: string;
+    pnlSol: string | null;
+    pnlSolPctChange: string | null;
+  },
 ): string {
-  return [
+  const lines = [
     tgBold(`⚡ ${escapeMarkdown(tokenX)}/${escapeMarkdown(tokenY)}`),
     `Pool: ${tgCode(poolAddress)}`,
     `Position: ${tgCode(positionPubkey)}`,
-    "",
-    "Select action:",
-  ].join("\n");
+  ];
+  if (opts) {
+    lines.push(
+      `PnL \\(USD\\): ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\)`,
+    );
+    if (opts.pnlSol != null) {
+      lines.push(
+        `PnL \\(SOL\\): ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
+      );
+    }
+  }
+  lines.push("", "Select action:");
+  return lines.join("\n");
 }

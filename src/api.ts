@@ -6,7 +6,10 @@ import type {
   DlmmPoolsResponse,
   PoolHistoricalVolume,
   DiscoveryPoolsResponse,
+  PositionPnLResponse,
 } from "./types.js";
+
+type PositionStatus = "open" | "closed" | "all";
 
 const PROD = "https://dlmm.datapi.meteora.ag";
 const DEV = "https://dlmm.dev.metdev.io";
@@ -76,6 +79,21 @@ export class MeteoraClient {
       filter_by: opts?.filterBy,
     });
     return res;
+  }
+
+  positionPnl(
+    poolAddress: string,
+    user: string,
+    status?: PositionStatus,
+    page?: number,
+    pageSize?: number,
+  ): Promise<PositionPnLResponse> {
+    return this.get<PositionPnLResponse>(`/positions/${poolAddress}/pnl`, {
+      user,
+      status: status ?? "all",
+      page: page ?? 1,
+      page_size: pageSize ?? 100,
+    });
   }
 
   poolHistoricalVolume(address: string): Promise<PoolHistoricalVolume[]> {

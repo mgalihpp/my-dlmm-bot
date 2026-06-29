@@ -37,6 +37,16 @@ interface PoolSnapshot {
   outOfRange: boolean | null;
 }
 
+interface ClosedPoolLookup {
+  pnl: string;
+  pnlPctChange: string;
+  pnlSol: string;
+  pnlSolPctChange: string;
+  deposit: string;
+  withdrawal: string;
+  fees: string;
+}
+
 interface AlertState {
   portfolioHours: number; // 0 = off
   positionCheckEnabled: boolean;
@@ -276,21 +286,46 @@ function schedulePositionChecks(
         }
       }
 
-      // Check for removed pools (closed positions)
+      // Check for removed pools (closed positions) — fetch real data from Meteora
       const currentAddrs = new Set(currentPools.map((p) => p.poolAddress));
+      const closedAddrs = prevSnapshots
+        .filter((s) => !currentAddrs.has(s.poolAddress))
+        .map((s) => s.poolAddress);
+      let closedPoolMap = new Map<string, ClosedPoolLookup>();
+      if (closedAddrs.length > 0) {
+        try {
+          const closedRes = await client.closedPortfolio(wallet, 1, 50);
+          for (const cp of closedRes.pools) {
+            closedPoolMap.set(cp.poolAddress, {
+              pnl: cp.pnlUsd,
+              pnlPctChange: cp.pnlPctChange,
+              pnlSol: cp.pnlSol,
+              pnlSolPctChange: cp.pnlSolPctChange,
+              deposit: cp.totalDeposit,
+              withdrawal: cp.totalWithdrawal,
+              fees: cp.totalFee,
+            });
+          }
+        } catch {
+          // fall back to snapshot data
+        }
+      }
       for (const prev of prevSnapshots) {
         if (!currentAddrs.has(prev.poolAddress)) {
+          const closed = closedPoolMap.get(prev.poolAddress);
           alerts.push({
             msg: tgPositionAlert("🔴 Position Closed", prev.tokenX, prev.tokenY, prev.poolAddress, {
-              pnl: prev.pnl,
-              pnlPctChange: prev.pnlPctChange,
-              pnlSol: prev.pnlSol,
-              pnlSolPctChange: prev.pnlSolPctChange,
+              pnl: closed?.pnl ?? prev.pnl,
+              pnlPctChange: closed?.pnlPctChange ?? prev.pnlPctChange,
+              pnlSol: closed?.pnlSol ?? prev.pnlSol,
+              pnlSolPctChange: closed?.pnlSolPctChange ?? prev.pnlSolPctChange,
               balances: "0",
-              fees: "0",
+              fees: closed?.fees ?? "0",
               positions: prev.openPositionCount,
               listPositions: prev.listPositions,
               outOfRange: null,
+              deposit: closed?.deposit,
+              withdrawal: closed?.withdrawal,
             }),
             poolAddr: prev.poolAddress,
           });

@@ -175,7 +175,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       "`/pool <addr>` — pool detail",
       "",
       tgBold("On-chain"),
-      "`/manage` — interactive position manager",
+      "`/manage` — position manager",
       "`/create` — create position",
       "`/close` — close \\+ zap out to SOL",
       "`/addliq` — add liquidity",
@@ -225,6 +225,6 @@ function mainMenu(): string {
   return [
     tgBold("🤖 Vexis DLMM Bot"),
     "",
-    "Pilih menu:",
+    "Select a menu:",
   ].join("\n");
 }

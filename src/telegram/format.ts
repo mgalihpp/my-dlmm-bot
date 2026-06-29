@@ -197,6 +197,8 @@ export function tgPositionAlert(
     listPositions: string[];
     outOfRange: boolean | null;
     prevPnl?: string;
+    deposit?: string;
+    withdrawal?: string;
   }
 ): string {
   const range = opts.outOfRange ? " ⚠️ out of range" : "";
@@ -204,9 +206,14 @@ export function tgPositionAlert(
     tgBold(`${icon} ${tokenX}/${tokenY}`),
     `  Pool: ${tgCode(poolAddress)}`,
     `  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
-    `  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`,
-    `  Positions \\(${escapeMarkdown(String(opts.positions))}\\):${escapeMarkdown(range)}`,
   ];
+  if (opts.deposit != null || opts.withdrawal != null) {
+    lines.push(`  Deposit: ${tgUsd(opts.deposit ?? "0")} \\| Withdraw: ${tgUsd(opts.withdrawal ?? "0")}`);
+    lines.push(`  Fees: ${tgUsd(opts.fees)}`);
+  } else {
+    lines.push(`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`);
+  }
+  lines.push(`  Positions \\(${escapeMarkdown(String(opts.positions))}\\):${escapeMarkdown(range)}`);
   for (const pos of opts.listPositions) {
     lines.push(`    ${tgCode(pos)}`);
   }

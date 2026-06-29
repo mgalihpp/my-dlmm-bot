@@ -124,6 +124,7 @@ export interface ClosedPool {
   totalFee: string;
   pnlUsd: string;
   pnlSol: string;
+  pnlSolPctChange: string;
   pnlPctChange: string;
 }
 
@@ -264,6 +265,63 @@ export interface DiscoveryPoolsResponse {
   current_page: number;
   page_size: number;
   data: DiscoveryPool[];
+}
+
+// Position PnL endpoint types
+export interface PositionPnLResponse {
+  totalCount: number;
+  page: number;
+  pageSize: number;
+  hasNext: boolean;
+  positions: PositionPnLData[];
+  tokenX: string | null;
+  tokenXPrice: string;
+  tokenY: string | null;
+  tokenYPrice: string;
+  solPrice: string | null;
+  rewardTokenX: string | null;
+  rewardTokenXPrice: string;
+  rewardTokenY: string | null;
+  rewardTokenYPrice: string;
+}
+
+export interface PositionPnLData {
+  positionAddress: string;
+  minPrice: string;
+  maxPrice: string;
+  lowerBinId: number;
+  upperBinId: number;
+  feePerTvl24h: string;
+  isClosed: boolean;
+  pnlUsd: string;
+  pnlPctChange: string;
+  pnlSol: number | null;
+  pnlSolPctChange: number | null;
+  allTimeDeposits: TokenPairTotal;
+  allTimeWithdrawals: TokenPairTotal;
+  allTimeFees: TokenPairTotal;
+  closedAt: number | null;
+  createdAt: number | null;
+  isOutOfRange: boolean | null;
+  poolActiveBinId: number | null;
+  poolActivePrice: string | null;
+}
+
+export interface TokenPairTotal {
+  tokenX: TokenAmount;
+  tokenY: TokenAmount;
+  total: TotalUsd;
+}
+
+export interface TokenAmount {
+  amount: string;
+  amountSol: string | null;
+  usd: string;
+}
+
+export interface TotalUsd {
+  usd: string;
+  sol: string | null;
 }
 
 /** Condensed pool for Telegram display after screening. */

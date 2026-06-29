@@ -93,7 +93,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       }
       if (detail.positions.length === 1) {
         const actionId = registerAction(poolAddr, detail.positions[0]);
-        await showActionPanel(ctx, detail.tokenX, detail.tokenY, poolAddr, detail.positions[0], actionId, "mng:pools");
+        await showActionPanel(ctx, detail.tokenX, detail.tokenY, poolAddr, detail.positions[0], actionId, "mng:pools", {
+          pnl: detail.pnl,
+          pnlPctChange: detail.pnlPctChange,
+          pnlSol: detail.pnlSol,
+          pnlSolPctChange: detail.pnlSolPctChange,
+        });
         return;
       }
       await showPositionList(ctx, poolAddr, detail.tokenX, detail.tokenY, detail.positions, PREFIX, "mng:pools");
@@ -116,7 +121,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       const detail = await resolvePoolDetail(client, config, poolAddr);
       const tokenX = detail?.tokenX ?? "?";
       const tokenY = detail?.tokenY ?? "?";
-      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, `mng:pool:${poolAddr}`);
+      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, `mng:pool:${poolAddr}`, detail ? {
+        pnl: detail.pnl,
+        pnlPctChange: detail.pnlPctChange,
+        pnlSol: detail.pnlSol,
+        pnlSolPctChange: detail.pnlSolPctChange,
+      } : undefined);
     } catch (e) {
       await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "mng:pools") });
     }
@@ -442,8 +452,14 @@ async function showActionPanel(
   positionPubkey: string,
   actionId: string,
   backTarget: string,
+  pnlOpts?: {
+    pnl: string;
+    pnlPctChange: string;
+    pnlSol: string | null;
+    pnlSolPctChange: string | null;
+  },
 ) {
-  const text = actionPanelMessage(tokenX, tokenY, poolAddress, positionPubkey);
+  const text = actionPanelMessage(tokenX, tokenY, poolAddress, positionPubkey, pnlOpts);
   const kb = actionPanelKeyboard(actionId, PREFIX, backTarget, [
     { label: "🔴 Close & Zap", action: "close" },
     { label: "💎 Claim Fee", action: "claimfee" },
