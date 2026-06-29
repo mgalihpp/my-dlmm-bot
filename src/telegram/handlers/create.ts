@@ -186,7 +186,8 @@ export function registerCreate(
     if (chatId != null) {
       let retry = 0;
       const addrHandler = async (text: string, sessionCtx: Context) => {
-        if (!isLikelyPubkey(text)) {
+        const address = extractAddress(text);
+        if (!address || !isLikelyPubkey(address)) {
           retry++;
           if (retry >= 2) {
             await sessionCtx.reply(
@@ -196,7 +197,7 @@ export function registerCreate(
             return;
           }
           await sessionCtx.reply(
-            "✖ That doesn't look like a valid address\\. Send a valid Solana address:",
+            "✖ That doesn't look like a valid address or Meteora URL\\. Send a valid Solana address or pool link:",
             MD,
           );
           setInputSession(chatId, addrHandler);
@@ -204,7 +205,7 @@ export function registerCreate(
         }
         const loading = await sessionCtx.reply("⏳ Loading pool\\.\\.\\.", MD);
         try {
-          const detail = await client.pool(text);
+          const detail = await client.pool(address);
           const wid = createWizard({
             poolAddress: detail.address,
             poolName: detail.name,
@@ -232,8 +233,9 @@ export function registerCreate(
       [
         tgBold("📍 Paste Pool Address"),
         "",
-        "Send the DLMM pool address as your next message\\.",
+        "Send the DLMM pool address or Meteora pool link as your next message\\.",
         escapeMarkdown("Example: 5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6"),
+        escapeMarkdown("Or: https://app.meteora.ag/dlmm/5rCf1DM8LjKTw4YqhnoLcngyZYeNnQqztScTogYHAS6"),
       ].join("\n"),
       { ...MD, reply_markup: backToSourceKb() },
     );
@@ -657,6 +659,31 @@ async function confirmAndExecute(
 
 function isLikelyPubkey(s: string): boolean {
   return /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(s);
+}
+
+/**
+ * Extract a Solana address from user input.
+ * Accepts raw base58 addresses OR Meteora pool URLs:
+ *   https://app.meteora.ag/dlmm/<address>
+ *   https://app.meteora.ag/dlmm/SOL-USDC-<address>
+ */
+function extractAddress(input: string): string | null {
+  const trimmed = input.trim();
+  // Raw address — return as-is
+  if (isLikelyPubkey(trimmed)) return trimmed;
+  // Meteora URL — extract last path segment
+  try {
+    const url = new URL(trimmed);
+    const path = url.pathname.replace(/\/+$/, "");
+    const last = path.split("/").pop() || "";
+    // The last segment may be "SYMBOL-SYMBOL-ADDRESS" or just "ADDRESS"
+    const parts = last.split("-");
+    const candidate = parts[parts.length - 1];
+    if (isLikelyPubkey(candidate)) return candidate;
+  } catch {
+    // not a URL
+  }
+  return null;
 }
 
 async function renderStrategyStep(wid: string): Promise<string> {
