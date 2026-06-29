@@ -12,10 +12,12 @@ import {
   tgPortfolioSummary,
   tgPositionAlert,
   tgPoolDetail,
+  tgWatchlistAlert,
   escapeMarkdown,
   tgBold,
 } from "./format.js";
 import { setInputSession } from "./input-store.js";
+import { listWallets } from "../watchlist.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
 const STATE_FILE = join(process.cwd(), ".vexis-alerts.json");
@@ -47,17 +49,32 @@ interface ClosedPoolLookup {
   fees: string;
 }
 
+interface WalletPoolEntry {
+  poolAddress: string;
+  tokenX: string;
+  tokenY: string;
+  openPositionCount: number;
+}
+
+interface WalletPositionsSnapshot {
+  walletAddress: string;
+  pools: WalletPoolEntry[];
+}
+
 interface AlertState {
   portfolioHours: number; // 0 = off
   positionCheckEnabled: boolean;
   lastPnlUsd: number | null;
   lastOpenSnapshot: PoolSnapshot[];
+  watchlistEnabled: boolean;
+  watchlistSnapshot: WalletPositionsSnapshot[];
 }
 
 interface RuntimeAlerts {
   state: AlertState;
   portfolioTask: ScheduledTask | null;
   positionTask: ScheduledTask | null;
+  watchlistTask: ScheduledTask | null;
 }
 
 function loadState(): AlertState {
@@ -77,6 +94,8 @@ function loadState(): AlertState {
     positionCheckEnabled: false,
     lastPnlUsd: null,
     lastOpenSnapshot: [],
+    watchlistEnabled: false,
+    watchlistSnapshot: [],
   };
 }
 
@@ -128,6 +147,7 @@ export function createAlerts(
     state: loadState(),
     portfolioTask: null,
     positionTask: null,
+    watchlistTask: null,
   };
 
   if (rt.state.portfolioHours > 0) {
@@ -135,6 +155,9 @@ export function createAlerts(
   }
   if (rt.state.positionCheckEnabled) {
     schedulePositionChecks(rt, bot, client, config, chatId);
+  }
+  if (rt.state.watchlistEnabled) {
+    scheduleWatchlistChecks(rt, bot, client, config, chatId);
   }
 
   return rt;
@@ -359,6 +382,93 @@ function schedulePositionChecks(
   });
 }
 
+// ─── Watchlist position change detection ──────────────────────────────────────
+
+function scheduleWatchlistChecks(
+  rt: RuntimeAlerts,
+  bot: Bot,
+  client: MeteoraClient,
+  config: VexisConfig,
+  chatId: string,
+) {
+  rt.watchlistTask?.stop();
+
+  rt.watchlistTask = cron.schedule("*/5 * * * *", async () => {
+    try {
+      const wallets = listWallets();
+      if (wallets.length === 0) return;
+
+      const prevAll = rt.state.watchlistSnapshot;
+      const prevMap = new Map(prevAll.map((w) => [w.walletAddress, w]));
+      const alerts: string[] = [];
+
+      for (const w of wallets) {
+        try {
+          const res = await client.openPortfolio(w.address, 1, 100);
+          const currentPools = res.pools ?? [];
+          const currentAddrs = new Set(currentPools.map((p) => p.poolAddress));
+          const prev = prevMap.get(w.address);
+
+          if (prev) {
+            const prevAddrs = new Set(prev.pools.map((p) => p.poolAddress));
+
+            // New positions
+            for (const pool of currentPools) {
+              if (!prevAddrs.has(pool.poolAddress)) {
+                alerts.push(tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount));
+              }
+            }
+
+            // Closed positions
+            for (const p of prev.pools) {
+              if (!currentAddrs.has(p.poolAddress)) {
+                alerts.push(tgWatchlistAlert("🔴 Position Closed", w.address, p.tokenX, p.tokenY, p.poolAddress, p.openPositionCount));
+              }
+            }
+          } else {
+            // First time seeing this wallet — treat all as new
+            for (const pool of currentPools) {
+              alerts.push(tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount));
+            }
+          }
+        } catch {
+          // skip failed wallet, keep old snapshot
+        }
+      }
+
+      if (alerts.length > 0) {
+        const combined = alerts.join("\n\n─────────────────────\n\n");
+        await bot.api.sendMessage(chatId, combined, MD);
+      }
+
+      // Refresh snapshot for all wallets
+      const snapshot: WalletPositionsSnapshot[] = [];
+      for (const w of wallets) {
+        try {
+          const res = await client.openPortfolio(w.address, 1, 100);
+          snapshot.push({
+            walletAddress: w.address,
+            pools: (res.pools ?? []).map((p) => ({
+              poolAddress: p.poolAddress,
+              tokenX: p.tokenX,
+              tokenY: p.tokenY,
+              openPositionCount: p.openPositionCount,
+            })),
+          });
+        } catch {
+          // keep old snapshot for this wallet
+          const existing = prevMap.get(w.address);
+          if (existing) snapshot.push(existing);
+        }
+      }
+      rt.state.watchlistSnapshot = snapshot;
+      saveState(rt.state);
+    } catch (e) {
+      console.error("[alerts] Watchlist check failed:", e);
+    }
+  });
+}
+
 // ─── Bot commands ───────────────────────────────────────────────────────────
 
 export function registerAlertCommands(
@@ -373,11 +483,15 @@ export function registerAlertCommands(
     const posStatus = s.positionCheckEnabled
       ? escapeMarkdown(`on (every 15m, ${s.lastOpenSnapshot.length} pools tracked)`)
       : "off";
+    const wlStatus = s.watchlistEnabled
+      ? escapeMarkdown(`on (every 5m, ${listWallets().length} wallets tracked)`)
+      : "off";
     const lines = [
       tgBold("🔔 Active Alerts"),
       "",
       `Portfolio: ${s.portfolioHours > 0 ? escapeMarkdown(`every ${s.portfolioHours}h`) : "off"}`,
       `Position: ${posStatus}`,
+      `Watchlist: ${wlStatus}`,
     ];
     await ctx.reply(lines.join("\n"), MD);
   });
@@ -409,12 +523,25 @@ export function registerAlertCommands(
       );
       return;
     }
+    if (kind === "watchlist") {
+      rt.state.watchlistEnabled = true;
+      rt.state.watchlistSnapshot = [];
+      saveState(rt.state);
+      scheduleWatchlistChecks(rt, bot, client, config, chatId);
+      await ctx.reply(
+        `✅ Watchlist alerts enabled \\(every 5m\\)\nDetects: new/closed positions for watched wallets`,
+        MD
+      );
+      return;
+    }
 
     // No args — interactive selection
     const kb = new InlineKeyboard()
       .text("📊 Portfolio", "setalert:type:portfolio")
       .row()
-      .text("📈 Position", "setalert:type:position");
+      .text("📈 Position", "setalert:type:position")
+      .row()
+      .text("👁️ Watchlist", "setalert:type:watchlist");
     await ctx.reply("Enable which alert?", { ...MD, reply_markup: kb });
   });
 
@@ -435,6 +562,15 @@ export function registerAlertCommands(
       schedulePositionChecks(rt, bot, client, config, chatId);
       await ctx.editMessageText(
         `✅ Position alerts enabled \\(every 15m\\)\nDetects: PnL ±0\\.5%\\, new/closed positions\\, balance changes\\, fee changes\\, out of range`,
+        MD
+      );
+    } else if (type === "watchlist") {
+      rt.state.watchlistEnabled = true;
+      rt.state.watchlistSnapshot = [];
+      saveState(rt.state);
+      scheduleWatchlistChecks(rt, bot, client, config, chatId);
+      await ctx.editMessageText(
+        `✅ Watchlist alerts enabled \\(every 5m\\)\nDetects: new/closed positions for watched wallets`,
         MD
       );
     }
@@ -488,6 +624,14 @@ export function registerAlertCommands(
       await ctx.reply("✅ Position alert disabled", MD);
       return;
     }
+    if (kind === "watchlist") {
+      rt.state.watchlistEnabled = false;
+      rt.watchlistTask?.stop();
+      rt.watchlistTask = null;
+      saveState(rt.state);
+      await ctx.reply("✅ Watchlist alert disabled", MD);
+      return;
+    }
 
     // No args — show active alerts as buttons
     const kb = new InlineKeyboard();
@@ -498,6 +642,10 @@ export function registerAlertCommands(
     }
     if (rt.state.positionCheckEnabled) {
       kb.text("📈 Position", "stopalert:type:position").row();
+      hasActive = true;
+    }
+    if (rt.state.watchlistEnabled) {
+      kb.text("👁️ Watchlist", "stopalert:type:watchlist").row();
       hasActive = true;
     }
     if (!hasActive) {
@@ -523,6 +671,12 @@ export function registerAlertCommands(
       rt.positionTask = null;
       saveState(rt.state);
       await ctx.editMessageText("✅ Position alert disabled", MD);
+    } else if (kind === "watchlist") {
+      rt.state.watchlistEnabled = false;
+      rt.watchlistTask?.stop();
+      rt.watchlistTask = null;
+      saveState(rt.state);
+      await ctx.editMessageText("✅ Watchlist alert disabled", MD);
     }
   });
 }

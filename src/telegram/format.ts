@@ -271,6 +271,24 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
   return lines.join("\n");
 }
 
+/** Watchlist alert for new/closed position detection. */
+export function tgWatchlistAlert(
+  icon: string,
+  walletAddress: string,
+  tokenX: string,
+  tokenY: string,
+  poolAddress: string,
+  positionCount: number,
+): string {
+  const lines = [
+    tgBold(`${icon} ${tokenX}/${tokenY}`),
+    `  Wallet: ${tgCode(walletAddress)}`,
+    `  Pool: ${tgPoolAddr(poolAddress)}`,
+    `  Positions: ${escapeMarkdown(String(positionCount))}`,
+  ];
+  return lines.join("\n");
+}
+
 /** Single pool detail. */
 export function tgPoolDetail(p: DlmmPool): string {
   const farm = p.has_farm ? ` \\(Farm: ${escapeMarkdown(`${formatNum(p.farm_apr)}%`)}\\)` : "";
