@@ -183,7 +183,6 @@ export function tgScreenedPoolList(result: ScreenResult): string {
   });
   const text = lines.join("\n");
   if (text.length <= 4096) return text;
-  // Find the last complete pool entry (ends with "\n\n") before 4090
   const cutAt = text.lastIndexOf("\n\n", 4080);
   return (cutAt > 0 ? text.slice(0, cutAt) : text.slice(0, 4080)) + "\n\n\\.\\.\\.";
 }
