@@ -15,100 +15,73 @@ export function parseTimeframe(input: string | undefined): string | null {
 /** Build the filter_by string for Pool Discovery API from screening config. */
 export function buildDiscoveryFilter(cfg: VexisConfig["pools"], timeframe?: string): string {
   const s = cfg ?? {};
-  const now = Date.now();
-  const filters: (string | null)[] = [
+  const filters: string[] = [
     "base_token_has_critical_warnings=false",
     "quote_token_has_critical_warnings=false",
-    s.excludeHighSupplyConcentration !== false
-      ? "base_token_has_high_supply_concentration=false"
-      : null,
-    "base_token_has_high_single_ownership=false",
     "pool_type=dlmm",
-    `base_token_market_cap>=${s.minMcap ?? 150_000}`,
-    `base_token_market_cap<=${s.maxMcap ?? 10_000_000}`,
-    `base_token_holders>=${s.minHolders ?? 500}`,
-    `volume>=${s.minVolume ?? 500}`,
-    `tvl>=${s.minTvl ?? 10_000}`,
-    s.maxTvl != null ? `tvl<=${s.maxTvl}` : null,
-    `dlmm_bin_step>=${s.minBinStep ?? 80}`,
-    `dlmm_bin_step<=${s.maxBinStep ?? 125}`,
-    `fee_active_tvl_ratio>=${s.minFeeActiveTvlRatio ?? 0.05}`,
-    `base_token_organic_score>=${s.minOrganic ?? 60}`,
-    `quote_token_organic_score>=${s.minQuoteOrganic ?? 60}`,
-    s.minTokenAgeHours != null
-      ? `base_token_created_at<=${now - s.minTokenAgeHours * 3_600_000}`
-      : null,
-    s.maxTokenAgeHours != null
-      ? `base_token_created_at>=${now - s.maxTokenAgeHours * 3_600_000}`
-      : null,
-    Array.isArray(s.blockedLaunchpads) && s.blockedLaunchpads.length > 0
-      ? `base_token_launchpad=[${s.blockedLaunchpads.join(",")}]`
-      : null,
   ];
-  return filters.filter((f): f is string => f !== null).join("&&");
+  // Base token filters
+  if (s.baseTokenHasHighSupplyConcentration != null) filters.push(`base_token_has_high_supply_concentration=${s.baseTokenHasHighSupplyConcentration}`);
+  if (s.baseTokenHasHighSingleOwnership != null) filters.push(`base_token_has_high_single_ownership=${s.baseTokenHasHighSingleOwnership}`);
+  if (s.minMcap != null) filters.push(`base_token_market_cap>=${s.minMcap}`);
+  if (s.maxMcap != null) filters.push(`base_token_market_cap<=${s.maxMcap}`);
+  if (s.minHolders != null) filters.push(`base_token_holders>=${s.minHolders}`);
+  if (s.maxHolders != null) filters.push(`base_token_holders<=${s.maxHolders}`);
+  if (s.minOrganic != null) filters.push(`base_token_organic_score>=${s.minOrganic}`);
+  if (s.maxOrganic != null) filters.push(`base_token_organic_score<=${s.maxOrganic}`);
+  if (s.minTokenAgeHours != null) {
+    filters.push(`base_token_created_at<=${Date.now() - s.minTokenAgeHours * 3_600_000}`);
+  }
+  if (s.maxTokenAgeHours != null) {
+    filters.push(`base_token_created_at>=${Date.now() - s.maxTokenAgeHours * 3_600_000}`);
+  }
+  if (Array.isArray(s.blockedLaunchpads) && s.blockedLaunchpads.length > 0) {
+    filters.push(`base_token_launchpad=[${s.blockedLaunchpads.join(",")}]`);
+  }
+  // Quote token filters
+  if (s.minQuoteOrganic != null) filters.push(`quote_token_organic_score>=${s.minQuoteOrganic}`);
+  if (s.maxQuoteOrganic != null) filters.push(`quote_token_organic_score<=${s.maxQuoteOrganic}`);
+  // Pool metrics filters
+  if (s.minTvl != null) filters.push(`tvl>=${s.minTvl}`);
+  if (s.maxTvl != null) filters.push(`tvl<=${s.maxTvl}`);
+  if (s.minActiveTvl != null) filters.push(`active_tvl>=${s.minActiveTvl}`);
+  if (s.maxActiveTvl != null) filters.push(`active_tvl<=${s.maxActiveTvl}`);
+  if (s.minVolume != null) filters.push(`volume>=${s.minVolume}`);
+  if (s.maxVolume != null) filters.push(`volume<=${s.maxVolume}`);
+  if (s.minFee != null) filters.push(`fee>=${s.minFee}`);
+  if (s.maxFee != null) filters.push(`fee<=${s.maxFee}`);
+  if (s.minFeeActiveTvlRatio != null) filters.push(`fee_active_tvl_ratio>=${s.minFeeActiveTvlRatio}`);
+  if (s.maxFeeActiveTvlRatio != null) filters.push(`fee_active_tvl_ratio<=${s.maxFeeActiveTvlRatio}`);
+  if (s.minBinStep != null) filters.push(`dlmm_bin_step>=${s.minBinStep}`);
+  if (s.maxBinStep != null) filters.push(`dlmm_bin_step<=${s.maxBinStep}`);
+  if (s.minVolatility != null) filters.push(`volatility>=${s.minVolatility}`);
+  if (s.maxVolatility != null) filters.push(`volatility<=${s.maxVolatility}`);
+  if (s.minPoolPrice != null) filters.push(`pool_price>=${s.minPoolPrice}`);
+  if (s.maxPoolPrice != null) filters.push(`pool_price<=${s.maxPoolPrice}`);
+  if (s.minActivePositions != null) filters.push(`active_positions>=${s.minActivePositions}`);
+  if (s.maxActivePositions != null) filters.push(`active_positions<=${s.maxActivePositions}`);
+  if (s.minOpenPositions != null) filters.push(`open_positions>=${s.minOpenPositions}`);
+  if (s.maxOpenPositions != null) filters.push(`open_positions<=${s.maxOpenPositions}`);
+  if (s.minSwapCount != null) filters.push(`swap_count>=${s.minSwapCount}`);
+  if (s.maxSwapCount != null) filters.push(`swap_count<=${s.maxSwapCount}`);
+  if (s.minUniqueTraders != null) filters.push(`unique_traders>=${s.minUniqueTraders}`);
+  if (s.maxUniqueTraders != null) filters.push(`unique_traders<=${s.maxUniqueTraders}`);
+  if (s.minPriceChangePct != null) filters.push(`pool_price_change_pct>=${s.minPriceChangePct}`);
+  if (s.maxPriceChangePct != null) filters.push(`pool_price_change_pct<=${s.maxPriceChangePct}`);
+  if (s.minVolumeChangePct != null) filters.push(`volume_change_pct>=${s.minVolumeChangePct}`);
+  if (s.maxVolumeChangePct != null) filters.push(`volume_change_pct<=${s.maxVolumeChangePct}`);
+  if (s.priceTrend != null) filters.push(`price_trend=${s.priceTrend}`);
+  // SOL pair filter
+  if (s.solPairOnly === true) {
+    filters.push("(token_x=So11111111111111111111111111111111111111112||token_y=So11111111111111111111111111111111111111112)");
+  }
+  return filters.join("&&");
 }
 
 function numeric(value: unknown): number | null {
   if (value == null) return null;
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
-}
-
-function isUsableVolatility(value: unknown): boolean {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0;
-}
-
-/** Reject reason string if pool fails hard filter, null if passes. */
-function getRejectReason(pool: DiscoveryPool, cfg: VexisConfig["pools"]): string | null {
-  const s = cfg ?? {};
-  const base = pool.token_x;
-  const binStep = numeric(pool.dlmm_params?.bin_step);
-  const tvl = numeric(pool.tvl ?? pool.active_tvl);
-  const feeRatio = numeric(pool.fee_active_tvl_ratio);
-  const volatility = numeric(pool.volatility);
-  const volume = numeric(pool.volume);
-  const holders = numeric(base?.holders);
-  const mcap = numeric(base?.market_cap);
-  const baseOrganic = numeric(base?.organic_score);
-  const quoteOrganic = numeric(pool.token_y?.organic_score);
-  const createdAt = numeric(base?.created_at);
-
-  if (pool.base_token_has_critical_warnings) return "base token has critical warnings";
-  if (pool.quote_token_has_critical_warnings) return "quote token has critical warnings";
-  if (s.excludeHighSupplyConcentration !== false && pool.base_token_has_high_supply_concentration) {
-    return "base token has high supply concentration";
-  }
-  if (pool.base_token_has_high_single_ownership) return "base token has high single ownership";
-  if (pool.pool_type && pool.pool_type !== "dlmm") return `pool_type ${pool.pool_type} is not dlmm`;
-
-  if (mcap == null || mcap < (s.minMcap ?? 150_000)) return `mcap ${mcap ?? "unknown"} below min`;
-  if (mcap > (s.maxMcap ?? 10_000_000)) return `mcap ${mcap} above max`;
-  if (holders == null || holders < (s.minHolders ?? 500)) return `holders ${holders ?? "unknown"} below min`;
-  if (volume == null || volume < (s.minVolume ?? 500)) return `volume ${volume ?? "unknown"} below min`;
-  if (tvl == null || tvl < (s.minTvl ?? 10_000)) return `TVL ${tvl ?? "unknown"} below min`;
-  if (s.maxTvl != null && tvl > s.maxTvl) return `TVL ${tvl} above max`;
-  if (binStep == null || binStep < (s.minBinStep ?? 80)) return `bin_step ${binStep ?? "unknown"} below min`;
-  if (binStep > (s.maxBinStep ?? 125)) return `bin_step ${binStep} above max`;
-  if (feeRatio == null || feeRatio < (s.minFeeActiveTvlRatio ?? 0.05)) {
-    return `fee/TVL ${feeRatio ?? "unknown"} below min`;
-  }
-  if (!isUsableVolatility(volatility)) return `volatility ${volatility ?? "unknown"} unusable`;
-  if (baseOrganic == null || baseOrganic < (s.minOrganic ?? 60)) {
-    return `base organic ${baseOrganic ?? "unknown"} below min`;
-  }
-  if (quoteOrganic == null || quoteOrganic < (s.minQuoteOrganic ?? 60)) {
-    return `quote organic ${quoteOrganic ?? "unknown"} below min`;
-  }
-  if (s.minTokenAgeHours != null) {
-    const maxCreated = Date.now() - s.minTokenAgeHours * 3_600_000;
-    if (createdAt == null || createdAt > maxCreated) return `token age below ${s.minTokenAgeHours}h`;
-  }
-  if (s.maxTokenAgeHours != null) {
-    const minCreated = Date.now() - s.maxTokenAgeHours * 3_600_000;
-    if (createdAt == null || createdAt < minCreated) return `token age above ${s.maxTokenAgeHours}h`;
-  }
-  return null;
 }
 
 /** Score a candidate pool. Higher = better. */
@@ -170,43 +143,8 @@ export interface ScreenResult {
   filtered: number;
 }
 
-export interface RugCheckResult {
-  pass: boolean;
-  reason?: string;
-  rugScore: number | null;
-}
-
-/** Check token via rugcheck.xyz API. Returns pass/fail + score. */
-async function rugCheck(mint: string): Promise<RugCheckResult> {
-  if (!mint) return { pass: true, rugScore: null };
-  try {
-    const url = `https://api.rugcheck.xyz/v1/tokens/${mint}/report?key=3a6fc5a4-9de6-41b9-9632-6b00459d6b35`;
-    const res = await fetch(url, {
-      headers: { accept: "application/json" },
-      signal: AbortSignal.timeout(10_000),
-    });
-    if (!res.ok) return { pass: true, rugScore: null };
-    const data = await res.json() as {
-      rugged?: boolean;
-      score?: number;
-      topHolders?: Array<{ pct?: number; percentage?: number }>;
-    };
-    if (data.rugged) return { pass: false, reason: "rugcheck: token is rugged", rugScore: null };
-    const score = data.score ?? 0;
-    if (score > 50_000) return { pass: false, reason: `rugcheck: score too high (${score})`, rugScore: score };
-    const topHolders = data.topHolders ?? [];
-    const top10Pct = topHolders
-      .slice(0, 10)
-      .reduce((sum, h) => sum + (h.pct ?? h.percentage ?? 0), 0);
-    if (top10Pct > 60) return { pass: false, reason: `rugcheck: top10 holders ${top10Pct.toFixed(1)}% > 60%`, rugScore: score };
-    return { pass: true, rugScore: score };
-  } catch {
-    return { pass: true, rugScore: null };
-  }
-}
-
 /**
- * Run full screening pipeline: discover → hard-filter → rugcheck → score → sort → condense.
+ * Run screening pipeline: discover → condense → score → sort.
  */
 export async function screenPools(
   client: MeteoraClient,
@@ -224,42 +162,7 @@ export async function screenPools(
   const res = await client.discoverPools({ pageSize, filterBy, timeframe, category });
 
   const rawPools = Array.isArray(res.data) ? res.data : [];
-  const screened: ScreenedPool[] = [];
-  let filteredCount = 0;
-
-  for (const pool of rawPools) {
-    const reason = getRejectReason(pool, poolCfg);
-    if (reason) {
-      filteredCount++;
-      continue;
-    }
-    screened.push(condensePool(pool));
-  }
-
-  // Rugcheck: verify each candidate isn't rugged / too risky
-  if (screened.length > 0) {
-    const rugResults = await Promise.allSettled(
-      screened.map((p) => rugCheck(p.baseMint)),
-    );
-
-    const passed: ScreenedPool[] = [];
-    for (let i = 0; i < screened.length; i++) {
-      const result = rugResults[i];
-      if (result.status !== "fulfilled") {
-        passed.push(screened[i]);
-        continue;
-      }
-      const { pass, reason, rugScore } = result.value;
-      screened[i].rugScore = rugScore;
-      if (!pass) {
-        filteredCount++;
-        continue;
-      }
-      passed.push(screened[i]);
-    }
-    screened.length = 0;
-    screened.push(...passed);
-  }
+  const screened: ScreenedPool[] = rawPools.map(condensePool);
 
   screened.sort((a, b) => b.score - a.score);
   const top = screened.slice(0, displayLimit);
@@ -267,6 +170,6 @@ export async function screenPools(
   return {
     pools: top,
     total: res.total ?? rawPools.length,
-    filtered: filteredCount,
+    filtered: 0,
   };
 }

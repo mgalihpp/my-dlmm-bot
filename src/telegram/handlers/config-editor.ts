@@ -16,17 +16,45 @@ const EDITABLE_FIELDS = [
   { key: "pools.minMcap", label: "Min MC", type: "number" as const },
   { key: "pools.maxMcap", label: "Max MC", type: "number" as const },
   { key: "pools.minHolders", label: "Min Holders", type: "number" as const },
+  { key: "pools.maxHolders", label: "Max Holders", type: "number" as const },
   { key: "pools.minVolume", label: "Min Volume", type: "number" as const },
+  { key: "pools.maxVolume", label: "Max Volume", type: "number" as const },
   { key: "pools.minTvl", label: "Min TVL", type: "number" as const },
   { key: "pools.maxTvl", label: "Max TVL", type: "number" as const },
+  { key: "pools.minActiveTvl", label: "Min Active TVL", type: "number" as const },
+  { key: "pools.maxActiveTvl", label: "Max Active TVL", type: "number" as const },
+  { key: "pools.minFee", label: "Min Fee ($)", type: "number" as const },
+  { key: "pools.maxFee", label: "Max Fee ($)", type: "number" as const },
+  { key: "pools.minFeeActiveTvlRatio", label: "Min Fee/TVL", type: "number" as const },
+  { key: "pools.maxFeeActiveTvlRatio", label: "Max Fee/TVL", type: "number" as const },
   { key: "pools.minBinStep", label: "Min Bin Step", type: "number" as const },
   { key: "pools.maxBinStep", label: "Max Bin Step", type: "number" as const },
-  { key: "pools.minFeeActiveTvlRatio", label: "Min Fee/TVL", type: "number" as const },
+  { key: "pools.minVolatility", label: "Min Volatility", type: "number" as const },
+  { key: "pools.maxVolatility", label: "Max Volatility", type: "number" as const },
+  { key: "pools.minPoolPrice", label: "Min Pool Price", type: "number" as const },
+  { key: "pools.maxPoolPrice", label: "Max Pool Price", type: "number" as const },
+  { key: "pools.minActivePositions", label: "Min Active Pos", type: "number" as const },
+  { key: "pools.maxActivePositions", label: "Max Active Pos", type: "number" as const },
+  { key: "pools.minOpenPositions", label: "Min Open Pos", type: "number" as const },
+  { key: "pools.maxOpenPositions", label: "Max Open Pos", type: "number" as const },
+  { key: "pools.minSwapCount", label: "Min Swaps", type: "number" as const },
+  { key: "pools.maxSwapCount", label: "Max Swaps", type: "number" as const },
+  { key: "pools.minUniqueTraders", label: "Min Traders", type: "number" as const },
+  { key: "pools.maxUniqueTraders", label: "Max Traders", type: "number" as const },
+  { key: "pools.minPriceChangePct", label: "Min Price Chg %", type: "number" as const },
+  { key: "pools.maxPriceChangePct", label: "Max Price Chg %", type: "number" as const },
+  { key: "pools.minVolumeChangePct", label: "Min Vol Chg %", type: "number" as const },
+  { key: "pools.maxVolumeChangePct", label: "Max Vol Chg %", type: "number" as const },
+  { key: "pools.priceTrend", label: "Price Trend", type: "string" as const },
+  { key: "pools.solPairOnly", label: "SOL Pair Only", type: "boolean" as const },
   { key: "pools.minOrganic", label: "Min Organic", type: "number" as const },
+  { key: "pools.maxOrganic", label: "Max Organic", type: "number" as const },
   { key: "pools.minQuoteOrganic", label: "Min Q.Organic", type: "number" as const },
+  { key: "pools.maxQuoteOrganic", label: "Max Q.Organic", type: "number" as const },
+  { key: "pools.baseTokenHasHighSupplyConcentration", label: "High Supply Conc.", type: "boolean" as const },
+  { key: "pools.baseTokenHasHighSingleOwnership", label: "High Single Owner", type: "boolean" as const },
   { key: "pools.minTokenAgeHours", label: "Min Token Age (h)", type: "number" as const },
   { key: "pools.maxTokenAgeHours", label: "Max Token Age (h)", type: "number" as const },
-  { key: "pools.excludeHighSupplyConcentration", label: "Exclude High Concentration", type: "boolean" as const },
 ] as const;
 
 function getNestedValue(obj: any, path: string): any {
@@ -79,8 +107,7 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
   return lines.join("\n");
 }
 
-// 3 pages so no page exceeds ~4 rows — Telegram clients truncate tall keyboards.
-// Page 1: General  |  Page 2: Volume/TVL/MC  |  Page 3: Bin/Ratio/Age
+// Page 1: General | Page 2: MC/Holders | Page 3: TVL/Vol/Fee | Page 4: Bin/Organic | Page 5: Advanced
 function buildConfigKeyboard(page = 1): InlineKeyboard {
   if (page === 1) {
     return new InlineKeyboard()
@@ -94,7 +121,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
       .text("✏️ Page Size", "cfg:set:pools.pageSize")
       .text("✏️ Display Limit", "cfg:set:pools.displayLimit")
       .row()
-      .text("Vol/TVL/MC »", "cfg:page:2");
+      .text("MC/Holders »", "cfg:page:2");
   }
   if (page === 2) {
     return new InlineKeyboard()
@@ -102,36 +129,77 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
       .text("✏️ Max MC", "cfg:set:pools.maxMcap")
       .row()
       .text("✏️ Min Holders", "cfg:set:pools.minHolders")
-      .text("✏️ Min Volume", "cfg:set:pools.minVolume")
+      .text("✏️ Max Holders", "cfg:set:pools.maxHolders")
       .row()
+      .text("« General", "cfg:page:1")
+      .text("TVL/Vol »", "cfg:page:3");
+  }
+  if (page === 3) {
+    return new InlineKeyboard()
       .text("✏️ Min TVL", "cfg:set:pools.minTvl")
       .text("✏️ Max TVL", "cfg:set:pools.maxTvl")
       .row()
-      .text("« General", "cfg:page:1")
-      .text("Bin/Ratio »", "cfg:page:3");
+      .text("✏️ Min Vol", "cfg:set:pools.minVolume")
+      .text("✏️ Max Vol", "cfg:set:pools.maxVolume")
+      .row()
+      .text("✏️ Min Fee", "cfg:set:pools.minFee")
+      .text("✏️ Max Fee", "cfg:set:pools.maxFee")
+      .row()
+      .text("✏️ Min Fee/TVL", "cfg:set:pools.minFeeActiveTvlRatio")
+      .text("✏️ Max Fee/TVL", "cfg:set:pools.maxFeeActiveTvlRatio")
+      .row()
+      .text("« MC/Holders", "cfg:page:2")
+      .text("Bin/Org »", "cfg:page:4");
+  }
+  if (page === 4) {
+    return new InlineKeyboard()
+      .text("✏️ Min Bin", "cfg:set:pools.minBinStep")
+      .text("✏️ Max Bin", "cfg:set:pools.maxBinStep")
+      .row()
+      .text("✏️ Min Organic", "cfg:set:pools.minOrganic")
+      .text("✏️ Max Organic", "cfg:set:pools.maxOrganic")
+      .row()
+      .text("✏️ Min Q.Org", "cfg:set:pools.minQuoteOrganic")
+      .text("✏️ Max Q.Org", "cfg:set:pools.maxQuoteOrganic")
+      .row()
+      .text("🔄 SOL Pair", "cfg:toggle:pools.solPairOnly")
+      .text("🔄 High Conc", "cfg:toggle:pools.baseTokenHasHighSupplyConcentration")
+      .row()
+      .text("« TVL/Vol", "cfg:page:3")
+      .text("Advanced »", "cfg:page:5");
   }
   return new InlineKeyboard()
-    .text("✏️ Min Bin", "cfg:set:pools.minBinStep")
-    .text("✏️ Max Bin", "cfg:set:pools.maxBinStep")
+    .text("✏️ Min Act TVL", "cfg:set:pools.minActiveTvl")
+    .text("✏️ Max Act TVL", "cfg:set:pools.maxActiveTvl")
     .row()
-    .text("✏️ Min Fee/TVL", "cfg:set:pools.minFeeActiveTvlRatio")
-    .text("✏️ Min Organic", "cfg:set:pools.minOrganic")
+    .text("✏️ Min Volat", "cfg:set:pools.minVolatility")
+    .text("✏️ Max Volat", "cfg:set:pools.maxVolatility")
     .row()
-    .text("✏️ Min Q.Org", "cfg:set:pools.minQuoteOrganic")
-    .text("🔄 High Conc.", "cfg:toggle:pools.excludeHighSupplyConcentration")
+    .text("✏️ Min Price", "cfg:set:pools.minPoolPrice")
+    .text("✏️ Max Price", "cfg:set:pools.maxPoolPrice")
+    .row()
+    .text("✏️ Min Swaps", "cfg:set:pools.minSwapCount")
+    .text("✏️ Min Traders", "cfg:set:pools.minUniqueTraders")
+    .row()
+    .text("✏️ Price Trend", "cfg:set:pools.priceTrend")
+    .text("🔄 Single Owner", "cfg:toggle:pools.baseTokenHasHighSingleOwnership")
     .row()
     .text("✏️ Min Age (h)", "cfg:set:pools.minTokenAgeHours")
     .text("✏️ Max Age (h)", "cfg:set:pools.maxTokenAgeHours")
     .row()
-    .text("« Vol/TVL/MC", "cfg:page:2");
+    .text("« Bin/Organic", "cfg:page:4");
 }
 
 function pageForKey(key: string): number {
   const page1 = new Set(["wallet", "rpcUrl", "dev", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
-  const page2 = new Set(["pools.minMcap", "pools.maxMcap", "pools.minHolders", "pools.minVolume", "pools.minTvl", "pools.maxTvl"]);
+  const page2 = new Set(["pools.minMcap", "pools.maxMcap", "pools.minHolders", "pools.maxHolders"]);
+  const page3 = new Set(["pools.minTvl", "pools.maxTvl", "pools.minVolume", "pools.maxVolume", "pools.minFee", "pools.maxFee", "pools.minFeeActiveTvlRatio", "pools.maxFeeActiveTvlRatio"]);
+  const page4 = new Set(["pools.minBinStep", "pools.maxBinStep", "pools.minOrganic", "pools.maxOrganic", "pools.minQuoteOrganic", "pools.maxQuoteOrganic", "pools.solPairOnly", "pools.baseTokenHasHighSupplyConcentration"]);
   if (page1.has(key)) return 1;
   if (page2.has(key)) return 2;
-  return 3;
+  if (page3.has(key)) return 3;
+  if (page4.has(key)) return 4;
+  return 5;
 }
 
 /** Pending edits: chatId → { field, key, type, page } */

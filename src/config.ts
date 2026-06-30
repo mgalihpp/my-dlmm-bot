@@ -34,22 +34,54 @@ export interface VexisConfig {
     /** Pool category: "trending" | "new" | "top" (default: "trending"). */
     category?: string;
 
-    // --- Screening thresholds ---
+    // --- Base token filters ---
+    baseTokenHasHighSupplyConcentration?: boolean;
+    baseTokenHasHighSingleOwnership?: boolean;
     minMcap?: number;
     maxMcap?: number;
     minHolders?: number;
-    minVolume?: number;
-    minTvl?: number;
-    maxTvl?: number;
-    minBinStep?: number;
-    maxBinStep?: number;
-    minFeeActiveTvlRatio?: number;
+    maxHolders?: number;
     minOrganic?: number;
-    minQuoteOrganic?: number;
-    excludeHighSupplyConcentration?: boolean;
+    maxOrganic?: number;
     minTokenAgeHours?: number | null;
     maxTokenAgeHours?: number | null;
     blockedLaunchpads?: string[];
+
+    // --- Quote token filters ---
+    minQuoteOrganic?: number;
+    maxQuoteOrganic?: number;
+
+    // --- Pool metrics filters ---
+    minTvl?: number;
+    maxTvl?: number;
+    minActiveTvl?: number;
+    maxActiveTvl?: number;
+    minVolume?: number;
+    maxVolume?: number;
+    minFee?: number;
+    maxFee?: number;
+    minFeeActiveTvlRatio?: number;
+    maxFeeActiveTvlRatio?: number;
+    minBinStep?: number;
+    maxBinStep?: number;
+    minVolatility?: number;
+    maxVolatility?: number;
+    minPoolPrice?: number;
+    maxPoolPrice?: number;
+    minActivePositions?: number;
+    maxActivePositions?: number;
+    minOpenPositions?: number;
+    maxOpenPositions?: number;
+    minSwapCount?: number;
+    maxSwapCount?: number;
+    minUniqueTraders?: number;
+    maxUniqueTraders?: number;
+    minPriceChangePct?: number;
+    maxPriceChangePct?: number;
+    minVolumeChangePct?: number;
+    maxVolumeChangePct?: number;
+    priceTrend?: string;
+    solPairOnly?: boolean;
 
     // --- Display ---
     displayLimit?: number;
