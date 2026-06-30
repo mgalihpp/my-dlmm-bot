@@ -257,6 +257,7 @@ export interface DiscoveryPool {
   min_price?: number;
   max_price?: number;
   price_trend?: string;
+  fee_pct?: number;
 }
 
 export interface DiscoveryPoolsResponse {

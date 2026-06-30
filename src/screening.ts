@@ -121,7 +121,7 @@ function condensePool(pool: DiscoveryPool): ScreenedPool {
     feeActiveTvlRatio: fix(pool.fee_active_tvl_ratio, 4) ?? 0,
     volatility: fix(pool.volatility, 4) ?? 0,
     binStep: pool.dlmm_params?.bin_step ?? pool.pool_config?.bin_step ?? 0,
-    baseFeePct: pool.pool_config?.base_fee_pct ?? 0,
+    baseFeePct: pool.fee_pct ?? pool.pool_config?.base_fee_pct ?? 0,
     volume: round(pool.volume) ?? 0,
     fee: round(pool.fee) ?? 0,
     activePositions: pool.active_positions ?? 0,
