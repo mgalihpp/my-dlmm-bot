@@ -182,7 +182,9 @@ export function tgScreenedPoolList(result: ScreenResult): string {
     );
   });
   const text = lines.join("\n");
-  return text.length > 4096 ? text.slice(0, 4090) + "\\.\\.\\." : text;
+  if (text.length <= 4096) return text;
+  const cutAt = text.lastIndexOf("\n\n", 4080);
+  return (cutAt > 0 ? text.slice(0, cutAt) : text.slice(0, 4080)) + "\n\n\\.\\.\\.";
 }
 
 /** Position alert message for a single pool. */
