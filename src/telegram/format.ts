@@ -113,8 +113,13 @@ export function tgClosedPools(pools: ClosedPool[]): string {
       `  ${tgPoolAddr(p.poolAddress)}`,
       `  Deposit: ${tgUsd(p.totalDeposit)} \\| Withdraw: ${tgUsd(p.totalWithdrawal)}`,
       `  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
-      ""
     );
+    if (p.lastClosedAt) {
+      const d = new Date(p.lastClosedAt);
+      const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      lines.push(`  Closed: ${escapeMarkdown(date)}`);
+    }
+    lines.push("");
   }
   return lines.join("\n");
 }
@@ -171,7 +176,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
       `${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
       `MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
       `Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
-      `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| Age ${escapeMarkdown(age)}`,
+      `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
       `Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
       ""
     );
@@ -199,23 +204,65 @@ export function tgPositionAlert(
     prevPnl?: string;
     deposit?: string;
     withdrawal?: string;
+    tokenXAddress?: string;
+    tokenYAddress?: string;
   }
 ): string {
   const range = opts.outOfRange ? " ⚠️ out of range" : "";
   const lines = [
     tgBold(`${icon} ${tokenX}/${tokenY}`),
-    `  Pool: ${tgCode(poolAddress)}`,
-    `  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
+    `Pool: ${tgPoolAddr(poolAddress)}`,
   ];
+  if (opts.tokenXAddress) lines.push(`X: ${tgCode(opts.tokenXAddress)}`);
+  if (opts.tokenYAddress) lines.push(`Y: ${tgCode(opts.tokenYAddress)}`);
+  lines.push(
+    `PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| SOL: ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
+  );
   if (opts.deposit != null || opts.withdrawal != null) {
-    lines.push(`  Deposit: ${tgUsd(opts.deposit ?? "0")} \\| Withdraw: ${tgUsd(opts.withdrawal ?? "0")}`);
-    lines.push(`  Fees: ${tgUsd(opts.fees)}`);
+    lines.push(`Deposit: ${tgUsd(opts.deposit ?? "0")} \\| Withdraw: ${tgUsd(opts.withdrawal ?? "0")}`);
   } else {
-    lines.push(`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`);
+    lines.push(`Balance: ${tgUsd(opts.balances)}`);
   }
-  lines.push(`  Positions \\(${escapeMarkdown(String(opts.positions))}\\):${escapeMarkdown(range)}`);
+  lines.push(`Fees: ${tgUsd(opts.fees)} \\| Pos: ${escapeMarkdown(String(opts.positions))}${escapeMarkdown(range)}`);
   for (const pos of opts.listPositions) {
-    lines.push(`    ${tgCode(pos)}`);
+    lines.push(`${tgCode(pos)}`);
+  }
+  return lines.join("\n");
+}
+
+/** Closed position alert message. */
+export function tgClosedPositionAlert(
+  tokenX: string,
+  tokenY: string,
+  poolAddress: string,
+  opts: {
+    pnl: string;
+    pnlPctChange: string;
+    pnlSol: string | null;
+    pnlSolPctChange: string | null;
+    deposit: string;
+    withdrawal: string;
+    fees: string;
+    closedAt?: number | null;
+    tokenXAddress?: string;
+    tokenYAddress?: string;
+  }
+): string {
+  const lines = [
+    tgBold(`🔴 ${tokenX}/${tokenY} — Position Closed`),
+    `Pool: ${tgPoolAddr(poolAddress)}`,
+  ];
+  if (opts.tokenXAddress) lines.push(`X: ${tgCode(opts.tokenXAddress)}`);
+  if (opts.tokenYAddress) lines.push(`Y: ${tgCode(opts.tokenYAddress)}`);
+  lines.push(
+    `Deposit: ${tgUsd(opts.deposit)} \\| Withdraw: ${tgUsd(opts.withdrawal)}`,
+    `Fees: ${tgUsd(opts.fees)}`,
+    `PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| SOL: ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
+  );
+  if (opts.closedAt) {
+    const d = new Date(opts.closedAt);
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    lines.push(`Closed: ${escapeMarkdown(date)}`);
   }
   return lines.join("\n");
 }
@@ -259,8 +306,9 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
         const range = p.outOfRange ? " ⚠️" : "";
         lines.push(
           `  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
-          `  Balance: ${tgUsd(p.balances)} \\| PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\)`,
-          `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
+          `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
+          `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| SOL: ${tgSol(p.pnlSol)}`,
+          `  Pos: ${escapeMarkdown(String(p.openPositionCount))}`,
           `  Pool: ${tgPoolAddr(p.poolAddress)}`,
         );
       }

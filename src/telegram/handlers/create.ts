@@ -107,7 +107,7 @@ export function registerCreate(
           `${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
           `MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
           `Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
-          `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| Age ${escapeMarkdown(age)}`,
+          `Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
           `Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
           "",
         );
@@ -116,9 +116,13 @@ export function registerCreate(
           poolName: `${p.baseSymbol}/${p.quoteSymbol}`,
           binStep: p.binStep,
           currentPrice: p.price,
+          tvl: p.tvl,
+          volume24h: p.volume,
+          holders: p.holders,
+          baseFeePct: p.baseFeePct,
         });
         kb.text(
-          `${p.baseSymbol}/${p.quoteSymbol}`.slice(0, 20),
+          `${p.baseSymbol}/${p.quoteSymbol} B${p.binStep} ${p.baseFeePct}%`.slice(0, 30),
           `crt:strategy:${wid}`,
         ).row();
       }
@@ -152,8 +156,16 @@ export function registerCreate(
       const kb = new InlineKeyboard();
       for (const p of res.pools) {
         const label = `${p.tokenX}/${p.tokenY}`;
+        const range = p.outOfRange ? " ⚠️" : "";
+        const fees = `$${Number(p.unclaimedFees).toFixed(2)}`;
+        const pnlNum = parseFloat(p.pnl);
+        const pnlSign = pnlNum >= 0 ? "+" : "";
+        const pnlStr = `${pnlSign}$${Math.abs(pnlNum).toFixed(2)}`;
+        const balNum = parseFloat(p.balances);
+        const balStr = `$${balNum.toFixed(2)}`;
         lines.push(
-          `• ${tgBold(escapeMarkdown(label))} — fees: ${escapeMarkdown(`$${Number(p.unclaimedFees).toFixed(2)}`)}`,
+          `• ${tgBold(escapeMarkdown(label))}${escapeMarkdown(range)}`,
+          `  Fees: ${escapeMarkdown(fees)} \\| PnL: ${escapeMarkdown(pnlStr)} \\| Bal: ${escapeMarkdown(balStr)}`,
         );
         try {
           const detail = await client.pool(p.poolAddress);
@@ -162,8 +174,12 @@ export function registerCreate(
             poolName: label,
             binStep: detail.pool_config.bin_step,
             currentPrice: detail.current_price,
+            tvl: detail.tvl,
+            volume24h: detail.volume["24h"],
+            holders: detail.token_x.holders,
+            baseFeePct: detail.pool_config.base_fee_pct,
           });
-          kb.text(label.slice(0, 20), `crt:strategy:${wid}`).row();
+          kb.text(`${label} B${detail.pool_config.bin_step} ${detail.pool_config.base_fee_pct}%`.slice(0, 30), `crt:strategy:${wid}`).row();
         } catch {}
       }
       lines.push("");
@@ -211,6 +227,10 @@ export function registerCreate(
             poolName: detail.name,
             binStep: detail.pool_config.bin_step,
             currentPrice: detail.current_price,
+            tvl: detail.tvl,
+            volume24h: detail.volume["24h"],
+            holders: detail.token_x.holders,
+            baseFeePct: detail.pool_config.base_fee_pct,
           });
           await sessionCtx.api.editMessageText(
             loading.chat.id,
@@ -688,17 +708,28 @@ function extractAddress(input: string): string | null {
 
 async function renderStrategyStep(wid: string): Promise<string> {
   const state = getWizard(wid)!;
-  return [
+  const lines = [
     tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
     `Pool: ${tgCode(state.poolAddress)}`,
-    `Bin step: ${escapeMarkdown(String(state.binStep))} \\| Price: ${escapeMarkdown(String(state.currentPrice))}`,
+  ];
+  if (state.baseFeePct != null) {
+    lines.push(`Bin: ${escapeMarkdown(String(state.binStep))} \\| Fee: ${escapeMarkdown(`${state.baseFeePct}%`)}`);
+  }
+  if (state.tvl != null) {
+    lines.push(`TVL: ${tgUsd(state.tvl)} \\| Holders: ${escapeMarkdown(formatNum(state.holders ?? 0))}`);
+  }
+  if (state.volume24h != null) {
+    lines.push(`Vol 24h: ${tgUsd(state.volume24h)}`);
+  }
+  lines.push(
     "",
     tgBold("Step 1/3 — Pick strategy:"),
     "",
     "• *Spot* — uniform liquidity across range",
     "• *Bid\\-Ask* — concentrated at edges \\(volatility\\)",
     "• *Curve* — bell curve centered on price",
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 function strategyKb(wid: string): InlineKeyboard {

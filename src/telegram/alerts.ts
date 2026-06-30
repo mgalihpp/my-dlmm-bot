@@ -11,6 +11,7 @@ import { resolveWallet } from "../config.js";
 import {
   tgPortfolioSummary,
   tgPositionAlert,
+  tgClosedPositionAlert,
   tgPoolDetail,
   tgWatchlistAlert,
   escapeMarkdown,
@@ -28,6 +29,8 @@ interface PoolSnapshot {
   poolAddress: string;
   tokenX: string;
   tokenY: string;
+  tokenXMint: string;
+  tokenYMint: string;
   pnl: string;
   pnlPctChange: string;
   pnlSol: string | null;
@@ -47,6 +50,7 @@ interface ClosedPoolLookup {
   deposit: string;
   withdrawal: string;
   fees: string;
+  lastClosedAt: number | null;
 }
 
 interface WalletPoolEntry {
@@ -111,6 +115,8 @@ function toSnapshot(p: {
   poolAddress: string;
   tokenX: string;
   tokenY: string;
+  tokenXMint: string;
+  tokenYMint: string;
   pnl: string;
   pnlPctChange: string;
   pnlSol: string | null;
@@ -125,6 +131,8 @@ function toSnapshot(p: {
     poolAddress: p.poolAddress,
     tokenX: p.tokenX,
     tokenY: p.tokenY,
+    tokenXMint: p.tokenXMint,
+    tokenYMint: p.tokenYMint,
     pnl: p.pnl,
     pnlPctChange: p.pnlPctChange,
     pnlSol: p.pnlSol,
@@ -237,6 +245,8 @@ function schedulePositionChecks(
               positions: pool.openPositionCount,
               listPositions: pool.listPositions,
               outOfRange: pool.outOfRange,
+              tokenXAddress: pool.tokenXMint,
+              tokenYAddress: pool.tokenYMint,
             }),
             poolAddr: pool.poolAddress,
           });
@@ -262,6 +272,8 @@ function schedulePositionChecks(
                 listPositions: pool.listPositions,
                 outOfRange: pool.outOfRange,
                 prevPnl: prev.pnl,
+                tokenXAddress: pool.tokenXMint,
+                tokenYAddress: pool.tokenYMint,
               }),
               poolAddr: pool.poolAddress,
             });
@@ -303,6 +315,8 @@ function schedulePositionChecks(
               positions: pool.openPositionCount,
               listPositions: pool.listPositions,
               outOfRange: pool.outOfRange,
+              tokenXAddress: pool.tokenXMint,
+              tokenYAddress: pool.tokenYMint,
             }),
             poolAddr: pool.poolAddress,
           });
@@ -327,6 +341,7 @@ function schedulePositionChecks(
               deposit: cp.totalDeposit,
               withdrawal: cp.totalWithdrawal,
               fees: cp.totalFee,
+              lastClosedAt: cp.lastClosedAt,
             });
           }
         } catch {
@@ -337,40 +352,37 @@ function schedulePositionChecks(
         if (!currentAddrs.has(prev.poolAddress)) {
           const closed = closedPoolMap.get(prev.poolAddress);
           alerts.push({
-            msg: tgPositionAlert("🔴 Position Closed", prev.tokenX, prev.tokenY, prev.poolAddress, {
+            msg: tgClosedPositionAlert(prev.tokenX, prev.tokenY, prev.poolAddress, {
               pnl: closed?.pnl ?? prev.pnl,
               pnlPctChange: closed?.pnlPctChange ?? prev.pnlPctChange,
               pnlSol: closed?.pnlSol ?? prev.pnlSol,
               pnlSolPctChange: closed?.pnlSolPctChange ?? prev.pnlSolPctChange,
-              balances: "0",
+              deposit: closed?.deposit ?? "0",
+              withdrawal: closed?.withdrawal ?? "0",
               fees: closed?.fees ?? "0",
-              positions: prev.openPositionCount,
-              listPositions: prev.listPositions,
-              outOfRange: null,
-              deposit: closed?.deposit,
-              withdrawal: closed?.withdrawal,
+              closedAt: closed?.lastClosedAt,
+              tokenXAddress: prev.tokenXMint,
+              tokenYAddress: prev.tokenYMint,
             }),
             poolAddr: prev.poolAddress,
           });
         }
       }
 
-      // Fetch pool details in parallel, then send all alerts as one message
-      if (alerts.length > 0) {
-        const fullMsgs = await Promise.all(
-          alerts.map(async (alert) => {
-            let msg = alert.msg;
-            try {
-              const poolDetail = await client.pool(alert.poolAddr);
-              msg += `\n${tgPoolDetail(poolDetail)}`;
-            } catch {
-              // pool detail fetch failed — send position alert without pool detail
-            }
-            return msg;
-          })
-        );
-        const combined = fullMsgs.join("\n\n─────────────────────\n\n");
-        await bot.api.sendMessage(chatId, combined, MD);
+      // Send each alert as a separate message
+      for (const alert of alerts) {
+        let msg = alert.msg;
+        try {
+          const poolDetail = await client.pool(alert.poolAddr);
+          msg += `\n${tgPoolDetail(poolDetail)}`;
+        } catch {
+          // pool detail fetch failed — send position alert without pool detail
+        }
+        try {
+          await bot.api.sendMessage(chatId, msg, MD);
+        } catch (e) {
+          console.error("[alerts] Failed to send alert:", e);
+        }
       }
 
       // Save current snapshot
@@ -436,9 +448,13 @@ function scheduleWatchlistChecks(
         }
       }
 
-      if (alerts.length > 0) {
-        const combined = alerts.join("\n\n─────────────────────\n\n");
-        await bot.api.sendMessage(chatId, combined, MD);
+      // Send each watchlist alert as a separate message
+      for (const msg of alerts) {
+        try {
+          await bot.api.sendMessage(chatId, msg, MD);
+        } catch (e) {
+          console.error("[alerts] Failed to send watchlist alert:", e);
+        }
       }
 
       // Refresh snapshot for all wallets

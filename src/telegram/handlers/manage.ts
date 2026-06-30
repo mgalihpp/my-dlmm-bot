@@ -140,13 +140,20 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!pair) return await expired(ctx);
     requireKeypair();
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(client, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
       tgBold("Close & Zap Out?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       "",
       "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
@@ -167,13 +174,20 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!pair) return await expired(ctx);
     requireKeypair();
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(client, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
       tgBold("Claim Fees \\+ Zap to SOL?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       "",
       "Claim swap fees \\+ swap to SOL via Jupiter\\.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
@@ -194,11 +208,18 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!pair) return await expired(ctx);
     requireKeypair();
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(client, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
       tgBold("Claim Rewards?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
       const keypair = resolveKeypair(config);
       const rpc = resolveRpc(config);
@@ -292,12 +313,14 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
         if (!s2) return;
         s2.yAmt = text2;
         addLiqSessions.set(chatId, s2);
+        const pairName = s2.tokenX && s2.tokenY ? `${s2.tokenX}/${s2.tokenY}` : "";
         const summary = [
           tgBold("➕ Add Liquidity?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(s2.poolAddress)}`,
           `Position: ${tgCode(s2.positionPubkey)}`,
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| ${escapeMarkdown(xToken)}: ${escapeMarkdown(s2.xAmt!)} \\| ${escapeMarkdown(yToken)}: ${escapeMarkdown(s2.yAmt!)}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await presentNew(sessionCtx2, summary, async () => {
           const kp = resolveKeypair(config);
           const rpc = resolveRpc(config);
@@ -357,12 +380,19 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const pair = resolveAction(actionId);
     if (!pair) return await expired(ctx);
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(client, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
       tgBold("➖ Remove Liquidity?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
       const kp = resolveKeypair(config);
       const rpc = resolveRpc(config);
@@ -384,6 +414,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     if (!pair) return await expired(ctx);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(client, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const bpsHandler = async (text: string, sessionCtx: Context) => {
       const bps = parseInt(text, 10);
       if (Number.isNaN(bps) || bps < 1 || bps > 10000) {
@@ -393,10 +429,11 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       }
       const summary = [
         tgBold("➖ Remove Liquidity?"),
+        pairName ? `${escapeMarkdown(pairName)}` : "",
         `Pool: ${tgCode(poolAddress)}`,
         `Position: ${tgCode(positionPubkey)}`,
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
-      ].join("\n");
+      ].filter(Boolean).join("\n");
       await presentNew(sessionCtx, summary, async () => {
         const kp = resolveKeypair(config);
         const rpc = resolveRpc(config);
@@ -470,21 +507,27 @@ async function showActionPanel(
   await ctx.editMessageText(text, { ...MD, reply_markup: kb });
 }
 
-async function presentEdit(ctx: Context, summary: string, run: () => Promise<string>) {
+async function presentEdit(ctx: Context, summary: string, run: () => Promise<string>, backTarget?: string) {
   const opId = nextOpId();
   pending.set(opId, { summary, run });
   const kb = new InlineKeyboard()
     .text("✅ Confirm", `mconfirm:${opId}`)
     .text("❌ Cancel", `mcancel:${opId}`);
+  if (backTarget) {
+    kb.row().text("⬅️ Back", backTarget);
+  }
   await ctx.editMessageText(summary, { ...MD, reply_markup: kb });
 }
 
-async function presentNew(ctx: Context, summary: string, run: () => Promise<string>) {
+async function presentNew(ctx: Context, summary: string, run: () => Promise<string>, backTarget?: string) {
   const opId = nextOpId();
   pending.set(opId, { summary, run });
   const kb = new InlineKeyboard()
     .text("✅ Confirm", `mconfirm:${opId}`)
     .text("❌ Cancel", `mcancel:${opId}`);
+  if (backTarget) {
+    kb.row().text("⬅️ Back", backTarget);
+  }
   await ctx.reply(summary, { ...MD, reply_markup: kb });
 }
 

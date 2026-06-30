@@ -6,6 +6,10 @@ export interface WizardState {
   poolName: string;
   binStep: number;
   currentPrice: number;
+  tvl?: number;
+  volume24h?: number;
+  holders?: number;
+  baseFeePct?: number;
   strategy?: string;
   mode?: "two-sided" | "single-x" | "single-y";
   // Range parameters (set after range selection, used for execution)

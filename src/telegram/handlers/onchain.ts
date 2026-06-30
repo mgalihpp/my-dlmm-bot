@@ -2,7 +2,7 @@ import { Bot, Context, InlineKeyboard } from "grammy";
 import { Keypair } from "@solana/web3.js";
 import type { VexisConfig } from "../../config.js";
 import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
-import { escapeMarkdown, tgCode, tgTxLink } from "../format.js";
+import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { MD, replyError } from "../utils.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { setInputSession } from "../input-store.js";
@@ -46,6 +46,8 @@ async function lazyZap() {
 interface AddLiqSession {
   poolAddress: string;
   positionPubkey: string;
+  tokenX?: string;
+  tokenY?: string;
   strategy?: StrategyType;
   xAmt?: string;
   yAmt?: string;
@@ -135,13 +137,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
-        // Has args — direct execution
+        // Has args — fetch pool detail for token pair name
+        let pairName = "";
+        try {
+          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+        } catch {}
         const summary = [
-          "*Close & Zap Out?*",
+          tgBold("Close & Zap Out?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(poolAddress)}`,
           `Position: ${tgCode(positionPubkey)}`,
           "", "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(ctx, summary, makeZapRunner(async (zap) => {
           const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
           const sig = result.zapSig || result.closeSig;
@@ -189,18 +197,25 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
-      "*Close & Zap Out?*",
+      tgBold("Close & Zap Out?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       "", "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await present(ctx, summary, makeZapRunner(async (zap) => {
       const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
       const sig = result.zapSig || result.closeSig;
       if (!sig) throw new Error("Close produced no transaction signature");
       return sig;
-    }));
+    }), `close:pool:${poolAddress}`);
   });
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -213,12 +228,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       if (parts.length >= 5) {
         const [poolAddress, positionPubkey, strategy, xAmt, yAmt] = parts;
         if (!STRATEGIES.has(strategy as StrategyType)) { await ctx.reply("Strategy must be: spot, bidask, or curve", MD); return; }
+        // Fetch pool detail for token pair name
+        let pairName = "";
+        try {
+          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+        } catch {}
         const summary = [
-          "*Add liquidity?*",
+          tgBold("Add Liquidity?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(poolAddress)}`,
           `Position: ${tgCode(positionPubkey)}`,
           `Strategy: ${escapeMarkdown(strategy)} \\| X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(ctx, summary, makeDlmmRunner((dlmm) =>
           dlmm.addLiquidity({ poolAddress, positionPubkey, strategy: strategy as StrategyType, totalXAmount: xAmt, totalYAmount: yAmt, amountsAreHuman: true, minBinId: 0, maxBinId: 0 })
         ));
@@ -256,15 +278,26 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-    addLiqSessions.set(chatId, { poolAddress: pair.poolAddress, positionPubkey: pair.positionPubkey });
-    await ctx.editMessageText("Select strategy:", {
-      ...MD,
-      reply_markup: new InlineKeyboard()
-        .text("📊 Spot", `addliq:strategy:${actionId}:spot`).row()
-        .text("📈 Bid-Ask", `addliq:strategy:${actionId}:bidask`).row()
-        .text("🔔 Curve", `addliq:strategy:${actionId}:curve`).row()
-        .text("⬅️ Back", `addliq:pool:${pair.poolAddress}`),
-    });
+    // Fetch pool detail for token pair names
+    let tokenX = "";
+    let tokenY = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      if (detail) { tokenX = detail.tokenX; tokenY = detail.tokenY; }
+    } catch {}
+    addLiqSessions.set(chatId, { poolAddress: pair.poolAddress, positionPubkey: pair.positionPubkey, tokenX, tokenY });
+    const pairName = tokenX && tokenY ? `${tokenX}/${tokenY}` : "";
+    await ctx.editMessageText(
+      `${pairName ? `${escapeMarkdown(pairName)}\n` : ""}Select strategy:`,
+      {
+        ...MD,
+        reply_markup: new InlineKeyboard()
+          .text("📊 Spot", `addliq:strategy:${actionId}:spot`).row()
+          .text("📈 Bid-Ask", `addliq:strategy:${actionId}:bidask`).row()
+          .text("🔔 Curve", `addliq:strategy:${actionId}:curve`).row()
+          .text("⬅️ Back", `addliq:pool:${pair.poolAddress}`),
+      },
+    );
   });
 
   // ─── addliq:strategy:<actionId>:<strategy> — prompt X amount ─────────────
@@ -307,12 +340,14 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         if (!s2) return;
         s2.yAmt = text2;
         addLiqSessions.delete(chatId);
+        const pairName = s2.tokenX && s2.tokenY ? `${s2.tokenX}/${s2.tokenY}` : "";
         const summary = [
-          "*Add liquidity?*",
+          tgBold("Add Liquidity?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(s2.poolAddress)}`,
           `Position: ${tgCode(s2.positionPubkey)}`,
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| X: ${escapeMarkdown(s2.xAmt!)} \\| Y: ${escapeMarkdown(s2.yAmt!)}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(sessionCtx2, summary, makeDlmmRunner((dlmm) =>
           dlmm.addLiquidity({
             poolAddress: s2.poolAddress,
@@ -341,12 +376,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       if (poolAddress && positionPubkey && bps) {
         const bpsNum = parseInt(bps, 10);
         if (Number.isNaN(bpsNum) || bpsNum < 1 || bpsNum > 10000) { await ctx.reply("bps must be between 1 and 10000", MD); return; }
+        // Fetch pool detail for token pair name
+        let pairName = "";
+        try {
+          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+        } catch {}
         const summary = [
-          "*Remove liquidity?*",
+          tgBold("Remove Liquidity?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(poolAddress)}`,
           `Position: ${tgCode(positionPubkey)}`,
           `Amount: ${escapeMarkdown(`${(bpsNum / 100).toFixed(2)}%`)}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(ctx, summary, makeDlmmRunner((dlmm) =>
           dlmm.removeLiquidity({ poolAddress, positionPubkey, bpsToRemove: bpsNum, shouldClaimAndClose: false })
         ));
@@ -384,14 +426,23 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     removeLiqSessions.set(chatId, { poolAddress: pair.poolAddress, positionPubkey: pair.positionPubkey });
-    await ctx.editMessageText("Select amount:", {
-      ...MD,
-      reply_markup: new InlineKeyboard()
-        .text("25%", `removeliq:bps:${actionId}:2500`).text("50%", `removeliq:bps:${actionId}:5000`).row()
-        .text("75%", `removeliq:bps:${actionId}:7500`).text("100%", `removeliq:bps:${actionId}:10000`).row()
-        .text("✏️ Custom", `removeliq:custom:${actionId}`).row()
-        .text("⬅️ Back", `removeliq:pool:${pair.poolAddress}`),
-    });
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
+    await ctx.editMessageText(
+      `${pairName ? `${escapeMarkdown(pairName)}\n` : ""}Select amount:`,
+      {
+        ...MD,
+        reply_markup: new InlineKeyboard()
+          .text("25%", `removeliq:bps:${actionId}:2500`).text("50%", `removeliq:bps:${actionId}:5000`).row()
+          .text("75%", `removeliq:bps:${actionId}:7500`).text("100%", `removeliq:bps:${actionId}:10000`).row()
+          .text("✏️ Custom", `removeliq:custom:${actionId}`).row()
+          .text("⬅️ Back", `removeliq:pool:${pair.poolAddress}`),
+      },
+    );
   });
 
   // ─── removeliq:bps:<actionId>:<bps> — confirm remove ─────────────────────
@@ -402,12 +453,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
-      "*Remove liquidity?*",
+      tgBold("Remove Liquidity?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await present(ctx, summary, makeDlmmRunner((dlmm) =>
       dlmm.removeLiquidity({ poolAddress, positionPubkey, bpsToRemove: bps, shouldClaimAndClose: false })
     ));
@@ -420,6 +478,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     let retry = 0;
     setInputSession(chatId, async (text, sessionCtx) => {
       const bps = parseInt(text, 10);
@@ -431,11 +495,12 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       }
       const { poolAddress, positionPubkey } = pair!;
       const summary = [
-        "*Remove liquidity?*",
+        tgBold("Remove Liquidity?"),
+        pairName ? `${escapeMarkdown(pairName)}` : "",
         `Pool: ${tgCode(poolAddress)}`,
         `Position: ${tgCode(positionPubkey)}`,
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
-      ].join("\n");
+      ].filter(Boolean).join("\n");
       await present(sessionCtx, summary, makeDlmmRunner((dlmm) =>
         dlmm.removeLiquidity({ poolAddress, positionPubkey, bpsToRemove: bps, shouldClaimAndClose: false })
       ));
@@ -451,12 +516,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
+        // Fetch pool detail for token pair name
+        let pairName = "";
+        try {
+          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+        } catch {}
         const summary = [
-          "*Claim fees \\+ Zap to SOL?*",
+          tgBold("Claim Fees \\+ Zap to SOL?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(poolAddress)}`,
           `Position: ${tgCode(positionPubkey)}`,
           "", "Claim swap fees \\+ swap to SOL via Jupiter\\.",
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(ctx, summary, makeZapRunner(async (zap) => {
           const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
           const sig = result.zapSig || result.claimSig;
@@ -496,12 +568,19 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
-      "*Claim fees \\+ Zap to SOL?*",
+      tgBold("Claim Fees \\+ Zap to SOL?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
       "", "Claim swap fees \\+ swap to SOL via Jupiter\\.",
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await present(ctx, summary, makeZapRunner(async (zap) => {
       const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
       const sig = result.zapSig || result.claimSig;
@@ -518,11 +597,18 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
       requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
+        // Fetch pool detail for token pair name
+        let pairName = "";
+        try {
+          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+        } catch {}
         const summary = [
-          "*Claim rewards?*",
+          tgBold("Claim Rewards?"),
+          pairName ? `${escapeMarkdown(pairName)}` : "",
           `Pool: ${tgCode(poolAddress)}`,
           `Position: ${tgCode(positionPubkey)}`,
-        ].join("\n");
+        ].filter(Boolean).join("\n");
         await present(ctx, summary, makeDlmmRunner((dlmm) =>
           dlmm.claimReward(poolAddress, positionPubkey)
         ));
@@ -559,11 +645,18 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const pair = resolveAction(actionId);
     if (!pair) { await ctx.editMessageText("⌛ Expired\\.", MD); return; }
     const { poolAddress, positionPubkey } = pair;
+    // Fetch pool detail for token pair name
+    let pairName = "";
+    try {
+      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+    } catch {}
     const summary = [
-      "*Claim rewards?*",
+      tgBold("Claim Rewards?"),
+      pairName ? `${escapeMarkdown(pairName)}` : "",
       `Pool: ${tgCode(poolAddress)}`,
       `Position: ${tgCode(positionPubkey)}`,
-    ].join("\n");
+    ].filter(Boolean).join("\n");
     await present(ctx, summary, makeDlmmRunner((dlmm) =>
       dlmm.claimReward(poolAddress, positionPubkey)
     ));
@@ -640,11 +733,14 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
-async function present(ctx: Context, summary: string, run: () => Promise<string>) {
+async function present(ctx: Context, summary: string, run: () => Promise<string>, backTarget?: string) {
   const id = nextId();
   pending.set(id, { summary, run });
   const kb = new InlineKeyboard()
     .text("✅ Confirm", `confirm:${id}`)
     .text("❌ Cancel", `cancel:${id}`);
+  if (backTarget) {
+    kb.row().text("⬅️ Back", backTarget);
+  }
   await ctx.reply(summary, { ...MD, reply_markup: kb });
 }
