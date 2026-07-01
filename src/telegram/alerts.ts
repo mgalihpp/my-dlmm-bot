@@ -246,10 +246,8 @@ function schedulePositionChecks(
 
       try {
         if (currentPools.length > 0) {
-          const header = summaryParts.length > 0
-            ? `📈 Position Updates (${currentPools.length})`
-            : `📈 Position Updates — No Changes`;
-          const msg = [tgBold(header), "", tgOpenPools(currentPools)].join("\n");
+          const totalBalance = currentPools.reduce((sum, p) => sum + parseFloat(p.balances || "0"), 0);
+          const msg = tgBold(`📈 Open Positions (${currentPools.length}) | Total: ${tgUsd(totalBalance)}`);
           console.log("[position-check] Sending position update, new:", newCount, "changed:", changedCount, "closed:", closedAddrs.length);
           await bot.api.sendMessage(chatId, msg, MD);
         } else {
