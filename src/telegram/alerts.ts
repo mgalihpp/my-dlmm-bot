@@ -224,7 +224,7 @@ function schedulePositionChecks(
     try {
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 100);
-      const currentPools = res.pools;
+      const currentPools = res.pools ?? [];
       const prevSnapshots = rt.state.lastOpenSnapshot;
       const prevMap = new Map(prevSnapshots.map((s) => [s.poolAddress, s]));
 
@@ -345,23 +345,24 @@ function schedulePositionChecks(
         }
       }
 
-      // Always send — combine into ONE message
+      // Combine changes into sections, always send if there are open pools
       const parts: string[] = [];
       if (newSections.length > 0) parts.push(newSections.join("\n\n"));
       if (changedSections.length > 0) parts.push(changedSections.join("\n\n"));
       if (closedSections.length > 0) parts.push(closedSections.join("\n\n"));
       try {
-        const hasChanges = parts.length > 0;
-        const totalBalance = currentPools.reduce((s, p) => s + parseFloat(p.balances || "0"), 0);
-        const totalPools = currentPools.length;
-        if (hasChanges) {
-          await bot.api.sendMessage(chatId, [tgBold("📈 Position Updates"), "", parts.join("\n\n")].join("\n"), MD);
-        } else {
-          await bot.api.sendMessage(chatId, [
-            tgBold("📈 Position Updates — No Changes"),
-            "",
-            `Open pools: ${escapeMarkdown(String(totalPools))} \\| Balance: ${tgUsd(totalBalance)}`,
-          ].join("\n"), MD);
+        if (currentPools.length > 0) {
+          const hasChanges = parts.length > 0;
+          if (hasChanges) {
+            await bot.api.sendMessage(chatId, [tgBold("📈 Position Updates"), "", parts.join("\n\n")].join("\n"), MD);
+          } else {
+            const totalBalance = currentPools.reduce((s, p) => s + parseFloat(p.balances || "0"), 0);
+            await bot.api.sendMessage(chatId, [
+              tgBold("📈 Position Updates — No Changes"),
+              "",
+              `Open pools: ${escapeMarkdown(String(currentPools.length))} \\| Balance: ${tgUsd(totalBalance)}`,
+            ].join("\n"), MD);
+          }
         }
       } catch (e) {
         console.error("[alerts] Failed to send alert:", e);
