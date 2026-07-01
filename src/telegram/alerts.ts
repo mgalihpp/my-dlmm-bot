@@ -15,6 +15,7 @@ import {
   tgWatchlistAlert,
   escapeMarkdown,
   tgBold,
+  tgUsd,
 } from "./format.js";
 import { setInputSession } from "./input-store.js";
 import { listWallets } from "../watchlist.js";
@@ -344,17 +345,26 @@ function schedulePositionChecks(
         }
       }
 
-      // Combine into ONE message
+      // Always send — combine into ONE message
       const parts: string[] = [];
       if (newSections.length > 0) parts.push(newSections.join("\n\n"));
       if (changedSections.length > 0) parts.push(changedSections.join("\n\n"));
       if (closedSections.length > 0) parts.push(closedSections.join("\n\n"));
-      if (parts.length > 0) {
-        try {
+      try {
+        const hasChanges = parts.length > 0;
+        const totalBalance = currentPools.reduce((s, p) => s + parseFloat(p.balances || "0"), 0);
+        const totalPools = currentPools.length;
+        if (hasChanges) {
           await bot.api.sendMessage(chatId, [tgBold("📈 Position Updates"), "", parts.join("\n\n")].join("\n"), MD);
-        } catch (e) {
-          console.error("[alerts] Failed to send alert:", e);
+        } else {
+          await bot.api.sendMessage(chatId, [
+            tgBold("📈 Position Updates — No Changes"),
+            "",
+            `Open pools: ${escapeMarkdown(String(totalPools))} \\| Balance: ${tgUsd(totalBalance)}`,
+          ].join("\n"), MD);
         }
+      } catch (e) {
+        console.error("[alerts] Failed to send alert:", e);
       }
 
       // Save current snapshot
