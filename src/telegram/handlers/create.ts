@@ -706,7 +706,7 @@ function extractAddress(input: string): string | null {
   return null;
 }
 
-async function renderStrategyStep(wid: string): Promise<string> {
+export async function renderStrategyStep(wid: string): Promise<string> {
   const state = getWizard(wid)!;
   const lines = [
     tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
@@ -732,7 +732,7 @@ async function renderStrategyStep(wid: string): Promise<string> {
   return lines.join("\n");
 }
 
-function strategyKb(wid: string): InlineKeyboard {
+export function strategyKb(wid: string): InlineKeyboard {
   return new InlineKeyboard()
     .text("📊 Spot", `crt:mode:${wid}:spot`)
     .text("📈 Bid-Ask", `crt:mode:${wid}:bidask`)

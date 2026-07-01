@@ -14,10 +14,14 @@ import {
   tgWatchlistAlert,
   escapeMarkdown,
   tgBold,
+  tgCode,
   tgUsd,
+  formatNum,
 } from "./format.js";
 import { setInputSession } from "./input-store.js";
 import { listWallets } from "../watchlist.js";
+import { createWizard, getWizard } from "./wizard-store.js";
+import { renderStrategyStep, strategyKb } from "./handlers/create.js";
 
 const MD = { parse_mode: "MarkdownV2" as const };
 const STATE_FILE = join(process.cwd(), ".vexis-alerts.json");
@@ -299,8 +303,7 @@ function scheduleWatchlistChecks(
             for (const pool of currentPools) {
               if (!prevAddrs.has(pool.poolAddress)) {
                 const kb = new InlineKeyboard()
-                  .switchInlineCurrent("🚀 Create Position", `/create ${pool.poolAddress}`)
-                  .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
+                  .text("🚀 Create Position", `crt:alert:${pool.poolAddress}`);
                 alerts.push({
                   msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
                     pnl: pool.pnl,
@@ -321,8 +324,7 @@ function scheduleWatchlistChecks(
             // Closed positions
             for (const p of prev.pools) {
               if (!currentAddrs.has(p.poolAddress)) {
-                const kb = new InlineKeyboard()
-                  .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${p.poolAddress}`);
+                const kb = new InlineKeyboard();
                 alerts.push({
                   msg: tgWatchlistAlert("🔴 Position Closed", w.address, p.tokenX, p.tokenY, p.poolAddress, p.openPositionCount, {
                     prevPositionCount: p.openPositionCount,
@@ -335,8 +337,7 @@ function scheduleWatchlistChecks(
             // First time seeing this wallet — treat all as new
             for (const pool of currentPools) {
               const kb = new InlineKeyboard()
-                .switchInlineCurrent("🚀 Create Position", `/create ${pool.poolAddress}`)
-                .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
+                .text("🚀 Create Position", `crt:alert:${pool.poolAddress}`);
               alerts.push({
                 msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
                   pnl: pool.pnl,
@@ -606,6 +607,39 @@ export function registerAlertCommands(
       rt.watchlistTask = null;
       saveState(rt.state);
       await ctx.editMessageText("✅ Watchlist alert disabled", MD);
+    }
+  });
+
+  // ─── crt:alert:<pool> — direct create from watchlist alert ───────────────
+  bot.callbackQuery(/^crt:alert:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const address = ctx.match![1];
+    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+      await ctx.editMessageText("✖ Invalid pool address.", MD);
+      return;
+    }
+    await ctx.editMessageText("⏳ Loading pool...", MD);
+    try {
+      const detail = await client.pool(address);
+      const wid = createWizard({
+        poolAddress: detail.address,
+        poolName: detail.name,
+        binStep: detail.pool_config.bin_step,
+        currentPrice: detail.current_price,
+        tvl: detail.tvl,
+        volume24h: detail.volume["24h"],
+        holders: detail.token_x.holders,
+        baseFeePct: detail.pool_config.base_fee_pct,
+      });
+      await ctx.editMessageText(await renderStrategyStep(wid), {
+        ...MD,
+        reply_markup: strategyKb(wid),
+      });
+    } catch (e) {
+      await ctx.editMessageText(
+        `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        MD,
+      );
     }
   });
 }
