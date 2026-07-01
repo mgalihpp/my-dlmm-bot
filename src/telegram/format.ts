@@ -85,21 +85,50 @@ export function tgPortfolioSummary(total: PortfolioTotal): string {
 /** Open positions list. */
 export function tgOpenPools(pools: OpenPool[]): string {
   if (pools.length === 0) return tgBold("📭 No open positions");
-  const lines = [tgBold("📈 Open Positions"), ""];
-  for (const p of pools) {
-    const range = p.outOfRange ? " ⚠️ out of range" : "";
+
+  const totalBalance = pools.reduce((sum, p) => sum + parseFloat(p.balances || "0"), 0);
+  const totalFees = pools.reduce((sum, p) => sum + parseFloat(p.unclaimedFees || "0"), 0);
+  const totalPnl = pools.reduce((sum, p) => sum + parseFloat(p.pnl || "0"), 0);
+  const totalPositions = pools.reduce((sum, p) => sum + p.openPositionCount, 0);
+
+  const lines = [
+    tgBold(`📈 Open Positions (${pools.length} pools)`) + ` \\| Total: ${tgUsd(totalBalance)}`,
+    "",
+  ];
+
+  pools.forEach((p, i) => {
+    const range = p.outOfRange ? " ⚠️ OOR" : "";
+    const isLast = i === pools.length - 1;
+
     lines.push(
-      `${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
-      `  ${tgPoolAddr(p.poolAddress)}`,
-      `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
-      `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
-      `  Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`,
+      "━".repeat(24),
+      `${escapeMarkdown(`${i + 1}.`)} ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
+      `   ${tgPoolAddr(p.poolAddress)} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
+      "",
+      `   Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
+      `   PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
+      `   Deposit: ${tgUsd(p.totalDeposit)} \\| Fee/TVL: ${escapeMarkdown(p.feePerTvl24h)}`,
+      "",
+      `   Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`,
     );
+
     for (const pos of p.listPositions) {
-      lines.push(`    ${tgCode(pos)}`);
+      const isOor = p.positionsOutOfRange?.includes(pos);
+      const icon = isOor ? "⚠️" : "✅";
+      const oorLabel = isOor ? " OOR" : "";
+      const treeChar = isLast ? "└" : "├";
+      lines.push(`   ${escapeMarkdown(treeChar)} ${icon} ${tgCode(pos)}${escapeMarkdown(oorLabel)}`);
     }
+
     lines.push("");
-  }
+  });
+
+  lines.push(
+    "━".repeat(24),
+    `Total: ${tgUsd(totalBalance)} \\| Fees: ${tgUsd(totalFees)} \\| PnL: ${tgUsd(totalPnl)}`,
+    `Positions: ${escapeMarkdown(String(totalPositions))}`,
+  );
+
   return lines.join("\n");
 }
 
@@ -204,31 +233,78 @@ export function tgPositionAlert(
     listPositions: string[];
     outOfRange: boolean | null;
     prevPnl?: string;
+    prevPnlSol?: string | null;
+    prevBalances?: string;
+    prevFees?: string;
     deposit?: string;
     withdrawal?: string;
+    binStep?: number;
+    baseFee?: string;
+    changes?: string[];
     tokenXAddress?: string;
     tokenYAddress?: string;
   }
 ): string {
-  const range = opts.outOfRange ? " ⚠️ out of range" : "";
+  const changeSummary = opts.changes?.length ? ` — ${opts.changes.join(", ")}` : "";
+  const poolInfo: string[] = [];
+  if (opts.binStep != null) poolInfo.push(`Bin: ${opts.binStep}`);
+  if (opts.baseFee != null) poolInfo.push(`Fee: ${opts.baseFee}%`);
+  const poolInfoStr = poolInfo.length > 0 ? ` \\| ${poolInfo.join(" \\| ")}` : "";
+
   const lines = [
-    tgBold(`${icon} ${tokenX}/${tokenY}`),
-    `Pool: ${tgPoolAddr(poolAddress)}`,
+    tgBold(`${icon} ${tokenX}/${tokenY}${changeSummary}`),
+    `${tgPoolAddr(poolAddress)}${poolInfoStr}`,
   ];
-  if (opts.tokenXAddress) lines.push(`X: ${tgCode(opts.tokenXAddress)}`);
-  if (opts.tokenYAddress) lines.push(`Y: ${tgCode(opts.tokenYAddress)}`);
+
+  // PnL section
   lines.push(
-    `PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| SOL: ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
+    "",
+    tgBold("💰 PnL"),
+    `  USD: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\) \\| ${tgSol(opts.pnlSol)} \\(${tgPct(opts.pnlSolPctChange)}\\)`,
   );
+
+  // Delta PnL
+  if (opts.prevPnl != null) {
+    const deltaUsd = parseFloat(opts.pnl) - parseFloat(opts.prevPnl);
+    const signUsd = deltaUsd >= 0 ? "+" : "";
+    let deltaLine = `  Δ ${signUsd}${formatNum(deltaUsd)}`;
+    if (opts.prevPnlSol != null && opts.pnlSol != null) {
+      const deltaSol = parseFloat(opts.pnlSol) - parseFloat(opts.prevPnlSol);
+      const signSol = deltaSol >= 0 ? "+" : "";
+      deltaLine += ` \\| Δ ◎ ${signSol}${formatNum(deltaSol, 3)}`;
+    }
+    lines.push(deltaLine);
+  }
+
+  // Position section
+  lines.push("", tgBold("📊 Position"));
   if (opts.deposit != null || opts.withdrawal != null) {
-    lines.push(`Deposit: ${tgUsd(opts.deposit ?? "0")} \\| Withdraw: ${tgUsd(opts.withdrawal ?? "0")}`);
+    lines.push(`  Deposit: ${tgUsd(opts.deposit ?? "0")} \\| Withdraw: ${tgUsd(opts.withdrawal ?? "0")}`);
   } else {
-    lines.push(`Balance: ${tgUsd(opts.balances)}`);
+    lines.push(`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees)}`);
   }
-  lines.push(`Fees: ${tgUsd(opts.fees)} \\| Pos: ${escapeMarkdown(String(opts.positions))}${escapeMarkdown(range)}`);
-  for (const pos of opts.listPositions) {
-    lines.push(`${tgCode(pos)}`);
+
+  // Delta balance & fees
+  if (opts.prevBalances != null || opts.prevFees != null) {
+    const deltaParts: string[] = [];
+    if (opts.prevBalances != null) {
+      const deltaBal = parseFloat(opts.balances) - parseFloat(opts.prevBalances);
+      deltaParts.push(`Δ ${deltaBal >= 0 ? "+" : ""}${formatNum(deltaBal)}`);
+    }
+    if (opts.prevFees != null) {
+      const deltaFee = parseFloat(opts.fees) - parseFloat(opts.prevFees);
+      deltaParts.push(`Δ ${deltaFee >= 0 ? "+" : ""}${formatNum(deltaFee)}`);
+    }
+    lines.push(`  ${deltaParts.join(" \\| ")}`);
   }
+
+  lines.push(`  Positions: ${opts.positions} active`);
+
+  // Out of range
+  if (opts.outOfRange) {
+    lines.push("", "⚠️ Out of Range");
+  }
+
   return lines.join("\n");
 }
 

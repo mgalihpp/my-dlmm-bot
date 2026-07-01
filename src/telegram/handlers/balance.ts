@@ -114,8 +114,9 @@ export function registerBalance(bot: Bot, config: VexisConfig) {
     try {
       const arg = (ctx.match as string)?.trim() || undefined;
       const wallet = resolveWallet(arg, config);
-      await ctx.reply("⏳ Fetching balance\\.\\.\\.", MD);
+      const loadingMsg = await ctx.reply("⏳ Fetching balance\\.\\.\\.", MD);
       await showBalance(ctx, wallet);
+      await ctx.api.deleteMessage(loadingMsg.chat.id, loadingMsg.message_id).catch(() => {});
     } catch (e) {
       await replyError(ctx, e);
     }
@@ -131,8 +132,9 @@ export function registerBalance(bot: Bot, config: VexisConfig) {
         return;
       }
       try {
-        await sessionCtx.reply("⏳ Fetching balance\\.\\.\\.", MD);
+        const loadingMsg = await sessionCtx.reply("⏳ Fetching balance\\.\\.\\.", MD);
         await showBalance(sessionCtx, text);
+        await ctx.api.deleteMessage(loadingMsg.chat.id, loadingMsg.message_id).catch(() => {});
       } catch (e) {
         await replyError(sessionCtx, e);
       }

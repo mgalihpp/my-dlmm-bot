@@ -12,7 +12,6 @@ import {
   tgPortfolioSummary,
   tgPositionAlert,
   tgClosedPositionAlert,
-  tgPoolDetail,
   tgWatchlistAlert,
   escapeMarkdown,
   tgBold,
@@ -232,80 +231,36 @@ function schedulePositionChecks(
 
       for (const pool of currentPools) {
         const prev = prevMap.get(pool.poolAddress);
+        const changes: string[] = [];
+        let icon = "📊";
 
         if (!prev) {
-          alerts.push({
-            msg: tgPositionAlert("🆕 New Position", pool.tokenX, pool.tokenY, pool.poolAddress, {
-              pnl: pool.pnl,
-              pnlPctChange: pool.pnlPctChange,
-              pnlSol: pool.pnlSol,
-              pnlSolPctChange: pool.pnlSolPctChange,
-              balances: pool.balances,
-              fees: pool.unclaimedFees,
-              positions: pool.openPositionCount,
-              listPositions: pool.listPositions,
-              outOfRange: pool.outOfRange,
-              tokenXAddress: pool.tokenXMint,
-              tokenYAddress: pool.tokenYMint,
-            }),
-            poolAddr: pool.poolAddress,
-          });
-          continue;
-        }
-
-        // Check per-pool PnL change ≥ 0.5%
-        const curPnl = parseFloat(pool.pnl);
-        const prePnl = parseFloat(prev.pnl);
-        if (prePnl !== 0) {
-          const pnlChange = Math.abs(curPnl - prePnl) / Math.abs(prePnl);
-          if (pnlChange >= PNL_POOL_THRESHOLD) {
-            const dir = curPnl > prePnl ? "📈 PnL Up" : "📉 PnL Down";
-            alerts.push({
-              msg: tgPositionAlert(dir, pool.tokenX, pool.tokenY, pool.poolAddress, {
-                pnl: pool.pnl,
-                pnlPctChange: pool.pnlPctChange,
-                pnlSol: pool.pnlSol,
-                pnlSolPctChange: pool.pnlSolPctChange,
-                balances: pool.balances,
-                fees: pool.unclaimedFees,
-                positions: pool.openPositionCount,
-                listPositions: pool.listPositions,
-                outOfRange: pool.outOfRange,
-                prevPnl: prev.pnl,
-                tokenXAddress: pool.tokenXMint,
-                tokenYAddress: pool.tokenYMint,
-              }),
-              poolAddr: pool.poolAddress,
-            });
-            continue;
+          icon = "🆕";
+          changes.push("New Position");
+        } else {
+          const curPnl = parseFloat(pool.pnl);
+          const prePnl = parseFloat(prev.pnl);
+          if (prePnl !== 0) {
+            const pnlChange = Math.abs(curPnl - prePnl) / Math.abs(prePnl);
+            if (pnlChange >= PNL_POOL_THRESHOLD) {
+              icon = curPnl > prePnl ? "📈" : "📉";
+              changes.push(curPnl > prePnl ? "PnL Up" : "PnL Down");
+            }
           }
-        }
 
-        // Check other changes
-        const changes: string[] = [];
-
-        if (pool.balances !== prev.balances) {
-          changes.push("💰 Balance changed");
-        }
-        if (pool.unclaimedFees !== prev.unclaimedFees) {
-          changes.push("💎 Fees changed");
-        }
-        if (pool.openPositionCount !== prev.openPositionCount) {
-          changes.push(
-            `📋 Positions: ${prev.openPositionCount} → ${pool.openPositionCount}`
-          );
-        }
-        if (pool.outOfRange !== prev.outOfRange) {
-          if (pool.outOfRange) {
-            changes.push("⚠️ Out of range");
-          } else {
-            changes.push("✅ Back in range");
+          if (pool.balances !== prev.balances) changes.push("Balance Changed");
+          if (pool.unclaimedFees !== prev.unclaimedFees) changes.push("Fees Changed");
+          if (pool.openPositionCount !== prev.openPositionCount) {
+            changes.push(`${prev.openPositionCount} → ${pool.openPositionCount} Positions`);
+          }
+          if (pool.outOfRange !== prev.outOfRange) {
+            changes.push(pool.outOfRange ? "⚠️ Out of Range" : "✅ Back in Range");
           }
         }
 
         if (changes.length > 0) {
           alerts.push({
-            msg: tgPositionAlert(changes[0], pool.tokenX, pool.tokenY, pool.poolAddress, {
+            msg: tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
               pnl: pool.pnl,
               pnlPctChange: pool.pnlPctChange,
               pnlSol: pool.pnlSol,
@@ -315,6 +270,13 @@ function schedulePositionChecks(
               positions: pool.openPositionCount,
               listPositions: pool.listPositions,
               outOfRange: pool.outOfRange,
+              prevPnl: prev?.pnl,
+              prevPnlSol: prev?.pnlSol,
+              prevBalances: prev?.balances,
+              prevFees: prev?.unclaimedFees,
+              binStep: pool.binStep,
+              baseFee: String(pool.baseFee),
+              changes,
               tokenXAddress: pool.tokenXMint,
               tokenYAddress: pool.tokenYMint,
             }),
@@ -371,15 +333,8 @@ function schedulePositionChecks(
 
       // Send each alert as a separate message
       for (const alert of alerts) {
-        let msg = alert.msg;
         try {
-          const poolDetail = await client.pool(alert.poolAddr);
-          msg += `\n${tgPoolDetail(poolDetail)}`;
-        } catch {
-          // pool detail fetch failed — send position alert without pool detail
-        }
-        try {
-          await bot.api.sendMessage(chatId, msg, MD);
+          await bot.api.sendMessage(chatId, alert.msg, MD);
         } catch (e) {
           console.error("[alerts] Failed to send alert:", e);
         }
