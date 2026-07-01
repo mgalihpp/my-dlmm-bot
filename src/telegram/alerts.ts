@@ -383,7 +383,7 @@ function scheduleWatchlistChecks(
             for (const pool of currentPools) {
               if (!prevAddrs.has(pool.poolAddress)) {
                 const kb = new InlineKeyboard()
-                  .copyText("📋 Copy Pool Address", pool.poolAddress)
+                  .switchInlineCurrent("🚀 Create Position", `/create ${pool.poolAddress}`)
                   .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
                 alerts.push({
                   msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
@@ -419,7 +419,7 @@ function scheduleWatchlistChecks(
             // First time seeing this wallet — treat all as new
             for (const pool of currentPools) {
               const kb = new InlineKeyboard()
-                .copyText("📋 Copy Pool Address", pool.poolAddress)
+                .switchInlineCurrent("🚀 Create Position", `/create ${pool.poolAddress}`)
                 .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
               alerts.push({
                 msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
