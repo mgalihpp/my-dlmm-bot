@@ -10,8 +10,7 @@ import type { VexisConfig } from "../config.js";
 import { resolveWallet } from "../config.js";
 import {
   tgPortfolioSummary,
-  tgPositionAlert,
-  tgClosedPositionAlert,
+  tgOpenPools,
   tgWatchlistAlert,
   escapeMarkdown,
   tgBold,
@@ -40,17 +39,6 @@ interface PoolSnapshot {
   openPositionCount: number;
   listPositions: string[];
   outOfRange: boolean | null;
-}
-
-interface ClosedPoolLookup {
-  pnl: string;
-  pnlPctChange: string;
-  pnlSol: string;
-  pnlSolPctChange: string;
-  deposit: string;
-  withdrawal: string;
-  fees: string;
-  lastClosedAt: number | null;
 }
 
 interface WalletPoolEntry {
@@ -222,147 +210,46 @@ function schedulePositionChecks(
 
   rt.positionTask = cron.schedule("*/15 * * * *", async () => {
     try {
+      console.log("[position-check] Starting position check at", new Date().toISOString());
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 100);
       const currentPools = res.pools ?? [];
+      console.log("[position-check] API returned", currentPools.length, "pools");
       const prevSnapshots = rt.state.lastOpenSnapshot;
+      console.log("[position-check] Previous snapshot has", prevSnapshots.length, "pools");
       const prevMap = new Map(prevSnapshots.map((s) => [s.poolAddress, s]));
 
-      const newSections: string[] = [];
-      const changedSections: string[] = [];
-
+      // Detect changes vs previous snapshot
+      let newCount = 0, changedCount = 0;
       for (const pool of currentPools) {
         const prev = prevMap.get(pool.poolAddress);
-        const changes: string[] = [];
-        let icon = "📊";
-
-        if (!prev) {
-          icon = "🆕";
-          changes.push("New Position");
-          newSections.push(tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
-            pnl: pool.pnl,
-            pnlPctChange: pool.pnlPctChange,
-            pnlSol: pool.pnlSol,
-            pnlSolPctChange: pool.pnlSolPctChange,
-            balances: pool.balances,
-            fees: pool.unclaimedFees,
-            positions: pool.openPositionCount,
-            listPositions: pool.listPositions,
-            outOfRange: pool.outOfRange,
-            binStep: pool.binStep,
-            baseFee: String(pool.baseFee),
-            changes,
-            tokenXAddress: pool.tokenXMint,
-            tokenYAddress: pool.tokenYMint,
-          }));
-          continue;
-        }
-
+        if (!prev) { newCount++; continue; }
         const curPnl = parseFloat(pool.pnl);
         const prePnl = parseFloat(prev.pnl);
-        if (prePnl !== 0) {
-          const pnlChange = Math.abs(curPnl - prePnl) / Math.abs(prePnl);
-          if (pnlChange >= PNL_POOL_THRESHOLD) {
-            icon = curPnl > prePnl ? "📈" : "📉";
-            changes.push(curPnl > prePnl ? "PnL Up" : "PnL Down");
-          }
-        }
-
-        if (pool.balances !== prev.balances) changes.push("Balance Changed");
-        if (pool.unclaimedFees !== prev.unclaimedFees) changes.push("Fees Changed");
-        if (pool.openPositionCount !== prev.openPositionCount) {
-          changes.push(`${prev.openPositionCount} → ${pool.openPositionCount} Positions`);
-        }
-        if (pool.outOfRange !== prev.outOfRange) {
-          changes.push(pool.outOfRange ? "⚠️ Out of Range" : "✅ Back in Range");
-        }
-
-        if (changes.length > 0) {
-          changedSections.push(tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
-            pnl: pool.pnl,
-            pnlPctChange: pool.pnlPctChange,
-            pnlSol: pool.pnlSol,
-            pnlSolPctChange: pool.pnlSolPctChange,
-            balances: pool.balances,
-            fees: pool.unclaimedFees,
-            positions: pool.openPositionCount,
-            listPositions: pool.listPositions,
-            outOfRange: pool.outOfRange,
-            prevPnl: prev.pnl,
-            prevPnlSol: prev.pnlSol,
-            prevBalances: prev.balances,
-            prevFees: prev.unclaimedFees,
-            binStep: pool.binStep,
-            baseFee: String(pool.baseFee),
-            changes,
-            tokenXAddress: pool.tokenXMint,
-            tokenYAddress: pool.tokenYMint,
-          }));
+        const pnlChanged = prePnl !== 0 && Math.abs(curPnl - prePnl) / Math.abs(prePnl) >= PNL_POOL_THRESHOLD;
+        if (pnlChanged || pool.balances !== prev.balances || pool.unclaimedFees !== prev.unclaimedFees || pool.openPositionCount !== prev.openPositionCount || pool.outOfRange !== prev.outOfRange) {
+          changedCount++;
         }
       }
 
-      // Check for removed pools (closed positions) — fetch real data from Meteora
+      // Detect closed positions
       const currentAddrs = new Set(currentPools.map((p) => p.poolAddress));
-      const closedAddrs = prevSnapshots
-        .filter((s) => !currentAddrs.has(s.poolAddress))
-        .map((s) => s.poolAddress);
-      let closedPoolMap = new Map<string, ClosedPoolLookup>();
-      if (closedAddrs.length > 0) {
-        try {
-          const closedRes = await client.closedPortfolio(wallet, 1, 50);
-          for (const cp of closedRes.pools) {
-            closedPoolMap.set(cp.poolAddress, {
-              pnl: cp.pnlUsd,
-              pnlPctChange: cp.pnlPctChange,
-              pnlSol: cp.pnlSol,
-              pnlSolPctChange: cp.pnlSolPctChange,
-              deposit: cp.totalDeposit,
-              withdrawal: cp.totalWithdrawal,
-              fees: cp.totalFee,
-              lastClosedAt: cp.lastClosedAt,
-            });
-          }
-        } catch {
-          // fall back to snapshot data
-        }
-      }
-      const closedSections: string[] = [];
-      for (const prev of prevSnapshots) {
-        if (!currentAddrs.has(prev.poolAddress)) {
-          const closed = closedPoolMap.get(prev.poolAddress);
-          closedSections.push(tgClosedPositionAlert(prev.tokenX, prev.tokenY, prev.poolAddress, {
-            pnl: closed?.pnl ?? prev.pnl,
-            pnlPctChange: closed?.pnlPctChange ?? prev.pnlPctChange,
-            pnlSol: closed?.pnlSol ?? prev.pnlSol,
-            pnlSolPctChange: closed?.pnlSolPctChange ?? prev.pnlSolPctChange,
-            deposit: closed?.deposit ?? "0",
-            withdrawal: closed?.withdrawal ?? "0",
-            fees: closed?.fees ?? "0",
-            closedAt: closed?.lastClosedAt,
-            tokenXAddress: prev.tokenXMint,
-            tokenYAddress: prev.tokenYMint,
-          }));
-        }
-      }
+      const closedAddrs = prevSnapshots.filter((s) => !currentAddrs.has(s.poolAddress)).map((s) => s.poolAddress);
+      const summaryParts: string[] = [];
+      if (newCount > 0) summaryParts.push(`${escapeMarkdown(String(newCount))} new`);
+      if (changedCount > 0) summaryParts.push(`${escapeMarkdown(String(changedCount))} changed`);
+      if (closedAddrs.length > 0) summaryParts.push(`${escapeMarkdown(String(closedAddrs.length))} closed`);
 
-      // Combine changes into sections, always send if there are open pools
-      const parts: string[] = [];
-      if (newSections.length > 0) parts.push(newSections.join("\n\n"));
-      if (changedSections.length > 0) parts.push(changedSections.join("\n\n"));
-      if (closedSections.length > 0) parts.push(closedSections.join("\n\n"));
       try {
         if (currentPools.length > 0) {
-          const hasChanges = parts.length > 0;
-          if (hasChanges) {
-            await bot.api.sendMessage(chatId, [tgBold("📈 Position Updates"), "", parts.join("\n\n")].join("\n"), MD);
-          } else {
-            const totalBalance = currentPools.reduce((s, p) => s + parseFloat(p.balances || "0"), 0);
-            await bot.api.sendMessage(chatId, [
-              tgBold("📈 Position Updates — No Changes"),
-              "",
-              `Open pools: ${escapeMarkdown(String(currentPools.length))} \\| Balance: ${tgUsd(totalBalance)}`,
-            ].join("\n"), MD);
-          }
+          const header = summaryParts.length > 0
+            ? `📈 Position Updates \\(${summaryParts.join(", ")}\\)`
+            : `📈 Position Updates — No Changes`;
+          const msg = [tgBold(header), "", tgOpenPools(currentPools)].join("\n");
+          console.log("[position-check] Sending position update, new:", newCount, "changed:", changedCount, "closed:", closedAddrs.length);
+          await bot.api.sendMessage(chatId, msg, MD);
+        } else {
+          console.log("[position-check] No open pools found, skipping send");
         }
       } catch (e) {
         console.error("[alerts] Failed to send alert:", e);
@@ -371,6 +258,7 @@ function schedulePositionChecks(
       // Save current snapshot
       rt.state.lastOpenSnapshot = currentPools.map(toSnapshot);
       saveState(rt.state);
+      console.log("[position-check] Snapshot saved with", currentPools.length, "pools");
     } catch (e) {
       console.error("Position alert check failed:", e);
     }

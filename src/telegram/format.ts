@@ -52,9 +52,9 @@ export function tgShortAddr(addr: string): string {
   return tgCode(addr);
 }
 
-/** Escape only `)` and `\` inside MarkdownV2 link URL `(...)` part. */
+/** Escape `(`, `)`, and `\` inside MarkdownV2 link URL `(...)` part. */
 function escapeUrl(url: string): string {
-  return url.replace(/\\/g, "\\\\").replace(/\)/g, "\\)");
+  return url.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
 /** Full pool address as a tappable link to Meteora. */
@@ -247,8 +247,8 @@ export function tgPositionAlert(
 ): string {
   const changeSummary = opts.changes?.length ? ` — ${opts.changes.join(", ")}` : "";
   const poolInfo: string[] = [];
-  if (opts.binStep != null) poolInfo.push(`Bin: ${opts.binStep}`);
-  if (opts.baseFee != null) poolInfo.push(`Fee: ${opts.baseFee}%`);
+  if (opts.binStep != null) poolInfo.push(`Bin: ${escapeMarkdown(String(opts.binStep))}`);
+  if (opts.baseFee != null) poolInfo.push(`Fee: ${escapeMarkdown(opts.baseFee)}%`);
   const poolInfoStr = poolInfo.length > 0 ? ` \\| ${poolInfo.join(" \\| ")}` : "";
 
   const lines = [
@@ -267,11 +267,11 @@ export function tgPositionAlert(
   if (opts.prevPnl != null) {
     const deltaUsd = parseFloat(opts.pnl) - parseFloat(opts.prevPnl);
     const signUsd = deltaUsd >= 0 ? "+" : "";
-    let deltaLine = `  Δ ${signUsd}${formatNum(deltaUsd)}`;
+    let deltaLine = `  Δ ${signUsd}${escapeMarkdown(formatNum(deltaUsd))}`;
     if (opts.prevPnlSol != null && opts.pnlSol != null) {
       const deltaSol = parseFloat(opts.pnlSol) - parseFloat(opts.prevPnlSol);
       const signSol = deltaSol >= 0 ? "+" : "";
-      deltaLine += ` \\| Δ ◎ ${signSol}${formatNum(deltaSol, 3)}`;
+      deltaLine += ` \\| Δ ◎ ${signSol}${escapeMarkdown(formatNum(deltaSol, 3))}`;
     }
     lines.push(deltaLine);
   }
@@ -289,11 +289,11 @@ export function tgPositionAlert(
     const deltaParts: string[] = [];
     if (opts.prevBalances != null) {
       const deltaBal = parseFloat(opts.balances) - parseFloat(opts.prevBalances);
-      deltaParts.push(`Δ ${deltaBal >= 0 ? "+" : ""}${formatNum(deltaBal)}`);
+      deltaParts.push(`Δ ${deltaBal >= 0 ? "+" : ""}${escapeMarkdown(formatNum(deltaBal))}`);
     }
     if (opts.prevFees != null) {
       const deltaFee = parseFloat(opts.fees) - parseFloat(opts.prevFees);
-      deltaParts.push(`Δ ${deltaFee >= 0 ? "+" : ""}${formatNum(deltaFee)}`);
+      deltaParts.push(`Δ ${deltaFee >= 0 ? "+" : ""}${escapeMarkdown(formatNum(deltaFee))}`);
     }
     lines.push(`  ${deltaParts.join(" \\| ")}`);
   }
@@ -425,8 +425,8 @@ export function tgWatchlistAlert(
   }
 ): string {
   const poolInfo: string[] = [];
-  if (opts?.binStep != null) poolInfo.push(`Bin: ${opts.binStep}`);
-  if (opts?.baseFee != null) poolInfo.push(`Fee: ${opts.baseFee}%`);
+  if (opts?.binStep != null) poolInfo.push(`Bin: ${escapeMarkdown(String(opts.binStep))}`);
+  if (opts?.baseFee != null) poolInfo.push(`Fee: ${escapeMarkdown(opts.baseFee)}%`);
   const poolInfoStr = poolInfo.length > 0 ? ` \\| ${poolInfo.join(" \\| ")}` : "";
 
   const lines = [
