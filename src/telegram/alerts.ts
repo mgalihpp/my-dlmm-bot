@@ -227,7 +227,8 @@ function schedulePositionChecks(
       const prevSnapshots = rt.state.lastOpenSnapshot;
       const prevMap = new Map(prevSnapshots.map((s) => [s.poolAddress, s]));
 
-      const alerts: { msg: string; poolAddr: string }[] = [];
+      const newSections: string[] = [];
+      const changedSections: string[] = [];
 
       for (const pool of currentPools) {
         const prev = prevMap.get(pool.poolAddress);
@@ -237,51 +238,65 @@ function schedulePositionChecks(
         if (!prev) {
           icon = "🆕";
           changes.push("New Position");
-        } else {
-          const curPnl = parseFloat(pool.pnl);
-          const prePnl = parseFloat(prev.pnl);
-          if (prePnl !== 0) {
-            const pnlChange = Math.abs(curPnl - prePnl) / Math.abs(prePnl);
-            if (pnlChange >= PNL_POOL_THRESHOLD) {
-              icon = curPnl > prePnl ? "📈" : "📉";
-              changes.push(curPnl > prePnl ? "PnL Up" : "PnL Down");
-            }
-          }
+          newSections.push(tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
+            pnl: pool.pnl,
+            pnlPctChange: pool.pnlPctChange,
+            pnlSol: pool.pnlSol,
+            pnlSolPctChange: pool.pnlSolPctChange,
+            balances: pool.balances,
+            fees: pool.unclaimedFees,
+            positions: pool.openPositionCount,
+            listPositions: pool.listPositions,
+            outOfRange: pool.outOfRange,
+            binStep: pool.binStep,
+            baseFee: String(pool.baseFee),
+            changes,
+            tokenXAddress: pool.tokenXMint,
+            tokenYAddress: pool.tokenYMint,
+          }));
+          continue;
+        }
 
-          if (pool.balances !== prev.balances) changes.push("Balance Changed");
-          if (pool.unclaimedFees !== prev.unclaimedFees) changes.push("Fees Changed");
-          if (pool.openPositionCount !== prev.openPositionCount) {
-            changes.push(`${prev.openPositionCount} → ${pool.openPositionCount} Positions`);
-          }
-          if (pool.outOfRange !== prev.outOfRange) {
-            changes.push(pool.outOfRange ? "⚠️ Out of Range" : "✅ Back in Range");
+        const curPnl = parseFloat(pool.pnl);
+        const prePnl = parseFloat(prev.pnl);
+        if (prePnl !== 0) {
+          const pnlChange = Math.abs(curPnl - prePnl) / Math.abs(prePnl);
+          if (pnlChange >= PNL_POOL_THRESHOLD) {
+            icon = curPnl > prePnl ? "📈" : "📉";
+            changes.push(curPnl > prePnl ? "PnL Up" : "PnL Down");
           }
         }
 
+        if (pool.balances !== prev.balances) changes.push("Balance Changed");
+        if (pool.unclaimedFees !== prev.unclaimedFees) changes.push("Fees Changed");
+        if (pool.openPositionCount !== prev.openPositionCount) {
+          changes.push(`${prev.openPositionCount} → ${pool.openPositionCount} Positions`);
+        }
+        if (pool.outOfRange !== prev.outOfRange) {
+          changes.push(pool.outOfRange ? "⚠️ Out of Range" : "✅ Back in Range");
+        }
+
         if (changes.length > 0) {
-          alerts.push({
-            msg: tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
-              pnl: pool.pnl,
-              pnlPctChange: pool.pnlPctChange,
-              pnlSol: pool.pnlSol,
-              pnlSolPctChange: pool.pnlSolPctChange,
-              balances: pool.balances,
-              fees: pool.unclaimedFees,
-              positions: pool.openPositionCount,
-              listPositions: pool.listPositions,
-              outOfRange: pool.outOfRange,
-              prevPnl: prev?.pnl,
-              prevPnlSol: prev?.pnlSol,
-              prevBalances: prev?.balances,
-              prevFees: prev?.unclaimedFees,
-              binStep: pool.binStep,
-              baseFee: String(pool.baseFee),
-              changes,
-              tokenXAddress: pool.tokenXMint,
-              tokenYAddress: pool.tokenYMint,
-            }),
-            poolAddr: pool.poolAddress,
-          });
+          changedSections.push(tgPositionAlert(icon, pool.tokenX, pool.tokenY, pool.poolAddress, {
+            pnl: pool.pnl,
+            pnlPctChange: pool.pnlPctChange,
+            pnlSol: pool.pnlSol,
+            pnlSolPctChange: pool.pnlSolPctChange,
+            balances: pool.balances,
+            fees: pool.unclaimedFees,
+            positions: pool.openPositionCount,
+            listPositions: pool.listPositions,
+            outOfRange: pool.outOfRange,
+            prevPnl: prev.pnl,
+            prevPnlSol: prev.pnlSol,
+            prevBalances: prev.balances,
+            prevFees: prev.unclaimedFees,
+            binStep: pool.binStep,
+            baseFee: String(pool.baseFee),
+            changes,
+            tokenXAddress: pool.tokenXMint,
+            tokenYAddress: pool.tokenYMint,
+          }));
         }
       }
 
@@ -310,31 +325,33 @@ function schedulePositionChecks(
           // fall back to snapshot data
         }
       }
+      const closedSections: string[] = [];
       for (const prev of prevSnapshots) {
         if (!currentAddrs.has(prev.poolAddress)) {
           const closed = closedPoolMap.get(prev.poolAddress);
-          alerts.push({
-            msg: tgClosedPositionAlert(prev.tokenX, prev.tokenY, prev.poolAddress, {
-              pnl: closed?.pnl ?? prev.pnl,
-              pnlPctChange: closed?.pnlPctChange ?? prev.pnlPctChange,
-              pnlSol: closed?.pnlSol ?? prev.pnlSol,
-              pnlSolPctChange: closed?.pnlSolPctChange ?? prev.pnlSolPctChange,
-              deposit: closed?.deposit ?? "0",
-              withdrawal: closed?.withdrawal ?? "0",
-              fees: closed?.fees ?? "0",
-              closedAt: closed?.lastClosedAt,
-              tokenXAddress: prev.tokenXMint,
-              tokenYAddress: prev.tokenYMint,
-            }),
-            poolAddr: prev.poolAddress,
-          });
+          closedSections.push(tgClosedPositionAlert(prev.tokenX, prev.tokenY, prev.poolAddress, {
+            pnl: closed?.pnl ?? prev.pnl,
+            pnlPctChange: closed?.pnlPctChange ?? prev.pnlPctChange,
+            pnlSol: closed?.pnlSol ?? prev.pnlSol,
+            pnlSolPctChange: closed?.pnlSolPctChange ?? prev.pnlSolPctChange,
+            deposit: closed?.deposit ?? "0",
+            withdrawal: closed?.withdrawal ?? "0",
+            fees: closed?.fees ?? "0",
+            closedAt: closed?.lastClosedAt,
+            tokenXAddress: prev.tokenXMint,
+            tokenYAddress: prev.tokenYMint,
+          }));
         }
       }
 
-      // Send each alert as a separate message
-      for (const alert of alerts) {
+      // Combine into ONE message
+      const parts: string[] = [];
+      if (newSections.length > 0) parts.push(newSections.join("\n\n"));
+      if (changedSections.length > 0) parts.push(changedSections.join("\n\n"));
+      if (closedSections.length > 0) parts.push(closedSections.join("\n\n"));
+      if (parts.length > 0) {
         try {
-          await bot.api.sendMessage(chatId, alert.msg, MD);
+          await bot.api.sendMessage(chatId, [tgBold("📈 Position Updates"), "", parts.join("\n\n")].join("\n"), MD);
         } catch (e) {
           console.error("[alerts] Failed to send alert:", e);
         }
