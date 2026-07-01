@@ -92,7 +92,7 @@ export function tgOpenPools(pools: OpenPool[]): string {
   const totalPositions = pools.reduce((sum, p) => sum + p.openPositionCount, 0);
 
   const lines = [
-    tgBold(`📈 Open Positions (${pools.length} pools)`) + ` \\| Total: ${tgUsd(totalBalance)}`,
+    tgBold(`📈 Open Positions (${pools.length})`) + ` \\| Total: ${tgUsd(totalBalance)}`,
     "",
   ];
 
