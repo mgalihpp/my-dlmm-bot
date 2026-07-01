@@ -367,7 +367,7 @@ function scheduleWatchlistChecks(
 
       const prevAll = rt.state.watchlistSnapshot;
       const prevMap = new Map(prevAll.map((w) => [w.walletAddress, w]));
-      const alerts: string[] = [];
+      const alerts: { msg: string; keyboard?: InlineKeyboard }[] = [];
 
       for (const w of wallets) {
         try {
@@ -382,20 +382,59 @@ function scheduleWatchlistChecks(
             // New positions
             for (const pool of currentPools) {
               if (!prevAddrs.has(pool.poolAddress)) {
-                alerts.push(tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount));
+                const kb = new InlineKeyboard()
+                  .copyText("📋 Copy Pool Address", pool.poolAddress)
+                  .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
+                alerts.push({
+                  msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
+                    pnl: pool.pnl,
+                    pnlPctChange: pool.pnlPctChange,
+                    pnlSol: pool.pnlSol,
+                    pnlSolPctChange: pool.pnlSolPctChange,
+                    balances: pool.balances,
+                    fees: pool.unclaimedFees,
+                    binStep: pool.binStep,
+                    baseFee: String(pool.baseFee),
+                    outOfRange: pool.outOfRange,
+                  }),
+                  keyboard: kb,
+                });
               }
             }
 
             // Closed positions
             for (const p of prev.pools) {
               if (!currentAddrs.has(p.poolAddress)) {
-                alerts.push(tgWatchlistAlert("🔴 Position Closed", w.address, p.tokenX, p.tokenY, p.poolAddress, p.openPositionCount));
+                const kb = new InlineKeyboard()
+                  .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${p.poolAddress}`);
+                alerts.push({
+                  msg: tgWatchlistAlert("🔴 Position Closed", w.address, p.tokenX, p.tokenY, p.poolAddress, p.openPositionCount, {
+                    prevPositionCount: p.openPositionCount,
+                  }),
+                  keyboard: kb,
+                });
               }
             }
           } else {
             // First time seeing this wallet — treat all as new
             for (const pool of currentPools) {
-              alerts.push(tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount));
+              const kb = new InlineKeyboard()
+                .copyText("📋 Copy Pool Address", pool.poolAddress)
+                .url("🔗 Meteora", `https://app.meteora.ag/dlmm/${pool.poolAddress}`);
+              alerts.push({
+                msg: tgWatchlistAlert("🆕 New Position", w.address, pool.tokenX, pool.tokenY, pool.poolAddress, pool.openPositionCount, {
+                  pnl: pool.pnl,
+                  pnlPctChange: pool.pnlPctChange,
+                  pnlSol: pool.pnlSol,
+                  pnlSolPctChange: pool.pnlSolPctChange,
+                  balances: pool.balances,
+                  fees: pool.unclaimedFees,
+                  binStep: pool.binStep,
+                  baseFee: String(pool.baseFee),
+                  outOfRange: pool.outOfRange,
+                }),
+                keyboard: kb,
+              });
             }
           }
         } catch {
@@ -404,9 +443,12 @@ function scheduleWatchlistChecks(
       }
 
       // Send each watchlist alert as a separate message
-      for (const msg of alerts) {
+      for (const alert of alerts) {
         try {
-          await bot.api.sendMessage(chatId, msg, MD);
+          await bot.api.sendMessage(chatId, alert.msg, {
+            ...MD,
+            reply_markup: alert.keyboard,
+          });
         } catch (e) {
           console.error("[alerts] Failed to send watchlist alert:", e);
         }

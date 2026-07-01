@@ -367,8 +367,10 @@ export function tgWatchedList(wallets: WatchedWallet[]): string {
 }
 
 export function tgMultiWalletPositions(results: WalletPositions[]): string {
+  if (results.length === 0) return tgBold("📭 No watched wallets");
   const lines = [tgBold("👁️ All Watched Positions"), ""];
   let totalPositions = 0;
+  let totalPnl = 0;
   for (const r of results) {
     const label = r.wallet.label
       ? ` \\(${escapeMarkdown(r.wallet.label)}\\)`
@@ -381,19 +383,23 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
     } else {
       for (const p of r.pools) {
         totalPositions += p.openPositionCount;
-        const range = p.outOfRange ? " ⚠️" : "";
+        totalPnl += parseFloat(p.pnl || "0");
+        const range = p.outOfRange ? " ⚠️ OOR" : "";
         lines.push(
           `  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
+          `  ${tgPoolAddr(p.poolAddress)} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
           `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
-          `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| SOL: ${tgSol(p.pnlSol)}`,
-          `  Pos: ${escapeMarkdown(String(p.openPositionCount))}`,
-          `  Pool: ${tgPoolAddr(p.poolAddress)}`,
+          `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
+          `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
         );
       }
     }
     lines.push("");
   }
-  lines.push(escapeMarkdown(`Total: ${totalPositions} positions across ${results.length} wallets`));
+  lines.push(
+    "━".repeat(24),
+    `Total: ${escapeMarkdown(String(totalPositions))} positions across ${escapeMarkdown(String(results.length))} wallets \\| PnL: ${tgUsd(totalPnl)}`,
+  );
   return lines.join("\n");
 }
 
@@ -405,13 +411,45 @@ export function tgWatchlistAlert(
   tokenY: string,
   poolAddress: string,
   positionCount: number,
+  opts?: {
+    pnl?: string;
+    pnlPctChange?: string;
+    pnlSol?: string | null;
+    pnlSolPctChange?: string | null;
+    balances?: string;
+    fees?: string;
+    binStep?: number;
+    baseFee?: string;
+    outOfRange?: boolean | null;
+    prevPositionCount?: number;
+  }
 ): string {
+  const poolInfo: string[] = [];
+  if (opts?.binStep != null) poolInfo.push(`Bin: ${opts.binStep}`);
+  if (opts?.baseFee != null) poolInfo.push(`Fee: ${opts.baseFee}%`);
+  const poolInfoStr = poolInfo.length > 0 ? ` \\| ${poolInfo.join(" \\| ")}` : "";
+
   const lines = [
     tgBold(`${icon} ${tokenX}/${tokenY}`),
-    `  Wallet: ${tgCode(walletAddress)}`,
-    `  Pool: ${tgPoolAddr(poolAddress)}`,
-    `  Positions: ${escapeMarkdown(String(positionCount))}`,
+    `Wallet: ${tgCode(walletAddress)}`,
+    `${tgPoolAddr(poolAddress)}${poolInfoStr}`,
   ];
+
+  if (opts?.pnl != null) {
+    lines.push("", tgBold("📊 Position"));
+    if (opts.balances != null) lines.push(`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees ?? "0")}`);
+    lines.push(`  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange ?? null)}\\) \\| ${tgSol(opts.pnlSol ?? null)} \\(${tgPct(opts.pnlSolPctChange ?? null)}\\)`);
+    lines.push(`  Positions: ${positionCount} active`);
+    if (opts.outOfRange) lines.push("", "⚠️ Out of Range");
+  } else {
+    lines.push("", tgBold("📊 Summary"));
+    if (opts?.prevPositionCount != null && opts.prevPositionCount !== positionCount) {
+      lines.push(`  Positions: ${opts.prevPositionCount} → ${positionCount}`);
+    } else {
+      lines.push(`  Positions: ${positionCount}`);
+    }
+  }
+
   return lines.join("\n");
 }
 
