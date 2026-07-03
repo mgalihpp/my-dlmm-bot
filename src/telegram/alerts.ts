@@ -611,14 +611,14 @@ export function registerAlertCommands(
 
   // ─── crt:alert:<pool> — direct create from watchlist alert ───────────────
   bot.callbackQuery(/^crt:alert:(.+)$/, async (ctx) => {
-    await ctx.answerCallbackQuery();
-    const address = ctx.match![1];
-    if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
-      await ctx.editMessageText("✖ Invalid pool address.", MD);
-      return;
-    }
-    await ctx.editMessageText("⏳ Loading pool...", MD);
     try {
+      await ctx.answerCallbackQuery();
+      const address = ctx.match![1];
+      if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+        await ctx.editMessageText("✖ Invalid pool address\\.", MD);
+        return;
+      }
+      await ctx.editMessageText("⏳ Loading pool\\.\\.\\.", MD);
       const detail = await client.pool(address);
       const wid = createWizard({
         poolAddress: detail.address,
@@ -638,7 +638,9 @@ export function registerAlertCommands(
       await ctx.editMessageText(
         `✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
         MD,
-      );
+      ).catch(() => {
+        console.error("[alerts] crt:alert failed:", e);
+      });
     }
   });
 }
