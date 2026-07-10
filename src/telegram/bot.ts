@@ -11,6 +11,7 @@ import { registerWatchlist } from "./handlers/watchlist.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
 import { registerBalance } from "./handlers/balance.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
+import { createTpSl, registerTpSlCommands } from "./tpsl.js";
 import { registerMenu } from "./menu.js";
 import { getInputSession, deleteInputSession } from "./input-store.js";
 import { escapeMarkdown, tgBold } from "./format.js";
@@ -99,6 +100,8 @@ async function main() {
   if (chatId) {
     const rt = createAlerts(bot, client, config, chatId);
     registerAlertCommands(bot, client, config, chatId, rt);
+    const tpslRt = createTpSl(bot, client, config, chatId);
+    registerTpSlCommands(bot, client, config, chatId, tpslRt);
   }
 
   bot.catch((err) => {
@@ -109,6 +112,7 @@ async function main() {
     { command: "start", description: "Start the bot / show all commands" },
     { command: "menu", description: "Open menu" },
     { command: "manage", description: "Position manager" },
+    { command: "tpsl", description: "Show global stop-loss / take-profit thresholds" },
     { command: "create", description: "Create a DLMM position (guided wizard)" },
     { command: "balance", description: "SOL & token balances" },
     { command: "portfolio", description: "Total PnL summary" },

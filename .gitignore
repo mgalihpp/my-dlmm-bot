@@ -11,3 +11,6 @@ vexis.config.json
 
 # watchlist state (per-machine runtime state)
 .vexis-watchlist.json
+
+# stop-loss / take-profit rules (per-machine runtime state)
+.vexis-tpsl.json

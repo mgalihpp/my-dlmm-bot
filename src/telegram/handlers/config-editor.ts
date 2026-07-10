@@ -9,6 +9,8 @@ const EDITABLE_FIELDS = [
   { key: "wallet", label: "Wallet", type: "string" as const },
   { key: "rpcUrl", label: "RPC URL", type: "string" as const },
   { key: "dev", label: "Dev Mode", type: "boolean" as const },
+  { key: "stopLossPct", label: "Stop Loss %", type: "number" as const },
+  { key: "takeProfitPct", label: "Take Profit %", type: "number" as const },
   { key: "pools.timeframe", label: "Timeframe", type: "string" as const },
   { key: "pools.category", label: "Category", type: "string" as const },
   { key: "pools.pageSize", label: "Page Size", type: "number" as const },

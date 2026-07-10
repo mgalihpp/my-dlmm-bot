@@ -25,6 +25,12 @@ export interface VexisConfig {
   telegramChatId?: string;
   /** Periodic portfolio alert interval in hours (0 = off). */
   alertInterval?: number;
+  /** Global stop-loss threshold on PnL % (SOL). Alerts when any open position's
+   *  PnL % ≤ this value. null/undefined = off. e.g. -10 */
+  stopLossPct?: number | null;
+  /** Global take-profit threshold on PnL % (SOL). Alerts when any open position's
+   *  PnL % ≥ this value. null/undefined = off. e.g. 25 */
+  takeProfitPct?: number | null;
   /** Pool screening and display config. */
   pools?: {
     /** Page size for API requests (default: 50). */

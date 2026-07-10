@@ -7,6 +7,8 @@
   "telegramBotToken": "123456:ABC-your-bot-token-from-BotFather",
   "telegramChatId": "your-numeric-chat-id",
   "alertInterval": 0,
+  "stopLossPct": -10,
+  "takeProfitPct": 25,
   "pools": {
     "pageSize": 50,
     "timeframe": "30m",
