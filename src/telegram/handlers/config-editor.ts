@@ -96,6 +96,10 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
     `  RPC: ${tgCode(formatValue("rpcUrl", config))}`,
     `  Dev: ${formatValue("dev", config)}`,
     "",
+    tgBold("Risk (TP/SL)"),
+    `  Stop Loss %: ${tgCode(formatValue("stopLossPct", config))}`,
+    `  Take Profit %: ${tgCode(formatValue("takeProfitPct", config))}`,
+    "",
     tgBold("Screening"),
   ];
   const pools = config.pools ?? {};
@@ -122,6 +126,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
       .row()
       .text("✏️ Page Size", "cfg:set:pools.pageSize")
       .text("✏️ Display Limit", "cfg:set:pools.displayLimit")
+      .row()
+      .text("✏️ Stop Loss %", "cfg:set:stopLossPct")
+      .text("✏️ Take Profit %", "cfg:set:takeProfitPct")
       .row()
       .text("MC/Holders »", "cfg:page:2");
   }
@@ -193,7 +200,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 }
 
 function pageForKey(key: string): number {
-  const page1 = new Set(["wallet", "rpcUrl", "dev", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
+  const page1 = new Set(["wallet", "rpcUrl", "dev", "stopLossPct", "takeProfitPct", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
   const page2 = new Set(["pools.minMcap", "pools.maxMcap", "pools.minHolders", "pools.maxHolders"]);
   const page3 = new Set(["pools.minTvl", "pools.maxTvl", "pools.minVolume", "pools.maxVolume", "pools.minFee", "pools.maxFee", "pools.minFeeActiveTvlRatio", "pools.maxFeeActiveTvlRatio"]);
   const page4 = new Set(["pools.minBinStep", "pools.maxBinStep", "pools.minOrganic", "pools.maxOrganic", "pools.minQuoteOrganic", "pools.maxQuoteOrganic", "pools.solPairOnly", "pools.baseTokenHasHighSupplyConcentration"]);
