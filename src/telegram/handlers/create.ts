@@ -144,7 +144,7 @@ export function registerCreate(
     await ctx.editMessageText("⏳ Loading your pools\\.\\.\\.", MD);
     try {
       const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 50);
+      const res = await client.openPortfolioWithLivePnl(wallet, 1, 50);
       if (res.pools.length === 0) {
         await ctx.editMessageText(
           "No open positions\\. Choose Trending instead\\.",

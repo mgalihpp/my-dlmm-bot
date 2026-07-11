@@ -46,7 +46,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.editMessageText("⏳ Loading positions\\.\\.\\.", MD);
     try {
       const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 10);
+      const res = await client.openPortfolioWithLivePnl(wallet, 1, 10);
       const text = tgOpenPools(res.pools);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
@@ -128,7 +128,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
-          const res = await client.openPortfolio(w.address, 1, 10);
+          const res = await client.openPortfolioWithLivePnl(w.address, 1, 10);
           results.push({ wallet: w, pools: res.pools ?? [] });
         } catch {
           results.push({ wallet: w, pools: [] });

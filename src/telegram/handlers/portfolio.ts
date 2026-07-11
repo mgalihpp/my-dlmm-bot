@@ -27,7 +27,7 @@ export function registerPortfolio(
   bot.command("open", async (ctx: Context) => {
     try {
       const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 10);
+      const res = await client.openPortfolioWithLivePnl(wallet, 1, 10);
       await ctx.reply(tgOpenPools(res.pools), MD);
     } catch (e) {
       await replyError(ctx, e);

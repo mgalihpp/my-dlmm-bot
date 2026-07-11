@@ -97,6 +97,8 @@ export interface OpenPool {
   positionsOutOfRange: string[];
   outOfRange: boolean | null;
   poolPrice: number;
+  poolStateUpdatedAtBlockTime?: number | null;
+  poolStateUpdatedAtSlot?: number | null;
 }
 
 export interface OpenPortfolioResponse {
@@ -301,11 +303,23 @@ export interface PositionPnLData {
   allTimeDeposits: TokenPairTotal;
   allTimeWithdrawals: TokenPairTotal;
   allTimeFees: TokenPairTotal;
+  unrealizedPnl?: UnrealizedPnl | null;
   closedAt: number | null;
   createdAt: number | null;
   isOutOfRange: boolean | null;
   poolActiveBinId: number | null;
   poolActivePrice: string | null;
+}
+
+export interface UnrealizedPnl {
+  balances: number;
+  balancesSol: string | null;
+  balanceTokenX: TokenAmount;
+  balanceTokenY: TokenAmount;
+  unclaimedFeeTokenX: TokenAmount;
+  unclaimedFeeTokenY: TokenAmount;
+  unclaimedRewardTokenX: TokenAmount;
+  unclaimedRewardTokenY: TokenAmount;
 }
 
 export interface TokenPairTotal {

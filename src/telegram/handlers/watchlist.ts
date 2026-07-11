@@ -140,7 +140,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
-          const res = await client.openPortfolio(w.address, 1, 10);
+          const res = await client.openPortfolioWithLivePnl(w.address, 1, 10);
           results.push({ wallet: w, pools: res.pools });
         } catch {
           results.push({ wallet: w, pools: [] });
@@ -166,7 +166,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         for (const addr of parts) {
           const w = { address: addr, addedAt: "" };
           try {
-            const res = await client.openPortfolio(addr, 1, 10);
+            const res = await client.openPortfolioWithLivePnl(addr, 1, 10);
             results.push({ wallet: w, pools: res.pools });
           } catch {
             results.push({ wallet: w, pools: [] });
@@ -191,7 +191,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         for (const addr of addrs) {
           const w = { address: addr, addedAt: "" };
           try {
-            const res = await client.openPortfolio(addr, 1, 10);
+            const res = await client.openPortfolioWithLivePnl(addr, 1, 10);
             results.push({ wallet: w, pools: res.pools });
           } catch {
             results.push({ wallet: w, pools: [] });
