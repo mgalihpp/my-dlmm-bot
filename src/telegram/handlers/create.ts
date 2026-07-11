@@ -326,7 +326,7 @@ export function registerCreate(
     ].join("\n");
 
     const kb = new InlineKeyboard()
-      .text(`🎯 Default (${escapeMarkdown(def.label)})`, `crt:default:${wid}`)
+      .text(`🎯 Default (${def.label})`, `crt:default:${wid}`)
       .row();
     WIDE_PRESETS.forEach(({ label }, i) => {
       kb.text(label, `crt:wide:${wid}:${i}`).row();
