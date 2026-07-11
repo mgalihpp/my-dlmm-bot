@@ -23,7 +23,7 @@ import { listWallets } from "../watchlist.js";
 import { createWizard, getWizard } from "./wizard-store.js";
 import { renderStrategyStep, strategyKb } from "./handlers/create.js";
 
-const MD = { parse_mode: "MarkdownV2" as const };
+const MD = { parse_mode: "MarkdownV2" as const, link_preview_options: { is_disabled: true } };
 const STATE_FILE = join(process.cwd(), ".vexis-alerts.json");
 const PNL_DROP_THRESHOLD = 0.1; // 10% portfolio PnL drop
 const PNL_POOL_THRESHOLD = 0.005; // 0.5% per-pool PnL change
