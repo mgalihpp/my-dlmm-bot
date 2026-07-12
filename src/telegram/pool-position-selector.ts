@@ -29,7 +29,7 @@ export async function fetchOpenPools(
     c = new MeteoraClient({ dev: config.dev });
   }
   const wallet = resolveWallet(undefined, config);
-  const res = await c.openPortfolioWithLivePnl(wallet, 1, 50);
+  const res = await c.openPortfolio(wallet, 1, 50);
   return res.pools;
 }
 
@@ -140,7 +140,7 @@ export async function resolvePoolDetail(
       c = new MeteoraClient({ dev: config.dev });
     }
     const wallet = resolveWallet(undefined, config);
-    const res = await c.openPortfolioWithLivePnl(wallet, 1, 50);
+    const res = await c.openPortfolio(wallet, 1, 50);
     const pool = res.pools.find((p) => p.poolAddress === poolAddr);
     if (!pool) return null;
     return {

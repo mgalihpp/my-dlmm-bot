@@ -216,7 +216,7 @@ function schedulePositionChecks(
     try {
       console.log("[position-check] Starting position check at", new Date().toISOString());
       const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolioWithLivePnl(wallet, 1, 100);
+      const res = await client.openPortfolio(wallet, 1, 100);
       const currentPools = res.pools ?? [];
       console.log("[position-check] API returned", currentPools.length, "pools");
       const prevSnapshots = rt.state.lastOpenSnapshot;
@@ -290,7 +290,7 @@ function scheduleWatchlistChecks(
 
       for (const w of wallets) {
         try {
-          const res = await client.openPortfolioWithLivePnl(w.address, 1, 100);
+          const res = await client.openPortfolio(w.address, 1, 100);
           const currentPools = res.pools ?? [];
           const currentAddrs = new Set(currentPools.map((p) => p.poolAddress));
           const prev = prevMap.get(w.address);
