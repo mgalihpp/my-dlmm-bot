@@ -97,7 +97,6 @@ export class MeteoraClient {
     });
   }
 
-  /** Enrich pool-level PnL with per-position aggregated PnL for accuracy. */
   async enrichOpenPortfolioPnl(
     pools: OpenPool[],
     wallet: string,
@@ -105,38 +104,22 @@ export class MeteoraClient {
     const enriched = pools.map(p => ({ ...p }));
 
     await Promise.allSettled(
-      enriched.map(async (pool) => {
-        try {
-          const originalPnlPctChange = pool.pnlPctChange;
-          const originalPnlSolPctChange = pool.pnlSolPctChange;
-          const res = await this.positionPnl(pool.poolAddress, wallet, "open");
-          if (res.positions.length === 0) return;
-
-          let totalPnlUsd = 0, totalDepositsUsd = 0;
-          let totalPnlSol = 0, totalDepositsSol = 0;
-
-          for (const pos of res.positions) {
-            totalPnlUsd += parseFloat(pos.pnlUsd || "0");
-            totalDepositsUsd += parseFloat(pos.allTimeDeposits.total.usd || "0");
-            totalPnlSol += pos.pnlSol ?? 0;
-            totalDepositsSol += parseFloat(pos.allTimeDeposits.total.sol ?? "0");
+      enriched
+        .filter((pool) => pool.openPositionCount > 1)
+        .map(async (pool) => {
+          try {
+            const res = await this.positionPnl(pool.poolAddress, wallet, "open");
+            pool.positionsPnl = res.positions.map((pos) => ({
+              address: pos.positionAddress,
+              pnlUsd: pos.pnlUsd,
+              pnlPctChange: pos.pnlPctChange,
+              pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
+              pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
+            }));
+          } catch {
+            // ignore
           }
-
-          pool.pnl = String(totalPnlUsd);
-          pool.pnlSol = String(totalPnlSol);
-          pool.pnlPctChange = originalPnlPctChange;
-          pool.pnlSolPctChange = originalPnlSolPctChange;
-          pool.positionsPnl = res.positions.map((pos) => ({
-            address: pos.positionAddress,
-            pnlUsd: pos.pnlUsd,
-            pnlPctChange: pos.pnlPctChange,
-            pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
-            pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
-          }));
-        } catch {
-          // keep original pool-level PnL if position fetch fails
-        }
-      })
+        })
     );
 
     return enriched;
