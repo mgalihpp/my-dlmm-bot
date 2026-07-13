@@ -7,7 +7,7 @@ import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../api.js";
 import type { VexisConfig } from "../config.js";
-import { resolveWallet } from "../config.js";
+import { resolveWallet, resolveRpc } from "../config.js";
 import {
   tgPortfolioSummary,
   tgOpenPools,
@@ -218,6 +218,8 @@ function schedulePositionChecks(
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 100);
       const currentPools = await client.enrichOpenPortfolioPnl(res.pools ?? [], wallet);
+      const { attachLivePositions } = await import("../dlmm.js");
+      await attachLivePositions(currentPools, resolveRpc(config), wallet);
       console.log("[position-check] API returned", currentPools.length, "pools");
       const prevSnapshots = rt.state.lastOpenSnapshot;
       console.log("[position-check] Previous snapshot has", prevSnapshots.length, "pools");
@@ -284,6 +286,7 @@ function scheduleWatchlistChecks(
       const wallets = listWallets();
       if (wallets.length === 0) return;
 
+      const { attachLivePositions } = await import("../dlmm.js");
       const prevAll = rt.state.watchlistSnapshot;
       const prevMap = new Map(prevAll.map((w) => [w.walletAddress, w]));
       const alerts: { msg: string; keyboard?: InlineKeyboard }[] = [];
@@ -292,6 +295,7 @@ function scheduleWatchlistChecks(
         try {
           const res = await client.openPortfolio(w.address, 1, 100);
           const currentPools = res.pools ?? [];
+          await attachLivePositions(currentPools, resolveRpc(config), w.address);
           const currentAddrs = new Set(currentPools.map((p) => p.poolAddress));
           const prev = prevMap.get(w.address);
 
@@ -348,6 +352,9 @@ function scheduleWatchlistChecks(
                   binStep: pool.binStep,
                   baseFee: String(pool.baseFee),
                   outOfRange: pool.outOfRange,
+                  listPositions: pool.listPositions,
+                  positionsOutOfRange: pool.positionsOutOfRange,
+                  positionsLive: pool.positionsLive,
                 }),
                 keyboard: kb,
               });

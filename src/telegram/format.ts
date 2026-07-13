@@ -7,6 +7,7 @@ import type {
   OpenPool,
   ClosedPool,
   DlmmPool,
+  PositionLiveEntry,
 } from "../types.js";
 import type { WatchedWallet } from "../watchlist.js";
 import type { ScreenResult } from "../screening.js";
@@ -420,6 +421,9 @@ export function tgWatchlistAlert(
     baseFee?: string;
     outOfRange?: boolean | null;
     prevPositionCount?: number;
+    listPositions?: string[];
+    positionsOutOfRange?: string[];
+    positionsLive?: PositionLiveEntry[];
   }
 ): string {
   const poolInfo: string[] = [];
@@ -437,7 +441,21 @@ export function tgWatchlistAlert(
     lines.push("", tgBold("📊 Position"));
     if (opts.balances != null) lines.push(`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees ?? "0")}`);
     lines.push(`  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange ?? null)}\\) \\| ${tgSol(opts.pnlSol ?? null)} \\(${tgPct(opts.pnlSolPctChange ?? null)}\\)`);
-    lines.push(`  Positions: ${positionCount} active`);
+    if (opts.listPositions?.length) {
+      lines.push(`  Positions \\(${escapeMarkdown(String(positionCount))}\\):`);
+      opts.listPositions.forEach((pos, idx) => {
+        const isOor = opts.positionsOutOfRange?.includes(pos);
+        const treeChar = idx === opts.listPositions!.length - 1 ? "└" : "├";
+        lines.push(`  ${escapeMarkdown(treeChar)} ${isOor ? "⚠️" : "✅"} ${tgCode(pos)}${isOor ? escapeMarkdown(" OOR") : ""}`);
+        const live = opts.positionsLive?.find((e) => e.address === pos);
+        if (live) {
+          lines.push(`     ${escapeMarkdown(`${live.amountX} ${tokenX} + ${live.amountY} ${tokenY}`)}`);
+          lines.push(`     Fees: ${escapeMarkdown(`${live.feeX} ${tokenX} + ${live.feeY} ${tokenY}`)}`);
+        }
+      });
+    } else {
+      lines.push(`  Positions: ${positionCount} active`);
+    }
     if (opts.outOfRange) lines.push("", "⚠️ Out of Range");
   } else {
     lines.push("", tgBold("📊 Summary"));
