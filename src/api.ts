@@ -107,6 +107,8 @@ export class MeteoraClient {
     await Promise.allSettled(
       enriched.map(async (pool) => {
         try {
+          const originalPnlPctChange = pool.pnlPctChange;
+          const originalPnlSolPctChange = pool.pnlSolPctChange;
           const res = await this.positionPnl(pool.poolAddress, wallet, "open");
           if (res.positions.length === 0) return;
 
@@ -121,9 +123,9 @@ export class MeteoraClient {
           }
 
           pool.pnl = String(totalPnlUsd);
-          pool.pnlPctChange = totalDepositsUsd > 0 ? String((totalPnlUsd / totalDepositsUsd) * 100) : "0";
           pool.pnlSol = String(totalPnlSol);
-          pool.pnlSolPctChange = totalDepositsSol > 0 ? String((totalPnlSol / totalDepositsSol) * 100) : "0";
+          pool.pnlPctChange = originalPnlPctChange;
+          pool.pnlSolPctChange = originalPnlSolPctChange;
         } catch {
           // keep original pool-level PnL if position fetch fails
         }
