@@ -18,6 +18,11 @@ export interface WizardState {
   minPct?: number;
   maxPct?: number;
   isPctMode?: boolean;
+  // Amounts picked via buttons (two-sided fills x then y).
+  xAmount?: string;
+  yAmount?: string;
+  // Auto-swap: total SOL budget to split across both sides.
+  swapBudget?: number;
 }
 
 interface Entry {

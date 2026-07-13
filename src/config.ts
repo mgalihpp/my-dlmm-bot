@@ -31,6 +31,33 @@ export interface VexisConfig {
   /** Global take-profit threshold on PnL % (SOL). Alerts when any open position's
    *  PnL % ≥ this value. null/undefined = off. e.g. 25 */
   takeProfitPct?: number | null;
+  /** Default preset for /create — powers the ⚡ Quick button and amount presets. */
+  create?: {
+    /** Default strategy. Default: "spot". */
+    strategy?: "spot" | "bidask" | "curve";
+    /** Default side/mode. Default: "two-sided". */
+    mode?: "two-sided" | "single-x" | "single-y";
+    /** Default range. type "default" uses the built-in bins for the mode. */
+    range?: {
+      type: "default" | "bin" | "pct";
+      /** Relative bin ids (type "bin"), e.g. minBin -35, maxBin 34. */
+      minBin?: number;
+      maxBin?: number;
+      /** Percent vs current price (type "pct"), as human percent e.g. -50, 0. */
+      minPct?: number;
+      maxPct?: number;
+    };
+    /** Tap-to-pick amount buttons for the primary side, e.g. [0.1, 0.25, 0.5, 1]. */
+    amountPresets?: number[];
+    /** Optional default X (base/meme) amount — enables one-tap Quick for two-sided. */
+    xAmount?: number;
+    /** Optional default Y (SOL/stable) amount — enables one-tap Quick. */
+    yAmount?: number;
+    /** Enable the ⚡🔄 Quick+Swap button: swap SOL→tokenX then deposit two-sided. */
+    autoSwap?: boolean;
+    /** Slippage tolerance for the auto-swap, in basis points (default 100 = 1%). */
+    slippageBps?: number;
+  };
   /** Pool screening and display config. */
   pools?: {
     /** Page size for API requests (default: 50). */
@@ -167,4 +194,39 @@ export function resolveBotToken(config: VexisConfig): string {
 /** Get authorized chat ID: env TELEGRAM_CHAT_ID → config.telegramChatId. */
 export function resolveChatId(config: VexisConfig): string | undefined {
   return process.env.TELEGRAM_CHAT_ID || config.telegramChatId;
+}
+
+export interface CreatePreset {
+  strategy: "spot" | "bidask" | "curve";
+  mode: "two-sided" | "single-x" | "single-y";
+  range: {
+    type: "default" | "bin" | "pct";
+    minBin?: number;
+    maxBin?: number;
+    minPct?: number;
+    maxPct?: number;
+  };
+  amountPresets: number[];
+  xAmount?: number;
+  yAmount?: number;
+  autoSwap: boolean;
+  slippageBps: number;
+}
+
+/** Resolve the /create preset, filling defaults for any missing field. */
+export function resolveCreatePreset(config: VexisConfig): CreatePreset {
+  const c = config.create ?? {};
+  return {
+    strategy: c.strategy ?? "spot",
+    mode: c.mode ?? "two-sided",
+    range: c.range ?? { type: "default" },
+    amountPresets:
+      c.amountPresets && c.amountPresets.length > 0
+        ? c.amountPresets
+        : [0.1, 0.25, 0.5, 1],
+    xAmount: c.xAmount,
+    yAmount: c.yAmount,
+    autoSwap: c.autoSwap ?? false,
+    slippageBps: c.slippageBps ?? 100,
+  };
 }

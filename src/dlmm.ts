@@ -51,6 +51,59 @@ export class DLMMClient {
     return dlmm.getPosition(posPubkey);
   }
 
+  /**
+   * Resolve a range to absolute bin ids and report the active bin + token
+   * metadata — without sending any transaction. Used by the auto-swap flow to
+   * size the SOL→tokenX swap before creating the position.
+   */
+  async previewRange(params: {
+    poolAddress: string;
+    minBinId?: number;
+    maxBinId?: number;
+    relativeBins?: boolean;
+    minPct?: number;
+    maxPct?: number;
+  }): Promise<{
+    activeBinId: number;
+    minBinId: number;
+    maxBinId: number;
+    binStep: number;
+    tokenXMint: string;
+    tokenYMint: string;
+    decimalsX: number;
+    decimalsY: number;
+  }> {
+    const dlmm = await this.getDlmm(params.poolAddress);
+    const activeBin = await dlmm.getActiveBin();
+    const activeBinId = activeBin.binId;
+    const binStep = dlmm.lbPair.binStep;
+
+    let minBinId: number;
+    let maxBinId: number;
+    if (params.minPct != null && params.maxPct != null) {
+      minBinId = activeBinId + pctToBinOffset(params.minPct, binStep);
+      maxBinId = activeBinId + pctToBinOffset(params.maxPct, binStep);
+    } else if (params.minBinId != null && params.maxBinId != null) {
+      const offset = params.relativeBins ? activeBinId : 0;
+      minBinId = params.minBinId + offset;
+      maxBinId = params.maxBinId + offset;
+    } else {
+      throw new Error("Provide one of: minPct/maxPct, or minBinId/maxBinId");
+    }
+    if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
+
+    return {
+      activeBinId,
+      minBinId,
+      maxBinId,
+      binStep,
+      tokenXMint: dlmm.tokenX.mint.address.toString(),
+      tokenYMint: dlmm.tokenY.mint.address.toString(),
+      decimalsX: dlmm.tokenX.mint.decimals,
+      decimalsY: dlmm.tokenY.mint.decimals,
+    };
+  }
+
   async createPosition(
     params: CreatePositionParams,
   ): Promise<CreatePositionResult> {
@@ -397,6 +450,43 @@ function pctToBinOffset(pct: number, binStep: number): number {
   if (pct <= -1) throw new Error("Percentage must be greater than -100%");
   if (pct === 0) return 0;
   return Math.round(Math.log(1 + pct) / Math.log(1 + binStep / 10000));
+}
+
+/**
+ * Compute the value-split fractions {fX, fY} for a two-sided position, based on
+ * how the range sits around the active bin. fX is the share of budget that
+ * should become token X (bins above the active price), fY the share kept as Y
+ * (bins at/below active). Strategy weights the distribution:
+ *   - spot   : uniform, so fraction ∝ bin count on each side
+ *   - curve  : concentrated near active → sides closer to 50/50
+ *   - bidask : concentrated at edges → amplifies the wider side
+ * Returns fractions in [0,1] summing to 1. Falls back to 50/50 when degenerate.
+ */
+export function computeStrategySplit(
+  activeBinId: number,
+  minBinId: number,
+  maxBinId: number,
+  strategy: VexisStrategyType,
+): { fX: number; fY: number } {
+  const binsAbove = Math.max(0, maxBinId - activeBinId); // → token X
+  const binsBelow = Math.max(0, activeBinId - minBinId); // → token Y (SOL)
+  const span = binsAbove + binsBelow;
+  if (span === 0) return { fX: 0.5, fY: 0.5 };
+
+  let wAbove = binsAbove;
+  let wBelow = binsBelow;
+  if (strategy === "curve") {
+    // Pull toward center (dampen the wider side).
+    wAbove = Math.sqrt(binsAbove);
+    wBelow = Math.sqrt(binsBelow);
+  } else if (strategy === "bidask") {
+    // Push toward edges (amplify the wider side).
+    wAbove = binsAbove * binsAbove;
+    wBelow = binsBelow * binsBelow;
+  }
+  const wSpan = wAbove + wBelow;
+  if (wSpan === 0) return { fX: 0.5, fY: 0.5 };
+  return { fX: wAbove / wSpan, fY: wBelow / wSpan };
 }
 
 /** Convert a human amount (e.g. "0.12671") to atomic units as BN. */

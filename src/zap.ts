@@ -190,6 +190,43 @@ export class ZapClient {
     return { transactions, outputMint, closeSig, zapSig };
   }
 
+  /**
+   * Swap an exact amount of `inputMint` into `outputMint` and return how much
+   * of the output token actually landed in the wallet (atomic units), measured
+   * by balance delta. Used by the /create auto-swap-in flow (SOL → token X).
+   *
+   * For native SOL as input, pass the wrapped-SOL mint; Jupiter handles wrap.
+   */
+  async swapExactIn(
+    inputMint: string,
+    outputMint: string,
+    amount: BN,
+    slippageBps?: number,
+  ): Promise<{ signature: string; received: BN; outputMint: string }> {
+    const inPk = new PublicKey(inputMint);
+    const outPk = new PublicKey(outputMint);
+    if (inPk.equals(outPk)) {
+      return { signature: "", received: amount, outputMint };
+    }
+    if (amount.lten(0)) {
+      return { signature: "", received: new BN(0), outputMint };
+    }
+
+    const balBefore = await this.getWalletTokenBalance(outPk);
+    const signature = await this.jupiterUltraSwap(inPk, outPk, amount, slippageBps);
+    // Settle before reading delta ("confirmed" is enough — see zap-out notes).
+    if (signature) await this.connection.confirmTransaction(signature, "confirmed");
+    const balAfter = await this.getWalletTokenBalance(outPk);
+    const received = balAfter.sub(balBefore);
+    return { signature, received: received.ltn(0) ? new BN(0) : received, outputMint };
+  }
+
+  /** Native SOL balance in lamports (BN). */
+  async getSolBalance(): Promise<BN> {
+    const lamports = await this.connection.getBalance(this.keypair.publicKey);
+    return new BN(lamports);
+  }
+
   // ─── Private helpers ───────────────────────────────────────────────────────
 
   /**
@@ -226,21 +263,25 @@ export class ZapClient {
   private async jupiterUltraSwap(
     mint: PublicKey,
     outputMint: PublicKey,
-    amount: BN
+    amount: BN,
+    slippageBps?: number
   ): Promise<string> {
     const maxAttempts = 4;
     let lastErr: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt++) {
       try {
         // 1) Get order — Jupiter returns a ready-to-sign base64 v0 transaction.
+        const orderParams: Record<string, string> = {
+          inputMint: mint.toBase58(),
+          outputMint: outputMint.toBase58(),
+          amount: amount.toString(),
+          taker: this.keypair.publicKey.toBase58(),
+        };
+        // When set, cap slippage; otherwise Jupiter uses dynamic slippage.
+        if (slippageBps != null) orderParams.slippageBps = String(slippageBps);
         const orderUrl =
           `${this.jupiterApiUrl}/swap/v2/order?` +
-          new URLSearchParams({
-            inputMint: mint.toBase58(),
-            outputMint: outputMint.toBase58(),
-            amount: amount.toString(),
-            taker: this.keypair.publicKey.toBase58(),
-          }).toString();
+          new URLSearchParams(orderParams).toString();
         const orderRes = await fetch(orderUrl, {
           headers: { "x-api-key": this.jupiterApiKey, Accept: "application/json" },
         });

@@ -9,6 +9,16 @@
   "alertInterval": 0,
   "stopLossPct": -10,
   "takeProfitPct": 25,
+  "create": {
+    "strategy": "biask",
+    "mode": "single-sided",
+    "range": { "type": "default" },
+    "amountPresets": [0.1, 0.25, 0.5, 1],
+    "yAmount": null,
+    "xAmount": null,
+    "autoSwap": true,
+    "slippageBps": 100
+  },
   "pools": {
     "pageSize": 50,
     "timeframe": "30m",

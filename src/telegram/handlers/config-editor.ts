@@ -6,6 +6,19 @@ import { MD } from "../utils.js";
 
 /** Config fields that can be edited via Telegram. */
 const EDITABLE_FIELDS = [
+  // ── Create / Quick preset ──
+  { key: "create.strategy", label: "Strategy", type: "enum" as const, values: ["spot", "bidask", "curve"] },
+  { key: "create.mode", label: "Mode", type: "enum" as const, values: ["two-sided", "single-x", "single-y"] },
+  { key: "create.range.type", label: "Range Type", type: "enum" as const, values: ["default", "bin", "pct"] },
+  { key: "create.range.minBin", label: "Range Min Bin", type: "number" as const },
+  { key: "create.range.maxBin", label: "Range Max Bin", type: "number" as const },
+  { key: "create.range.minPct", label: "Range Min %", type: "number" as const },
+  { key: "create.range.maxPct", label: "Range Max %", type: "number" as const },
+  { key: "create.amountPresets", label: "Amount Presets", type: "list" as const },
+  { key: "create.slippageBps", label: "Slippage (bps)", type: "number" as const },
+  { key: "create.xAmount", label: "Default X Amt", type: "number" as const },
+  { key: "create.yAmount", label: "Default Y Amt", type: "number" as const },
+  // ── General ──
   { key: "wallet", label: "Wallet", type: "string" as const },
   { key: "rpcUrl", label: "RPC URL", type: "string" as const },
   { key: "dev", label: "Dev Mode", type: "boolean" as const },
@@ -76,6 +89,7 @@ function setNestedValue(obj: any, path: string, value: any): void {
 function formatValue(key: string, config: VexisConfig): string {
   const val = getNestedValue(config, key);
   if (val === undefined || val === null) return "(default)";
+  if (Array.isArray(val)) return val.length ? val.join(", ") : "(empty)";
   if (typeof val === "boolean") return val ? "ON" : "OFF";
   if (key === "wallet" && typeof val === "string") {
     return val.length > 20 ? val.slice(0, 8) + "..." + val.slice(-8) : val;
@@ -99,6 +113,14 @@ function buildConfigText(config: VexisConfig, configPath: string | null): string
     tgBold("Risk (TP/SL)"),
     `  Stop Loss %: ${tgCode(formatValue("stopLossPct", config))}`,
     `  Take Profit %: ${tgCode(formatValue("takeProfitPct", config))}`,
+    "",
+    tgBold("Create (⚡ Quick)"),
+    `  Strategy: ${tgCode(formatValue("create.strategy", config))}`,
+    `  Mode: ${tgCode(formatValue("create.mode", config))}`,
+    `  Range Type: ${tgCode(formatValue("create.range.type", config))}`,
+    `  Amount Presets: ${tgCode(formatValue("create.amountPresets", config))}`,
+    `  Auto\\-Swap: ${formatValue("create.autoSwap", config)}`,
+    `  Slippage \\(bps\\): ${tgCode(formatValue("create.slippageBps", config))}`,
     "",
     tgBold("Screening"),
   ];
@@ -130,7 +152,31 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
       .text("✏️ Stop Loss %", "cfg:set:stopLossPct")
       .text("✏️ Take Profit %", "cfg:set:takeProfitPct")
       .row()
+      .text("⚡ Create »", "cfg:page:6")
       .text("MC/Holders »", "cfg:page:2");
+  }
+  if (page === 6) {
+    return new InlineKeyboard()
+      .text("✏️ Strategy", "cfg:set:create.strategy")
+      .text("✏️ Mode", "cfg:set:create.mode")
+      .row()
+      .text("✏️ Range Type", "cfg:set:create.range.type")
+      .row()
+      .text("✏️ Min Bin", "cfg:set:create.range.minBin")
+      .text("✏️ Max Bin", "cfg:set:create.range.maxBin")
+      .row()
+      .text("✏️ Min %", "cfg:set:create.range.minPct")
+      .text("✏️ Max %", "cfg:set:create.range.maxPct")
+      .row()
+      .text("✏️ Amount Presets", "cfg:set:create.amountPresets")
+      .row()
+      .text("🔄 Auto-Swap", "cfg:toggle:create.autoSwap")
+      .text("✏️ Slippage", "cfg:set:create.slippageBps")
+      .row()
+      .text("✏️ Default X", "cfg:set:create.xAmount")
+      .text("✏️ Default Y", "cfg:set:create.yAmount")
+      .row()
+      .text("« General", "cfg:page:1");
   }
   if (page === 2) {
     return new InlineKeyboard()
@@ -200,6 +246,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 }
 
 function pageForKey(key: string): number {
+  if (key.startsWith("create.")) return 6;
   const page1 = new Set(["wallet", "rpcUrl", "dev", "stopLossPct", "takeProfitPct", "pools.timeframe", "pools.category", "pools.pageSize", "pools.displayLimit"]);
   const page2 = new Set(["pools.minMcap", "pools.maxMcap", "pools.minHolders", "pools.maxHolders"]);
   const page3 = new Set(["pools.minTvl", "pools.maxTvl", "pools.minVolume", "pools.maxVolume", "pools.minFee", "pools.maxFee", "pools.minFeeActiveTvlRatio", "pools.maxFeeActiveTvlRatio"]);
@@ -211,8 +258,11 @@ function pageForKey(key: string): number {
   return 5;
 }
 
-/** Pending edits: chatId → { field, key, type, page } */
-const pendingEdits = new Map<string, { field: string; key: string; type: string; page: number }>();
+/** Pending edits: chatId → { field, key, type, page, values? } */
+const pendingEdits = new Map<
+  string,
+  { field: string; key: string; type: string; page: number; values?: readonly string[] }
+>();
 
 export function registerConfigEditor(
   bot: Bot,
@@ -236,9 +286,21 @@ export function registerConfigEditor(
     }
     const current = formatValue(field, config);
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-    pendingEdits.set(chatId, { field: editable.label, key: editable.key, type: editable.type, page: pageForKey(editable.key) });
+    pendingEdits.set(chatId, {
+      field: editable.label,
+      key: editable.key,
+      type: editable.type,
+      page: pageForKey(editable.key),
+      values: "values" in editable ? editable.values : undefined,
+    });
 
-    const typeHint = editable.type === "number" ? " \\(number\\)" : editable.type === "boolean" ? " \\(on/off\\)" : "";
+    let typeHint = "";
+    if (editable.type === "number") typeHint = " \\(number\\)";
+    else if (editable.type === "boolean") typeHint = " \\(on/off\\)";
+    else if (editable.type === "list") typeHint = " \\(comma\\-separated numbers, e\\.g\\. 0\\.1, 0\\.25, 0\\.5, 1\\)";
+    else if (editable.type === "enum" && "values" in editable) {
+      typeHint = ` \\(one of: ${escapeMarkdown((editable.values as readonly string[]).join(", "))}\\)`;
+    }
     await ctx.editMessageText(
       `${tgBold(`✏️ Edit ${editable.label}`)}\n\nCurrent: ${tgCode(current)}\n\nSend new value${typeHint}:`,
       MD,
@@ -288,8 +350,14 @@ export function registerConfigEditor(
       return;
     }
 
+    // "null" / "default" / empty resets the field regardless of type.
+    const isReset =
+      raw.toLowerCase() === "null" || raw.toLowerCase() === "default" || raw === "";
+
     let value: any;
-    if (pending.type === "boolean") {
+    if (isReset) {
+      value = null;
+    } else if (pending.type === "boolean") {
       const lower = raw.toLowerCase();
       if (!["on", "off", "true", "false", "1", "0"].includes(lower)) {
         await ctx.reply("Send on/off\\.", MD);
@@ -302,13 +370,28 @@ export function registerConfigEditor(
         await ctx.reply("Send a valid number\\.", MD);
         return;
       }
+    } else if (pending.type === "enum") {
+      const lower = raw.toLowerCase();
+      if (pending.values && !pending.values.includes(lower)) {
+        await ctx.reply(
+          `Send one of: ${escapeMarkdown(pending.values.join(", "))}\\.`,
+          MD,
+        );
+        return;
+      }
+      value = lower;
+    } else if (pending.type === "list") {
+      const parts = raw.split(",").map((s) => Number(s.trim()));
+      if (parts.some((n) => !Number.isFinite(n) || n <= 0)) {
+        await ctx.reply(
+          "Send comma\\-separated positive numbers \\(e\\.g\\. 0\\.1, 0\\.25, 0\\.5, 1\\)\\.",
+          MD,
+        );
+        return;
+      }
+      value = parts;
     } else {
       value = raw;
-    }
-
-    // Handle "null" / "default" to reset
-    if (raw.toLowerCase() === "null" || raw.toLowerCase() === "default" || raw === "") {
-      value = null;
     }
 
     setNestedValue(config, pending.key, value);

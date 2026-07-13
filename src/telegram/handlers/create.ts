@@ -1,7 +1,12 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../../api.js";
-import type { VexisConfig } from "../../config.js";
-import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
+import type { VexisConfig, CreatePreset } from "../../config.js";
+import {
+  resolveKeypair,
+  resolveRpc,
+  resolveWallet,
+  resolveCreatePreset,
+} from "../../config.js";
 import {
   escapeMarkdown,
   tgBold,
@@ -24,11 +29,14 @@ import {
 } from "../wizard-store.js";
 import type { StrategyType } from "../../types.js";
 
+const WSOL_MINT = "So11111111111111111111111111111111111111112";
+const FEE_BUFFER_LAMPORTS = 20_000_000; // ~0.02 SOL reserved for tx fees/rent
+
 const DEFAULT_BINS: Record<
   string,
   { minBin: number; maxBin: number; label: string }
 > = {
-  "two-sided": { minBin: -33, maxBin: 34, label: "-33+34 bins" },
+  "two-sided": { minBin: -35, maxBin: 34, label: "-35+34 bins" },
   "single-x": { minBin: 0, maxBin: 69, label: "0+70 bins (above price)" },
   "single-y": { minBin: -69, maxBin: 0, label: "-70+0 bins (below price)" },
 };
@@ -40,6 +48,18 @@ const WIDE_PRESETS = [
   { label: "-60% → 0%", minPct: -0.6, maxPct: 0 },
   { label: "-50% → 0%", minPct: -0.5, maxPct: 0 },
 ] as const;
+
+// Module-level preset, set on registerCreate and reused by helpers
+// (renderStrategyStep/strategyKb are also imported by alerts.ts).
+// Live config reference, set on registerCreate. The preset is resolved fresh on
+// every read via the PRESET getter so /config edits take effect immediately —
+// no bot restart needed.
+let PRESET_CONFIG: VexisConfig = {};
+const PRESET: CreatePreset = new Proxy({} as CreatePreset, {
+  get(_t, prop) {
+    return (resolveCreatePreset(PRESET_CONFIG) as any)[prop];
+  },
+});
 
 let DLMMClientCtor: any = null;
 async function lazyDLMM() {
@@ -55,6 +75,8 @@ export function registerCreate(
   client: MeteoraClient,
   config: VexisConfig,
 ) {
+  PRESET_CONFIG = config;
+
   // ─── Entry: /create without args ────────────────────────────────────────
   bot.command("create", async (ctx, next) => {
     const args = (ctx.match as string).trim();
@@ -272,6 +294,79 @@ export function registerCreate(
     });
   });
 
+  // ─── crt:quick:<wid> — one-tap: apply preset & skip to amounts/confirm ───
+  bot.callbackQuery(/^crt:quick:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    updateWizard(wid, { strategy: PRESET.strategy, mode: PRESET.mode });
+    applyPresetRange(wid);
+
+    // If preset carries default amounts, skip straight to confirm.
+    const mode = PRESET.mode;
+    const px = PRESET.xAmount != null ? String(PRESET.xAmount) : null;
+    const py = PRESET.yAmount != null ? String(PRESET.yAmount) : null;
+    if (mode === "single-x" && px) {
+      return await confirmAndExecute(ctx, wid, px, "0");
+    }
+    if (mode === "single-y" && py) {
+      return await confirmAndExecute(ctx, wid, "0", py);
+    }
+    if (mode === "two-sided" && px && py) {
+      return await confirmAndExecute(ctx, wid, px, py);
+    }
+    await promptAmounts(ctx, wid);
+  });
+
+  // ─── crt:swap:<wid> — Quick+Swap: apply preset (two-sided) → pick budget ─
+  bot.callbackQuery(/^crt:swap:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    // Auto-swap always builds a two-sided position from a single SOL budget.
+    updateWizard(wid, { strategy: PRESET.strategy, mode: "two-sided" });
+    applyPresetRange(wid);
+    await promptSwapBudget(ctx, wid);
+  });
+
+  // ─── crt:swapbudget:<wid>:<idx|c> — SOL budget chosen for auto-swap ──────
+  bot.callbackQuery(/^crt:swapbudget:([^:]+):(\d+|c)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const pick = ctx.match![2];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+
+    if (pick === "c") {
+      const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+      setInputSession(chatId, async (text, sessionCtx) => {
+        const val = parseFloat(text);
+        if (Number.isNaN(val) || val <= 0) {
+          await sessionCtx.reply("✖ Invalid amount\\. Send SOL budget \\(e\\.g\\. 0\\.5\\):", MD);
+          return;
+        }
+        await showSwapConfirm(sessionCtx, wid, val);
+      });
+      await ctx.editMessageText("✏️ Send *SOL budget* \\(total to deposit, e\\.g\\. 0\\.5\\):", MD);
+      return;
+    }
+    const budget = PRESET.amountPresets[parseInt(pick, 10)];
+    if (budget == null) return await expired(ctx);
+    await showSwapConfirm(ctx, wid, budget);
+  });
+
+  // ─── crt:swapgo:<wid>:<budget> — execute swap + create ──────────────────
+  bot.callbackQuery(/^crt:swapgo:([^:]+):(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const budget = parseFloat(ctx.match![2]);
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+    await executeSwapAndCreate(ctx, wid, budget, config);
+  });
+
   // ─── crt:mode:<wid>:<strategy> — pick side ──────────────────────────────
   bot.callbackQuery(/^crt:mode:([^:]+):(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -475,6 +570,24 @@ export function registerCreate(
     );
   });
 
+  // ─── crt:amt:<wid>:<side>:<idx|c> — amount picked via button ─────────────
+  bot.callbackQuery(/^crt:amt:([^:]+):([xy]):(\d+|c)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const wid = ctx.match![1];
+    const side = ctx.match![2] as "x" | "y";
+    const pick = ctx.match![3];
+    const state = getWizard(wid);
+    if (!state) return await expired(ctx);
+
+    if (pick === "c") {
+      await promptCustomAmount(ctx, wid, side);
+      return;
+    }
+    const amt = PRESET.amountPresets[parseInt(pick, 10)];
+    if (amt == null) return await expired(ctx);
+    await onAmountPicked(ctx, wid, side, String(amt));
+  });
+
   // ─── crt:execute — execute create position ───────────────────────────────
   bot.callbackQuery(/^crt:execute:([^:]+):(.+):(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
@@ -546,91 +659,392 @@ export function registerCreate(
 
 // ─── Amount prompt & execution ───────────────────────────────────────────────
 
+/** Build an amount-picker keyboard from the preset presets, plus Custom. */
+function amountKb(wid: string, side: "x" | "y"): InlineKeyboard {
+  const kb = new InlineKeyboard();
+  const presets = PRESET.amountPresets;
+  presets.forEach((amt, i) => {
+    kb.text(String(amt), `crt:amt:${wid}:${side}:${i}`);
+    // 3 per row for tidy layout
+    if ((i + 1) % 3 === 0) kb.row();
+  });
+  if (presets.length % 3 !== 0) kb.row();
+  return kb.text("✏️ Custom", `crt:amt:${wid}:${side}:c`);
+}
+
 async function promptAmounts(ctx: Context, wid: string) {
-  const chatId = String(ctx.chat?.id ?? ctx.from?.id);
   const state = getWizard(wid);
   if (!state) return;
 
   const mode = state.mode ?? "two-sided";
   const poolName = state.poolName;
 
-  if (mode === "single-y") {
-    setInputSession(chatId, async (yAmtText, sessionCtx) => {
-      const yAmt = parseFloat(yAmtText);
-      if (Number.isNaN(yAmt) || yAmt <= 0) {
-        await sessionCtx.reply(
-          "✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):",
-          MD,
-        );
-        return;
-      }
-      await confirmAndExecute(sessionCtx, wid, "0", yAmtText);
-    });
-    await ctx.editMessageText(
-      [
-        tgBold(`📋 ${escapeMarkdown(poolName)}`),
-        `Mode: single\\-sided Y \\(SOL/stable\\)`,
-        "",
-        "✏️ Send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):",
-      ].join("\n"),
-      MD,
-    );
-  } else if (mode === "single-x") {
-    setInputSession(chatId, async (xAmtText, sessionCtx) => {
-      const xAmt = parseFloat(xAmtText);
-      if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await sessionCtx.reply(
-          "✖ Invalid amount\\. Send X amount \\(meme token\\):",
-          MD,
-        );
-        return;
-      }
-      await confirmAndExecute(sessionCtx, wid, xAmtText, "0");
-    });
-    await ctx.editMessageText(
-      [
-        tgBold(`📋 ${escapeMarkdown(poolName)}`),
-        `Mode: single\\-sided X \\(meme\\)`,
-        "",
-        "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):",
-      ].join("\n"),
-      MD,
-    );
+  // Primary side to ask first: single-y asks Y, otherwise X.
+  const side: "x" | "y" = mode === "single-y" ? "y" : "x";
+  const label =
+    side === "y"
+      ? "*Y amount* \\(SOL/stable\\)"
+      : "*X amount* \\(meme token\\)";
+  const modeLabel =
+    mode === "single-x"
+      ? "single\\-sided X \\(meme\\)"
+      : mode === "single-y"
+        ? "single\\-sided Y \\(SOL/stable\\)"
+        : "two\\-sided";
+
+  await ctx.editMessageText(
+    [
+      tgBold(`📋 ${escapeMarkdown(poolName)}`),
+      `Mode: ${modeLabel}`,
+      "",
+      `👇 Tap ${label} or Custom:`,
+    ].join("\n"),
+    { ...MD, reply_markup: amountKb(wid, side) },
+  );
+}
+
+/** Prompt free-text entry for one side's amount (Custom fallback). */
+function promptCustomAmount(ctx: Context, wid: string, side: "x" | "y") {
+  const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+  const word = side === "y" ? "Y amount \\(SOL/stable\\)" : "X amount \\(meme token\\)";
+  setInputSession(chatId, async (text, sessionCtx) => {
+    const val = parseFloat(text);
+    if (Number.isNaN(val) || val <= 0) {
+      await sessionCtx.reply(`✖ Invalid amount\\. Send ${word}:`, MD);
+      return;
+    }
+    await onAmountPicked(sessionCtx, wid, side, text);
+  });
+  return ctx.editMessageText(`✏️ Send ${word}:`, MD);
+}
+
+/**
+ * Handle a chosen amount for a side. For two-sided X, advance to Y.
+ * Otherwise finalize and go to confirm.
+ */
+async function onAmountPicked(
+  ctx: Context,
+  wid: string,
+  side: "x" | "y",
+  value: string,
+) {
+  const state = getWizard(wid);
+  if (!state) {
+    await ctx.reply("⌛ Session expired\\. Run /create again\\.", MD);
+    return;
+  }
+  const mode = state.mode ?? "two-sided";
+
+  if (mode === "single-x") return await confirmAndExecute(ctx, wid, value, "0");
+  if (mode === "single-y") return await confirmAndExecute(ctx, wid, "0", value);
+
+  // two-sided: X first, then Y
+  if (side === "x") {
+    updateWizard(wid, { xAmount: value });
+    const text = [
+      tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
+      `Mode: two\\-sided \\| X: ${escapeMarkdown(value)}`,
+      "",
+      "👇 Tap *Y amount* \\(SOL/stable\\) or Custom:",
+    ].join("\n");
+    const opts = { ...MD, reply_markup: amountKb(wid, "y") };
+    // Edit when we came from a button; reply when from a typed message.
+    if (ctx.callbackQuery) {
+      await ctx.editMessageText(text, opts);
+    } else {
+      await ctx.reply(text, opts);
+    }
   } else {
-    setInputSession(chatId, async (xAmtText, sessionCtxX) => {
-      const xAmt = parseFloat(xAmtText);
-      if (Number.isNaN(xAmt) || xAmt <= 0) {
-        await sessionCtxX.reply(
-          "✖ Invalid amount\\. Send X amount \\(meme token\\):",
-          MD,
-        );
-        return;
-      }
-      setInputSession(chatId, async (yAmtText, sessionCtxY) => {
-        const yAmt = parseFloat(yAmtText);
-        if (Number.isNaN(yAmt) || yAmt <= 0) {
-          await sessionCtxY.reply(
-            "✖ Invalid amount\\. Send Y amount \\(SOL/stable\\):",
-            MD,
-          );
-          return;
-        }
-        await confirmAndExecute(sessionCtxY, wid, xAmtText, yAmtText);
-      });
-      await sessionCtxX.reply(
-        `✅ X: ${escapeMarkdown(xAmtText)}\n\nNow send *Y amount* \\(SOL/stable, e\\.g\\. 0\\.5\\):`,
+    await confirmAndExecute(ctx, wid, state.xAmount ?? "0", value);
+  }
+}
+
+// ─── Auto-swap (Quick+Swap) helpers ──────────────────────────────────────────
+
+/** Show SOL-budget picker for the auto-swap flow. */
+async function promptSwapBudget(ctx: Context, wid: string) {
+  const state = getWizard(wid);
+  if (!state) return;
+  const kb = new InlineKeyboard();
+  PRESET.amountPresets.forEach((amt, i) => {
+    kb.text(`${amt} ◎`, `crt:swapbudget:${wid}:${i}`);
+    if ((i + 1) % 3 === 0) kb.row();
+  });
+  if (PRESET.amountPresets.length % 3 !== 0) kb.row();
+  kb.text("✏️ Custom", `crt:swapbudget:${wid}:c`);
+
+  await ctx.editMessageText(
+    [
+      tgBold(`📋 ${escapeMarkdown(state.poolName)}`),
+      `⚡🔄 Auto\\-swap \\| Strategy: ${escapeMarkdown(state.strategy ?? PRESET.strategy)}`,
+      "",
+      escapeMarkdown("Bot will split your SOL into both tokens and deposit."),
+      "",
+      "👇 Pick *total SOL budget*:",
+    ].join("\n"),
+    { ...MD, reply_markup: kb },
+  );
+}
+
+/**
+ * Compute the split for the wizard's current range and show a confirm screen
+ * (budget, X/Y split, slippage) before any irreversible swap.
+ */
+async function showSwapConfirm(ctx: Context, wid: string, budget: number) {
+  const state = getWizard(wid);
+  if (!state) {
+    await ctx.reply("⌛ Session expired\\. Run /create again\\.", MD);
+    return;
+  }
+
+  const { computeStrategySplit } = await import("../../dlmm.js");
+  // Resolve range to absolute bins via a read-only preview.
+  let preview: any;
+  try {
+    const rpc = resolveRpc(PRESET_CONFIG);
+    const keypair = resolveKeypair(PRESET_CONFIG);
+    const Ctor = await lazyDLMM();
+    const dlmm = new Ctor(keypair, rpc);
+    preview = await dlmm.previewRange({
+      poolAddress: state.poolAddress,
+      ...(state.isPctMode
+        ? { minPct: state.minPct!, maxPct: state.maxPct! }
+        : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+    });
+  } catch (e) {
+    await replyOrEdit(
+      ctx,
+      `✖ Could not load pool: ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+    );
+    return;
+  }
+
+  // Guard: auto-swap-in only supports SOL as token Y for now.
+  if (preview.tokenYMint !== WSOL_MINT) {
+    await replyOrEdit(
+      ctx,
+      [
+        "⚠️ This pool's quote token is not SOL\\.",
+        "Auto\\-swap currently only supports SOL pairs\\.",
+        "Use ⚡ Quick and deposit tokens you already hold\\.",
+      ].join("\n"),
+    );
+    return;
+  }
+
+  const strategy = (state.strategy ?? PRESET.strategy) as StrategyType;
+  const { fX, fY } = computeStrategySplit(
+    preview.activeBinId,
+    preview.minBinId,
+    preview.maxBinId,
+    strategy,
+  );
+
+  const solForX = budget * fX;
+  const solForY = budget * fY;
+  updateWizard(wid, { swapBudget: budget });
+
+  const text = [
+    tgBold(`⚡🔄 Confirm Auto\\-Swap`),
+    `Pool: ${tgCode(state.poolAddress)}`,
+    `Strategy: ${escapeMarkdown(strategy)} \\| Range: bins ${preview.minBinId} to ${preview.maxBinId}`,
+    "",
+    `Total budget: ~${escapeMarkdown(String(budget))} ◎`,
+    `→ Swap ~${escapeMarkdown(solForX.toFixed(4))} ◎ into *token X* \\(${escapeMarkdown(`${(fX * 100).toFixed(0)}%`)}\\)`,
+    `→ Keep ~${escapeMarkdown(solForY.toFixed(4))} ◎ as *SOL* \\(${escapeMarkdown(`${(fY * 100).toFixed(0)}%`)}\\)`,
+    `Slippage: ${escapeMarkdown(`${PRESET.slippageBps / 100}%`)}`,
+    "",
+    escapeMarkdown(
+      "Note: SOL side is auto-calculated to match token X exactly, so the final split may differ slightly from the estimate above.",
+    ),
+    "",
+    escapeMarkdown("⚠️ Swap is irreversible. Confirm to proceed."),
+  ].join("\n");
+
+  const kb = new InlineKeyboard()
+    .text("✅ Swap & Create", `crt:swapgo:${wid}:${budget}`)
+    .text("❌ Cancel", `crt:cancel:${wid}`);
+  await replyOrEdit(ctx, text, kb);
+}
+
+/**
+ * Execute the auto-swap: verify balance → swap SOL→X → deposit two-sided with
+ * autoFill. On swap-success/deposit-fail the swapped token stays safely in the
+ * wallet and we say so — no funds are lost.
+ */
+async function executeSwapAndCreate(
+  ctx: Context,
+  wid: string,
+  budget: number,
+  config: VexisConfig,
+) {
+  const state = getWizard(wid);
+  if (!state) return await expired(ctx);
+  const strategy = (state.strategy ?? PRESET.strategy) as StrategyType;
+
+  await ctx.editMessageText("⏳ Preparing auto\\-swap\\.\\.\\.", MD);
+
+  try {
+    const keypair = resolveKeypair(config);
+    const rpc = resolveRpc(config);
+    const Ctor = await lazyDLMM();
+    const dlmm = new Ctor(keypair, rpc);
+
+    const preview = await dlmm.previewRange({
+      poolAddress: state.poolAddress,
+      ...(state.isPctMode
+        ? { minPct: state.minPct!, maxPct: state.maxPct! }
+        : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+    });
+
+    const { computeStrategySplit } = await import("../../dlmm.js");
+    const { fX, fY } = computeStrategySplit(
+      preview.activeBinId,
+      preview.minBinId,
+      preview.maxBinId,
+      strategy,
+    );
+
+    const { ZapClient } = await import("../../zap.js");
+    const zap = new ZapClient(keypair, rpc);
+
+    // Balance guard: need budget + fee buffer.
+    const solBal = await zap.getSolBalance();
+    const LAMPORTS = 1_000_000_000;
+    const budgetLamports = Math.round(budget * LAMPORTS);
+    const needed = budgetLamports + FEE_BUFFER_LAMPORTS;
+    if (solBal.ltn(needed)) {
+      await ctx.editMessageText(
+        [
+          "✖ Insufficient SOL\\.",
+          `Need ~${escapeMarkdown((needed / LAMPORTS).toFixed(3))} ◎ \\(budget \\+ fees\\)`,
+          `Have ${escapeMarkdown((solBal.toNumber() / LAMPORTS).toFixed(3))} ◎`,
+        ].join("\n"),
         MD,
       );
-    });
+      return;
+    }
+
+    // Guard: auto-swap only supports single-transaction ranges (≤70 bins).
+    // Wider ranges deposit across multiple txs that can fail partway — unsafe
+    // to combine with an already-executed swap. Block before any funds move.
+    const binCount = preview.maxBinId - preview.minBinId + 1;
+    if (binCount > 70) {
+      await ctx.editMessageText(
+        [
+          "✖ Range too wide for auto\\-swap\\.",
+          `This range spans ${escapeMarkdown(String(binCount))} bins \\(max 70\\)\\.`,
+          "Use a narrower range, or ⚡ Quick with tokens you already hold\\.",
+        ].join("\n"),
+        MD,
+      );
+      return;
+    }
+
+    const solForXLamports = Math.floor(budgetLamports * fX);
+    if (solForXLamports <= 0) {
+      await ctx.editMessageText(
+        "✖ Split gives 0 SOL to token X \\(range is entirely below price\\)\\. Use ⚡ Quick single\\-sided instead\\.",
+        MD,
+      );
+      return;
+    }
+    const BN = (await import("bn.js")).default;
+
+    // ── Swap SOL → token X ────────────────────────────────────────────────
+    await ctx.editMessageText(
+      `⏳ Swapping ${escapeMarkdown((solForXLamports / LAMPORTS).toFixed(4))} ◎ → token X\\.\\.\\.`,
+      MD,
+    );
+    const swap = await zap.swapExactIn(
+      WSOL_MINT,
+      preview.tokenXMint,
+      new BN(String(solForXLamports)),
+      PRESET.slippageBps,
+    );
+    if (swap.received.lten(0)) {
+      await ctx.editMessageText(
+        [
+          "✖ Swap returned no tokens\\. Nothing deposited\\.",
+          "Your SOL is safe \\(minus network fee\\)\\. You can retry /create\\.",
+        ].join("\n"),
+        MD,
+      );
+      return;
+    }
+    // Precision-safe display (never use toNumber on token raw amounts).
+    const xHuman = formatAtomic(swap.received, preview.decimalsX);
+
+    // ── Deposit anchored on X: pass the exact atomic X received and let the
+    //    SDK auto-fill the SOL side. This guarantees ALL swapped X is used
+    //    (no meme stuck) at the precise ratio the bins require. ────────────
     await ctx.editMessageText(
       [
-        tgBold(`📋 ${escapeMarkdown(poolName)}`),
-        `Mode: two\\-sided`,
+        `✅ Swapped\\. Got ${escapeMarkdown(xHuman)} token X`,
+        swap.signature ? tgTxLink(swap.signature) : "",
         "",
-        "✏️ Send *X amount* \\(meme token, e\\.g\\. 1000\\):",
+        "⏳ Creating position \\(auto\\-filling SOL side\\)\\.\\.\\.",
+      ]
+        .filter(Boolean)
+        .join("\n"),
+      MD,
+    );
+
+    deleteWizard(wid);
+    const res = await dlmm.createPosition({
+      poolAddress: state.poolAddress,
+      strategy,
+      totalXAmount: swap.received.toString(), // raw atomic units
+      totalYAmount: "0", // auto-filled from X by the SDK
+      amountsAreHuman: false,
+      singleSidedX: false,
+      autoFill: true,
+      ...(state.isPctMode
+        ? { minPct: state.minPct!, maxPct: state.maxPct! }
+        : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+    });
+
+    const body = (res.signatures ?? [])
+      .map((s: string) => tgTxLink(s))
+      .join("\n");
+    await ctx.editMessageText(
+      `✅ Position created\\!\n${body}`,
+      MD,
+    );
+  } catch (e) {
+    // If we reach here after a swap, the token is safe in the wallet.
+    await ctx.editMessageText(
+      [
+        `✖ Failed: ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
+        "",
+        escapeMarkdown(
+          "If the swap already went through, your tokens are safe in your wallet. You can retry /create using them directly.",
+        ),
       ].join("\n"),
       MD,
     );
+  }
+}
+
+/**
+ * Format an atomic token amount (BN) to a human string WITHOUT precision loss.
+ * Never uses Number() on the raw amount — large meme supplies overflow 2^53.
+ */
+function formatAtomic(raw: { toString(): string }, decimals: number): string {
+  const s = raw.toString().padStart(decimals + 1, "0");
+  const intPart = s.slice(0, s.length - decimals) || "0";
+  const fracPart = decimals > 0 ? s.slice(s.length - decimals) : "";
+  const trimmed = fracPart.replace(/0+$/, "");
+  return trimmed ? `${intPart}.${trimmed}` : intPart;
+}
+
+/** Reply or edit depending on whether we came from a callback or a text msg. */
+async function replyOrEdit(ctx: Context, text: string, kb?: InlineKeyboard) {
+  const opts = kb ? { ...MD, reply_markup: kb } : MD;
+  if (ctx.callbackQuery) {
+    await ctx.editMessageText(text, opts);
+  } else {
+    await ctx.reply(text, opts);
   }
 }
 
@@ -723,7 +1137,9 @@ export async function renderStrategyStep(wid: string): Promise<string> {
   }
   lines.push(
     "",
-    tgBold("Step 1/3 — Pick strategy:"),
+    `⚡ *Quick* — one tap: ${escapeMarkdown(quickLabel())}`,
+    "",
+    tgBold("Or pick strategy:"),
     "",
     "• *Spot* — uniform liquidity across range",
     "• *Bid\\-Ask* — concentrated at edges \\(volatility\\)",
@@ -733,12 +1149,57 @@ export async function renderStrategyStep(wid: string): Promise<string> {
 }
 
 export function strategyKb(wid: string): InlineKeyboard {
-  return new InlineKeyboard()
+  const kb = new InlineKeyboard().text(
+    `⚡ Quick (${quickLabel()})`,
+    `crt:quick:${wid}`,
+  );
+  if (PRESET.autoSwap) {
+    kb.row().text("⚡🔄 Quick+Swap (SOL→both)", `crt:swap:${wid}`);
+  }
+  return kb
+    .row()
     .text("📊 Spot", `crt:mode:${wid}:spot`)
     .text("📈 Bid-Ask", `crt:mode:${wid}:bidask`)
     .text("🔔 Curve", `crt:mode:${wid}:curve`)
     .row()
     .text("⬅️ Back", "crt:source");
+}
+
+/** Short human label describing what ⚡ Quick will do, from the preset. */
+function quickLabel(): string {
+  const r = PRESET.range;
+  const range =
+    r.type === "default"
+      ? "default"
+      : r.type === "pct"
+        ? `${r.minPct}→${r.maxPct}%`
+        : `bin ${r.minBin}/${r.maxBin}`;
+  return `${PRESET.strategy}·${range}`;
+}
+
+/** Apply the preset's strategy/mode/range onto the wizard state. */
+function applyPresetRange(wid: string) {
+  const r = PRESET.range;
+  if (r.type === "pct" && r.minPct != null && r.maxPct != null) {
+    updateWizard(wid, {
+      minPct: r.minPct / 100,
+      maxPct: r.maxPct / 100,
+      isPctMode: true,
+    });
+  } else if (r.type === "bin" && r.minBin != null && r.maxBin != null) {
+    updateWizard(wid, {
+      minBin: r.minBin,
+      maxBin: r.maxBin,
+      isPctMode: false,
+    });
+  } else {
+    const def = DEFAULT_BINS[PRESET.mode] ?? DEFAULT_BINS["two-sided"];
+    updateWizard(wid, {
+      minBin: def.minBin,
+      maxBin: def.maxBin,
+      isPctMode: false,
+    });
+  }
 }
 
 async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
