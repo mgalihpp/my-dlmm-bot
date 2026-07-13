@@ -217,7 +217,7 @@ function schedulePositionChecks(
       console.log("[position-check] Starting position check at", new Date().toISOString());
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 100);
-      const currentPools = res.pools ?? [];
+      const currentPools = await client.enrichOpenPortfolioPnl(res.pools ?? [], wallet);
       console.log("[position-check] API returned", currentPools.length, "pools");
       const prevSnapshots = rt.state.lastOpenSnapshot;
       console.log("[position-check] Previous snapshot has", prevSnapshots.length, "pools");

@@ -28,7 +28,8 @@ export function registerPortfolio(
     try {
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 10);
-      await ctx.reply(tgOpenPools(res.pools), MD);
+      const enriched = await client.enrichOpenPortfolioPnl(res.pools, wallet);
+      await ctx.reply(tgOpenPools(enriched), MD);
     } catch (e) {
       await replyError(ctx, e);
     }

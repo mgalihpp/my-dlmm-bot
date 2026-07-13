@@ -47,7 +47,8 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     try {
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 10);
-      const text = tgOpenPools(res.pools);
+      const enriched = await client.enrichOpenPortfolioPnl(res.pools, wallet);
+      const text = tgOpenPools(enriched);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);

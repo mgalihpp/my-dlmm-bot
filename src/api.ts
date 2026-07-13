@@ -1,5 +1,6 @@
 import type {
   OpenPortfolioResponse,
+  OpenPool,
   ClosedPortfolioResponse,
   PortfolioTotal,
   DlmmPool,
@@ -94,6 +95,42 @@ export class MeteoraClient {
       page: page ?? 1,
       page_size: pageSize ?? 100,
     });
+  }
+
+  /** Enrich pool-level PnL with per-position aggregated PnL for accuracy. */
+  async enrichOpenPortfolioPnl(
+    pools: OpenPool[],
+    wallet: string,
+  ): Promise<OpenPool[]> {
+    const enriched = pools.map(p => ({ ...p }));
+
+    await Promise.allSettled(
+      enriched.map(async (pool) => {
+        try {
+          const res = await this.positionPnl(pool.poolAddress, wallet, "open");
+          if (res.positions.length === 0) return;
+
+          let totalPnlUsd = 0, totalDepositsUsd = 0;
+          let totalPnlSol = 0, totalDepositsSol = 0;
+
+          for (const pos of res.positions) {
+            totalPnlUsd += parseFloat(pos.pnlUsd || "0");
+            totalDepositsUsd += parseFloat(pos.allTimeDeposits.total.usd || "0");
+            totalPnlSol += pos.pnlSol ?? 0;
+            totalDepositsSol += parseFloat(pos.allTimeDeposits.total.sol ?? "0");
+          }
+
+          pool.pnl = String(totalPnlUsd);
+          pool.pnlPctChange = totalDepositsUsd > 0 ? String((totalPnlUsd / totalDepositsUsd) * 100) : "0";
+          pool.pnlSol = String(totalPnlSol);
+          pool.pnlSolPctChange = totalDepositsSol > 0 ? String((totalPnlSol / totalDepositsSol) * 100) : "0";
+        } catch {
+          // keep original pool-level PnL if position fetch fails
+        }
+      })
+    );
+
+    return enriched;
   }
 
   poolHistoricalVolume(address: string): Promise<PoolHistoricalVolume[]> {

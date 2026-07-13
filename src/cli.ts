@@ -108,6 +108,8 @@ addCommon(
       pageSize(opts, config),
     );
     if (opts.json) return void console.log(JSON.stringify(data, null, 2));
+    const enriched = await c.enrichOpenPortfolioPnl(data.pools, wallet);
+    data.pools = enriched;
 
     console.log(`\n${bold("Open Positions")} ${gray(wallet)}`);
     if (!data.pools.length) {
