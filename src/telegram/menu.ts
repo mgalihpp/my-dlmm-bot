@@ -1,7 +1,7 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../api.js";
 import type { VexisConfig } from "../config.js";
-import { resolveWallet } from "../config.js";
+import { resolveWallet, resolveRpc } from "../config.js";
 import {
   tgPortfolioSummary,
   tgOpenPools,
@@ -48,6 +48,8 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       const wallet = resolveWallet(undefined, config);
       const res = await client.openPortfolio(wallet, 1, 10);
       const enriched = await client.enrichOpenPortfolioPnl(res.pools, wallet);
+      const { attachLivePositions } = await import("../dlmm.js");
+      await attachLivePositions(enriched, resolveRpc(config), wallet);
       const text = tgOpenPools(enriched);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {

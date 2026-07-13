@@ -20,6 +20,7 @@ import type {
   AddLiquidityParams,
   RemoveLiquidityParams,
   StrategyType as VexisStrategyType,
+  OpenPool,
 } from "./types.js";
 
 // Protocol: initializePosition max width is DEFAULT_BIN_PER_POSITION (70).
@@ -538,6 +539,42 @@ export async function fetchUserPositions(
     }
   }
   return out;
+}
+
+/**
+ * Attach live on-chain per-position amounts + unclaimed fees (from the SDK) to
+ * datapi open pools, in place. Best-effort: a failing RPC leaves pools as-is so
+ * the datapi data still renders. Shared by every open-positions view.
+ */
+export async function attachLivePositions(
+  pools: OpenPool[],
+  rpcUrl: string,
+  wallet: string,
+): Promise<OpenPool[]> {
+  try {
+    const live = await fetchUserPositions(rpcUrl, wallet);
+    const byPool = new Map<string, UserPositionLive[]>();
+    for (const l of live) {
+      const arr = byPool.get(l.poolAddress) ?? [];
+      arr.push(l);
+      byPool.set(l.poolAddress, arr);
+    }
+    for (const pool of pools) {
+      const l = byPool.get(pool.poolAddress);
+      if (l) {
+        pool.positionsLive = l.map((x) => ({
+          address: x.positionAddress,
+          amountX: x.amountX,
+          amountY: x.amountY,
+          feeX: x.feeX,
+          feeY: x.feeY,
+        }));
+      }
+    }
+  } catch {
+    // SDK/RPC unavailable — datapi data still renders.
+  }
+  return pools;
 }
 
 /** Convert a human amount (e.g. "0.12671") to atomic units as BN. */
