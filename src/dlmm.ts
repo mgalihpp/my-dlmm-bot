@@ -489,6 +489,57 @@ export function computeStrategySplit(
   return { fX: wAbove / wSpan, fY: wBelow / wSpan };
 }
 
+/** Convert an atomic amount (string/BN) to a trimmed human decimal string. */
+function atomicToHuman(raw: string, decimals: number): string {
+  const neg = raw.startsWith("-");
+  const digits = (neg ? raw.slice(1) : raw).padStart(decimals + 1, "0");
+  const int = digits.slice(0, digits.length - decimals) || "0";
+  const frac = (decimals ? digits.slice(digits.length - decimals) : "").replace(/0+$/, "");
+  const out = frac ? `${int}.${frac}` : int;
+  return neg ? `-${out}` : out;
+}
+
+export interface UserPositionLive {
+  poolAddress: string;
+  positionAddress: string;
+  amountX: string;
+  amountY: string;
+  feeX: string;
+  feeY: string;
+}
+
+/**
+ * Read a wallet's live on-chain DLMM positions via the SDK — no keypair needed.
+ * Returns per-position token amounts and unclaimed swap fees (human units).
+ */
+export async function fetchUserPositions(
+  rpcUrl: string,
+  wallet: string,
+): Promise<UserPositionLive[]> {
+  const connection = new Connection(rpcUrl, "confirmed");
+  const map = await DLMM.getAllLbPairPositionsByUser(
+    connection,
+    new PublicKey(wallet),
+  );
+  const out: UserPositionLive[] = [];
+  for (const [poolAddress, info] of map) {
+    const dx = info.tokenX.mint.decimals;
+    const dy = info.tokenY.mint.decimals;
+    for (const pos of info.lbPairPositionsData) {
+      const d = pos.positionData;
+      out.push({
+        poolAddress,
+        positionAddress: pos.publicKey.toBase58(),
+        amountX: atomicToHuman(d.totalXAmount, dx),
+        amountY: atomicToHuman(d.totalYAmount, dy),
+        feeX: atomicToHuman(d.feeX.toString(), dx),
+        feeY: atomicToHuman(d.feeY.toString(), dy),
+      });
+    }
+  }
+  return out;
+}
+
 /** Convert a human amount (e.g. "0.12671") to atomic units as BN. */
 function scaleAmount(human: string, decimals: number): BN {
   const cleaned = human.trim();

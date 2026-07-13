@@ -96,10 +96,20 @@ export interface OpenPool {
   listPositions: string[];
   positionsOutOfRange: string[];
   positionsPnl?: PositionPnlEntry[];
+  positionsLive?: PositionLiveEntry[];
   outOfRange: boolean | null;
   poolPrice: number;
   poolStateUpdatedAtBlockTime?: number | null;
   poolStateUpdatedAtSlot?: number | null;
+}
+
+// Live on-chain per-position amounts + unclaimed fees (from the DLMM SDK).
+export interface PositionLiveEntry {
+  address: string;
+  amountX: string;
+  amountY: string;
+  feeX: string;
+  feeY: string;
 }
 
 export interface PositionPnlEntry {
