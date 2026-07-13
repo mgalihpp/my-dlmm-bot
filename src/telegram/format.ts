@@ -389,8 +389,22 @@ export function tgMultiWalletPositions(results: WalletPositions[]): string {
           `  ${tgPoolAddr(p.poolAddress)} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
           `  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
           `  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
-          `  Positions: ${escapeMarkdown(String(p.openPositionCount))}`,
         );
+        if (p.positionsLive?.length) {
+          lines.push(`  Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`);
+          p.listPositions.forEach((pos, idx) => {
+            const isOor = p.positionsOutOfRange?.includes(pos);
+            const treeChar = idx === p.listPositions.length - 1 ? "└" : "├";
+            lines.push(`  ${escapeMarkdown(treeChar)} ${isOor ? "⚠️" : "✅"} ${tgCode(pos)}${isOor ? escapeMarkdown(" OOR") : ""}`);
+            const live = p.positionsLive?.find((e) => e.address === pos);
+            if (live) {
+              lines.push(`     ${escapeMarkdown(`${live.amountX} ${p.tokenX} + ${live.amountY} ${p.tokenY}`)}`);
+              lines.push(`     Fees: ${escapeMarkdown(`${live.feeX} ${p.tokenX} + ${live.feeY} ${p.tokenY}`)}`);
+            }
+          });
+        } else {
+          lines.push(`  Positions: ${escapeMarkdown(String(p.openPositionCount))}`);
+        }
       }
     }
     lines.push("");

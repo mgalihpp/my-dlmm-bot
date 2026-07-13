@@ -92,7 +92,7 @@ async function main() {
   registerCreate(bot, client, config);
   registerOnchain(bot, config);
   registerManage(bot, client, config);
-  registerWatchlist(bot, client);
+  registerWatchlist(bot, client, config);
   registerBalance(bot, config);
   registerMenu(bot, client, config);
 

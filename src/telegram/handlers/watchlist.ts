@@ -1,6 +1,8 @@
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import type { MeteoraClient } from "../../api.js";
+import type { VexisConfig } from "../../config.js";
+import { resolveRpc } from "../../config.js";
 import { addWallet, removeWallet, listWallets } from "../../watchlist.js";
 import {
   tgWatchedList,
@@ -15,7 +17,7 @@ import { setInputSession } from "../input-store.js";
 
 const TG_MAX = 4096;
 
-export function registerWatchlist(bot: Bot, client: MeteoraClient) {
+export function registerWatchlist(bot: Bot, client: MeteoraClient, config: VexisConfig) {
   // ─── /watchadd — add wallet to watchlist ─────────────────────────────────
   bot.command("watchadd", async (ctx) => {
     try {
@@ -137,11 +139,14 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
         return;
       }
       const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+      const { attachLivePositions } = await import("../../dlmm.js");
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
           const res = await client.openPortfolio(w.address, 1, 10);
-          results.push({ wallet: w, pools: res.pools });
+          const pools = res.pools ?? [];
+          await attachLivePositions(pools, resolveRpc(config), w.address);
+          results.push({ wallet: w, pools });
         } catch {
           results.push({ wallet: w, pools: [] });
         }
@@ -162,12 +167,15 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
       if (parts.length > 0) {
         // Has args — existing behavior
         const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
+        const { attachLivePositions } = await import("../../dlmm.js");
         const results: WalletPositions[] = [];
         for (const addr of parts) {
           const w = { address: addr, addedAt: "" };
           try {
             const res = await client.openPortfolio(addr, 1, 10);
-            results.push({ wallet: w, pools: res.pools });
+            const pools = res.pools ?? [];
+            await attachLivePositions(pools, resolveRpc(config), addr);
+            results.push({ wallet: w, pools });
           } catch {
             results.push({ wallet: w, pools: [] });
           }
@@ -187,12 +195,15 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient) {
           return;
         }
         const loadingMsg = await sessionCtx.reply("⏳ Loading positions\\.\\.\\.", MD);
+        const { attachLivePositions } = await import("../../dlmm.js");
         const results: WalletPositions[] = [];
         for (const addr of addrs) {
           const w = { address: addr, addedAt: "" };
           try {
             const res = await client.openPortfolio(addr, 1, 10);
-            results.push({ wallet: w, pools: res.pools });
+            const pools = res.pools ?? [];
+            await attachLivePositions(pools, resolveRpc(config), addr);
+            results.push({ wallet: w, pools });
           } catch {
             results.push({ wallet: w, pools: [] });
           }

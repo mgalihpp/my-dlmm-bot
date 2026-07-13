@@ -128,11 +128,14 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
       const { listWallets } = await import("../watchlist.js");
       const wallets = listWallets();
       const { tgMultiWalletPositions } = await import("./format.js");
+      const { attachLivePositions } = await import("../dlmm.js");
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
           const res = await client.openPortfolio(w.address, 1, 10);
-          results.push({ wallet: w, pools: res.pools ?? [] });
+          const pools = res.pools ?? [];
+          await attachLivePositions(pools, resolveRpc(config), w.address);
+          results.push({ wallet: w, pools });
         } catch {
           results.push({ wallet: w, pools: [] });
         }
