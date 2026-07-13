@@ -217,8 +217,8 @@ export interface CreatePreset {
 export function resolveCreatePreset(config: VexisConfig): CreatePreset {
   const c = config.create ?? {};
   return {
-    strategy: c.strategy ?? "spot",
-    mode: c.mode ?? "two-sided",
+    strategy: c.strategy ?? "bidask",
+    mode: c.mode ?? "single-y",
     range: c.range ?? { type: "default" },
     amountPresets:
       c.amountPresets && c.amountPresets.length > 0

@@ -10,8 +10,8 @@
   "stopLossPct": -10,
   "takeProfitPct": 25,
   "create": {
-    "strategy": "biask",
-    "mode": "single-sided",
+    "strategy": "bidask",
+    "mode": "single-y",
     "range": { "type": "default" },
     "amountPresets": [0.1, 0.25, 0.5, 1],
     "yAmount": null,

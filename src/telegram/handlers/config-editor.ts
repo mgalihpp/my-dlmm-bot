@@ -301,9 +301,35 @@ export function registerConfigEditor(
     else if (editable.type === "enum" && "values" in editable) {
       typeHint = ` \\(one of: ${escapeMarkdown((editable.values as readonly string[]).join(", "))}\\)`;
     }
+    const kb = new InlineKeyboard()
+      .text("🗑 Reset to default", `cfg:reset:${editable.key}`)
+      .row()
+      .text("« Cancel", "cfg:back");
     await ctx.editMessageText(
-      `${tgBold(`✏️ Edit ${editable.label}`)}\n\nCurrent: ${tgCode(current)}\n\nSend new value${typeHint}:`,
-      MD,
+      [
+        tgBold(`✏️ Edit ${editable.label}`),
+        "",
+        `Current: ${tgCode(current)}`,
+        "",
+        `Send new value${typeHint},`,
+        escapeMarkdown("or type “default” to reset — or tap below."),
+      ].join("\n"),
+      { ...MD, reply_markup: kb },
+    );
+  });
+
+  // cfg:reset:<field> — clear a field back to its default (null)
+  bot.callbackQuery(/^cfg:reset:(.+)$/, async (ctx) => {
+    await ctx.answerCallbackQuery();
+    const field = ctx.match![1];
+    const chatId = String(ctx.chat?.id ?? ctx.from?.id);
+    pendingEdits.delete(chatId);
+    setNestedValue(config, field, null);
+    if (configPath) saveConfig(configPath, config);
+    const text = buildConfigText(config, configPath);
+    await ctx.editMessageText(
+      `${tgBold("✅ Reset to default")}\n\n${text}`,
+      { ...MD, reply_markup: buildConfigKeyboard(pageForKey(field)) },
     );
   });
 
