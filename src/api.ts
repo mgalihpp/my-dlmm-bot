@@ -126,6 +126,13 @@ export class MeteoraClient {
           pool.pnlSol = String(totalPnlSol);
           pool.pnlPctChange = originalPnlPctChange;
           pool.pnlSolPctChange = originalPnlSolPctChange;
+          pool.positionsPnl = res.positions.map((pos) => ({
+            address: pos.positionAddress,
+            pnlUsd: pos.pnlUsd,
+            pnlPctChange: pos.pnlPctChange,
+            pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
+            pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
+          }));
         } catch {
           // keep original pool-level PnL if position fetch fails
         }

@@ -1,6 +1,5 @@
 // Shared pool & position selection utilities for interactive flows.
 import { Context, InlineKeyboard } from "grammy";
-import { InlineKeyboardButton } from "grammy/types";
 import type { MeteoraClient } from "../api.js";
 import type { VexisConfig } from "../config.js";
 import { resolveWallet } from "../config.js";
@@ -151,6 +150,33 @@ export async function resolvePoolDetail(
       pnlPctChange: pool.pnlPctChange,
       pnlSol: pool.pnlSol,
       pnlSolPctChange: pool.pnlSolPctChange,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolvePositionPnl(
+  client: MeteoraClient | null,
+  config: VexisConfig,
+  poolAddr: string,
+  positionAddr: string,
+): Promise<{ pnl: string; pnlPctChange: string; pnlSol: string | null; pnlSolPctChange: string | null } | null> {
+  try {
+    let c = client;
+    if (!c) {
+      const { MeteoraClient } = await import("../api.js");
+      c = new MeteoraClient({ dev: config.dev });
+    }
+    const wallet = resolveWallet(undefined, config);
+    const res = await c.positionPnl(poolAddr, wallet, "open");
+    const pos = res.positions.find((p) => p.positionAddress === positionAddr);
+    if (!pos) return null;
+    return {
+      pnl: pos.pnlUsd,
+      pnlPctChange: pos.pnlPctChange,
+      pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
+      pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
     };
   } catch {
     return null;

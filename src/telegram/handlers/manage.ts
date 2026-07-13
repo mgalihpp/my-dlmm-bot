@@ -2,9 +2,9 @@ import { Bot, Context, InlineKeyboard } from "grammy";
 import { Keypair } from "@solana/web3.js";
 import type { MeteoraClient } from "../../api.js";
 import type { VexisConfig } from "../../config.js";
-import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
+import { resolveKeypair, resolveRpc } from "../../config.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
-import { MD, replyError } from "../utils.js";
+import { MD } from "../utils.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { setInputSession } from "../input-store.js";
 import {
@@ -12,9 +12,9 @@ import {
   showPoolList,
   showPositionList,
   resolvePoolDetail,
+  resolvePositionPnl,
   actionPanelMessage,
   actionPanelKeyboard,
-  buildPositionKeyboard,
 } from "../pool-position-selector.js";
 import type { StrategyType } from "../../types.js";
 
@@ -93,12 +93,8 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       }
       if (detail.positions.length === 1) {
         const actionId = registerAction(poolAddr, detail.positions[0]);
-        await showActionPanel(ctx, detail.tokenX, detail.tokenY, poolAddr, detail.positions[0], actionId, "mng:pools", {
-          pnl: detail.pnl,
-          pnlPctChange: detail.pnlPctChange,
-          pnlSol: detail.pnlSol,
-          pnlSolPctChange: detail.pnlSolPctChange,
-        });
+        const pnl = await resolvePositionPnl(client, config, poolAddr, detail.positions[0]);
+        await showActionPanel(ctx, detail.tokenX, detail.tokenY, poolAddr, detail.positions[0], actionId, "mng:pools", pnl ?? undefined);
         return;
       }
       await showPositionList(ctx, poolAddr, detail.tokenX, detail.tokenY, detail.positions, PREFIX, "mng:pools");
@@ -121,12 +117,8 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       const detail = await resolvePoolDetail(client, config, poolAddr);
       const tokenX = detail?.tokenX ?? "?";
       const tokenY = detail?.tokenY ?? "?";
-      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, `mng:pool:${poolAddr}`, detail ? {
-        pnl: detail.pnl,
-        pnlPctChange: detail.pnlPctChange,
-        pnlSol: detail.pnlSol,
-        pnlSolPctChange: detail.pnlSolPctChange,
-      } : undefined);
+      const pnl = await resolvePositionPnl(client, config, poolAddr, pair.positionPubkey);
+      await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, `mng:pool:${poolAddr}`, pnl ?? undefined);
     } catch (e) {
       await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "mng:pools") });
     }
@@ -354,7 +346,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const actionId = ctx.match![1];
     const pair = resolveAction(actionId);
     if (!pair) return await expired(ctx);
-    const { poolAddress, positionPubkey } = pair;
     await ctx.editMessageText(
       `${tgBold("➖ Remove Liquidity")}\n\nSelect amount:`,
       {

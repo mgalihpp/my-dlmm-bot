@@ -95,10 +95,19 @@ export interface OpenPool {
   openPositionCount: number;
   listPositions: string[];
   positionsOutOfRange: string[];
+  positionsPnl?: PositionPnlEntry[];
   outOfRange: boolean | null;
   poolPrice: number;
   poolStateUpdatedAtBlockTime?: number | null;
   poolStateUpdatedAtSlot?: number | null;
+}
+
+export interface PositionPnlEntry {
+  address: string;
+  pnlUsd: string;
+  pnlPctChange: string;
+  pnlSol: string | null;
+  pnlSolPctChange: string | null;
 }
 
 export interface OpenPortfolioResponse {

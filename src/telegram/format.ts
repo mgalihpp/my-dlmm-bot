@@ -7,7 +7,6 @@ import type {
   OpenPool,
   ClosedPool,
   DlmmPool,
-  ScreenedPool,
 } from "../types.js";
 import type { WatchedWallet } from "../watchlist.js";
 import type { ScreenResult } from "../screening.js";
@@ -118,6 +117,10 @@ export function tgOpenPools(pools: OpenPool[]): string {
       const oorLabel = isOor ? " OOR" : "";
       const treeChar = isLast ? "└" : "├";
       lines.push(`   ${escapeMarkdown(treeChar)} ${icon} ${tgCode(pos)}${escapeMarkdown(oorLabel)}`);
+      const pnl = p.positionsPnl?.find((e) => e.address === pos);
+      if (pnl) {
+        lines.push(`      PnL: ${tgUsd(pnl.pnlUsd)} \\(${tgPct(pnl.pnlPctChange)}\\) \\| ${tgSol(pnl.pnlSol)} \\(${tgPct(pnl.pnlSolPctChange)}\\)`);
+      }
     }
 
     lines.push("");
@@ -170,16 +173,6 @@ export function tgPoolList(pools: DlmmPool[]): string {
     );
   });
   return lines.join("\n");
-}
-
-/** Age string for token. */
-function tgAge(hours: number | null): string {
-  if (hours == null) return "\\-";
-  if (hours < 1) return escapeMarkdown(`${Math.round(hours * 60)}m`);
-  if (hours < 24) return escapeMarkdown(`${Math.round(hours)}h`);
-  const d = Math.floor(hours / 24);
-  const h = Math.round(hours % 24);
-  return escapeMarkdown(h > 0 ? `${d}d ${h}h` : `${d}d`);
 }
 
 /** Organic score with emoji indicator. */
