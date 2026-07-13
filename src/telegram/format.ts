@@ -117,7 +117,7 @@ export function tgOpenPools(pools: OpenPool[]): string {
       const oorLabel = isOor ? " OOR" : "";
       const treeChar = isLast ? "└" : "├";
       lines.push(`   ${escapeMarkdown(treeChar)} ${icon} ${tgCode(pos)}${escapeMarkdown(oorLabel)}`);
-      const pnl = p.positionsPnl?.find((e) => e.address === pos);
+      const pnl = p.listPositions.length > 1 ? p.positionsPnl?.find((e) => e.address === pos) : null;
       if (pnl) {
         lines.push(`      PnL: ${tgUsd(pnl.pnlUsd)} \\(${tgPct(pnl.pnlPctChange)}\\) \\| ${tgSol(pnl.pnlSol)} \\(${tgPct(pnl.pnlSolPctChange)}\\)`);
       }
