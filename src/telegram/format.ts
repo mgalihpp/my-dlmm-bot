@@ -112,6 +112,12 @@ export function tgOpenPools(pools: OpenPool[]): string {
       `   Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`,
     );
 
+    if (p.openPositionCount <= 1) {
+      lines.push(`   └ ✅ ${tgCode(p.listPositions[0])}`);
+      lines.push("");
+      return;
+    }
+
     for (const pos of p.listPositions) {
       const isOor = p.positionsOutOfRange?.includes(pos);
       const icon = isOor ? "⚠️" : "✅";
