@@ -317,8 +317,8 @@ export interface PositionPnLData {
   isClosed: boolean;
   pnlUsd: string;
   pnlPctChange: string;
-  pnlSol: number | null;
-  pnlSolPctChange: number | null;
+  pnlSol: string | null;
+  pnlSolPctChange: string | null;
   allTimeDeposits: TokenPairTotal;
   allTimeWithdrawals: TokenPairTotal;
   allTimeFees: TokenPairTotal;

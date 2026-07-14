@@ -61,12 +61,13 @@ function threshold(v: number | null | undefined): number | null {
 }
 
 /** Numeric PnL % for a position, preferring SOL basis, falling back to USD. */
-function pnlPct(pos: { pnlSolPctChange: number | null; pnlPctChange: string }): {
+function pnlPct(pos: { pnlSolPctChange: string | null; pnlPctChange: string }): {
   value: number;
   basis: "sol" | "usd";
 } | null {
-  if (pos.pnlSolPctChange !== null && Number.isFinite(pos.pnlSolPctChange)) {
-    return { value: pos.pnlSolPctChange, basis: "sol" };
+  if (pos.pnlSolPctChange !== null) {
+    const val = parseFloat(pos.pnlSolPctChange);
+    if (Number.isFinite(val)) return { value: val, basis: "sol" };
   }
   const usd = parseFloat(pos.pnlPctChange);
   if (Number.isFinite(usd)) return { value: usd, basis: "usd" };
@@ -168,15 +169,21 @@ async function sendTrigger(
   pct: { value: number; basis: "sol" | "usd" },
   target: number,
 ) {
-  const title = kind === "tp" ? "🎯 Take Profit hit" : "🛑 Stop Loss hit";
-  const label = kind === "tp" ? "target" : "limit";
-  const basisNote = pct.basis === "usd" ? " \\(USD basis\\)" : "";
+  const icon = kind === "tp" ? "🎯" : "🛑";
+  const label = kind === "tp" ? "Target" : "Limit";
+  const basisStr = pct.basis === "sol" ? "SOL" : "USD";
+  const arrow = kind === "tp" ? "↑" : "↓";
+  const pctEmoji = pct.value > 0 ? "🟢" : "🔴";
   const actionId = registerAction(poolAddress, positionAddress);
   const kb = new InlineKeyboard().text("🔴 Close & Zap Out", `mng:close:${actionId}`);
   const msg = [
-    `${title} — ${tgBold(pair)}`,
+    `${icon} ${tgBold(kind === "tp" ? "Take Profit" : "Stop Loss")} Triggered`,
+    "",
+    `Pair: ${tgBold(pair)}`,
+    `PnL: ${pctEmoji} ${tgPct(pct.value)} \\(${basisStr}\\) ${arrow} ${escapeMarkdown(label)} ${tgPct(target)}`,
+    "",
+    `Pool: ${tgCode(poolAddress)}`,
     `Position: ${tgCode(positionAddress)}`,
-    `PnL: ${tgPct(pct.value)}${basisNote} \\(${escapeMarkdown(label)} ${tgPct(target)}\\)`,
   ].join("\n");
   try {
     await bot.api.sendMessage(chatId, msg, { ...MD, reply_markup: kb });
