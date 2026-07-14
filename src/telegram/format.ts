@@ -123,7 +123,7 @@ export function tgOpenPools(pools: OpenPool[]): string {
         lines.push(`      ${escapeMarkdown(`${live.amountX} ${p.tokenX} + ${live.amountY} ${p.tokenY}`)}`);
         lines.push(`      Fees: ${escapeMarkdown(`${live.feeX} ${p.tokenX} + ${live.feeY} ${p.tokenY}`)}`);
       }
-      const pnl = p.listPositions.length > 1 ? p.positionsPnl?.find((e) => e.address === pos) : null;
+      const pnl = p.positionsPnl?.find((e) => e.address === pos);
       if (pnl) {
         lines.push(`      PnL: ${tgUsd(pnl.pnlUsd)} \\(${tgPct(pnl.pnlPctChange)}\\) \\| ${tgSol(pnl.pnlSol)} \\(${tgPct(pnl.pnlSolPctChange)}\\)`);
       }

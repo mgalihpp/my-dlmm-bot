@@ -104,22 +104,51 @@ export class MeteoraClient {
     const enriched = pools.map(p => ({ ...p }));
 
     await Promise.allSettled(
-      enriched
-        .filter((pool) => pool.openPositionCount > 1)
-        .map(async (pool) => {
-          try {
-            const res = await this.positionPnl(pool.poolAddress, wallet, "open");
-            pool.positionsPnl = res.positions.map((pos) => ({
-              address: pos.positionAddress,
-              pnlUsd: pos.pnlUsd,
-              pnlPctChange: pos.pnlPctChange,
-              pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
-              pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
-            }));
-          } catch {
-            // ignore
+      enriched.map(async (pool) => {
+        try {
+          const res = await this.positionPnl(pool.poolAddress, wallet, "open");
+          const positions = res.positions;
+
+          pool.positionsPnl = positions.map((pos) => ({
+            address: pos.positionAddress,
+            pnlUsd: pos.pnlUsd,
+            pnlPctChange: pos.pnlPctChange,
+            pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
+            pnlSolPctChange: pos.pnlSolPctChange != null ? String(pos.pnlSolPctChange) : null,
+          }));
+
+          if (positions.length > 0) {
+            let totalPnlUsd = 0;
+            let totalPnlSol = 0;
+            let weightUsd = 0;
+            let weightedPctUsd = 0;
+            let weightSol = 0;
+            let weightedPctSol = 0;
+
+            for (const pos of positions) {
+              const pnlUsd = parseFloat(pos.pnlUsd);
+              const pnlSol = pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : 0;
+              totalPnlUsd += pnlUsd;
+              totalPnlSol += pnlSol;
+
+              const wUsd = Math.abs(pnlUsd);
+              weightUsd += wUsd;
+              weightedPctUsd += parseFloat(pos.pnlPctChange) * wUsd;
+
+              const wSol = Math.abs(pnlSol);
+              weightSol += wSol;
+              weightedPctSol += (pos.pnlSolPctChange != null ? parseFloat(String(pos.pnlSolPctChange)) : 0) * wSol;
+            }
+
+            pool.pnl = String(totalPnlUsd);
+            pool.pnlSol = String(totalPnlSol);
+            pool.pnlPctChange = weightUsd > 0 ? String(weightedPctUsd / weightUsd) : "0";
+            pool.pnlSolPctChange = weightSol > 0 ? String(weightedPctSol / weightSol) : "0";
           }
-        })
+        } catch {
+          // ignore
+        }
+      })
     );
 
     return enriched;
