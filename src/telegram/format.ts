@@ -8,9 +8,9 @@ import type {
   ClosedPool,
   DlmmPool,
   PositionLiveEntry,
-} from "../types.js";
-import type { WatchedWallet } from "../watchlist.js";
-import type { ScreenResult } from "../screening.js";
+} from "../domain/index.js";
+import type { WatchedWallet } from "../services/Watchlist.js";
+import type { ScreenResult } from "../lib/screening.js";
 
 // MarkdownV2 requires escaping these characters everywhere except inside
 // code/pre entities: _ * [ ] ( ) ~ ` > # + - = | { } . !
@@ -83,7 +83,7 @@ export function tgPortfolioSummary(total: PortfolioTotal): string {
 }
 
 /** Open positions list. */
-export function tgOpenPools(pools: OpenPool[]): string {
+export function tgOpenPools(pools: readonly OpenPool[]): string {
   if (pools.length === 0) return tgBold("📭 No open positions");
 
   const totalBalance = pools.reduce((sum, p) => sum + parseFloat(p.balances || "0"), 0);
@@ -148,7 +148,7 @@ export function tgOpenPools(pools: OpenPool[]): string {
 }
 
 /** Closed positions list. */
-export function tgClosedPools(pools: ClosedPool[]): string {
+export function tgClosedPools(pools: readonly ClosedPool[]): string {
   if (pools.length === 0) return tgBold("📭 No closed positions");
   const lines = [tgBold("📉 Closed Positions"), ""];
   for (const p of pools) {
@@ -169,7 +169,7 @@ export function tgClosedPools(pools: ClosedPool[]): string {
 }
 
 /** Pool list summary (top N) — legacy DlmmPool[]. */
-export function tgPoolList(pools: DlmmPool[]): string {
+export function tgPoolList(pools: readonly DlmmPool[]): string {
   if (pools.length === 0) return tgBold("📭 No pools found");
   const lines = [tgBold("📈 Trending Pools \\(30m fee/TVL\\)"), ""];
   pools.forEach((p, i) => {
@@ -352,10 +352,10 @@ export function tgClosedPositionAlert(
 
 export interface WalletPositions {
   wallet: WatchedWallet;
-  pools: OpenPool[];
+  pools: readonly OpenPool[];
 }
 
-export function tgWatchedList(wallets: WatchedWallet[]): string {
+export function tgWatchedList(wallets: readonly WatchedWallet[]): string {
   if (wallets.length === 0) return tgBold("📭 No watched wallets");
   const lines = [tgBold("👁️ Watched Wallets"), ""];
   for (const w of wallets) {
@@ -371,7 +371,7 @@ export function tgWatchedList(wallets: WatchedWallet[]): string {
   return lines.join("\n");
 }
 
-export function tgMultiWalletPositions(results: WalletPositions[]): string {
+export function tgMultiWalletPositions(results: readonly WalletPositions[]): string {
   if (results.length === 0) return tgBold("📭 No watched wallets");
   const lines = [tgBold("👁️ All Watched Positions"), ""];
   let totalPositions = 0;
@@ -441,9 +441,9 @@ export function tgWatchlistAlert(
     baseFee?: string;
     outOfRange?: boolean | null;
     prevPositionCount?: number;
-    listPositions?: string[];
-    positionsOutOfRange?: string[];
-    positionsLive?: PositionLiveEntry[];
+    listPositions?: readonly string[];
+    positionsOutOfRange?: readonly string[];
+    positionsLive?: readonly PositionLiveEntry[];
   }
 ): string {
   const poolInfo: string[] = [];
