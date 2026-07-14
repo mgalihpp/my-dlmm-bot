@@ -1,4 +1,4 @@
-import { Context, Duration, Effect, Layer, Schedule, Schema } from "effect";
+import { Context, Duration, Effect, Layer, ParseResult, Schedule, Schema } from "effect";
 import {
   FetchHttpClient,
   HttpClient,
@@ -119,7 +119,17 @@ const make = Effect.gen(function* () {
       Effect.flatMap((res) =>
         HttpClientResponse.schemaBodyJson(schema)(res).pipe(
           Effect.mapError(
-            (e) => new DecodeError({ source: path, message: String(e) }),
+            (e) =>
+              new DecodeError({
+                source: path,
+                message:
+                  ParseResult.isParseError(e)
+                    ? `Unexpected response shape from ${path}:\n${ParseResult.ArrayFormatter.formatErrorSync(e)
+                        .slice(0, 5)
+                        .map((i) => `  ${i.path.join(".") || "(root)"}: ${i.message}`)
+                        .join("\n")}`
+                    : String(e),
+              }),
           ),
         ),
       ),

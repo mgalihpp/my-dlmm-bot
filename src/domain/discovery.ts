@@ -11,8 +11,8 @@ export const DiscoveryTokenInfo = Schema.Struct({
   organic_score: Schema.Number,
   created_at: Schema.Number,
   dev: Schema.optional(Schema.String),
-  launchpad: Schema.optional(Schema.String),
-  warnings: Schema.optional(Schema.Array(Schema.String)),
+  launchpad: Schema.optional(Schema.NullOr(Schema.String)),
+  warnings: Schema.optional(Schema.Array(Schema.Unknown)),
 });
 export type DiscoveryTokenInfo = Schema.Schema.Type<typeof DiscoveryTokenInfo>;
 
@@ -44,10 +44,10 @@ export const DiscoveryPool = Schema.Struct({
       collect_fee_mode: Schema.String,
     }),
   ),
-  base_token_has_critical_warnings: Schema.Boolean,
-  quote_token_has_critical_warnings: Schema.Boolean,
-  base_token_has_high_supply_concentration: Schema.Boolean,
-  base_token_has_high_single_ownership: Schema.Boolean,
+  base_token_has_critical_warnings: Schema.optional(Schema.Boolean),
+  quote_token_has_critical_warnings: Schema.optional(Schema.Boolean),
+  base_token_has_high_supply_concentration: Schema.optional(Schema.Boolean),
+  base_token_has_high_single_ownership: Schema.optional(Schema.Boolean),
   pool_price_change_pct: Schema.optional(Schema.Number),
   volume_change_pct: Schema.optional(Schema.Number),
   fee_change_pct: Schema.optional(Schema.Number),
@@ -55,16 +55,16 @@ export const DiscoveryPool = Schema.Struct({
   unique_traders: Schema.optional(Schema.Number),
   min_price: Schema.optional(Schema.Number),
   max_price: Schema.optional(Schema.Number),
-  price_trend: Schema.optional(Schema.String),
+  price_trend: Schema.optional(Schema.Unknown),
   fee_pct: Schema.optional(Schema.Number),
 });
 export type DiscoveryPool = Schema.Schema.Type<typeof DiscoveryPool>;
 
 export const DiscoveryPoolsResponse = Schema.Struct({
   total: Schema.Number,
-  pages: Schema.Number,
-  current_page: Schema.Number,
-  page_size: Schema.Number,
+  pages: Schema.optional(Schema.Number),
+  current_page: Schema.optional(Schema.Number),
+  page_size: Schema.optional(Schema.Number),
   data: Schema.Array(DiscoveryPool),
 });
 export type DiscoveryPoolsResponse = Schema.Schema.Type<typeof DiscoveryPoolsResponse>;
