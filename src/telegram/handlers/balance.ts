@@ -1,30 +1,10 @@
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import { resolveWallet, resolveRpc, watchlist } from "../fx.js";
+import { resolveWallet, resolveRpc, watchlist, tokenMeta } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode, tgShortAddr } from "../format.js";
 import { MD, replyError } from "../utils.js";
 import { setInputSession } from "../input-store.js";
-
-const JUPITER_TOKEN_LIST = "https://token.jup.ag/strict";
-let tokenListCache: Map<string, { symbol: string; decimals: number; name: string }> | null = null;
-let tokenListFetchedAt = 0;
-const TOKEN_LIST_TTL_MS = 10 * 60 * 1000;
-
-async function getTokenMeta(mint: string): Promise<{ symbol: string; decimals: number; name: string } | null> {
-  const now = Date.now();
-  if (!tokenListCache || now - tokenListFetchedAt > TOKEN_LIST_TTL_MS) {
-    try {
-      const res = await fetch(JUPITER_TOKEN_LIST, { headers: { accept: "application/json" } });
-      if (res.ok) {
-        const list = (await res.json()) as Array<{ address: string; symbol: string; decimals: number; name: string }>;
-        tokenListCache = new Map(list.map((t) => [t.address, { symbol: t.symbol, decimals: t.decimals, name: t.name }]));
-        tokenListFetchedAt = now;
-      }
-    } catch {}
-  }
-  return tokenListCache?.get(mint) ?? null;
-}
 
 interface TokenRow {
   mint: string; amount: bigint; decimals: number; symbol: string; name: string;
@@ -46,7 +26,7 @@ async function fetchBalance(wallet: string, rpc: string): Promise<{ sol: string;
     if (rawAmt === 0n) continue;
     const mint: string = info.mint;
     const decimals: number = info.tokenAmount?.decimals ?? 0;
-    const meta = await getTokenMeta(mint);
+    const meta = await tokenMeta(mint);
     rows.push({ mint, amount: rawAmt, decimals, symbol: meta?.symbol ?? "???", name: meta?.name ?? mint });
   }
   rows.sort((a, b) => {

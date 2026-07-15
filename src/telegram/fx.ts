@@ -7,6 +7,7 @@ import { Dlmm, type DlmmService } from "../services/Dlmm.js";
 import { Zap } from "../services/Zap.js";
 import { Screening } from "../services/Screening.js";
 import { Watchlist, type WatchedWallet } from "../services/Watchlist.js";
+import { TokenMeta, type TokenMetaInfo } from "../services/TokenMeta.js";
 import type { VexisConfig, PoolsConfig } from "../domain/config.js";
 import type { ScreenResult } from "../lib/screening.js";
 import type { OpenPool } from "../domain/index.js";
@@ -98,5 +99,8 @@ export const watchlist = {
     runFx(Effect.flatMap(Watchlist, (w) => w.remove(address))),
   list: (): Promise<WatchedWallet[]> => runFx(Effect.flatMap(Watchlist, (w) => w.list)),
 };
+
+export const tokenMeta = (mint: string): Promise<TokenMetaInfo | null> =>
+  runFx(Effect.flatMap(TokenMeta, (t) => t.get(mint)));
 
 export type { WatchedWallet };
