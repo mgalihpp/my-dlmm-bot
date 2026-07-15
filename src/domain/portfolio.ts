@@ -73,8 +73,8 @@ export const OpenPortfolioResponse = Schema.Struct({
   pageSize: Schema.Number,
   totalCount: Schema.Number,
   totalPositions: Schema.Number,
-  solPrice: Schema.NullOr(Schema.String),
-  total: Schema.NullOr(OpenPortfolioTotals),
+  solPrice: Schema.optional(Schema.NullOr(Schema.String)),
+  total: Schema.optional(Schema.NullOr(OpenPortfolioTotals)),
   pools: Schema.Array(OpenPool),
 });
 export type OpenPortfolioResponse = Schema.Schema.Type<typeof OpenPortfolioResponse>;
