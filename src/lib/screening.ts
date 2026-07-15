@@ -1,26 +1,21 @@
-import type { MeteoraClient } from "./api.js";
-import type { VexisConfig } from "./config.js";
-import type { DiscoveryPool, ScreenedPool } from "./types.js";
+import type { PoolsConfig } from "../domain/config.js";
+import type { DiscoveryPool, ScreenedPool } from "../domain/index.js";
 
-/** Valid screening timeframes. */
 const VALID_TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"];
 
-/** Parse a timeframe string, return null if invalid. */
 export function parseTimeframe(input: string | undefined): string | null {
   if (!input) return null;
   const tf = input.trim().toLowerCase();
   return VALID_TIMEFRAMES.includes(tf) ? tf : null;
 }
 
-/** Build the filter_by string for Pool Discovery API from screening config. */
-export function buildDiscoveryFilter(cfg: VexisConfig["pools"], timeframe?: string): string {
+export function buildDiscoveryFilter(cfg: PoolsConfig | undefined, _timeframe?: string): string {
   const s = cfg ?? {};
   const filters: string[] = [
     "base_token_has_critical_warnings=false",
     "quote_token_has_critical_warnings=false",
     "pool_type=dlmm",
   ];
-  // Base token filters
   if (s.baseTokenHasHighSupplyConcentration != null) filters.push(`base_token_has_high_supply_concentration=${s.baseTokenHasHighSupplyConcentration}`);
   if (s.baseTokenHasHighSingleOwnership != null) filters.push(`base_token_has_high_single_ownership=${s.baseTokenHasHighSingleOwnership}`);
   if (s.minMcap != null) filters.push(`base_token_market_cap>=${s.minMcap}`);
@@ -38,10 +33,8 @@ export function buildDiscoveryFilter(cfg: VexisConfig["pools"], timeframe?: stri
   if (Array.isArray(s.blockedLaunchpads) && s.blockedLaunchpads.length > 0) {
     filters.push(`base_token_launchpad=[${s.blockedLaunchpads.join(",")}]`);
   }
-  // Quote token filters
   if (s.minQuoteOrganic != null) filters.push(`quote_token_organic_score>=${s.minQuoteOrganic}`);
   if (s.maxQuoteOrganic != null) filters.push(`quote_token_organic_score<=${s.maxQuoteOrganic}`);
-  // Pool metrics filters
   if (s.minTvl != null) filters.push(`tvl>=${s.minTvl}`);
   if (s.maxTvl != null) filters.push(`tvl<=${s.maxTvl}`);
   if (s.minActiveTvl != null) filters.push(`active_tvl>=${s.minActiveTvl}`);
@@ -71,7 +64,6 @@ export function buildDiscoveryFilter(cfg: VexisConfig["pools"], timeframe?: stri
   if (s.minVolumeChangePct != null) filters.push(`volume_change_pct>=${s.minVolumeChangePct}`);
   if (s.maxVolumeChangePct != null) filters.push(`volume_change_pct<=${s.maxVolumeChangePct}`);
   if (s.priceTrend != null) filters.push(`price_trend=${s.priceTrend}`);
-  // SOL pair filter
   if (s.solPairOnly === true) {
     filters.push("(token_x=So11111111111111111111111111111111111111112||token_y=So11111111111111111111111111111111111111112)");
   }
@@ -84,8 +76,7 @@ function numeric(value: unknown): number | null {
   return Number.isFinite(n) ? n : null;
 }
 
-/** Score a candidate pool. Higher = better. */
-function scoreCandidate(pool: DiscoveryPool): number {
+export function scoreCandidate(pool: DiscoveryPool): number {
   const feeTvl = Number(pool.fee_active_tvl_ratio || 0);
   const organic = Number(pool.token_x?.organic_score || 0);
   const volume = Number(pool.volume || 0);
@@ -103,8 +94,7 @@ function fix(n: number | null | undefined, decimals: number): number | null {
   return Number.isFinite(v) ? Number(v.toFixed(decimals)) : null;
 }
 
-/** Condense a raw DiscoveryPool into a ScreenedPool for display. */
-function condensePool(pool: DiscoveryPool): ScreenedPool {
+export function condensePool(pool: DiscoveryPool): ScreenedPool {
   const createdAt = numeric(pool.token_x?.created_at);
   return {
     pool: pool.pool_address,
@@ -126,9 +116,7 @@ function condensePool(pool: DiscoveryPool): ScreenedPool {
     fee: round(pool.fee) ?? 0,
     activePositions: pool.active_positions ?? 0,
     openPositions: pool.open_positions ?? 0,
-    tokenAgeHours: createdAt != null
-      ? Math.floor((Date.now() - createdAt) / 3_600_000)
-      : null,
+    tokenAgeHours: createdAt != null ? Math.floor((Date.now() - createdAt) / 3_600_000) : null,
     score: scoreCandidate(pool),
     price: pool.pool_price ?? 0,
     priceChangePct: fix(pool.pool_price_change_pct, 1),
@@ -143,33 +131,17 @@ export interface ScreenResult {
   filtered: number;
 }
 
-/**
- * Run screening pipeline: discover → condense → score → sort.
- */
-export async function screenPools(
-  client: MeteoraClient,
-  config: VexisConfig,
-  overrideTimeframe?: string,
-): Promise<ScreenResult> {
-  const poolCfg = config.pools ?? {};
-
-  const timeframe = overrideTimeframe ?? poolCfg.timeframe ?? "5m";
-  const category = poolCfg.category ?? "trending";
-  const pageSize = poolCfg.pageSize ?? 50;
-  const displayLimit = poolCfg.displayLimit ?? 15;
-
-  const filterBy = buildDiscoveryFilter(poolCfg, timeframe);
-  const res = await client.discoverPools({ pageSize, filterBy, timeframe, category });
-
-  const rawPools = Array.isArray(res.data) ? res.data : [];
+export function finalizeScreen(
+  rawPools: readonly DiscoveryPool[],
+  total: number | undefined,
+  displayLimit: number,
+): ScreenResult {
   const screened: ScreenedPool[] = rawPools.map(condensePool);
-
   screened.sort((a, b) => b.score - a.score);
   const top = screened.slice(0, displayLimit);
-
   return {
     pools: top,
-    total: res.total ?? rawPools.length,
+    total: total ?? rawPools.length,
     filtered: 0,
   };
 }

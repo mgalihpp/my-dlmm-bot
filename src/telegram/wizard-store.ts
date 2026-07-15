@@ -1,62 +1,21 @@
-// Wizard state store for multi-step create flow.
-const TTL_MS = 10 * 60 * 1000; // 10 minutes
+import { Effect, Option } from "effect";
+import { SessionStore, type WizardState } from "../services/SessionStore.js";
+import { runtime } from "./runtime.js";
 
-export interface WizardState {
-  poolAddress: string;
-  poolName: string;
-  binStep: number;
-  currentPrice: number;
-  tvl?: number;
-  volume24h?: number;
-  holders?: number;
-  baseFeePct?: number;
-  strategy?: string;
-  mode?: "two-sided" | "single-x" | "single-y";
-  // Range parameters (set after range selection, used for execution)
-  minBin?: number;
-  maxBin?: number;
-  minPct?: number;
-  maxPct?: number;
-  isPctMode?: boolean;
-  // Amounts picked via buttons (two-sided fills x then y).
-  xAmount?: string;
-  yAmount?: string;
-  // Auto-swap: total SOL budget to split across both sides.
-  swapBudget?: number;
-}
-
-interface Entry {
-  state: WizardState;
-  expiresAt: number;
-}
-
-const store = new Map<string, Entry>();
-let counter = 0;
+export type { WizardState };
 
 export function createWizard(state: WizardState): string {
-  const id = `w${++counter}`;
-  store.set(id, { state, expiresAt: Date.now() + TTL_MS });
-  return id;
+  return runtime.runSync(Effect.flatMap(SessionStore, (s) => s.createWizard(state)));
 }
 
 export function getWizard(id: string): WizardState | null {
-  const entry = store.get(id);
-  if (!entry) return null;
-  if (Date.now() > entry.expiresAt) {
-    store.delete(id);
-    return null;
-  }
-  return entry.state;
+  return Option.getOrNull(runtime.runSync(Effect.flatMap(SessionStore, (s) => s.getWizard(id))));
 }
 
 export function updateWizard(id: string, patch: Partial<WizardState>): boolean {
-  const entry = store.get(id);
-  if (!entry || Date.now() > entry.expiresAt) return false;
-  Object.assign(entry.state, patch);
-  entry.expiresAt = Date.now() + TTL_MS; // refresh TTL on update
-  return true;
+  return runtime.runSync(Effect.flatMap(SessionStore, (s) => s.updateWizard(id, patch)));
 }
 
 export function deleteWizard(id: string): void {
-  store.delete(id);
+  runtime.runSync(Effect.flatMap(SessionStore, (s) => s.deleteWizard(id)));
 }

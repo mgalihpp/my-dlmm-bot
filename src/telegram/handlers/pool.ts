@@ -1,15 +1,14 @@
-import type { Bot, Context } from "grammy";
+import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../../api.js";
-import type { VexisConfig } from "../../config.js";
+import { api, screenPools } from "../fx.js";
 import { tgScreenedPoolList, tgPoolDetail, escapeMarkdown } from "../format.js";
 import { MD, replyError } from "../utils.js";
-import { screenPools, parseTimeframe } from "../../screening.js";
+import { parseTimeframe } from "../../lib/screening.js";
 import { setInputSession } from "../input-store.js";
 
 const TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
 
-export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfig) {
+export function registerPool(bot: Bot) {
   // ─── /pools — show pool list ─────────────────────────────────────────────
   bot.command("pools", async (ctx) => {
     try {
@@ -23,7 +22,7 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
 
       if (rawArg && timeframe) {
         // Has timeframe arg — direct fetch
-        const result = await screenPools(client, config, timeframe);
+        const result = await screenPools({ timeframe });
         await ctx.reply(tgScreenedPoolList(result), MD);
         return;
       }
@@ -45,7 +44,7 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
     const tf = ctx.match![1] as typeof TIMEFRAMES[number];
     await ctx.editMessageText("⏳ Screening pools\\.\\.\\.", MD);
     try {
-      const result = await screenPools(client, config, tf);
+      const result = await screenPools({ timeframe: tf });
       await ctx.editMessageText(tgScreenedPoolList(result), MD);
     } catch (e) {
       await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
@@ -58,7 +57,7 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
       const address = (ctx.match as string)?.trim();
       if (address) {
         // Has address arg — direct fetch
-        const pool = await client.pool(address);
+        const pool = await api.pool(address);
         await ctx.reply(tgPoolDetail(pool), MD);
         return;
       }
@@ -71,7 +70,7 @@ export function registerPool(bot: Bot, client: MeteoraClient, config: VexisConfi
           return;
         }
         try {
-          const pool = await client.pool(text);
+          const pool = await api.pool(text);
           await sessionCtx.reply(tgPoolDetail(pool), MD);
         } catch (e) {
           await sessionCtx.reply(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);

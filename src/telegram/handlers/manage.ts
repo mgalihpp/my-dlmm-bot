@@ -1,8 +1,5 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import { Keypair } from "@solana/web3.js";
-import type { MeteoraClient } from "../../api.js";
-import type { VexisConfig } from "../../config.js";
-import { resolveKeypair, resolveRpc } from "../../config.js";
+import { dlmm, zap, resolveKeypair } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { MD } from "../utils.js";
 import { registerAction, resolveAction } from "../action-store.js";
@@ -16,7 +13,7 @@ import {
   actionPanelMessage,
   actionPanelKeyboard,
 } from "../pool-position-selector.js";
-import type { StrategyType } from "../../types.js";
+import type { StrategyType } from "../../domain/index.js";
 
 interface Pending {
   summary: string;
@@ -28,32 +25,14 @@ const nextOpId = () => `mop${++opCounter}`;
 
 const PREFIX = "mng";
 
-const DLMM_CLIENT_CACHE: Record<string, any> = {};
-async function lazyDLMM() {
-  if (!DLMM_CLIENT_CACHE.ctor) {
-    const mod = await import("../../dlmm.js");
-    DLMM_CLIENT_CACHE.ctor = mod.DLMMClient;
-  }
-  return DLMM_CLIENT_CACHE.ctor;
-}
-
-let ZAP_CLIENT_CACHE: Record<string, any> = {};
-async function lazyZap() {
-  if (!ZAP_CLIENT_CACHE.ctor) {
-    const mod = await import("../../zap.js");
-    ZAP_CLIENT_CACHE.ctor = mod.ZapClient;
-  }
-  return ZAP_CLIENT_CACHE.ctor;
-}
-
-export function registerManage(bot: Bot, client: MeteoraClient, config: VexisConfig) {
-  const requireKeypair = (): Keypair => resolveKeypair(config);
+export function registerManage(bot: Bot) {
+  const requireKeypair = () => resolveKeypair();
 
   // ─── /manage — entry point ─────────────────────────────────────────────────
   bot.command("manage", async (ctx) => {
     const loading = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
     try {
-      const pools = await fetchOpenPools(client, config);
+      const pools = await fetchOpenPools();
       if (pools.length === 0) {
         await ctx.api.editMessageText(loading.chat.id, loading.message_id, tgBold("📭 No open positions"), MD);
         return;
@@ -69,7 +48,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading positions\\.\\.\\.", MD);
     try {
-      const pools = await fetchOpenPools(client, config);
+      const pools = await fetchOpenPools();
       if (pools.length === 0) {
         await ctx.editMessageText(tgBold("📭 No open positions"), MD);
         return;
@@ -86,14 +65,14 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) {
         await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "mng:pools") });
         return;
       }
       if (detail.positions.length === 1) {
         const actionId = registerAction(poolAddr, detail.positions[0]);
-        const pnl = await resolvePositionPnl(client, config, poolAddr, detail.positions[0]);
+        const pnl = await resolvePositionPnl(poolAddr, detail.positions[0]);
         await showActionPanel(ctx, detail.tokenX, detail.tokenY, poolAddr, detail.positions[0], actionId, "mng:pools", pnl ?? undefined);
         return;
       }
@@ -114,10 +93,10 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       return;
     }
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       const tokenX = detail?.tokenX ?? "?";
       const tokenY = detail?.tokenY ?? "?";
-      const pnl = await resolvePositionPnl(client, config, poolAddr, pair.positionPubkey);
+      const pnl = await resolvePositionPnl(poolAddr, pair.positionPubkey);
       await showActionPanel(ctx, tokenX, tokenY, pair.poolAddress, pair.positionPubkey, actionId, `mng:pool:${poolAddr}`, pnl ?? undefined);
     } catch (e) {
       await ctx.editMessageText(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "mng:pools") });
@@ -130,12 +109,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const actionId = ctx.match![1];
     const pair = resolveAction(actionId);
     if (!pair) return await expired(ctx);
-    requireKeypair();
+    await requireKeypair();
     const { poolAddress, positionPubkey } = pair;
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -147,10 +126,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       "Remove all liquidity \\+ claim fees\\, then swap to SOL via Jupiter\\.",
     ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
-      const keypair = resolveKeypair(config);
-      const rpc = resolveRpc(config);
-      const Ctor = await lazyZap();
-      const zap = new Ctor(keypair, rpc);
       const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
       const sig = result.zapSig || result.closeSig;
       if (!sig) throw new Error("Close produced no transaction signature");
@@ -164,12 +139,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const actionId = ctx.match![1];
     const pair = resolveAction(actionId);
     if (!pair) return await expired(ctx);
-    requireKeypair();
+    await requireKeypair();
     const { poolAddress, positionPubkey } = pair;
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -181,10 +156,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       "Claim swap fees \\+ swap to SOL via Jupiter\\.",
     ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
-      const keypair = resolveKeypair(config);
-      const rpc = resolveRpc(config);
-      const Ctor = await lazyZap();
-      const zap = new Ctor(keypair, rpc);
       const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
       const sig = result.zapSig || result.claimSig;
       if (!sig) throw new Error("Claim produced no transaction signature");
@@ -198,12 +169,12 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     const actionId = ctx.match![1];
     const pair = resolveAction(actionId);
     if (!pair) return await expired(ctx);
-    requireKeypair();
+    await requireKeypair();
     const { poolAddress, positionPubkey } = pair;
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -213,10 +184,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       `Position: ${tgCode(positionPubkey)}`,
     ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
-      const keypair = resolveKeypair(config);
-      const rpc = resolveRpc(config);
-      const Ctor = await lazyDLMM();
-      const dlmm = new Ctor(keypair, rpc);
       return dlmm.claimReward(poolAddress, positionPubkey);
     });
   });
@@ -247,7 +214,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     addLiqSessions.set(chatId, { actionId, poolAddress: pair.poolAddress, positionPubkey: pair.positionPubkey, tokenX: "?", tokenY: "?" });
     // resolve pool detail for token names
     try {
-      const detail = await resolvePoolDetail(client, config, pair.poolAddress);
+      const detail = await resolvePoolDetail(pair.poolAddress);
       if (detail) {
         addLiqSessions.set(chatId, { ...addLiqSessions.get(chatId)!, tokenX: detail.tokenX, tokenY: detail.tokenY });
       }
@@ -314,10 +281,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
           `Strategy: ${escapeMarkdown(s2.strategy!)} \\| ${escapeMarkdown(xToken)}: ${escapeMarkdown(s2.xAmt!)} \\| ${escapeMarkdown(yToken)}: ${escapeMarkdown(s2.yAmt!)}`,
         ].filter(Boolean).join("\n");
         await presentNew(sessionCtx2, summary, async () => {
-          const kp = resolveKeypair(config);
-          const rpc = resolveRpc(config);
-          const Ctor = await lazyDLMM();
-          const dlmm = new Ctor(kp, rpc);
           return dlmm.addLiquidity({
             poolAddress: s2.poolAddress,
             positionPubkey: s2.positionPubkey,
@@ -374,7 +337,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -385,10 +348,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
       `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
     ].filter(Boolean).join("\n");
     await presentEdit(ctx, summary, async () => {
-      const kp = resolveKeypair(config);
-      const rpc = resolveRpc(config);
-      const Ctor = await lazyDLMM();
-      const dlmm = new Ctor(kp, rpc);
       return dlmm.removeLiquidity({
         poolAddress,
         positionPubkey,
@@ -408,7 +367,7 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(client, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const bpsHandler = async (text: string, sessionCtx: Context) => {
@@ -426,10 +385,6 @@ export function registerManage(bot: Bot, client: MeteoraClient, config: VexisCon
         `Amount: ${escapeMarkdown(`${(bps / 100).toFixed(2)}%`)}`,
       ].filter(Boolean).join("\n");
       await presentNew(sessionCtx, summary, async () => {
-        const kp = resolveKeypair(config);
-        const rpc = resolveRpc(config);
-        const Ctor = await lazyDLMM();
-        const dlmm = new Ctor(kp, rpc);
         return dlmm.removeLiquidity({
           poolAddress,
           positionPubkey,

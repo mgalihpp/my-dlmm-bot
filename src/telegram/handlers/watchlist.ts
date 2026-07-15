@@ -1,15 +1,11 @@
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../../api.js";
-import type { VexisConfig } from "../../config.js";
-import { resolveRpc } from "../../config.js";
-import { addWallet, removeWallet, listWallets } from "../../watchlist.js";
+import { api, dlmm, watchlist } from "../fx.js";
 import {
   tgWatchedList,
   tgMultiWalletPositions,
   type WalletPositions,
   escapeMarkdown,
-  tgBold,
   tgCode,
 } from "../format.js";
 import { MD, replyError } from "../utils.js";
@@ -17,7 +13,7 @@ import { setInputSession } from "../input-store.js";
 
 const TG_MAX = 4096;
 
-export function registerWatchlist(bot: Bot, client: MeteoraClient, config: VexisConfig) {
+export function registerWatchlist(bot: Bot) {
   // ─── /watchadd — add wallet to watchlist ─────────────────────────────────
   bot.command("watchadd", async (ctx) => {
     try {
@@ -27,7 +23,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
       if (address) {
         // Has args — existing behavior
         const label = labelParts.length > 0 ? labelParts.join(" ") : undefined;
-        const wallet = addWallet(address, label);
+        const wallet = await watchlist.add(address, label);
         const desc = wallet.label ? `\\(${escapeMarkdown(wallet.label)}\\)` : "";
         await ctx.reply(`✅ Added ${tgCode(wallet.address)} ${desc}`, MD);
         return;
@@ -35,14 +31,12 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
 
       // No args — interactive flow
       const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-      let capturedAddr = "";
 
       setInputSession(chatId, async (text, sessionCtx) => {
         if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text)) {
           await sessionCtx.reply("✖ Invalid address\\. Send a valid Solana wallet address:", MD);
           return;
         }
-        capturedAddr = text;
         // Ask for label
         const kb = new InlineKeyboard()
           .text("✏️ Add Label", `watchadd:label:${text}`)
@@ -61,7 +55,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
     const addr = ctx.match![1];
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     setInputSession(chatId, async (text, sessionCtx) => {
-      const wallet = addWallet(addr, text);
+      const wallet = await watchlist.add(addr, text);
       await sessionCtx.reply(`✅ Added ${tgCode(wallet.address)} \\(${escapeMarkdown(wallet.label!)}\\)`, MD);
     });
     await ctx.editMessageText("✏️ Send label for this wallet:", MD);
@@ -72,7 +66,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
     await ctx.answerCallbackQuery();
     const addr = ctx.match![1];
     const label = ctx.match![2] || undefined;
-    const wallet = addWallet(addr, label);
+    const wallet = await watchlist.add(addr, label);
     const desc = wallet.label ? ` \\(${escapeMarkdown(wallet.label)}\\)` : "";
     await ctx.editMessageText(`✅ Added ${tgCode(wallet.address)}${desc}`, MD);
   });
@@ -83,7 +77,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
       const addr = (ctx.match as string).trim().split(/\s+/)[0];
       if (addr) {
         // Has args — existing behavior
-        if (removeWallet(addr)) {
+        if (await watchlist.remove(addr)) {
           await ctx.reply(`✅ Removed ${tgCode(addr)}`, MD);
         } else {
           await ctx.reply(`❌ Wallet not found in watchlist`, MD);
@@ -92,7 +86,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
       }
 
       // No args — interactive flow
-      const wallets = listWallets();
+      const wallets = await watchlist.list();
       if (wallets.length === 0) {
         await ctx.reply("📭 No watched wallets\\. Add one with /watchadd", MD);
         return;
@@ -112,7 +106,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
   bot.callbackQuery(/^watchremove:confirm:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const addr = ctx.match![1];
-    if (removeWallet(addr)) {
+    if (await watchlist.remove(addr)) {
       await ctx.editMessageText(`✅ Removed ${tgCode(addr)}`, MD);
     } else {
       await ctx.editMessageText(`❌ Wallet not found`, MD);
@@ -122,7 +116,7 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
   // ─── /watchlist — list watched wallets ───────────────────────────────────
   bot.command("watchlist", async (ctx) => {
     try {
-      const wallets = listWallets();
+      const wallets = await watchlist.list();
       const text = tgWatchedList(wallets);
       await ctx.reply(text, MD);
     } catch (e) {
@@ -133,19 +127,18 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
   // ─── /watchpositions — all watched wallets' positions ────────────────────
   bot.command("watchpositions", async (ctx) => {
     try {
-      const wallets = listWallets();
+      const wallets = await watchlist.list();
       if (wallets.length === 0) {
         await ctx.reply("📭 No watched wallets\\. Add one with `/watchadd <wallet>`", MD);
         return;
       }
       const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
-      const { attachLivePositions } = await import("../../dlmm.js");
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
-          const res = await client.openPortfolio(w.address, 1, 10);
-          const pools = res.pools ?? [];
-          await attachLivePositions(pools, resolveRpc(config), w.address);
+          const res = await api.openPortfolio(w.address, 1, 10);
+          const pools = [...(res.pools ?? [])];
+          await dlmm.attachLivePositions(pools, w.address);
           results.push({ wallet: w, pools });
         } catch {
           results.push({ wallet: w, pools: [] });
@@ -167,14 +160,13 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
       if (parts.length > 0) {
         // Has args — existing behavior
         const loadingMsg = await ctx.reply("⏳ Loading positions\\.\\.\\.", MD);
-        const { attachLivePositions } = await import("../../dlmm.js");
         const results: WalletPositions[] = [];
         for (const addr of parts) {
           const w = { address: addr, addedAt: "" };
           try {
-            const res = await client.openPortfolio(addr, 1, 10);
-            const pools = res.pools ?? [];
-            await attachLivePositions(pools, resolveRpc(config), addr);
+            const res = await api.openPortfolio(addr, 1, 10);
+            const pools = [...(res.pools ?? [])];
+            await dlmm.attachLivePositions(pools, addr);
             results.push({ wallet: w, pools });
           } catch {
             results.push({ wallet: w, pools: [] });
@@ -195,14 +187,13 @@ export function registerWatchlist(bot: Bot, client: MeteoraClient, config: Vexis
           return;
         }
         const loadingMsg = await sessionCtx.reply("⏳ Loading positions\\.\\.\\.", MD);
-        const { attachLivePositions } = await import("../../dlmm.js");
         const results: WalletPositions[] = [];
         for (const addr of addrs) {
           const w = { address: addr, addedAt: "" };
           try {
-            const res = await client.openPortfolio(addr, 1, 10);
-            const pools = res.pools ?? [];
-            await attachLivePositions(pools, resolveRpc(config), addr);
+            const res = await api.openPortfolio(addr, 1, 10);
+            const pools = [...(res.pools ?? [])];
+            await dlmm.attachLivePositions(pools, addr);
             results.push({ wallet: w, pools });
           } catch {
             results.push({ wallet: w, pools: [] });

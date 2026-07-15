@@ -1,7 +1,7 @@
 // Telegram bot entry point. Run with: npm run bot
 import { Bot } from "grammy";
-import { MeteoraClient } from "../api.js";
-import { loadConfig, resolveBotToken, resolveChatId } from "../config.js";
+import { Effect } from "effect";
+import { AppConfig } from "../services/Config.js";
 import { registerPortfolio } from "./handlers/portfolio.js";
 import { registerPool } from "./handlers/pool.js";
 import { registerOnchain } from "./handlers/onchain.js";
@@ -13,9 +13,11 @@ import { registerBalance } from "./handlers/balance.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
 import { createTpSl, registerTpSlCommands } from "./tpsl.js";
 import { registerMenu } from "./menu.js";
-import { getInputSession, deleteInputSession } from "./input-store.js";
+import { takeInputSession } from "./input-store.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { MD } from "./utils.js";
+import { runtime } from "./runtime.js";
+import { errorMessage } from "../errors.js";
 
 const HELP = [
   tgBold("🤖 Vexis DLMM Bot"),
@@ -52,12 +54,10 @@ const HELP = [
 ].join("\n");
 
 async function main() {
-  const { config, path: configPath } = loadConfig();
-  const token = resolveBotToken(config);
-  const chatId = resolveChatId(config);
+  const token = await runtime.runPromise(Effect.flatMap(AppConfig, (c) => c.botToken));
+  const chatId = await runtime.runPromise(Effect.flatMap(AppConfig, (c) => c.chatId));
 
   const bot = new Bot(token);
-  const client = new MeteoraClient({ dev: config.dev });
 
   // Security: if a chat ID is configured, ignore everyone else.
   if (chatId) {
@@ -74,9 +74,8 @@ async function main() {
   // ══════════════════════════════════════════════════════════════════════════
   bot.on("message:text", async (ctx, next) => {
     const chatIdStr = String(ctx.chat?.id ?? ctx.from?.id);
-    const session = getInputSession(chatIdStr);
+    const session = takeInputSession(chatIdStr);
     if (session) {
-      deleteInputSession(chatIdStr);
       await session.handler(ctx.message.text.trim(), ctx);
       return; // consumed
     }
@@ -86,22 +85,22 @@ async function main() {
   bot.command("start", (ctx) => ctx.reply(HELP, MD));
   bot.command("help", (ctx) => ctx.reply(HELP, MD));
 
-  registerConfigEditor(bot, config, configPath);
-  registerPortfolio(bot, client, config);
-  registerPool(bot, client, config);
-  registerCreate(bot, client, config);
-  registerOnchain(bot, config);
-  registerManage(bot, client, config);
-  registerWatchlist(bot, client, config);
-  registerBalance(bot, config);
-  registerMenu(bot, client, config);
+  registerConfigEditor(bot);
+  registerPortfolio(bot);
+  registerPool(bot);
+  registerCreate(bot);
+  registerOnchain(bot);
+  registerManage(bot);
+  registerWatchlist(bot);
+  registerBalance(bot);
+  registerMenu(bot);
 
   // Alerts need a destination chat. Only enable if one is configured.
   if (chatId) {
-    const rt = createAlerts(bot, client, config, chatId);
-    registerAlertCommands(bot, client, config, chatId, rt);
-    const tpslRt = createTpSl(bot, client, config, chatId);
-    registerTpSlCommands(bot, client, config, chatId, tpslRt);
+    const rt = createAlerts(bot, chatId);
+    registerAlertCommands(bot, chatId, rt);
+    createTpSl(bot, chatId);
+    registerTpSlCommands(bot);
   }
 
   bot.catch((err) => {
@@ -126,6 +125,6 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("Fatal:", e instanceof Error ? e.message : e);
+  console.error("Fatal:", errorMessage(e));
   process.exit(1);
 });
