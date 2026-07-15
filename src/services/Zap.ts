@@ -1,4 +1,10 @@
-import { Context, Duration, Effect, Layer, Schedule } from "effect";
+import { Context, Duration, Effect, Layer, Schedule, Schema } from "effect";
+import {
+  FetchHttpClient,
+  HttpClient,
+  HttpClientRequest,
+  HttpClientResponse,
+} from "@effect/platform";
 import {
   Connection,
   Keypair,
@@ -81,96 +87,135 @@ async function getWalletTokenBalance(connection: Connection, owner: PublicKey, m
   }
 }
 
-const isTransientJupiterError = (e: JupiterApiError): boolean => {
-  const msg = e.message;
-  return (
-    msg.includes("fetch failed") ||
-    msg.includes("failed to fetch") ||
-    msg.includes("429") ||
-    msg.includes("(5")
-  );
-};
+const isTransientJupiterError = (e: JupiterApiError): boolean =>
+  e.status === 429 ||
+  (e.status !== undefined && e.status >= 500) ||
+  e.message.includes("fetch failed") ||
+  e.message.includes("failed to fetch");
 
 const jupiterRetryPolicy = Schedule.spaced(Duration.millis(800)).pipe(
   Schedule.compose(Schedule.recurs(3)),
 );
 
+const JupiterOrderResponse = Schema.Struct({
+  transaction: Schema.NullOr(Schema.String),
+  requestId: Schema.String,
+  errorMessage: Schema.optional(Schema.String),
+});
+
+const JupiterExecuteResponse = Schema.Struct({
+  status: Schema.Literal("Success", "Failed"),
+  signature: Schema.String,
+  error: Schema.optional(Schema.String),
+});
+
+const jupiterFail = (stage: "order" | "execute") => (e: unknown): JupiterApiError =>
+  e instanceof JupiterApiError
+    ? e
+    : new JupiterApiError({
+        stage,
+        message: e instanceof Error ? e.message : String(e),
+      });
+
+const checkStatus = (stage: "order" | "execute") => (res: HttpClientResponse.HttpClientResponse) =>
+  res.status >= 200 && res.status < 300
+    ? Effect.succeed(res)
+    : res.text.pipe(
+        Effect.orElseSucceed(() => ""),
+        Effect.flatMap((body) =>
+          Effect.fail(
+            new JupiterApiError({
+              stage,
+              status: res.status,
+              message: `Jupiter ${stage} failed (${res.status})${body ? `: ${body}` : ""}`,
+            }),
+          ),
+        ),
+      );
+
 const jupiterUltraSwapOnce = (
+  client: HttpClient.HttpClient,
   keypair: Keypair,
   mint: PublicKey,
   outputMint: PublicKey,
   amount: BN,
   slippageBps?: number,
 ): Effect.Effect<string, JupiterApiError> =>
-  Effect.tryPromise({
-    try: async () => {
-      const orderParams: Record<string, string> = {
-        inputMint: mint.toBase58(),
-        outputMint: outputMint.toBase58(),
-        amount: amount.toString(),
-        taker: keypair.publicKey.toBase58(),
-      };
-      if (slippageBps != null) orderParams.slippageBps = String(slippageBps);
-      const orderUrl = `${JUPITER_API_URL}/swap/v2/order?` + new URLSearchParams(orderParams).toString();
-      const orderRes = await fetch(orderUrl, {
-        headers: { "x-api-key": JUPITER_API_KEY, Accept: "application/json" },
-      });
-      if (!orderRes.ok) {
-        throw new Error(`Jupiter order failed (${orderRes.status}): ${await orderRes.text()}`);
-      }
-      const order = (await orderRes.json()) as {
-        transaction: string | null;
-        requestId: string;
-        errorMessage?: string;
-      };
-      if (!order.transaction) {
-        throw new Error(`Jupiter could not build a swap: ${order.errorMessage ?? "no route"}`);
-      }
+  Effect.gen(function* () {
+    const orderParams: Record<string, string> = {
+      inputMint: mint.toBase58(),
+      outputMint: outputMint.toBase58(),
+      amount: amount.toString(),
+      taker: keypair.publicKey.toBase58(),
+    };
+    if (slippageBps != null) orderParams.slippageBps = String(slippageBps);
+    const orderUrl = `${JUPITER_API_URL}/swap/v2/order?` + new URLSearchParams(orderParams).toString();
 
-      const tx = VersionedTransaction.deserialize(Buffer.from(order.transaction, "base64"));
-      tx.sign([keypair]);
-      const signedTx = Buffer.from(tx.serialize()).toString("base64");
+    const order = yield* client.get(orderUrl).pipe(
+      Effect.mapError(jupiterFail("order")),
+      Effect.flatMap(checkStatus("order")),
+      Effect.flatMap((res) =>
+        HttpClientResponse.schemaBodyJson(JupiterOrderResponse)(res).pipe(
+          Effect.mapError(jupiterFail("order")),
+        ),
+      ),
+      Effect.scoped,
+    );
+    if (!order.transaction) {
+      return yield* Effect.fail(
+        new JupiterApiError({
+          stage: "order",
+          message: `Jupiter could not build a swap: ${order.errorMessage ?? "no route"}`,
+        }),
+      );
+    }
 
-      const execRes = await fetch(`${JUPITER_API_URL}/swap/v2/execute`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": JUPITER_API_KEY,
-        },
-        body: JSON.stringify({ signedTransaction: signedTx, requestId: order.requestId }),
-      });
-      if (!execRes.ok) {
-        throw new Error(`Jupiter execute failed (${execRes.status}): ${await execRes.text()}`);
-      }
-      const result = (await execRes.json()) as {
-        status: "Success" | "Failed";
-        signature: string;
-        error?: string;
-      };
-      if (result.status !== "Success") {
-        throw new Error(`Jupiter swap failed: ${result.error ?? "unknown"} (sig=${result.signature})`);
-      }
-      return result.signature;
-    },
-    catch: (e) =>
-      new JupiterApiError({
-        stage: "order",
-        message: e instanceof Error ? e.message : String(e),
-      }),
+    const signedTx = yield* Effect.try({
+      try: () => {
+        const tx = VersionedTransaction.deserialize(Buffer.from(order.transaction!, "base64"));
+        tx.sign([keypair]);
+        return Buffer.from(tx.serialize()).toString("base64");
+      },
+      catch: jupiterFail("execute"),
+    });
+
+    const result = yield* HttpClientRequest.post(`${JUPITER_API_URL}/swap/v2/execute`).pipe(
+      HttpClientRequest.bodyUnsafeJson({ signedTransaction: signedTx, requestId: order.requestId }),
+      client.execute,
+      Effect.mapError(jupiterFail("execute")),
+      Effect.flatMap(checkStatus("execute")),
+      Effect.flatMap((res) =>
+        HttpClientResponse.schemaBodyJson(JupiterExecuteResponse)(res).pipe(
+          Effect.mapError(jupiterFail("execute")),
+        ),
+      ),
+      Effect.scoped,
+    );
+    if (result.status !== "Success") {
+      return yield* Effect.fail(
+        new JupiterApiError({
+          stage: "execute",
+          message: `Jupiter swap failed: ${result.error ?? "unknown"} (sig=${result.signature})`,
+        }),
+      );
+    }
+    return result.signature;
   });
 
 const jupiterUltraSwap = (
+  client: HttpClient.HttpClient,
   keypair: Keypair,
   mint: PublicKey,
   outputMint: PublicKey,
   amount: BN,
   slippageBps?: number,
 ): Effect.Effect<string, JupiterApiError> =>
-  jupiterUltraSwapOnce(keypair, mint, outputMint, amount, slippageBps).pipe(
+  jupiterUltraSwapOnce(client, keypair, mint, outputMint, amount, slippageBps).pipe(
     Effect.retry({ schedule: jupiterRetryPolicy, while: isTransientJupiterError }),
   );
 
 const swapTokensToOutput = (
+  client: HttpClient.HttpClient,
   keypair: Keypair,
   inputs: { mint: PublicKey; amount: BN }[],
   outputMint: PublicKey,
@@ -180,13 +225,19 @@ const swapTokensToOutput = (
     for (const { mint, amount } of inputs) {
       if (mint.equals(outputMint)) continue;
       if (amount.lten(0)) continue;
-      lastSig = yield* jupiterUltraSwap(keypair, mint, outputMint, amount);
+      lastSig = yield* jupiterUltraSwap(client, keypair, mint, outputMint, amount);
     }
     return lastSig;
   });
 
 const make = Effect.gen(function* () {
   const solana = yield* Solana;
+  const client = (yield* HttpClient.HttpClient).pipe(
+    HttpClient.mapRequest(HttpClientRequest.setHeaders({
+      "x-api-key": JUPITER_API_KEY,
+      accept: "application/json",
+    })),
+  );
 
   const withSigner = <A, E>(
     op: string,
@@ -251,6 +302,7 @@ const make = Effect.gen(function* () {
           });
 
           const zapSig = yield* swapTokensToOutput(
+            client,
             keypair,
             [
               { mint: state.tokenX, amount: state.deltaX },
@@ -314,6 +366,7 @@ const make = Effect.gen(function* () {
           });
 
           const zapSig = yield* swapTokensToOutput(
+            client,
             keypair,
             [
               { mint: state.tokenX, amount: state.deltaX },
@@ -340,7 +393,7 @@ const make = Effect.gen(function* () {
           const balBefore = yield* tryOnchain("swapExactIn", () =>
             getWalletTokenBalance(connection, keypair.publicKey, outPk),
           );
-          const signature = yield* jupiterUltraSwap(keypair, inPk, outPk, amount, slippageBps);
+          const signature = yield* jupiterUltraSwap(client, keypair, inPk, outPk, amount, slippageBps);
           yield* tryOnchain("swapExactIn", async () => {
             if (signature) await connection.confirmTransaction(signature, "confirmed");
           });
@@ -361,4 +414,6 @@ const make = Effect.gen(function* () {
   return service;
 });
 
-export const ZapLive = Layer.effect(Zap, make);
+export const ZapLayer = Layer.effect(Zap, make);
+
+export const ZapLive = ZapLayer.pipe(Layer.provide(FetchHttpClient.layer));

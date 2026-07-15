@@ -7,6 +7,7 @@ import { ZapLive } from "./services/Zap.js";
 import { ScreeningLive } from "./services/Screening.js";
 import { SessionStoreLive } from "./services/SessionStore.js";
 import { WatchlistLive } from "./services/Watchlist.js";
+import { TokenMetaLive } from "./services/TokenMeta.js";
 
 export const AppLayer = Layer.mergeAll(
   MeteoraApiLive,
@@ -16,4 +17,5 @@ export const AppLayer = Layer.mergeAll(
   SessionStoreLive,
   WatchlistLive,
   SolanaLive,
+  TokenMetaLive,
 ).pipe(Layer.provideMerge(SolanaLive), Layer.provideMerge(MeteoraApiLive), Layer.provideMerge(AppConfigLive));
