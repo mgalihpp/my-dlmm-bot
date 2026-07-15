@@ -6,7 +6,6 @@ import {
   tgMultiWalletPositions,
   type WalletPositions,
   escapeMarkdown,
-  tgBold,
   tgCode,
 } from "../format.js";
 import { MD, replyError } from "../utils.js";
@@ -32,14 +31,12 @@ export function registerWatchlist(bot: Bot) {
 
       // No args — interactive flow
       const chatId = String(ctx.chat?.id ?? ctx.from?.id);
-      let capturedAddr = "";
 
       setInputSession(chatId, async (text, sessionCtx) => {
         if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(text)) {
           await sessionCtx.reply("✖ Invalid address\\. Send a valid Solana wallet address:", MD);
           return;
         }
-        capturedAddr = text;
         // Ask for label
         const kb = new InlineKeyboard()
           .text("✏️ Add Label", `watchadd:label:${text}`)

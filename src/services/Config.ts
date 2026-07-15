@@ -39,7 +39,6 @@ export interface AppConfigService {
   readonly rpcUrl: Effect.Effect<string>;
   readonly botToken: Effect.Effect<string, ConfigError>;
   readonly chatId: Effect.Effect<string | undefined>;
-  readonly createPreset: Effect.Effect<CreatePreset>;
 }
 
 export class AppConfig extends Context.Tag("AppConfig")<AppConfig, AppConfigService>() {}
@@ -127,7 +126,6 @@ const make = (initial: VexisConfig, path: string | null): Effect.Effect<AppConfi
         }),
       ),
       chatId: Ref.get(ref).pipe(Effect.map((c) => process.env.TELEGRAM_CHAT_ID || c.telegramChatId)),
-      createPreset: Ref.get(ref).pipe(Effect.map(resolveCreatePresetFrom)),
     };
     return service;
   });

@@ -96,7 +96,6 @@ const jupiterRetryPolicy = Schedule.spaced(Duration.millis(800)).pipe(
 );
 
 const jupiterUltraSwapOnce = (
-  connection: Connection,
   keypair: Keypair,
   mint: PublicKey,
   outputMint: PublicKey,
@@ -161,19 +160,17 @@ const jupiterUltraSwapOnce = (
   });
 
 const jupiterUltraSwap = (
-  connection: Connection,
   keypair: Keypair,
   mint: PublicKey,
   outputMint: PublicKey,
   amount: BN,
   slippageBps?: number,
 ): Effect.Effect<string, JupiterApiError> =>
-  jupiterUltraSwapOnce(connection, keypair, mint, outputMint, amount, slippageBps).pipe(
+  jupiterUltraSwapOnce(keypair, mint, outputMint, amount, slippageBps).pipe(
     Effect.retry({ schedule: jupiterRetryPolicy, while: isTransientJupiterError }),
   );
 
 const swapTokensToOutput = (
-  connection: Connection,
   keypair: Keypair,
   inputs: { mint: PublicKey; amount: BN }[],
   outputMint: PublicKey,
@@ -183,7 +180,7 @@ const swapTokensToOutput = (
     for (const { mint, amount } of inputs) {
       if (mint.equals(outputMint)) continue;
       if (amount.lten(0)) continue;
-      lastSig = yield* jupiterUltraSwap(connection, keypair, mint, outputMint, amount);
+      lastSig = yield* jupiterUltraSwap(keypair, mint, outputMint, amount);
     }
     return lastSig;
   });
@@ -254,7 +251,6 @@ const make = Effect.gen(function* () {
           });
 
           const zapSig = yield* swapTokensToOutput(
-            connection,
             keypair,
             [
               { mint: state.tokenX, amount: state.deltaX },
@@ -318,7 +314,6 @@ const make = Effect.gen(function* () {
           });
 
           const zapSig = yield* swapTokensToOutput(
-            connection,
             keypair,
             [
               { mint: state.tokenX, amount: state.deltaX },
@@ -345,7 +340,7 @@ const make = Effect.gen(function* () {
           const balBefore = yield* tryOnchain("swapExactIn", () =>
             getWalletTokenBalance(connection, keypair.publicKey, outPk),
           );
-          const signature = yield* jupiterUltraSwap(connection, keypair, inPk, outPk, amount, slippageBps);
+          const signature = yield* jupiterUltraSwap(keypair, inPk, outPk, amount, slippageBps);
           yield* tryOnchain("swapExactIn", async () => {
             if (signature) await connection.confirmTransaction(signature, "confirmed");
           });

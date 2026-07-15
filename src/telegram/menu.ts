@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import { api, dlmm, screenPools, resolveWallet, watchlist } from "./fx.js";
 import {
   tgPortfolioSummary,

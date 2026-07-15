@@ -6,7 +6,6 @@ import { registerAction, resolveAction } from "../action-store.js";
 import { setInputSession } from "../input-store.js";
 import {
   fetchOpenPools,
-  showPoolList,
   resolvePoolDetail,
 } from "../pool-position-selector.js";
 import type { StrategyType } from "../../domain/index.js";

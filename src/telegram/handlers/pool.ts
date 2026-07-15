@@ -1,4 +1,4 @@
-import type { Bot, Context } from "grammy";
+import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { api, screenPools } from "../fx.js";
 import { tgScreenedPoolList, tgPoolDetail, escapeMarkdown } from "../format.js";

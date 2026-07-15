@@ -4,10 +4,10 @@ import type { Keypair } from "@solana/web3.js";
 import { AppConfig } from "../services/Config.js";
 import { MeteoraApi, type MeteoraApiService } from "../services/MeteoraApi.js";
 import { Dlmm, type DlmmService } from "../services/Dlmm.js";
-import { Zap, type ZapService } from "../services/Zap.js";
+import { Zap } from "../services/Zap.js";
 import { Screening } from "../services/Screening.js";
 import { Watchlist, type WatchedWallet } from "../services/Watchlist.js";
-import type { VexisConfig, CreatePreset, PoolsConfig } from "../domain/config.js";
+import type { VexisConfig, PoolsConfig } from "../domain/config.js";
 import type { ScreenResult } from "../lib/screening.js";
 import type { OpenPool } from "../domain/index.js";
 import { runFx, runtime } from "./runtime.js";
@@ -32,9 +32,6 @@ export const resolveRpc = (): Promise<string> =>
 
 export const resolveKeypair = (): Promise<Keypair> =>
   runFx(Effect.flatMap(AppConfig, (c) => c.keypair));
-
-export const resolveCreatePreset = (): Promise<CreatePreset> =>
-  runFx(Effect.flatMap(AppConfig, (c) => c.createPreset));
 
 export const api = {
   totalPnl: (user: string) => runFx(Effect.flatMap(MeteoraApi, (a) => a.totalPnl(user))),

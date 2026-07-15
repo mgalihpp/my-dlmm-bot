@@ -6,7 +6,6 @@ import {
   zap,
   screenPools,
   resolveWallet,
-  resolveCreatePreset,
   getConfigSync,
 } from "../fx.js";
 import { resolveCreatePresetFrom } from "../../services/Config.js";
@@ -865,7 +864,7 @@ async function executeSwapAndCreate(
         : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
     });
 
-    const { fX, fY } = computeStrategySplit(
+    const { fX } = computeStrategySplit(
       preview.activeBinId,
       preview.minBinId,
       preview.maxBinId,

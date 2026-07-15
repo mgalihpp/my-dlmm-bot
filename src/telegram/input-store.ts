@@ -18,19 +18,3 @@ export function takeInputSession(chatId: string | number): InputSession | null {
     runtime.runSync(Effect.flatMap(SessionStore, (s) => s.takeInput(chatId))),
   );
 }
-
-export function deleteInputSession(chatId: string | number): void {
-  runtime.runSync(Effect.flatMap(SessionStore, (s) => s.deleteInput(chatId)));
-}
-
-export async function promptText(
-  ctx: Context,
-  prompt: string,
-  handler: (text: string, ctx: Context) => Promise<void>,
-  opts?: { backLabel?: string; backData?: string },
-): Promise<void> {
-  const chatId = ctx.chat?.id ?? ctx.from?.id;
-  if (chatId == null) return;
-  setInputSession(chatId, handler, opts);
-  await ctx.reply(prompt, { parse_mode: "MarkdownV2" });
-}

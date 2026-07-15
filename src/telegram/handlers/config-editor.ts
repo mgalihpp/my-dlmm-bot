@@ -1,4 +1,4 @@
-import { Bot, Context, InlineKeyboard } from "grammy";
+import { Bot, InlineKeyboard } from "grammy";
 import type { VexisConfig } from "../../domain/config.js";
 import { getConfigSync, updateConfig, configPath } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode } from "../format.js";
