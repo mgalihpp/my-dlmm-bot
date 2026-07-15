@@ -1,6 +1,6 @@
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import { Duration, Effect, Fiber, Schedule } from "effect";
+import { Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import {
@@ -118,7 +118,7 @@ function toSnapshot(p: OpenPool): PoolSnapshot {
 
 const scheduleLoop = (
   label: string,
-  interval: Duration.DurationInput,
+  cronExpr: string,
   job: () => Promise<void>,
 ): AlertFiber =>
   runtime.runFork(
@@ -128,7 +128,7 @@ const scheduleLoop = (
           console.error(`[alerts] ${label} failed:`, e);
         }),
       ),
-      Effect.schedule(Schedule.spaced(interval)),
+      Effect.schedule(Schedule.cron(cronExpr)),
     ),
   );
 
@@ -159,7 +159,7 @@ export function createAlerts(bot: Bot, chatId: string): RuntimeAlerts {
 
 function schedulePortfolio(rt: RuntimeAlerts, bot: Bot, chatId: string, hours: number) {
   stopFiber(rt.portfolioFiber);
-  rt.portfolioFiber = scheduleLoop("portfolio", Duration.hours(Math.max(1, hours)), async () => {
+  rt.portfolioFiber = scheduleLoop("portfolio", `0 */${Math.max(1, hours)} * * *`, async () => {
     const wallet = await resolveWallet();
     const total = await api.totalPnl(wallet);
     await bot.api.sendMessage(chatId, tgPortfolioSummary(total), MD);
@@ -180,7 +180,7 @@ function schedulePortfolio(rt: RuntimeAlerts, bot: Bot, chatId: string, hours: n
 function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
   if (rt.positionFiber) return;
 
-  rt.positionFiber = scheduleLoop("position-check", Duration.minutes(15), async () => {
+  rt.positionFiber = scheduleLoop("position-check", "*/15 * * * *", async () => {
     console.log("[position-check] Starting position check at", new Date().toISOString());
     const wallet = await resolveWallet();
     const res = await api.openPortfolio(wallet, 1, 100);
@@ -250,7 +250,7 @@ function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 function scheduleWatchlistChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
   stopFiber(rt.watchlistFiber);
 
-  rt.watchlistFiber = scheduleLoop("watchlist", Duration.minutes(5), async () => {
+  rt.watchlistFiber = scheduleLoop("watchlist", "*/5 * * * *", async () => {
     const wallets = await watchlist.list();
     if (wallets.length === 0) return;
 

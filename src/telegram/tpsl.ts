@@ -47,7 +47,7 @@ function threshold(v: number | null | undefined): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-function pnlPct(pos: { pnlSolPctChange: number | null; pnlPctChange: string }): {
+function pnlPct(pos: { pnlSolPctChange: string | number | null; pnlPctChange: string }): {
   value: number;
   basis: "sol" | "usd";
 } | null {

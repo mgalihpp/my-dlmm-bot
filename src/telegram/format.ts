@@ -113,7 +113,13 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
     );
 
     if (p.openPositionCount <= 1) {
-      lines.push(`   └ ✅ ${tgCode(p.listPositions[0])}`);
+      const pos = p.listPositions[0];
+      lines.push(`   └ ✅ ${tgCode(pos)}`);
+      const live = p.positionsLive?.find((e) => e.address === pos);
+      if (live) {
+        lines.push(`      ${escapeMarkdown(`${live.amountX} ${p.tokenX} + ${live.amountY} ${p.tokenY}`)}`);
+        lines.push(`      Fees: ${escapeMarkdown(`${live.feeX} ${p.tokenX} + ${live.feeY} ${p.tokenY}`)}`);
+      }
       lines.push("");
       return;
     }
