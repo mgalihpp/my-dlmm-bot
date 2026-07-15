@@ -1,7 +1,5 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import { Keypair } from "@solana/web3.js";
-import type { VexisConfig } from "../../config.js";
-import { resolveKeypair, resolveRpc, resolveWallet } from "../../config.js";
+import { dlmm, zap, resolveKeypair } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { MD, replyError } from "../utils.js";
 import { registerAction, resolveAction } from "../action-store.js";
@@ -11,7 +9,7 @@ import {
   showPoolList,
   resolvePoolDetail,
 } from "../pool-position-selector.js";
-import type { StrategyType } from "../../types.js";
+import type { StrategyType } from "../../domain/index.js";
 
 interface Pending {
   summary: string;
@@ -22,24 +20,6 @@ let counter = 0;
 const nextId = () => `op${++counter}`;
 
 const STRATEGIES = new Set<StrategyType>(["spot", "bidask", "curve"]);
-
-let DLMMClientCtor: any = null;
-async function lazyDLMM() {
-  if (!DLMMClientCtor) {
-    const mod = await import("../../dlmm.js");
-    DLMMClientCtor = mod.DLMMClient;
-  }
-  return DLMMClientCtor;
-}
-
-let ZapClientCtor: any = null;
-async function lazyZap() {
-  if (!ZapClientCtor) {
-    const mod = await import("../../zap.js");
-    ZapClientCtor = mod.ZapClient;
-  }
-  return ZapClientCtor;
-}
 
 // ─── Session stores for multi-step interactive flows ────────────────────────
 
@@ -60,22 +40,14 @@ interface RemoveLiqSession {
 }
 const removeLiqSessions = new Map<string, RemoveLiqSession>();
 
-export function registerOnchain(bot: Bot, config: VexisConfig) {
-  const requireKeypair = (): Keypair => resolveKeypair(config);
+export function registerOnchain(bot: Bot) {
+  const requireKeypair = () => resolveKeypair();
 
-  const makeDlmmRunner = (fn: (dlmm: any) => Promise<string>) => async (): Promise<string> => {
-    const kp = resolveKeypair(config);
-    const rpc = resolveRpc(config);
-    const Ctor = await lazyDLMM();
-    const dlmm = new Ctor(kp, rpc);
+  const makeDlmmRunner = (fn: (d: typeof dlmm) => Promise<string>) => async (): Promise<string> => {
     return fn(dlmm);
   };
 
-  const makeZapRunner = (fn: (zap: any) => Promise<string>) => async (): Promise<string> => {
-    const kp = resolveKeypair(config);
-    const rpc = resolveRpc(config);
-    const Ctor = await lazyZap();
-    const zap = new Ctor(kp, rpc);
+  const makeZapRunner = (fn: (z: typeof zap) => Promise<string>) => async (): Promise<string> => {
     return fn(zap);
   };
 
@@ -84,7 +56,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("create", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
       const usage =
         "Usage:\n" +
@@ -134,13 +106,13 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("close", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
         // Has args — fetch pool detail for token pair name
         let pairName = "";
         try {
-          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          const detail = await resolvePoolDetail(poolAddress);
           if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
         } catch {}
         const summary = [
@@ -169,7 +141,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) {
         await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "close:pools") });
         return;
@@ -200,7 +172,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -223,7 +195,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("addliq", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
       if (parts.length >= 5) {
         const [poolAddress, positionPubkey, strategy, xAmt, yAmt] = parts;
@@ -231,7 +203,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         // Fetch pool detail for token pair name
         let pairName = "";
         try {
-          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          const detail = await resolvePoolDetail(poolAddress);
           if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
         } catch {}
         const summary = [
@@ -257,7 +229,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) { await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "addliq:pools") }); return; }
       const kb = new InlineKeyboard();
       detail.positions.forEach((pos, i) => {
@@ -282,7 +254,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     let tokenX = "";
     let tokenY = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      const detail = await resolvePoolDetail(pair.poolAddress);
       if (detail) { tokenX = detail.tokenX; tokenY = detail.tokenY; }
     } catch {}
     addLiqSessions.set(chatId, { poolAddress: pair.poolAddress, positionPubkey: pair.positionPubkey, tokenX, tokenY });
@@ -371,7 +343,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("removeliq", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const [poolAddress, positionPubkey, bps] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey && bps) {
         const bpsNum = parseInt(bps, 10);
@@ -379,7 +351,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
         // Fetch pool detail for token pair name
         let pairName = "";
         try {
-          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          const detail = await resolvePoolDetail(poolAddress);
           if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
         } catch {}
         const summary = [
@@ -404,7 +376,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) { await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "removeliq:pools") }); return; }
       const kb = new InlineKeyboard();
       detail.positions.forEach((pos, i) => {
@@ -429,7 +401,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      const detail = await resolvePoolDetail(pair.poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     await ctx.editMessageText(
@@ -456,7 +428,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -481,7 +453,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, pair.poolAddress);
+      const detail = await resolvePoolDetail(pair.poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     let retry = 0;
@@ -513,13 +485,13 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("claimfee", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
         // Fetch pool detail for token pair name
         let pairName = "";
         try {
-          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          const detail = await resolvePoolDetail(poolAddress);
           if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
         } catch {}
         const summary = [
@@ -547,7 +519,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) { await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "claimfee:pools") }); return; }
       const kb = new InlineKeyboard();
       detail.positions.forEach((pos, i) => {
@@ -571,7 +543,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -594,13 +566,13 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ═══════════════════════════════════════════════════════════════════════════
   bot.command("claimreward", async (ctx) => {
     try {
-      requireKeypair();
+      await requireKeypair();
       const [poolAddress, positionPubkey] = (ctx.match as string).trim().split(/\s+/);
       if (poolAddress && positionPubkey) {
         // Fetch pool detail for token pair name
         let pairName = "";
         try {
-          const detail = await resolvePoolDetail(null as any, config, poolAddress);
+          const detail = await resolvePoolDetail(poolAddress);
           if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
         } catch {}
         const summary = [
@@ -624,7 +596,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     const poolAddr = ctx.match![1];
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddr);
+      const detail = await resolvePoolDetail(poolAddr);
       if (!detail) { await ctx.editMessageText("Pool not found\\.", { ...MD, reply_markup: new InlineKeyboard().text("⬅️ Back", "claimreward:pools") }); return; }
       const kb = new InlineKeyboard();
       detail.positions.forEach((pos, i) => {
@@ -648,7 +620,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
     // Fetch pool detail for token pair name
     let pairName = "";
     try {
-      const detail = await resolvePoolDetail(null as any, config, poolAddress);
+      const detail = await resolvePoolDetail(poolAddress);
       if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
     } catch {}
     const summary = [
@@ -669,7 +641,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   bot.callbackQuery(backPattern, async (ctx) => {
     await ctx.answerCallbackQuery();
     const prefix = ctx.match![1];
-    const pools = await fetchOpenPools(null, config);
+    const pools = await fetchOpenPools();
     if (pools.length === 0) {
       await ctx.editMessageText("📭 No open positions\\.", MD);
       return;
@@ -713,7 +685,7 @@ export function registerOnchain(bot: Bot, config: VexisConfig) {
   // ─── interactivePoolList — internal helper ───────────────────────────────
   async function interactivePoolList(ctx: Context, prefix: string) {
     try {
-      const pools = await fetchOpenPools(null, config);
+      const pools = await fetchOpenPools();
       if (pools.length === 0) {
         await ctx.reply("📭 No open positions\\.", MD);
         return;

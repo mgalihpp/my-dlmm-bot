@@ -1,24 +1,15 @@
-// Stop Loss / Take Profit alerts. Global thresholds read from vexis.config.json
-// (stopLossPct / takeProfitPct), applied automatically to ALL open positions.
-// A cron polls open positions every minute; when a position's SOL-denominated
-// PnL % crosses a threshold it sends a Telegram alert with a "Close & Zap Out"
-// button (reusing the existing mng:close flow). No auto-signing — the user
-// confirms the close. Only per-position trigger flags persist (for dedup) to
-// .vexis-tpsl.json; the thresholds themselves live in the config file.
 import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
-import cron, { type ScheduledTask } from "node-cron";
+import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../api.js";
-import type { VexisConfig } from "../config.js";
-import { resolveWallet } from "../config.js";
 import { escapeMarkdown, tgBold, tgCode, tgPct } from "./format.js";
 import { MD } from "./utils.js";
 import { registerAction } from "./action-store.js";
+import { api, getConfig, resolveWallet } from "./fx.js";
+import { runtime } from "./runtime.js";
 
 const STATE_FILE = join(process.cwd(), ".vexis-tpsl.json");
-const CRON_EXPR = "* * * * *"; // every minute
 
 interface TriggerFlags {
   sl: boolean;
@@ -26,13 +17,12 @@ interface TriggerFlags {
 }
 
 interface TpSlState {
-  // positionAddress → which side has already fired (dedup)
   triggered: Record<string, TriggerFlags>;
 }
 
-interface RuntimeTpSl {
+export interface RuntimeTpSl {
   state: TpSlState;
-  task: ScheduledTask | null;
+  fiber: Fiber.RuntimeFiber<unknown, unknown> | null;
 }
 
 function loadState(): TpSlState {
@@ -40,9 +30,7 @@ function loadState(): TpSlState {
     try {
       const raw = JSON.parse(readFileSync(STATE_FILE, "utf8"));
       return { triggered: raw.triggered && typeof raw.triggered === "object" ? raw.triggered : {} };
-    } catch {
-      // fall through to defaults
-    }
+    } catch {}
   }
   return { triggered: {} };
 }
@@ -55,18 +43,16 @@ function saveState(state: TpSlState) {
   }
 }
 
-/** Coerce a config threshold to a usable number, or null if unset/invalid. */
 function threshold(v: number | null | undefined): number | null {
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
-/** Numeric PnL % for a position, preferring SOL basis, falling back to USD. */
-function pnlPct(pos: { pnlSolPctChange: string | null; pnlPctChange: string }): {
+function pnlPct(pos: { pnlSolPctChange: number | null; pnlPctChange: string }): {
   value: number;
   basis: "sol" | "usd";
 } | null {
   if (pos.pnlSolPctChange !== null) {
-    const val = parseFloat(pos.pnlSolPctChange);
+    const val = Number(pos.pnlSolPctChange);
     if (Number.isFinite(val)) return { value: val, basis: "sol" };
   }
   const usd = parseFloat(pos.pnlPctChange);
@@ -74,89 +60,79 @@ function pnlPct(pos: { pnlSolPctChange: string | null; pnlPctChange: string }): 
   return null;
 }
 
-export function createTpSl(
-  bot: Bot,
-  client: MeteoraClient,
-  config: VexisConfig,
-  chatId: string,
-): RuntimeTpSl {
-  const rt: RuntimeTpSl = { state: loadState(), task: null };
-  // Always schedule — the cron reads live config each run and no-ops when both
-  // thresholds are unset, so runtime config edits take effect without a restart.
-  scheduleTpSlChecks(rt, bot, client, config, chatId);
+export function createTpSl(bot: Bot, chatId: string): RuntimeTpSl {
+  const rt: RuntimeTpSl = { state: loadState(), fiber: null };
+
+  const check = Effect.tryPromise(() => runCheck(rt, bot, chatId)).pipe(
+    Effect.catchAll((e) =>
+      Effect.sync(() => {
+        console.error("[tpsl] check failed:", e);
+      }),
+    ),
+  );
+
+  rt.fiber = runtime.runFork(
+    check.pipe(Effect.repeat(Schedule.spaced(Duration.minutes(1)))),
+  );
+
   return rt;
 }
 
-function scheduleTpSlChecks(
-  rt: RuntimeTpSl,
-  bot: Bot,
-  client: MeteoraClient,
-  config: VexisConfig,
-  chatId: string,
-) {
-  rt.task?.stop();
-  rt.task = cron.schedule(CRON_EXPR, async () => {
+async function runCheck(rt: RuntimeTpSl, bot: Bot, chatId: string): Promise<void> {
+  const config = await getConfig();
+  const sl = threshold(config.stopLossPct);
+  const tp = threshold(config.takeProfitPct);
+  if (sl === null && tp === null) return;
+
+  const wallet = await resolveWallet();
+  const res = await api.openPortfolio(wallet, 1, 100);
+  const pools = res.pools ?? [];
+  const seen = new Set<string>();
+
+  for (const pool of pools) {
+    let pdata;
     try {
-      const sl = threshold(config.stopLossPct);
-      const tp = threshold(config.takeProfitPct);
-      if (sl === null && tp === null) return; // feature off
-
-      const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 100);
-      const pools = res.pools ?? [];
-      const seen = new Set<string>();
-
-      for (const pool of pools) {
-        let pdata;
-        try {
-          pdata = await client.positionPnl(pool.poolAddress, wallet, "open");
-        } catch (e) {
-          console.error("[tpsl] positionPnl failed for pool", pool.poolAddress, e);
-          continue;
-        }
-        const pair = `${pdata.tokenX ?? pool.tokenX}/${pdata.tokenY ?? pool.tokenY}`;
-
-        for (const p of pdata.positions) {
-          if (p.isClosed) continue;
-          seen.add(p.positionAddress);
-          const pct = pnlPct(p);
-          if (!pct) continue;
-
-          const flags = rt.state.triggered[p.positionAddress] ?? { sl: false, tp: false };
-
-          // Take profit
-          if (tp !== null && pct.value >= tp) {
-            if (!flags.tp) {
-              flags.tp = true;
-              await sendTrigger(bot, chatId, "tp", pool.poolAddress, p.positionAddress, pair, pct, tp);
-            }
-          } else {
-            flags.tp = false; // re-arm once back below target
-          }
-
-          // Stop loss
-          if (sl !== null && pct.value <= sl) {
-            if (!flags.sl) {
-              flags.sl = true;
-              await sendTrigger(bot, chatId, "sl", pool.poolAddress, p.positionAddress, pair, pct, sl);
-            }
-          } else {
-            flags.sl = false; // re-arm once back above limit
-          }
-
-          rt.state.triggered[p.positionAddress] = flags;
-        }
-      }
-
-      // Prune flags for positions no longer open
-      for (const key of Object.keys(rt.state.triggered)) {
-        if (!seen.has(key)) delete rt.state.triggered[key];
-      }
-      saveState(rt.state);
+      pdata = await api.positionPnl(pool.poolAddress, wallet, "open");
     } catch (e) {
-      console.error("[tpsl] check failed:", e);
+      console.error("[tpsl] positionPnl failed for pool", pool.poolAddress, e);
+      continue;
     }
-  });
+    const pair = `${pdata.tokenX ?? pool.tokenX}/${pdata.tokenY ?? pool.tokenY}`;
+
+    for (const p of pdata.positions) {
+      if (p.isClosed) continue;
+      seen.add(p.positionAddress);
+      const pct = pnlPct(p);
+      if (!pct) continue;
+
+      const flags = rt.state.triggered[p.positionAddress] ?? { sl: false, tp: false };
+
+      if (tp !== null && pct.value >= tp) {
+        if (!flags.tp) {
+          flags.tp = true;
+          await sendTrigger(bot, chatId, "tp", pool.poolAddress, p.positionAddress, pair, pct, tp);
+        }
+      } else {
+        flags.tp = false;
+      }
+
+      if (sl !== null && pct.value <= sl) {
+        if (!flags.sl) {
+          flags.sl = true;
+          await sendTrigger(bot, chatId, "sl", pool.poolAddress, p.positionAddress, pair, pct, sl);
+        }
+      } else {
+        flags.sl = false;
+      }
+
+      rt.state.triggered[p.positionAddress] = flags;
+    }
+  }
+
+  for (const key of Object.keys(rt.state.triggered)) {
+    if (!seen.has(key)) delete rt.state.triggered[key];
+  }
+  saveState(rt.state);
 }
 
 async function sendTrigger(
@@ -192,17 +168,9 @@ async function sendTrigger(
   }
 }
 
-// ─── Bot commands ───────────────────────────────────────────────────────────
-
-export function registerTpSlCommands(
-  bot: Bot,
-  _client: MeteoraClient,
-  config: VexisConfig,
-  _chatId: string,
-  _rt: RuntimeTpSl,
-) {
-  // ─── /tpsl — show current global thresholds ─────────────────────────────
+export function registerTpSlCommands(bot: Bot) {
   bot.command("tpsl", async (ctx) => {
+    const config = await getConfig();
     const sl = threshold(config.stopLossPct);
     const tp = threshold(config.takeProfitPct);
     const slTxt = sl !== null ? tgPct(sl) : escapeMarkdown("— (off)");

@@ -1,12 +1,16 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../../api.js";
-import type { VexisConfig, CreatePreset } from "../../config.js";
+import type { CreatePreset } from "../../domain/config.js";
 import {
-  resolveKeypair,
-  resolveRpc,
+  api,
+  dlmm,
+  zap,
+  screenPools,
   resolveWallet,
   resolveCreatePreset,
-} from "../../config.js";
+  getConfigSync,
+} from "../fx.js";
+import { resolveCreatePresetFrom } from "../../services/Config.js";
+import { computeStrategySplit } from "../../lib/math.js";
 import {
   escapeMarkdown,
   tgBold,
@@ -19,7 +23,6 @@ import {
   formatNum,
 } from "../format.js";
 import { MD } from "../utils.js";
-import { screenPools } from "../../screening.js";
 import { setInputSession } from "../input-store.js";
 import {
   createWizard,
@@ -27,7 +30,7 @@ import {
   updateWizard,
   deleteWizard,
 } from "../wizard-store.js";
-import type { StrategyType } from "../../types.js";
+import type { StrategyType } from "../../domain/index.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 const FEE_BUFFER_LAMPORTS = 20_000_000; // ~0.02 SOL reserved for tx fees/rent
@@ -49,34 +52,13 @@ const WIDE_PRESETS = [
   { label: "-50% → 0%", minPct: -0.5, maxPct: 0 },
 ] as const;
 
-// Module-level preset, set on registerCreate and reused by helpers
-// (renderStrategyStep/strategyKb are also imported by alerts.ts).
-// Live config reference, set on registerCreate. The preset is resolved fresh on
-// every read via the PRESET getter so /config edits take effect immediately —
-// no bot restart needed.
-let PRESET_CONFIG: VexisConfig = {};
 const PRESET: CreatePreset = new Proxy({} as CreatePreset, {
   get(_t, prop) {
-    return (resolveCreatePreset(PRESET_CONFIG) as any)[prop];
+    return (resolveCreatePresetFrom(getConfigSync()) as any)[prop];
   },
 });
 
-let DLMMClientCtor: any = null;
-async function lazyDLMM() {
-  if (!DLMMClientCtor) {
-    const mod = await import("../../dlmm.js");
-    DLMMClientCtor = mod.DLMMClient;
-  }
-  return DLMMClientCtor;
-}
-
-export function registerCreate(
-  bot: Bot,
-  client: MeteoraClient,
-  config: VexisConfig,
-) {
-  PRESET_CONFIG = config;
-
+export function registerCreate(bot: Bot) {
   // ─── Entry: /create without args ────────────────────────────────────────
   bot.command("create", async (ctx, next) => {
     const args = (ctx.match as string).trim();
@@ -107,7 +89,7 @@ export function registerCreate(
     const timeframe = ctx.match![1];
     await ctx.editMessageText("⏳ Screening trending pools\\.\\.\\.", MD);
     try {
-      const result = await screenPools(client, config, timeframe);
+      const result = await screenPools({ timeframe });
       if (result.pools.length === 0) {
         await ctx.editMessageText("No pools found\\.", {
           ...MD,
@@ -165,8 +147,8 @@ export function registerCreate(
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading your pools\\.\\.\\.", MD);
     try {
-      const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 50);
+      const wallet = await resolveWallet();
+      const res = await api.openPortfolio(wallet, 1, 50);
       if (res.pools.length === 0) {
         await ctx.editMessageText(
           "No open positions\\. Choose Trending instead\\.",
@@ -190,7 +172,7 @@ export function registerCreate(
           `  Fees: ${escapeMarkdown(fees)} \\| PnL: ${escapeMarkdown(pnlStr)} \\| Bal: ${escapeMarkdown(balStr)}`,
         );
         try {
-          const detail = await client.pool(p.poolAddress);
+          const detail = await api.pool(p.poolAddress);
           const wid = createWizard({
             poolAddress: p.poolAddress,
             poolName: label,
@@ -243,7 +225,7 @@ export function registerCreate(
         }
         const loading = await sessionCtx.reply("⏳ Loading pool\\.\\.\\.", MD);
         try {
-          const detail = await client.pool(address);
+          const detail = await api.pool(address);
           const wid = createWizard({
             poolAddress: detail.address,
             poolName: detail.name,
@@ -364,7 +346,7 @@ export function registerCreate(
     const budget = parseFloat(ctx.match![2]);
     const state = getWizard(wid);
     if (!state) return await expired(ctx);
-    await executeSwapAndCreate(ctx, wid, budget, config);
+    await executeSwapAndCreate(ctx, wid, budget);
   });
 
   // ─── crt:mode:<wid>:<strategy> — pick side ──────────────────────────────
@@ -612,10 +594,6 @@ export function registerCreate(
 
     await ctx.editMessageText("⏳ Creating position\\.\\.\\.", MD);
     try {
-      const keypair = resolveKeypair(config);
-      const rpc = resolveRpc(config);
-      const Ctor = await lazyDLMM();
-      const dlmm = new Ctor(keypair, rpc);
       const res = await dlmm.createPosition({
         poolAddress: state.poolAddress,
         strategy,
@@ -797,14 +775,10 @@ async function showSwapConfirm(ctx: Context, wid: string, budget: number) {
     return;
   }
 
-  const { computeStrategySplit } = await import("../../dlmm.js");
+  const { computeStrategySplit } = await import("../../lib/math.js");
   // Resolve range to absolute bins via a read-only preview.
   let preview: any;
   try {
-    const rpc = resolveRpc(PRESET_CONFIG);
-    const keypair = resolveKeypair(PRESET_CONFIG);
-    const Ctor = await lazyDLMM();
-    const dlmm = new Ctor(keypair, rpc);
     preview = await dlmm.previewRange({
       poolAddress: state.poolAddress,
       ...(state.isPctMode
@@ -876,7 +850,6 @@ async function executeSwapAndCreate(
   ctx: Context,
   wid: string,
   budget: number,
-  config: VexisConfig,
 ) {
   const state = getWizard(wid);
   if (!state) return await expired(ctx);
@@ -885,11 +858,6 @@ async function executeSwapAndCreate(
   await ctx.editMessageText("⏳ Preparing auto\\-swap\\.\\.\\.", MD);
 
   try {
-    const keypair = resolveKeypair(config);
-    const rpc = resolveRpc(config);
-    const Ctor = await lazyDLMM();
-    const dlmm = new Ctor(keypair, rpc);
-
     const preview = await dlmm.previewRange({
       poolAddress: state.poolAddress,
       ...(state.isPctMode
@@ -897,16 +865,12 @@ async function executeSwapAndCreate(
         : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
     });
 
-    const { computeStrategySplit } = await import("../../dlmm.js");
     const { fX, fY } = computeStrategySplit(
       preview.activeBinId,
       preview.minBinId,
       preview.maxBinId,
       strategy,
     );
-
-    const { ZapClient } = await import("../../zap.js");
-    const zap = new ZapClient(keypair, rpc);
 
     // Balance guard: need budget + fee buffer.
     const solBal = await zap.getSolBalance();

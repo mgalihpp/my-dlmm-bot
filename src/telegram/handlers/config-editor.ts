@@ -1,8 +1,8 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import type { VexisConfig } from "../../config.js";
-import { saveConfig } from "../../config.js";
+import type { VexisConfig } from "../../domain/config.js";
+import { getConfigSync, updateConfig, configPath } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode } from "../format.js";
-import { MD } from "../utils.js";
+import { MD, replyError } from "../utils.js";
 
 /** Config fields that can be edited via Telegram. */
 const EDITABLE_FIELDS = [
@@ -264,14 +264,10 @@ const pendingEdits = new Map<
   { field: string; key: string; type: string; page: number; values?: readonly string[] }
 >();
 
-export function registerConfigEditor(
-  bot: Bot,
-  config: VexisConfig,
-  configPath: string | null,
-) {
+export function registerConfigEditor(bot: Bot) {
   // /config — show config with edit buttons
   bot.command("config", async (ctx) => {
-    const text = buildConfigText(config, configPath);
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.reply(text, { ...MD, reply_markup: buildConfigKeyboard() });
   });
 
@@ -284,7 +280,7 @@ export function registerConfigEditor(
       await ctx.answerCallbackQuery({ text: "Unknown field", show_alert: true });
       return;
     }
-    const current = formatValue(field, config);
+    const current = formatValue(field, getConfigSync());
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     pendingEdits.set(chatId, {
       field: editable.label,
@@ -324,9 +320,16 @@ export function registerConfigEditor(
     const field = ctx.match![1];
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     pendingEdits.delete(chatId);
-    setNestedValue(config, field, null);
-    if (configPath) saveConfig(configPath, config);
-    const text = buildConfigText(config, configPath);
+    try {
+      await updateConfig((c) => {
+        setNestedValue(c, field, null);
+        return c;
+      });
+    } catch (e) {
+      await replyError(ctx, e);
+      return;
+    }
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.editMessageText(
       `${tgBold("✅ Reset to default")}\n\n${text}`,
       { ...MD, reply_markup: buildConfigKeyboard(pageForKey(field)) },
@@ -337,7 +340,7 @@ export function registerConfigEditor(
   bot.callbackQuery(/^cfg:page:(\d+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const page = parseInt(ctx.match![1], 10);
-    const text = buildConfigText(config, configPath);
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(page) });
   });
 
@@ -345,10 +348,17 @@ export function registerConfigEditor(
   bot.callbackQuery(/^cfg:toggle:(.+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const field = ctx.match![1];
-    const current = getNestedValue(config, field) ?? false;
-    setNestedValue(config, field, !current);
-    if (configPath) saveConfig(configPath, config);
-    const text = buildConfigText(config, configPath);
+    const current = getNestedValue(getConfigSync(), field) ?? false;
+    try {
+      await updateConfig((c) => {
+        setNestedValue(c, field, !current);
+        return c;
+      });
+    } catch (e) {
+      await replyError(ctx, e);
+      return;
+    }
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(pageForKey(field)) });
   });
 
@@ -357,7 +367,7 @@ export function registerConfigEditor(
     await ctx.answerCallbackQuery();
     const chatId = String(ctx.chat?.id ?? ctx.from?.id);
     pendingEdits.delete(chatId);
-    const text = buildConfigText(config, configPath);
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.editMessageText(text, { ...MD, reply_markup: buildConfigKeyboard(1) });
   });
 
@@ -371,7 +381,7 @@ export function registerConfigEditor(
     pendingEdits.delete(chatId);
 
     if (raw === "/cancel" || raw === "/config") {
-      const text = buildConfigText(config, configPath);
+      const text = buildConfigText(getConfigSync(), configPath());
       await ctx.reply(text, { ...MD, reply_markup: buildConfigKeyboard(1) });
       return;
     }
@@ -420,10 +430,17 @@ export function registerConfigEditor(
       value = raw;
     }
 
-    setNestedValue(config, pending.key, value);
-    if (configPath) saveConfig(configPath, config);
+    try {
+      await updateConfig((c) => {
+        setNestedValue(c, pending.key, value);
+        return c;
+      });
+    } catch (e) {
+      await replyError(ctx, e);
+      return;
+    }
 
-    const text = buildConfigText(config, configPath);
+    const text = buildConfigText(getConfigSync(), configPath());
     await ctx.reply(
       `${tgBold(`✅ ${pending.field} updated`)}\n\n${text}`,
       { ...MD, reply_markup: buildConfigKeyboard(pending.page) },

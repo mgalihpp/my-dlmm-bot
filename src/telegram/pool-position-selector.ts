@@ -1,8 +1,6 @@
 // Shared pool & position selection utilities for interactive flows.
 import { Context, InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../api.js";
-import type { VexisConfig } from "../config.js";
-import { resolveWallet } from "../config.js";
+import { api, resolveWallet } from "./fx.js";
 import { escapeMarkdown, tgBold, tgCode, tgUsd, tgSol, tgPct } from "./format.js";
 import { MD } from "./utils.js";
 import { registerAction } from "./action-store.js";
@@ -16,20 +14,11 @@ export interface PoolInfo {
   unclaimedFees: string;
 }
 
-/** Fetch open positions from API.
- *  Optionally accepts a client; if not provided, creates one from config. */
-export async function fetchOpenPools(
-  client: MeteoraClient | null,
-  config: VexisConfig,
-): Promise<PoolInfo[]> {
-  let c = client;
-  if (!c) {
-    const { MeteoraClient } = await import("../api.js");
-    c = new MeteoraClient({ dev: config.dev });
-  }
-  const wallet = resolveWallet(undefined, config);
-  const res = await c.openPortfolio(wallet, 1, 50);
-  return res.pools;
+/** Fetch open positions from API. */
+export async function fetchOpenPools(): Promise<PoolInfo[]> {
+  const wallet = await resolveWallet();
+  const res = await api.openPortfolio(wallet, 1, 50);
+  return [...res.pools];
 }
 
 /** Build inline keyboard for pool list with given callback prefix.
@@ -125,27 +114,19 @@ export async function showPositionList(
   });
 }
 
-/** Resolve pool detail from open portfolio.
- *  Optionally accepts a client; if not provided, creates one from config. */
+/** Resolve pool detail from open portfolio. */
 export async function resolvePoolDetail(
-  client: MeteoraClient | null,
-  config: VexisConfig,
   poolAddr: string,
 ): Promise<{ tokenX: string; tokenY: string; positions: string[]; pnl: string; pnlPctChange: string; pnlSol: string | null; pnlSolPctChange: string | null } | null> {
   try {
-    let c = client;
-    if (!c) {
-      const { MeteoraClient } = await import("../api.js");
-      c = new MeteoraClient({ dev: config.dev });
-    }
-    const wallet = resolveWallet(undefined, config);
-    const res = await c.openPortfolio(wallet, 1, 50);
+    const wallet = await resolveWallet();
+    const res = await api.openPortfolio(wallet, 1, 50);
     const pool = res.pools.find((p) => p.poolAddress === poolAddr);
     if (!pool) return null;
     return {
       tokenX: pool.tokenX,
       tokenY: pool.tokenY,
-      positions: pool.listPositions,
+      positions: [...pool.listPositions],
       pnl: pool.pnl,
       pnlPctChange: pool.pnlPctChange,
       pnlSol: pool.pnlSol,
@@ -157,19 +138,12 @@ export async function resolvePoolDetail(
 }
 
 export async function resolvePositionPnl(
-  client: MeteoraClient | null,
-  config: VexisConfig,
   poolAddr: string,
   positionAddr: string,
 ): Promise<{ pnl: string; pnlPctChange: string; pnlSol: string | null; pnlSolPctChange: string | null } | null> {
   try {
-    let c = client;
-    if (!c) {
-      const { MeteoraClient } = await import("../api.js");
-      c = new MeteoraClient({ dev: config.dev });
-    }
-    const wallet = resolveWallet(undefined, config);
-    const res = await c.positionPnl(poolAddr, wallet, "open");
+    const wallet = await resolveWallet();
+    const res = await api.positionPnl(poolAddr, wallet, "open");
     const pos = res.positions.find((p) => p.positionAddress === positionAddr);
     if (!pos) return null;
     return {

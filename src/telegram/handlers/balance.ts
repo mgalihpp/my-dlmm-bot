@@ -1,8 +1,7 @@
 import type { Bot, Context } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { Connection, PublicKey, LAMPORTS_PER_SOL } from "@solana/web3.js";
-import type { VexisConfig } from "../../config.js";
-import { resolveWallet, resolveRpc } from "../../config.js";
+import { resolveWallet, resolveRpc, watchlist } from "../fx.js";
 import { escapeMarkdown, tgBold, tgCode, tgShortAddr } from "../format.js";
 import { MD, replyError } from "../utils.js";
 import { setInputSession } from "../input-store.js";
@@ -96,9 +95,9 @@ function balanceKeyboard(wallet: string): InlineKeyboard {
     .text("🔄 Refresh", `bal:refresh:${wallet}`);
 }
 
-export function registerBalance(bot: Bot, config: VexisConfig) {
+export function registerBalance(bot: Bot) {
   async function showBalance(ctx: Context, wallet: string, mode: "reply" | "edit" = "reply") {
-    const rpc = resolveRpc(config);
+    const rpc = await resolveRpc();
     const { sol, rows } = await fetchBalance(wallet, rpc);
     const text = balanceText(wallet, sol, rows);
     const kb = balanceKeyboard(wallet);
@@ -113,7 +112,7 @@ export function registerBalance(bot: Bot, config: VexisConfig) {
   bot.command("balance", async (ctx) => {
     try {
       const arg = (ctx.match as string)?.trim() || undefined;
-      const wallet = resolveWallet(arg, config);
+      const wallet = await resolveWallet(arg);
       const loadingMsg = await ctx.reply("⏳ Fetching balance\\.\\.\\.", MD);
       await showBalance(ctx, wallet);
       await ctx.api.deleteMessage(loadingMsg.chat.id, loadingMsg.message_id).catch(() => {});
@@ -145,8 +144,7 @@ export function registerBalance(bot: Bot, config: VexisConfig) {
   // ─── bal:watchlist — show watchlist wallets as buttons ───────────────────
   bot.callbackQuery("bal:watchlist", async (ctx) => {
     await ctx.answerCallbackQuery();
-    const { listWallets } = await import("../../watchlist.js");
-    const wallets = listWallets();
+    const wallets = await watchlist.list();
     if (wallets.length === 0) {
       await ctx.editMessageText("📭 No watched wallets\\. Add one with /watchadd", MD);
       return;
@@ -187,7 +185,7 @@ export function registerBalance(bot: Bot, config: VexisConfig) {
   // ─── bal:back — return to main balance view ──────────────────────────────
   bot.callbackQuery("bal:back", async (ctx) => {
     await ctx.answerCallbackQuery();
-    const wallet = resolveWallet(undefined, config);
+    const wallet = await resolveWallet();
     await ctx.editMessageText("⏳ Fetching balance\\.\\.\\.", MD);
     try {
       await showBalance(ctx, wallet, "edit");

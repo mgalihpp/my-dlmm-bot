@@ -6,6 +6,7 @@ export interface CreatePositionParams {
   totalXAmount: string;
   totalYAmount: string;
   singleSidedX: boolean;
+  singleSidedY?: boolean;
   minBinId?: number;
   maxBinId?: number;
   relativeBins?: boolean;

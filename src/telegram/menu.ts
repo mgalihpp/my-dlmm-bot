@@ -1,7 +1,5 @@
 import { Bot, Context, InlineKeyboard } from "grammy";
-import type { MeteoraClient } from "../api.js";
-import type { VexisConfig } from "../config.js";
-import { resolveWallet, resolveRpc } from "../config.js";
+import { api, dlmm, screenPools, resolveWallet, watchlist } from "./fx.js";
 import {
   tgPortfolioSummary,
   tgOpenPools,
@@ -12,9 +10,8 @@ import {
   type WalletPositions,
 } from "./format.js";
 import { MD } from "./utils.js";
-import { screenPools } from "../screening.js";
 
-export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfig) {
+export function registerMenu(bot: Bot) {
   bot.command("menu", async (ctx) => {
     await ctx.reply(mainMenu(), { ...MD, reply_markup: mainMenuKeyboard() });
   });
@@ -30,8 +27,8 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading portfolio\\.\\.\\.", MD);
     try {
-      const wallet = resolveWallet(undefined, config);
-      const total = await client.totalPnl(wallet);
+      const wallet = await resolveWallet();
+      const total = await api.totalPnl(wallet);
       const text = tgPortfolioSummary(total);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
@@ -45,11 +42,10 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading positions\\.\\.\\.", MD);
     try {
-      const wallet = resolveWallet(undefined, config);
-      const res = await client.openPortfolio(wallet, 1, 10);
-      const enriched = await client.enrichOpenPortfolioPnl(res.pools, wallet);
-      const { attachLivePositions } = await import("../dlmm.js");
-      await attachLivePositions(enriched, resolveRpc(config), wallet);
+      const wallet = await resolveWallet();
+      const res = await api.openPortfolio(wallet, 1, 10);
+      const enriched = await api.enrichOpenPortfolioPnl(res.pools, wallet);
+      await dlmm.attachLivePositions(enriched, wallet);
       const text = tgOpenPools(enriched);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
@@ -63,8 +59,8 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading\\.\\.\\.", MD);
     try {
-      const wallet = resolveWallet(undefined, config);
-      const res = await client.closedPortfolio(wallet, 1, 10);
+      const wallet = await resolveWallet();
+      const res = await api.closedPortfolio(wallet, 1, 10);
       const text = tgClosedPools(res.pools);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
@@ -78,7 +74,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Screening pools\\.\\.\\.", MD);
     try {
-      const result = await screenPools(client, config);
+      const result = await screenPools();
       const text = tgScreenedPoolList(result);
       await ctx.editMessageText(text, { ...MD, reply_markup: backKeyboard("main") });
     } catch (e) {
@@ -110,8 +106,7 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
 
   bot.callbackQuery(/^menu:watchlist_list$/, async (ctx) => {
     await ctx.answerCallbackQuery();
-    const { listWallets } = await import("../watchlist.js");
-    const wallets = listWallets();
+    const wallets = await watchlist.list();
     const { tgWatchedList } = await import("./format.js");
     const text = tgWatchedList(wallets);
     const kb = new InlineKeyboard()
@@ -125,16 +120,14 @@ export function registerMenu(bot: Bot, client: MeteoraClient, config: VexisConfi
     await ctx.answerCallbackQuery();
     await ctx.editMessageText("⏳ Loading positions\\.\\.\\.", MD);
     try {
-      const { listWallets } = await import("../watchlist.js");
-      const wallets = listWallets();
+      const wallets = await watchlist.list();
       const { tgMultiWalletPositions } = await import("./format.js");
-      const { attachLivePositions } = await import("../dlmm.js");
       const results: WalletPositions[] = [];
       for (const w of wallets) {
         try {
-          const res = await client.openPortfolio(w.address, 1, 10);
-          const pools = res.pools ?? [];
-          await attachLivePositions(pools, resolveRpc(config), w.address);
+          const res = await api.openPortfolio(w.address, 1, 10);
+          const pools = [...(res.pools ?? [])];
+          await dlmm.attachLivePositions(pools, w.address);
           results.push({ wallet: w, pools });
         } catch {
           results.push({ wallet: w, pools: [] });
