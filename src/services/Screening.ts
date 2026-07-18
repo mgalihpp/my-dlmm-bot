@@ -4,6 +4,7 @@ import { DecodeError, MeteoraApiError } from "../errors.js";
 import { buildDiscoveryFilter, finalizeScreen, type ScreenResult } from "../lib/screening.js";
 import { AppConfig } from "./Config.js";
 import { MeteoraApi } from "./MeteoraApi.js";
+import { RugCheck } from "./RugCheck.js";
 
 export interface ScreeningService {
   readonly screen: (opts?: {
@@ -11,7 +12,7 @@ export interface ScreeningService {
     category?: string;
     displayLimit?: number;
     poolsOverride?: PoolsConfig;
-  }) => Effect.Effect<ScreenResult, MeteoraApiError | DecodeError>;
+  }) => Effect.Effect<ScreenResult, MeteoraApiError | DecodeError, RugCheck>;
 }
 
 export class Screening extends Context.Tag("Screening")<Screening, ScreeningService>() {}
@@ -35,7 +36,22 @@ const make = Effect.gen(function* () {
         const res = yield* api.discoverPools({ pageSize, filterBy, timeframe, category });
 
         const rawPools = Array.isArray(res.data) ? res.data : [];
-        return finalizeScreen(rawPools, res.total, displayLimit);
+        const result = finalizeScreen(rawPools, res.total, displayLimit);
+
+        const rugcheck = yield* RugCheck;
+        yield* Effect.forEach(
+          result.pools,
+          (pool) =>
+            rugcheck.getScore(pool.baseMint).pipe(
+              Effect.map((score) => {
+                (pool as { rugScore?: number | null }).rugScore = score;
+              }),
+              Effect.catchAll(() => Effect.succeed(void 0)),
+            ),
+          { concurrency: 5, discard: true },
+        );
+
+        return result;
       }),
   };
   return service;

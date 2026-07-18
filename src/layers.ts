@@ -1,6 +1,7 @@
 import { Layer } from "effect";
 import { AppConfigLive } from "./services/Config.js";
 import { MeteoraApiLive } from "./services/MeteoraApi.js";
+import { RugCheckLive } from "./services/RugCheck.js";
 import { SolanaLive } from "./services/Solana.js";
 import { DlmmLive } from "./services/Dlmm.js";
 import { ZapLive } from "./services/Zap.js";
@@ -11,6 +12,7 @@ import { TokenMetaLive } from "./services/TokenMeta.js";
 
 export const AppLayer = Layer.mergeAll(
   MeteoraApiLive,
+  RugCheckLive,
   DlmmLive,
   ZapLive,
   ScreeningLive,
@@ -18,4 +20,4 @@ export const AppLayer = Layer.mergeAll(
   WatchlistLive,
   SolanaLive,
   TokenMetaLive,
-).pipe(Layer.provideMerge(SolanaLive), Layer.provideMerge(MeteoraApiLive), Layer.provideMerge(AppConfigLive));
+).pipe(Layer.provideMerge(SolanaLive), Layer.provideMerge(MeteoraApiLive), Layer.provideMerge(RugCheckLive), Layer.provideMerge(AppConfigLive));
