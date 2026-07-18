@@ -29,7 +29,7 @@ import {
   sparkline,
 } from "./format.js";
 import { errorMessage } from "./errors.js";
-import type { ClosedPool } from "./domain/index.js";
+import type { ClosedPool, PositionCostQuote } from "./domain/index.js";
 
 const walletArg = Args.text({ name: "wallet" }).pipe(Args.optional);
 const jsonFlag = Options.boolean("json").pipe(Options.withDescription("output raw JSON"));
@@ -239,7 +239,23 @@ const positionCreateCmd = Command.make(
       yield* Console.log(`  Range:    ${rangeLabel}`);
       yield* Console.log(`  Mode:     ${mode}`);
       yield* Console.log(`  Signer:   ${gray(shortAddr(keypair.publicKey.toString()))}`);
-      yield* Console.log(`  RPC:      ${gray(rpcUrl)}\n`);
+      yield* Console.log(`  RPC:      ${gray(rpcUrl)}`);
+
+      // Cost estimate
+      yield* Console.log(dim("\nFetching cost estimate..."));
+      const dlmm = yield* Dlmm;
+      const quoteResult = yield* dlmm.quotePositionCost({
+        poolAddress: opts.poolAddress,
+        strategy: opts.strategy as "spot" | "bidask" | "curve",
+        ...(isPctMode
+          ? { minPct: minPct! / 100, maxPct: maxPct! / 100 }
+          : { minBinId: minBin!, maxBinId: maxBin! }),
+      }).pipe(Effect.option);
+      if (Option.isSome(quoteResult)) {
+        yield* Console.log(formatCliCostQuote(quoteResult.value));
+      }
+
+      yield* Console.log("");
 
       if (opts.dryRun) {
         yield* Console.log(dim("(--dry-run: transaction not sent)\n"));
@@ -250,7 +266,6 @@ const positionCreateCmd = Command.make(
         return;
       }
 
-      const dlmm = yield* Dlmm;
       yield* Console.log(dim("Sending transaction..."));
 
       const res = yield* dlmm.createPosition({
@@ -713,6 +728,27 @@ const cli = Command.run(rootCmd, {
   name: "vexis",
   version: "0.1.0",
 });
+
+function formatCliCostQuote(quote: PositionCostQuote): string {
+  const lines = ["", dim("── Cost Estimate ──")];
+  lines.push(`  Position rent:       ${quote.positionCost.toFixed(4)} SOL (refundable)`);
+  if (quote.positionReallocCost > 0) {
+    lines.push(`  Position extension:  ${quote.positionReallocCost.toFixed(4)} SOL (refundable)`);
+  }
+  if (quote.binArraysCount > 0) {
+    const perBin = (quote.binArrayCost / quote.binArraysCount).toFixed(4);
+    lines.push(`  New bin arrays:      ${quote.binArraysCount} × ${perBin} SOL = ${quote.binArrayCost.toFixed(4)} SOL (NON-REFUNDABLE)`);
+  }
+  if (quote.bitmapExtensionCost > 0) {
+    lines.push(`  Bitmap extension:    ${quote.bitmapExtensionCost.toFixed(4)} SOL (NON-REFUNDABLE)`);
+  }
+  lines.push(`  Transactions:        ${quote.transactionCount}`);
+  if (quote.nonRefundableCost > 0) {
+    lines.push(`  ${red(`⚠ ${quote.nonRefundableCost.toFixed(4)} SOL non-refundable`)} — new on-chain accounts for this range`);
+  }
+  lines.push(`  Total:               ${bold(String(quote.totalCost.toFixed(4)))} SOL`);
+  return lines.join("\n");
+}
 
 cli(process.argv).pipe(
   Effect.catchAll((e) =>

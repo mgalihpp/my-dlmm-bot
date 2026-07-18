@@ -24,6 +24,29 @@ export interface CreatePositionResult {
   binCount: number;
 }
 
+export interface QuotePositionCostParams {
+  poolAddress: string;
+  strategy: StrategyType;
+  minBinId?: number;
+  maxBinId?: number;
+  relativeBins?: boolean;
+  minPct?: number;
+  maxPct?: number;
+}
+
+export interface PositionCostQuote {
+  positionCount: number;
+  positionCost: number;
+  positionReallocCost: number;
+  bitmapExtensionCost: number;
+  binArraysCount: number;
+  binArrayCost: number;
+  transactionCount: number;
+  totalCost: number;
+  nonRefundableCost: number;
+  refundableCost: number;
+}
+
 export interface AddLiquidityParams {
   poolAddress: string;
   positionPubkey: string;

@@ -8,7 +8,7 @@ import {
   fetchOpenPools,
   resolvePoolDetail,
 } from "../pool-position-selector.js";
-import type { StrategyType } from "../../domain/index.js";
+import type { PositionCostQuote, StrategyType } from "../../domain/index.js";
 
 interface Pending {
   summary: string;
@@ -80,12 +80,31 @@ export function registerOnchain(bot: Bot) {
       const singleSidedY = sideArg === "single-y" || sideArg === "singley";
       const mode = singleSidedX ? "single-sided X (meme)" : singleSidedY ? "single-sided Y (SOL)" : "two-sided";
       const rangeLabel = isPctMode ? `${rangeA}% to ${rangeB}% (vs current price)` : `bins ${rangeA} to ${rangeB} (relative)`;
+
+      // Quote position cost
+      const loading = await ctx.reply("⏳ Estimating cost\\.\\.\\.", MD);
+      let costSection = "";
+      try {
+        const quote = await dlmm.quotePositionCost({
+          poolAddress,
+          strategy: strategy as StrategyType,
+          ...(isPctMode
+            ? { minPct: parseFloat(rangeA) / 100, maxPct: parseFloat(rangeB) / 100 }
+            : { minBinId: parseInt(rangeA, 10), maxBinId: parseInt(rangeB, 10), relativeBins: true }),
+        });
+        costSection = "\n" + formatOnchainCostQuote(quote);
+      } catch {
+        costSection = "";
+      }
+      await ctx.api.editMessageText(loading.chat.id, loading.message_id, "⏳ Ready\\.\\.\\.", MD);
+
       const summary = [
         "*Create position?*",
         `Pool: ${tgCode(poolAddress)}`,
         `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(rangeLabel)}`,
         `X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
         `Mode: ${escapeMarkdown(mode)}`,
+        costSection,
       ].join("\n");
       await present(ctx, summary, makeDlmmRunner(async (dlmm) => {
         const res = await dlmm.createPosition({
@@ -700,6 +719,32 @@ export function registerOnchain(bot: Bot) {
       await ctx.reply(`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`, MD);
     }
   }
+}
+
+// ─── Cost formatting ──────────────────────────────────────────────────────────
+
+function formatOnchainCostQuote(quote: PositionCostQuote): string {
+  const lines: string[] = [tgBold("Cost Breakdown")];
+  lines.push(`Position rent: ${escapeMarkdown(quote.positionCost.toFixed(4))} ◎ (refundable)`);
+  if (quote.positionReallocCost > 0) {
+    lines.push(`Position extension: ${escapeMarkdown(quote.positionReallocCost.toFixed(4))} ◎ (refundable)`);
+  }
+  if (quote.binArraysCount > 0) {
+    lines.push(
+      `⚠ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ = ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ (non-refundable)`,
+    );
+  }
+  if (quote.bitmapExtensionCost > 0) {
+    lines.push(`⚠ Bitmap extension: ${escapeMarkdown(quote.bitmapExtensionCost.toFixed(4))} ◎ (non-refundable)`);
+  }
+  lines.push(`Transactions: ${escapeMarkdown(String(quote.transactionCount))}`);
+  if (quote.nonRefundableCost > 0) {
+    lines.push(
+      `⚠ ${escapeMarkdown(quote.nonRefundableCost.toFixed(4))} ◎ non-refundable — new on-chain accounts for this range`,
+    );
+  }
+  lines.push(`Total: ${escapeMarkdown(quote.totalCost.toFixed(4))} ◎`);
+  return lines.join("\n");
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

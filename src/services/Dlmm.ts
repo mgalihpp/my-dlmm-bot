@@ -20,7 +20,9 @@ import type {
   CreatePositionParams,
   CreatePositionResult,
   OpenPool,
+  PositionCostQuote,
   PositionLiveEntry,
+  QuotePositionCostParams,
   RemoveLiquidityParams,
   StrategyType,
 } from "../domain/index.js";
@@ -65,6 +67,7 @@ export interface DlmmService {
     minPct?: number;
     maxPct?: number;
   }) => Effect.Effect<RangePreview, OnchainError>;
+  readonly quotePositionCost: (params: QuotePositionCostParams) => Effect.Effect<PositionCostQuote, OnchainError>;
   readonly createPosition: (params: CreatePositionParams) => Effect.Effect<CreatePositionResult, OnchainError>;
   readonly closePosition: (poolAddress: string, positionPubkey: string) => Effect.Effect<string, OnchainError>;
   readonly addLiquidity: (params: AddLiquidityParams) => Effect.Effect<string, OnchainError>;
@@ -103,6 +106,43 @@ const resolveRange = (
   if (maxBinId < minBinId) [minBinId, maxBinId] = [maxBinId, minBinId];
   return { minBinId, maxBinId };
 };
+
+async function quotePositionCostImpl(
+  connection: Connection,
+  params: QuotePositionCostParams,
+): Promise<PositionCostQuote> {
+  const dlmm = await DLMM.create(connection, new PublicKey(params.poolAddress));
+  const activeBin = await dlmm.getActiveBin();
+  const activeBinId = activeBin.binId;
+  const binStep = dlmm.lbPair.binStep;
+
+  const { minBinId, maxBinId } = resolveRange(params, activeBinId, binStep);
+
+  const strategyType = STRATEGY_MAP[params.strategy];
+  const sdkQuote = await dlmm.quoteCreatePosition({
+    strategy: {
+      strategyType,
+      minBinId,
+      maxBinId,
+    },
+  });
+
+  const nonRefundable = sdkQuote.binArrayCost + sdkQuote.bitmapExtensionCost;
+  const refundable = sdkQuote.positionCost + sdkQuote.positionReallocCost;
+
+  return {
+    positionCount: sdkQuote.positionCount,
+    positionCost: sdkQuote.positionCost,
+    positionReallocCost: sdkQuote.positionReallocCost,
+    bitmapExtensionCost: sdkQuote.bitmapExtensionCost,
+    binArraysCount: sdkQuote.binArraysCount,
+    binArrayCost: sdkQuote.binArrayCost,
+    transactionCount: sdkQuote.transactionCount,
+    totalCost: nonRefundable + refundable,
+    nonRefundableCost: nonRefundable,
+    refundableCost: refundable,
+  };
+}
 
 async function createPositionImpl(
   connection: Connection,
@@ -336,6 +376,8 @@ const make = Effect.gen(function* () {
           decimalsY: dlmm.tokenY.mint.decimals,
         };
       }),
+    quotePositionCost: (params) =>
+      onchain("quotePositionCost", (c) => quotePositionCostImpl(c, params)),
     createPosition: (params) =>
       onchain("createPosition", (c, k) => createPositionImpl(c, k, params)),
     closePosition: (poolAddress, positionPubkey) =>

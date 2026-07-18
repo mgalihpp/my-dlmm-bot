@@ -29,7 +29,7 @@ import {
   updateWizard,
   deleteWizard,
 } from "../wizard-store.js";
-import type { StrategyType } from "../../domain/index.js";
+import type { StrategyType, PositionCostQuote } from "../../domain/index.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 const FEE_BUFFER_LAMPORTS = 20_000_000; // ~0.02 SOL reserved for tx fees/rent
@@ -1030,12 +1030,29 @@ async function confirmAndExecute(
     ? `${(state.minPct! * 100).toFixed(2)}% to ${(state.maxPct! * 100).toFixed(2)}%`
     : `bins ${state.minBin!} to ${state.maxBin!}`;
 
+  await replyOrEdit(ctx, "⏳ Estimating cost\\.\\.\\.");
+
+  let costSection = "";
+  try {
+    const quote = await dlmm.quotePositionCost({
+      poolAddress: state.poolAddress,
+      strategy: strategy as StrategyType,
+      ...(isPctMode
+        ? { minPct: state.minPct!, maxPct: state.maxPct! }
+        : { minBinId: state.minBin!, maxBinId: state.maxBin!, relativeBins: true }),
+    });
+    costSection = formatCostQuote(quote);
+  } catch {
+    costSection = "";
+  }
+
   const summary = [
     "*Create position?*",
     `Pool: ${tgCode(state.poolAddress)}`,
     `Strategy: ${escapeMarkdown(strategy)} \\| Range: ${escapeMarkdown(rangeLabel)}`,
     `X: ${escapeMarkdown(xAmt)} \\| Y: ${escapeMarkdown(yAmt)}`,
     `Mode: ${escapeMarkdown(mode === "single-x" ? "single-sided X" : mode === "single-y" ? "single-sided Y" : "two-sided")}`,
+    costSection,
   ].join("\n");
 
   const kb = new InlineKeyboard()
@@ -1197,4 +1214,28 @@ async function expired(ctx: Context) {
 
 function backToSourceKb() {
   return new InlineKeyboard().text("⬅️ Back", "crt:source");
+}
+
+function formatCostQuote(quote: PositionCostQuote): string {
+  const lines: string[] = ["", tgBold("Cost Breakdown")];
+  lines.push(`Position rent: ${escapeMarkdown(quote.positionCost.toFixed(4))} ◎ \\(refundable\\)`);
+  if (quote.positionReallocCost > 0) {
+    lines.push(`Position extension: ${escapeMarkdown(quote.positionReallocCost.toFixed(4))} ◎ \\(refundable\\)`);
+  }
+  if (quote.binArraysCount > 0) {
+    lines.push(
+      `⚠️ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ = ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ \\(*non\\-refundable*\\)`,
+    );
+  }
+  if (quote.bitmapExtensionCost > 0) {
+    lines.push(`⚠️ Bitmap extension: ${escapeMarkdown(quote.bitmapExtensionCost.toFixed(4))} ◎ \\(*non\\-refundable*\\)`);
+  }
+  lines.push(`Transactions: ${escapeMarkdown(String(quote.transactionCount))}`);
+  if (quote.nonRefundableCost > 0) {
+    lines.push(
+      `⚠️ *${escapeMarkdown(quote.nonRefundableCost.toFixed(4))} ◎ non\\-refundable* — new on\\-chain accounts for this range`,
+    );
+  }
+  lines.push(`Total: ${escapeMarkdown(quote.totalCost.toFixed(4))} ◎`);
+  return lines.join("\n");
 }
