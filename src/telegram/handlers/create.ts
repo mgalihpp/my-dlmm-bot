@@ -446,7 +446,7 @@ export function registerCreate(bot: Bot) {
   });
 
   // ─── crt:custom:<wid> — custom range → ask mode → input values → amounts ─
-  bot.callbackQuery(/^crt:custom:(.+)$/, async (ctx) => {
+  bot.callbackQuery(/^crt:custom:([^:]+)$/, async (ctx) => {
     await ctx.answerCallbackQuery();
     const wid = ctx.match![1];
     const state = getWizard(wid);
