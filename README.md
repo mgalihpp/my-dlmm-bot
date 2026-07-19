@@ -6,6 +6,13 @@ Vexis discovers and screens pools using the Meteora Pool Discovery API, tracks p
 
 Built with TypeScript, [Effect](https://effect.website/) (functional effect system + dependency injection), [grammY](https://grammy.dev/) (Telegram), and [@effect/cli](https://effect.website/docs/cli/) (CLI).
 
+## Screenshots
+
+| | | |
+|:---:|:---:|:---:|
+| ![snap1](docs/snap1.png) | ![snap2](docs/snap2.png) | ![snap3](docs/snap3.png) |
+| ![snap4](docs/snap4.png) | ![snap5](docs/snap5.png) | ![snap6](docs/snap6.png) |
+
 ## Features
 
 - **Pool Screening** — Full control over 30+ Discovery API filters (market cap, TVL, volume, fee, bin step, organic score, holders, volatility, pool price, swap count, traders, price trend, SOL pair only). Set `null` to skip any filter.
