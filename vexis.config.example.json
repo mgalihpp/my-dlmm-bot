@@ -9,6 +9,22 @@
 	"alertInterval": 0,
 	"stopLossPct": -10,
 	"takeProfitPct": 25,
+	"agent": {
+		"enabled": false,
+		"intervalMinutes": 15,
+		"maxCandidates": 5,
+		"minCandidate": 70,
+		"maxSolPerPosition": 0.5,
+		"maxTotalSol": 3,
+		"maxOpenPositions": 4,
+		"txCooldownMs": 300000,
+		"tpPct": 25,
+		"slPct": -10,
+		"llm": {
+			"baseUrl": "https://api.openai.com/v1",
+			"model": "gpt-4o-mini"
+		}
+	},
 	"create": {
 		"strategy": "bidask",
 		"mode": "single-y",

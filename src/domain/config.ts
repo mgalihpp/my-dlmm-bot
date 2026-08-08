@@ -69,6 +69,27 @@ export interface CreateConfig {
 	slippageBps?: number;
 }
 
+export interface AgentLlmConfig {
+	baseUrl?: string;
+	apiKey?: string;
+	model?: string;
+	timeoutMs?: number;
+}
+
+export interface AgentConfig {
+	enabled?: boolean;
+	intervalMinutes?: number;
+	maxCandidates?: number;
+	minCandidate?: number;
+	maxSolPerPosition?: number;
+	maxTotalSol?: number;
+	maxOpenPositions?: number;
+	txCooldownMs?: number;
+	tpPct?: number;
+	slPct?: number;
+	llm?: AgentLlmConfig;
+}
+
 export interface VexisConfig {
 	wallet?: string;
 	privateKey?: string;
@@ -82,6 +103,7 @@ export interface VexisConfig {
 	takeProfitPct?: number | null;
 	create?: CreateConfig;
 	pools?: PoolsConfig;
+	agent?: AgentConfig;
 }
 
 export interface CreatePreset {

@@ -83,6 +83,53 @@ export const resolveCreatePresetFrom = (config: VexisConfig): CreatePreset => {
 	};
 };
 
+export interface ResolvedAgentLlm {
+	baseUrl: string;
+	model: string;
+	apiKey: string;
+	timeoutMs: number;
+}
+
+export interface ResolvedAgentConfig {
+	enabled: boolean;
+	intervalMinutes: number;
+	maxCandidates: number;
+	minCandidate: number;
+	maxSolPerPosition: number;
+	maxTotalSol: number;
+	maxOpenPositions: number;
+	txCooldownMs: number;
+	tpPct: number;
+	slPct: number;
+	llm: ResolvedAgentLlm;
+}
+
+export const resolveAgentConfigFrom = (
+	c: VexisConfig,
+	env: Record<string, string | undefined> = process.env,
+): ResolvedAgentConfig => {
+	const a = c.agent ?? {};
+	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
+	return {
+		enabled: a.enabled ?? false,
+		intervalMinutes: a.intervalMinutes ?? 15,
+		maxCandidates: a.maxCandidates ?? 5,
+		minCandidate: a.minCandidate ?? 70,
+		maxSolPerPosition: a.maxSolPerPosition ?? 0.5,
+		maxTotalSol: a.maxTotalSol ?? 3,
+		maxOpenPositions: a.maxOpenPositions ?? 4,
+		txCooldownMs: a.txCooldownMs ?? 300_000,
+		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
+		slPct: a.slPct ?? c.stopLossPct ?? -10,
+		llm: {
+			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, ""),
+			model: a.llm?.model ?? "gpt-4o-mini",
+			apiKey,
+			timeoutMs: a.llm?.timeoutMs ?? 30_000,
+		},
+	};
+};
+
 const make = (
 	initial: VexisConfig,
 	path: string | null,
