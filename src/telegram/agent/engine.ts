@@ -1,5 +1,6 @@
 import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
+import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
 import type { PositionPnLData } from "../../domain/position.js";
 import {
 	resolveAgentConfigFrom,
@@ -19,6 +20,7 @@ import { MD } from "../utils.js";
 import { decideCandidates, tpslAction } from "./decision.js";
 import { formatCycleSummary, formatLive } from "./format.js";
 import {
+	adoptOnchainPlans,
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
@@ -109,6 +111,23 @@ function pnlPctValue(pos: {
 	return Number.isFinite(n) ? n : null;
 }
 
+/** Merge on-chain open positions (opened manually or before a fresh start) into tracked plans. */
+async function syncOnchainPlans(
+	rt: RuntimeAgent,
+	wallet: string,
+	open?: OpenPortfolioResponse,
+) {
+	const res = open ?? (await api.openPortfolio(wallet, 1, 100));
+	const before = rt.state.plans.length;
+	rt.state.plans = [...adoptOnchainPlans(rt.state.plans, res.pools ?? [])];
+	if (rt.state.plans.length > before) {
+		saveState(rt.state);
+		logInfo(
+			`adopted ${rt.state.plans.length - before} on-chain open position(s) into agent tracking`,
+		);
+	}
+}
+
 export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	const state = loadState();
 	let intervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
@@ -166,6 +185,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				const cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section("TP/SL FAST CHECK");
+				await syncOnchainPlans(rt, wallet);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: false,
 				});
@@ -191,6 +211,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				logInfo(
 					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD), open positions on-chain: ${openPositions}`,
 				);
+				await syncOnchainPlans(rt, wallet, open);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: true,
 				});

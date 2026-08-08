@@ -1,9 +1,10 @@
+import type { OpenPool } from "../../domain/portfolio.js";
 import type { ScreenedPool } from "../../domain/screened.js";
 import type {
 	ResolvedAgentConfig,
 	ResolvedAgentRisks,
 } from "../../services/Config.js";
-import type { AgentCooldown } from "./state.js";
+import type { AgentCooldown, AgentPlan } from "./state.js";
 
 export interface GuardOk {
 	ok: boolean;
@@ -231,4 +232,34 @@ export function recordCooldown(
 			reason: input.reason,
 		},
 	];
+}
+
+/** Adopts on-chain open positions the agent does not track yet (opened manually or before a fresh start) into plans. */
+export function adoptOnchainPlans(
+	plans: readonly AgentPlan[],
+	openPools: readonly Pick<
+		OpenPool,
+		| "poolAddress"
+		| "tokenX"
+		| "tokenY"
+		| "tokenXMint"
+		| "openPositionCount"
+		| "listPositions"
+	>[],
+): readonly AgentPlan[] {
+	const known = new Set(plans.map((p) => p.pool));
+	const adopted: AgentPlan[] = [];
+	for (const pool of openPools) {
+		if (pool.openPositionCount <= 0 || known.has(pool.poolAddress)) continue;
+		adopted.push({
+			pool: pool.poolAddress,
+			poolName: `${pool.tokenX}/${pool.tokenY}`,
+			baseMint: pool.tokenXMint,
+			amountSol: 0,
+			positionAddress: pool.listPositions[0] ?? null,
+			openedAt: null,
+		});
+		known.add(pool.poolAddress);
+	}
+	return adopted.length > 0 ? [...plans, ...adopted] : plans;
 }

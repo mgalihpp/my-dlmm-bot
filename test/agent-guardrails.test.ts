@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ScreenedPool } from "../src/domain/screened.js";
 import {
+	adoptOnchainPlans,
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
@@ -387,5 +388,52 @@ describe("recordCooldown", () => {
 		expect(out).toHaveLength(1);
 		expect(out[0].pool).toBe("P2");
 		expect(out[0].reason).toBe("closed");
+	});
+});
+
+const openPool = (
+	over: Partial<Parameters<typeof adoptOnchainPlans>[1][number]> = {},
+) => ({
+	poolAddress: "P1",
+	tokenX: "A",
+	tokenY: "SOL",
+	tokenXMint: "mx",
+	openPositionCount: 1,
+	listPositions: ["pos1"],
+	...over,
+});
+
+describe("adoptOnchainPlans", () => {
+	it("adopts unknown on-chain open positions on fresh start", () => {
+		const out = adoptOnchainPlans([], [openPool()]);
+		expect(out).toHaveLength(1);
+		expect(out[0].pool).toBe("P1");
+		expect(out[0].poolName).toBe("A/SOL");
+		expect(out[0].baseMint).toBe("mx");
+		expect(out[0].positionAddress).toBe("pos1");
+		expect(out[0].amountSol).toBe(0);
+	});
+
+	it("does not duplicate already-tracked pools", () => {
+		const plans = [
+			{
+				pool: "P1",
+				poolName: "A/SOL",
+				baseMint: "mx",
+				amountSol: 0.5,
+				positionAddress: "pos1",
+				openedAt: "x",
+			},
+		];
+		const out = adoptOnchainPlans(plans, [openPool()]);
+		expect(out).toHaveLength(1);
+	});
+
+	it("skips pools without open positions", () => {
+		const out = adoptOnchainPlans(
+			[],
+			[openPool({ openPositionCount: 0, listPositions: [] })],
+		);
+		expect(out).toHaveLength(0);
 	});
 });
