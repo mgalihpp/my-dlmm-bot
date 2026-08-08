@@ -96,8 +96,12 @@ export async function requestSignals(opts: {
 		});
 		if (!text) return { signals: [], degraded: true };
 		return { signals: parseLlmResponse(text), degraded: false };
-	} catch {
+	} catch (e) {
 		// timeout / network: degrade to heuristic-only
+		console.error(
+			"[agent] LLM request failed:",
+			e instanceof Error ? e.message : String(e),
+		);
 		return { signals: [], degraded: true };
 	}
 }
