@@ -215,7 +215,10 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 	result.pools.forEach((p, i) => {
 		const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
 		const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
-		const fromAth = p.fromAthPct != null ? ` \\| ${escapeMarkdown(`From ATH ${(p.fromAthPct * 100).toFixed(1)}%`)}` : "";
+		const fromAth =
+			p.fromAthPct != null
+				? ` \\| ${escapeMarkdown(`From ATH ${(p.fromAthPct * 100).toFixed(1)}%`)}`
+				: "";
 		const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
 		const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
 		lines.push(
