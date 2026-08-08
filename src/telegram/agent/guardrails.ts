@@ -37,6 +37,23 @@ export function checkOpenGuardrail(input: {
 	return { ok: true, reason: null };
 }
 
+/** Blocks opening when a plan already exists on the same pool or same base token. */
+export function checkDuplicate(input: {
+	pool: string;
+	baseMint: string;
+	plans: ReadonlyArray<{ pool: string; baseMint?: string | null }>;
+}): GuardOk {
+	for (const p of input.plans) {
+		if (p.pool === input.pool) {
+			return { ok: false, reason: "already open on this pool" };
+		}
+		if (p.baseMint != null && p.baseMint === input.baseMint) {
+			return { ok: false, reason: "already open on same token" };
+		}
+	}
+	return { ok: true, reason: null };
+}
+
 export function checkCooldown(input: {
 	lastExecutionAt: number | null;
 	nowMs: number;

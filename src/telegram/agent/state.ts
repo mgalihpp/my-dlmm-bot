@@ -6,6 +6,7 @@ export type LlmStatus = "ok" | "degraded" | "skipped";
 export interface AgentPlan {
 	pool: string;
 	poolName: string;
+	baseMint: string | null;
 	amountSol: number;
 	positionAddress: string | null;
 	openedAt: string | null;

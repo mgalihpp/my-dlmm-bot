@@ -20,6 +20,7 @@ import { decideCandidates, tpslAction } from "./decision.js";
 import { formatCycleSummary } from "./format.js";
 import {
 	checkCooldown,
+	checkDuplicate,
 	checkOpenGuardrail,
 	deriveOpenAmount,
 } from "./guardrails.js";
@@ -245,6 +246,12 @@ async function evaluatePlans(
 	console.log(
 		`[agent] screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
+	const mintByPool = new Map(
+		screen.pools.map((p) => [p.pool, p.baseMint] as const),
+	);
+	for (const plan of rt.state.plans) {
+		if (!plan.baseMint) plan.baseMint = mintByPool.get(plan.pool) ?? null;
+	}
 	const journal: AgentJournalEntry = {
 		ts: new Date().toISOString(),
 		cycle: ++rt.state.cycle,
@@ -308,6 +315,22 @@ async function evaluatePlans(
 			journal.candidates.push(base);
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → hold (below ${cfg.minCandidate})`,
+			);
+			continue;
+		}
+		const dup = checkDuplicate({
+			pool: d.pool.pool,
+			baseMint: d.pool.baseMint,
+			plans: rt.state.plans,
+		});
+		if (!dup.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: dup.reason,
+			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
 			);
 			continue;
 		}
@@ -375,6 +398,7 @@ async function evaluatePlans(
 			rt.state.plans.push({
 				pool: d.pool.pool,
 				poolName: d.pool.name,
+				baseMint: d.pool.baseMint,
 				amountSol,
 				positionAddress: res.positions[0] ?? null,
 				openedAt: now,

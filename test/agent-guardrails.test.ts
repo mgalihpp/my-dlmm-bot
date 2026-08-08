@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	checkCooldown,
+	checkDuplicate,
 	checkOpenGuardrail,
 	deriveOpenAmount,
 } from "../src/telegram/agent/guardrails.js";
@@ -70,6 +71,33 @@ describe("checkCooldown", () => {
 			lastExecutionAt: 1_000,
 			nowMs: 1_000 + 301_000,
 			txCooldownMs: 300_000,
+		});
+		expect(r.ok).toBe(true);
+	});
+});
+
+describe("checkDuplicate", () => {
+	const plans = [{ pool: "poolA", baseMint: "mintA" }];
+	it("blocks when the same pool is already held", () => {
+		const r = checkDuplicate({ pool: "poolA", baseMint: "mintB", plans });
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("pool");
+	});
+	it("blocks when the same token is already held", () => {
+		const r = checkDuplicate({ pool: "poolB", baseMint: "mintA", plans });
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("token");
+	});
+	it("allows a different pool and token", () => {
+		const r = checkDuplicate({ pool: "poolB", baseMint: "mintB", plans });
+		expect(r.ok).toBe(true);
+	});
+	it("ignores plans without a backfilled baseMint", () => {
+		const legacy = [{ pool: "poolA", baseMint: null }];
+		const r = checkDuplicate({
+			pool: "poolB",
+			baseMint: "mintB",
+			plans: legacy,
 		});
 		expect(r.ok).toBe(true);
 	});
