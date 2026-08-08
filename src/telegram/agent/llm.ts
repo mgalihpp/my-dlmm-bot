@@ -90,9 +90,9 @@ export async function requestSignals(opts: {
 	weightsSummary?: string;
 }): Promise<{ signals: LlmSignal[]; degraded: boolean }> {
 	const { cfg } = opts;
-	if (!cfg.llm.apiKey || opts.candidates.length === 0) {
-		return { signals: [], degraded: true };
-	}
+	if (!cfg.llm.apiKey) return { signals: [], degraded: true };
+	// no candidates is a normal state, not an LLM failure
+	if (opts.candidates.length === 0) return { signals: [], degraded: false };
 	const provider = createOpenAICompatible({
 		name: "vexis-llm",
 		baseURL: cfg.llm.baseUrl,

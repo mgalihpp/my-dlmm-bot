@@ -112,10 +112,23 @@ describe("heuristicScore risk factors", () => {
 		const belowAth = heuristicScore({ ...basePool, priceVsAthPct: 40 });
 		expect(belowAth).toBeGreaterThan(atAth);
 	});
-	it("prefers higher rugScore", () => {
+	it("prefers lower rugScore (higher risk is penalized)", () => {
 		const low = heuristicScore({ ...basePool, rugScore: 100 });
 		const high = heuristicScore({ ...basePool, rugScore: 3000 });
-		expect(high).toBeGreaterThan(low);
+		expect(low).toBeGreaterThan(high);
+	});
+	it("falls back to fromAthPct when priceVsAthPct is missing", () => {
+		const nearAth = heuristicScore({
+			...basePool,
+			priceVsAthPct: null,
+			fromAthPct: 0.05,
+		});
+		const belowAth = heuristicScore({
+			...basePool,
+			priceVsAthPct: null,
+			fromAthPct: 0.4,
+		});
+		expect(belowAth).toBeGreaterThan(nearAth);
 	});
 	it("prefers lower top10 and bundle concentration", () => {
 		const low = heuristicScore({ ...basePool, top10Pct: 90, bundlePct: 90 });

@@ -52,6 +52,14 @@ export function formatCycleSummary(
 	return lines.join("\n");
 }
 
+/** Live in-cycle status — header + phase lines, edited in place as the cycle runs. */
+export function formatLive(cycle: number, lines: readonly string[]): string {
+	return [
+		tgBold(`🤖 Agent cycle #${cycle}`),
+		...lines.map((l) => escapeMarkdown(l)),
+	].join("\n");
+}
+
 export function formatJournal(
 	entries: readonly AgentJournalEntry[],
 	n: number,

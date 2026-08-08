@@ -72,6 +72,29 @@ describe("decideCandidates", () => {
 		});
 		expect(out[0].action).toBe("hold");
 	});
+
+	it("opens on strong LLM favorability even below heuristic threshold", () => {
+		const p = pool(); // low heuristic score
+		const out = decideCandidates({
+			pools: [p],
+			signals: [
+				{ pool: "PoolA", favorability: 0.6, rationale: "llm likes it" },
+			],
+			minScoreToOpen: 95,
+		});
+		expect(out[0].action).toBe("open");
+		expect(out[0].score).toBeLessThan(95);
+	});
+
+	it("weak favorability does not override the threshold", () => {
+		const p = pool();
+		const out = decideCandidates({
+			pools: [p],
+			signals: [{ pool: "PoolA", favorability: 0.3, rationale: "meh" }],
+			minScoreToOpen: 95,
+		});
+		expect(out[0].action).toBe("hold");
+	});
 });
 
 describe("tpslAction", () => {

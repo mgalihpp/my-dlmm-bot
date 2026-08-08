@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
 	formatCycleSummary,
+	formatLive,
 	formatStatus,
 } from "../src/telegram/agent/format.js";
 import type { AgentJournalEntry } from "../src/telegram/agent/journal.js";
@@ -55,6 +56,7 @@ describe("formatStatus", () => {
 				{
 					pool: "P1",
 					poolName: "A/SOL",
+					baseMint: null,
 					amountSol: 0.5,
 					positionAddress: null,
 					openedAt: null,
@@ -92,5 +94,20 @@ describe("formatCycleSummary", () => {
 		const text = formatCycleSummary([entry], false);
 		expect(text).toContain("A/SOL");
 		expect(text).toContain("sig");
+	});
+});
+
+describe("formatLive", () => {
+	it("renders cycle header with phase lines", () => {
+		const out = formatLive(7, ["🔎 6 pools screened", "🧠 LLM: 2 signals"]);
+		expect(out).toContain("\\#7");
+		expect(out).toContain("🔎 6 pools screened");
+		expect(out).toContain("🧠 LLM: 2 signals");
+	});
+	it("escapes MarkdownV2 reserved characters", () => {
+		const out = formatLive(1, ["blocked: pool (risk) +3%"]);
+		expect(out).toContain("\\(");
+		expect(out).toContain("\\)");
+		expect(out).toContain("\\+");
 	});
 });

@@ -28,8 +28,11 @@ export function heuristicScore(
 	const holders = clamp(pool.holders / 1000);
 	const volume = clamp(pool.volume / 100_000);
 	const binStep = clamp(1 - pool.binStep / 125);
-	const athSafe = clamp((100 - (pool.priceVsAthPct ?? 100)) / 100);
-	const rug = pool.rugScore != null ? clamp(pool.rugScore / 2500) : 0.5;
+	const athPct =
+		pool.priceVsAthPct ??
+		(pool.fromAthPct != null ? (1 - pool.fromAthPct) * 100 : null);
+	const athSafe = athPct != null ? clamp((100 - athPct) / 100) : 0.5;
+	const rug = pool.rugScore != null ? clamp(1 - pool.rugScore / 2500) : 0.5;
 	const top10 = pool.top10Pct != null ? clamp(1 - pool.top10Pct / 100) : 0.5;
 	const bundle = pool.bundlePct != null ? clamp(1 - pool.bundlePct / 100) : 0.5;
 	const bot =

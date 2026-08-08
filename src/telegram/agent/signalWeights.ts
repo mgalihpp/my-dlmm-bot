@@ -88,7 +88,9 @@ export function signalSnapshot(pool: ScreenedPool): Record<SignalName, number> {
 		volume: pool.volume,
 		holders: pool.holders,
 		binStep: pool.binStep,
-		priceVsAthPct: num(pool.priceVsAthPct) ?? 100,
+		priceVsAthPct:
+			num(pool.priceVsAthPct) ??
+			(pool.fromAthPct != null ? (1 - pool.fromAthPct) * 100 : 100),
 		rugScore: num(pool.rugScore) ?? 0,
 		top10Pct: num(pool.top10Pct) ?? 100,
 		bundlePct: num(pool.bundlePct) ?? 100,

@@ -37,13 +37,16 @@ export function decideCandidates(input: {
 		const sig = sigMap.get(pool.pool);
 		const favorability = sig?.favorability ?? null;
 		const score = combineScore(h, favorability);
+		const open =
+			score >= input.minScoreToOpen ||
+			(favorability != null && favorability >= 0.5);
 		return {
 			pool,
 			heuristicScore: h,
 			favorability,
 			rationale: sig?.rationale ?? null,
 			score,
-			action: score >= input.minScoreToOpen ? "open" : "hold",
+			action: open ? "open" : "hold",
 		};
 	});
 }

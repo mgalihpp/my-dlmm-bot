@@ -17,7 +17,7 @@ import {
 import { runtime } from "../runtime.js";
 import { MD } from "../utils.js";
 import { decideCandidates, tpslAction } from "./decision.js";
-import { formatCycleSummary } from "./format.js";
+import { formatCycleSummary, formatLive } from "./format.js";
 import {
 	checkCooldown,
 	checkDuplicate,
@@ -57,6 +57,33 @@ type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
 
 function send(bot: Bot, chatId: string, msg: string) {
 	return bot.api.sendMessage(chatId, msg, MD);
+}
+
+/** Live cycle message: one message per cycle, edited in place as phases complete. */
+type LiveMsg = { msgId: number | null };
+
+async function liveSend(
+	bot: Bot,
+	chatId: string,
+	live: LiveMsg,
+	msg: string,
+): Promise<void> {
+	if (live.msgId == null) {
+		const sent = await bot.api.sendMessage(chatId, msg, MD);
+		live.msgId = sent.message_id;
+		return;
+	}
+	try {
+		await bot.api.editMessageText(chatId, live.msgId, msg, MD);
+	} catch {
+		// message deleted or expired → restart a fresh one
+		try {
+			const sent = await bot.api.sendMessage(chatId, msg, MD);
+			live.msgId = sent.message_id;
+		} catch {
+			/* ignore — Telegram unreachable */
+		}
+	}
 }
 
 function pnlPctValue(pos: {
@@ -290,16 +317,24 @@ async function evaluatePlans(
 		);
 		return;
 	}
+	const live: LiveMsg = { msgId: null };
+	const cycle = rt.state.cycle + 1;
+	const liveLines = [`🔎 screening pools...`];
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	let screen;
 	try {
 		screen = await screenPools();
 	} catch (e) {
 		console.error("[agent] screening failed:", e);
+		liveLines.push("❌ screening failed");
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		return;
 	}
 	console.log(
 		`[agent] screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
+	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	const mintByPool = new Map(
 		screen.pools.map((p) => [p.pool, p.baseMint] as const),
 	);
@@ -317,7 +352,8 @@ async function evaluatePlans(
 	const weights = sw.weights;
 
 	const ranked = rankPools(screen.pools, {
-		minCandidate: cfg.minCandidate,
+		// LLM evaluates regardless of the heuristic floor; minCandidate gates opening only
+		minCandidate: 0,
 		maxCandidates: cfg.maxCandidates,
 		weights,
 	});
@@ -351,6 +387,11 @@ async function evaluatePlans(
 			: "skipped"
 		: "ok";
 
+	liveLines.push(
+		`🧠 LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
+	);
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+
 	const decisions = decideCandidates({
 		pools: ranked,
 		signals,
@@ -363,6 +404,11 @@ async function evaluatePlans(
 		rt.state.executions.length > 0
 			? Date.parse(rt.state.executions[rt.state.executions.length - 1].at)
 			: null;
+
+	const liveDecision = async (line: string) => {
+		liveLines.push(line);
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	};
 
 	for (const d of decisions) {
 		const base: JournalCandidate = {
@@ -380,9 +426,8 @@ async function evaluatePlans(
 		};
 		if (d.action === "hold") {
 			journal.candidates.push(base);
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → hold (below ${cfg.minCandidate})`,
-			);
+			console.log(`[agent] decide: ${d.pool.name} score ${d.score} → hold`);
+			await liveDecision(`➖ ${d.pool.name} hold (score ${d.score})`);
 			continue;
 		}
 		const dup = checkDuplicate({
@@ -399,6 +444,7 @@ async function evaluatePlans(
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
 			);
+			await liveDecision(`⛔ ${d.pool.name} blocked: ${dup.reason ?? ""}`);
 			continue;
 		}
 		const risk = checkRisks({ pool: d.pool, risks: cfg.risks });
@@ -411,6 +457,7 @@ async function evaluatePlans(
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
 			);
+			await liveDecision(`⛔ ${d.pool.name} blocked: ${risk.reason ?? ""}`);
 			continue;
 		}
 		const amountSol = deriveOpenAmount(budget, cfg);
@@ -431,6 +478,7 @@ async function evaluatePlans(
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
 			);
+			await liveDecision(`⛔ ${d.pool.name} blocked: ${guard.reason ?? ""}`);
 			continue;
 		}
 		if (amountSol <= 0) {
@@ -442,6 +490,7 @@ async function evaluatePlans(
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (no budget)`,
 			);
+			await liveDecision(`⛔ ${d.pool.name} blocked: no budget`);
 			continue;
 		}
 		const cooldown = checkCooldown({
@@ -458,11 +507,14 @@ async function evaluatePlans(
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${cooldown.reason})`,
 			);
+			await liveDecision(`⛔ ${d.pool.name} blocked: ${cooldown.reason ?? ""}`);
 			continue;
 		}
 		console.log(
 			`[agent] decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
+		liveLines.push(`🚀 OPEN ${d.pool.name} ${amountSol} SOL (sending tx...)`);
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		try {
 			const preset = resolveCreatePresetFrom(getConfigSync());
 			const params = buildCreateParams({
@@ -499,14 +551,24 @@ async function evaluatePlans(
 			console.log(
 				`[agent] opened ${d.pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${sig}`,
 			);
+			liveLines[liveLines.length - 1] =
+				`✅ OPEN ${d.pool.name} ${amountSol} SOL ${sig || "?"}`;
+			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		} catch (e) {
 			console.error("[agent] open failed:", d.pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
+			liveLines[liveLines.length - 1] = `❌ OPEN ${d.pool.name} failed`;
+			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		}
 	}
 
 	rt.state.llmStatus = journal.llmStatus;
 	appendJournal(journal);
 	saveState(rt.state);
-	await send(bot, chatId, formatCycleSummary(readJournal(1), degraded));
+	await liveSend(
+		bot,
+		chatId,
+		live,
+		formatCycleSummary(readJournal(1), degraded),
+	);
 }
