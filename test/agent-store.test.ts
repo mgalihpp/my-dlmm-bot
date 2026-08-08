@@ -66,6 +66,7 @@ describe("state", () => {
 				cycle: 3,
 				plans: [],
 				executions: [],
+				cooldowns: [],
 				enabled: true,
 				lastCycleAt: "x",
 				llmStatus: "degraded",

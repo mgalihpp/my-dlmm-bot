@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ScreenedPool } from "../src/domain/screened.js";
+import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
 	adoptOnchainPlans,
 	checkCooldown,
@@ -14,7 +15,7 @@ import {
 } from "../src/telegram/agent/guardrails.js";
 import type { AgentCooldown } from "../src/telegram/agent/state.js";
 
-const cfg = {
+const cfg: ResolvedAgentConfig = {
 	enabled: true,
 	intervalMinutes: 15,
 	maxCandidates: 5,
@@ -26,6 +27,7 @@ const cfg = {
 	poolCooldownMs: 24 * 3_600_000,
 	tpPct: 25,
 	slPct: -10,
+	notifLevel: "normal",
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
 	risks: {
 		enabled: true,
