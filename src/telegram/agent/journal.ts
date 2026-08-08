@@ -53,3 +53,7 @@ export function readJournal(n = 10, file = DEFAULT_FILE): AgentJournalEntry[] {
 		return [];
 	}
 }
+
+export function readJournalAll(file = DEFAULT_FILE): AgentJournalEntry[] {
+	return readJournal(Number.MAX_SAFE_INTEGER, file);
+}
