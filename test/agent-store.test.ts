@@ -75,4 +75,31 @@ describe("state", () => {
 		expect(loadState(f).running).toBe(true);
 		expect(loadState(f).cycle).toBe(3);
 	});
+
+	it("round-trips cooldowns", () => {
+		const f = tmpFile("state-cd.json");
+		saveState(
+			{
+				enabled: true,
+				running: false,
+				lastCycleAt: null,
+				llmStatus: "skipped",
+				cycle: 0,
+				plans: [],
+				executions: [],
+				cooldowns: [
+					{
+						pool: "P1",
+						poolName: "A/SOL",
+						baseMint: "mx",
+						until: "2026-08-09T00:00:00Z",
+						reason: "closed",
+					},
+				],
+			},
+			f,
+		);
+		expect(loadState(f).cooldowns).toHaveLength(1);
+		expect(loadState(f).cooldowns[0].reason).toBe("closed");
+	});
 });

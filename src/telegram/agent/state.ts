@@ -20,6 +20,14 @@ export interface AgentExecution {
 	txSignature: string | null;
 }
 
+export interface AgentCooldown {
+	pool: string;
+	poolName: string;
+	baseMint: string | null;
+	until: string;
+	reason: string;
+}
+
 export interface AgentState {
 	enabled: boolean;
 	running: boolean;
@@ -28,6 +36,7 @@ export interface AgentState {
 	cycle: number;
 	plans: AgentPlan[];
 	executions: AgentExecution[];
+	cooldowns: AgentCooldown[];
 }
 
 const DEFAULT_FILE = join(process.cwd(), ".vexis-agent.json");
@@ -40,6 +49,7 @@ const EMPTY: AgentState = {
 	cycle: 0,
 	plans: [],
 	executions: [],
+	cooldowns: [],
 };
 
 export function loadState(file = DEFAULT_FILE): AgentState {
