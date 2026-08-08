@@ -20,6 +20,8 @@ import {
 	DlmmPoolsResponse,
 	type OpenPool,
 	OpenPortfolioResponse,
+	PoolOhlcvResponse,
+	type PoolOhlcvResponse as PoolOhlcvResponseType,
 	type PoolHistoricalVolume,
 	PoolHistoricalVolumeArray,
 	PortfolioTotal,
@@ -76,6 +78,14 @@ export interface MeteoraApiService {
 		readonly PoolHistoricalVolume[],
 		MeteoraApiError | DecodeError
 	>;
+	readonly poolOhlcv: (
+		address: string,
+		opts?: {
+			timeframe?: string;
+			start_time?: number;
+			end_time?: number;
+		},
+	) => Effect.Effect<PoolOhlcvResponseType, MeteoraApiError | DecodeError>;
 	readonly discoverPools: (opts?: {
 		pageSize?: number;
 		filterBy?: string;
@@ -259,6 +269,17 @@ const make = Effect.gen(function* () {
 				`/pools/${address}/historical-volume`,
 				{},
 				PoolHistoricalVolumeArray,
+			),
+		poolOhlcv: (address, opts) =>
+			getJson(
+				base,
+				`/pools/${address}/ohlcv`,
+				{
+					timeframe: opts?.timeframe ?? "24h",
+					start_time: opts?.start_time,
+					end_time: opts?.end_time,
+				},
+				PoolOhlcvResponse,
 			),
 		discoverPools: (opts) =>
 			getJson(

@@ -154,6 +154,10 @@ export function condensePool(pool: DiscoveryPool): ScreenedPool {
 		score: scoreCandidate(pool),
 		price: pool.pool_price ?? 0,
 		priceChangePct: fix(pool.pool_price_change_pct, 1),
+		fromAthPct:
+			pool.max_price != null && (pool.pool_price ?? 0) > 0
+				? fix(1 - pool.pool_price / pool.max_price, 2)
+				: null,
 		volumeChangePct: fix(pool.volume_change_pct, 1),
 		tokenXAddress: pool.token_x?.address ?? "",
 	};

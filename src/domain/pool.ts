@@ -60,3 +60,21 @@ export type PoolHistoricalVolume = Schema.Schema.Type<
 >;
 
 export const PoolHistoricalVolumeArray = Schema.Array(PoolHistoricalVolume);
+
+export const OhlcvCandle = Schema.Struct({
+	timestamp: Schema.Number,
+	open: Schema.Number,
+	high: Schema.Number,
+	low: Schema.Number,
+	close: Schema.Number,
+	volume: Schema.Number,
+});
+export type OhlcvCandle = Schema.Schema.Type<typeof OhlcvCandle>;
+
+export const PoolOhlcvResponse = Schema.Struct({
+	start_time: Schema.Number,
+	end_time: Schema.Number,
+	timeframe: Schema.String,
+	data: Schema.Array(OhlcvCandle),
+});
+export type PoolOhlcvResponse = Schema.Schema.Type<typeof PoolOhlcvResponse>;

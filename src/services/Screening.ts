@@ -63,6 +63,25 @@ const make = Effect.gen(function* () {
 					{ concurrency: 5, discard: true },
 				);
 
+				yield* Effect.forEach(
+					result.pools,
+					(pool) =>
+						api.poolOhlcv(pool.pool, { timeframe: "24h" }).pipe(
+							Effect.map((res) => {
+								const high = res.data.reduce(
+									(max, c) => Math.max(max, c.high),
+									0,
+								);
+								if (high > 0) {
+									(pool as { fromAthPct: number }).fromAthPct =
+										1 - pool.price / high;
+								}
+							}),
+							Effect.catchAll(() => Effect.succeed(void 0)),
+						),
+					{ concurrency: 5, discard: true },
+				);
+
 				return result;
 			}),
 	};

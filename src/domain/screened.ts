@@ -23,6 +23,7 @@ export interface ScreenedPool {
 	price: number;
 	priceChangePct: number | null;
 	volumeChangePct: number | null;
+	fromAthPct: number | null;
 	tokenXAddress: string;
 	rugScore?: number | null;
 }

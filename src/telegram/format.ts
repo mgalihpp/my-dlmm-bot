@@ -215,6 +215,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 	result.pools.forEach((p, i) => {
 		const rug = p.rugScore != null ? escapeMarkdown(String(p.rugScore)) : "\\-";
 		const priceChg = p.priceChangePct != null ? tgPct(p.priceChangePct) : "\\-";
+		const fromAth = p.fromAthPct != null ? ` \\| ${escapeMarkdown(`From ATH ${(p.fromAthPct * 100).toFixed(1)}%`)}` : "";
 		const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
 		const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
 		lines.push(
@@ -222,7 +223,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 			`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
 			`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 			`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
-			`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
+			`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg}${fromAth} \\| Vol ${volChg} \\| Rug ${rug}`,
 			"",
 		);
 	});
@@ -358,9 +359,10 @@ export function tgWatchlistAlert(
 		);
 		if (opts.listPositions?.length) {
 			lines.push(`  Positions \\(${escapeMarkdown(String(positionCount))}\\):`);
-			opts.listPositions.forEach((pos, idx) => {
+			const positions = opts.listPositions;
+			positions.forEach((pos, idx) => {
 				const isOor = opts.positionsOutOfRange?.includes(pos);
-				const treeChar = idx === opts.listPositions?.length - 1 ? "└" : "├";
+				const treeChar = idx === positions.length - 1 ? "└" : "├";
 				lines.push(
 					`  ${escapeMarkdown(treeChar)} ${isOor ? "⚠️" : "✅"} ${tgCode(pos)}${isOor ? escapeMarkdown(" OOR") : ""}`,
 				);

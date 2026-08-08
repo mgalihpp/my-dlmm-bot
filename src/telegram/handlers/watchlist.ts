@@ -223,7 +223,7 @@ export function registerWatchlist(bot: Bot) {
 				const resText = tgMultiWalletPositions(results);
 				try {
 					await sessionCtx.api.deleteMessage(
-						sessionCtx.chat?.id,
+						sessionCtx.chat!.id,
 						loadingMsg.message_id,
 					);
 				} catch {}
