@@ -16,7 +16,7 @@ Date: 2026-08-08
 
 - In `evaluateTpSl` (per plan, after the existing TP/SL heuristic), collect positions where `pos.isOutOfRange === true`:
   `{ pool, poolName, positionAddress, pnlPct, minPrice, maxPrice, poolActivePrice }`.
-- Runs on the **fast path** (60s fiber) so OOR is detected promptly; throttled: OOR LLM evaluation at **most once per `intervalMinutes`**, tracked with `lastOorEvalAt` in agent state. No new config key — reuses `agent.intervalMinutes`.
+- Runs on the **full path** (the `intervalMinutes` fiber), so OOR detection + LLM evaluation happen once per `intervalMinutes`. The 60s fast path is TP/SL only.
 - LLM: new `requestPositionDecisions` in `src/telegram/agent/llm.ts` (same OpenAI-compatible provider pattern as `requestSignals`). Prompt lists each OOR position with pnl/price data; reply is a JSON array `[{pool, action:"hold"|"close", rationale}]`, validated (unknown pool → ignored, invalid action → treated as hold).
 - Execution: `action:"close"` → `zap.closeAndZapOut(pool, positionAddress, WSOL_MINT)` (same path as TP/SL), record execution + journal entry (`action:"close"`), and **record pool cooldown** (`reason:"closed"`). `action:"hold"` → journal entry only.
 - No API key / degraded LLM → every OOR position holds; no auto-close.
@@ -39,13 +39,13 @@ Date: 2026-08-08
 
 - The 60s event fiber and the `intervalMinutes` fiber both call the same `runCycle()`, so TP/SL, screening, and LLM all run every ~60s and `intervalMinutes` is effectively ignored.
 - Split into two paths, both guarded by the `running` flag:
-  - **Fast path** (60s event fiber): `evaluateTpSl` + OOR check only — no screening/LLM. Keeps TP/SL responsive.
-  - **Full path** (`intervalMinutes` fiber): `evaluateTpSl` + OOR + `evaluatePlans` (screening, LLM, opens).
+  - **Fast path** (60s event fiber): `evaluateTpSl` with TP/SL heuristic only — no OOR LLM, no screening/LLM. Keeps TP/SL responsive.
+  - **Full path** (`intervalMinutes` fiber): `evaluateTpSl` (TP/SL heuristic + OOR LLM decision) + `evaluatePlans` (screening, LLM, opens).
 
 ## Files touched
 
 - `src/telegram/agent/llm.ts` — `requestPositionDecisions`, prompt builder, response parser.
-- `src/telegram/agent/state.ts` — `cooldowns`, `lastOorEvalAt` fields; `AgentCooldown` type.
+- `src/telegram/agent/state.ts` — `cooldowns` field; `AgentCooldown` type.
 - `src/telegram/agent/guardrails.ts` — `filterCooldown`, `checkPoolCooldown`, `recordCooldown`.
 - `src/telegram/agent/engine.ts` — OOR flow in `evaluateTpSl`, cooldown record/filter, LLM thinking line, split fast/full path fibers.
 - `src/telegram/agent/journal.ts` — extend `JournalAction` with `"close"`.
