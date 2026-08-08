@@ -18,7 +18,12 @@ import {
 import { runtime } from "../runtime.js";
 import { MD } from "../utils.js";
 import { decideCandidates, tpslAction } from "./decision.js";
-import { formatCycleSummary, formatLive } from "./format.js";
+import {
+	formatAction,
+	formatCycleSummary,
+	formatError,
+	formatLive,
+} from "./format.js";
 import {
 	adoptOnchainPlans,
 	checkCooldown,
@@ -45,6 +50,7 @@ import {
 	requestSignals,
 } from "./llm.js";
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
+import { allowed, notify } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import {
 	appendPerf,
@@ -68,10 +74,6 @@ export interface RuntimeAgent {
 }
 
 type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
-
-function send(bot: Bot, chatId: string, msg: string) {
-	return bot.api.sendMessage(chatId, msg, MD);
-}
 
 /** Live cycle message: one message per cycle, edited in place as phases complete. */
 type LiveMsg = { msgId: number | null };
@@ -97,6 +99,18 @@ async function liveSend(
 		} catch {
 			/* ignore — Telegram unreachable */
 		}
+	}
+}
+
+async function liveStep(
+	bot: Bot,
+	chatId: string,
+	cfg: AgentCfg,
+	live: LiveMsg,
+	msg: string,
+): Promise<void> {
+	if (allowed(cfg.notifLevel, "live")) {
+		await liveSend(bot, chatId, live, msg);
 	}
 }
 
@@ -189,8 +203,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		async runFast() {
 			if (rt.state.running || !rt.state.enabled) return;
 			rt.state.running = true;
+			let cfg: AgentCfg | undefined;
 			try {
-				const cfg = resolveAgentConfigFrom(await getConfig());
+				cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section("TP/SL FAST CHECK");
 				await syncOnchainPlans(rt, wallet);
@@ -199,6 +214,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				});
 			} catch (e) {
 				logError("fast cycle error:", e);
+				if (cfg) {
+					await notify(
+						bot,
+						chatId,
+						cfg.notifLevel,
+						"error",
+						formatError("fast cycle", e),
+					);
+				}
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
@@ -207,8 +231,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		async runCycle() {
 			if (rt.state.running || !rt.state.enabled) return;
 			rt.state.running = true;
+			let cfg: AgentCfg | undefined;
 			try {
-				const cfg = resolveAgentConfigFrom(await getConfig());
+				cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section(
 					`CYCLE #${rt.state.cycle + 1} | plans: ${rt.state.plans.length} | interval: ${cfg.txCooldownMs / 60_000}m`,
@@ -224,6 +249,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				);
 			} catch (e) {
 				logError("cycle error:", e);
+				if (cfg) {
+					await notify(
+						bot,
+						chatId,
+						cfg.notifLevel,
+						"error",
+						formatError("cycle", e),
+					);
+				}
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
@@ -232,8 +266,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		async runOor() {
 			if (rt.state.running || !rt.state.enabled) return;
 			rt.state.running = true;
+			let cfg: AgentCfg | undefined;
 			try {
-				const cfg = resolveAgentConfigFrom(await getConfig());
+				cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section("OOR CHECK");
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
@@ -241,6 +276,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				});
 			} catch (e) {
 				logError("oor error:", e);
+				if (cfg) {
+					await notify(
+						bot,
+						chatId,
+						cfg.notifLevel,
+						"error",
+						formatError("OOR check", e),
+					);
+				}
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
@@ -376,9 +420,34 @@ async function evaluateTpSl(
 			logSuccess(
 				`${action.toUpperCase()} ${plan.poolName} done: sig=${shortSig(sig) || "?"}`,
 			);
-			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action,
+					poolName: plan.poolName,
+					amountSol: plan.amountSol,
+					pnlPct: pct,
+					reason:
+						action === "tp" ? `TP ${cfg.tpPct}% hit` : `SL ${cfg.slPct}% hit`,
+					txSignature: sig || null,
+				}),
+			);
 		} catch (e) {
 			logError("tp/sl close failed:", e);
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action,
+					poolName: plan.poolName,
+					failed: true,
+				}),
+			);
 		}
 	}
 	if (opts.includeOor && oorPositions.length > 0) {
@@ -465,9 +534,32 @@ async function evaluateOor(
 			});
 			saveState(rt.state);
 			logSuccess(`OOR close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`);
-			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action: "close",
+					poolName: pos.poolName,
+					pnlPct: pos.pnlPct,
+					reason: `OOR close: ${d.rationale ?? ""}`,
+					txSignature: sig || null,
+				}),
+			);
 		} catch (e) {
 			logError("OOR close failed:", e);
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action: "close",
+					poolName: pos.poolName,
+					failed: true,
+				}),
+			);
 			appendJournal({
 				ts: new Date().toISOString(),
 				cycle: rt.state.cycle,
@@ -502,7 +594,7 @@ async function evaluatePlans(
 	} catch (e) {
 		logError("screening failed:", e);
 		liveLines.push("❌ screening failed");
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 		return;
 	}
 	logInfo(
@@ -519,7 +611,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`⏳ ${cooldownSkipped} pool${cooldownSkipped === 1 ? "" : "s"} in cooldown, skipped`,
 		);
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	}
 	const { pools: candidatePools, skipped: dupSkipped } = filterDuplicates(
 		noCooldownPools,
@@ -529,7 +621,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`🔁 ${dupSkipped} pool${dupSkipped === 1 ? "" : "s"} already open, skipped`,
 		);
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	}
 	const mintByPool = new Map(
 		candidatePools.map((p) => [p.pool, p.baseMint] as const),
@@ -607,7 +699,7 @@ async function evaluatePlans(
 
 	const liveDecision = async (line: string) => {
 		liveLines.push(line);
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	};
 
 	for (const d of decisions) {
@@ -763,7 +855,7 @@ async function evaluatePlans(
 			`decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
 		liveLines.push(`🚀 OPEN ${d.pool.name} ${amountSol} SOL (sending tx...)`);
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 		try {
 			const preset = resolveCreatePresetFrom(getConfigSync());
 			const params = buildCreateParams({
@@ -802,22 +894,46 @@ async function evaluatePlans(
 			);
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${d.pool.name} ${amountSol} SOL ${sig || "?"}`;
-			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action: "open",
+					poolName: d.pool.name,
+					amountSol,
+					reason: d.rationale,
+					txSignature: sig || null,
+				}),
+			);
 		} catch (e) {
 			logError("open failed:", d.pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
 			liveLines[liveLines.length - 1] = `❌ OPEN ${d.pool.name} failed`;
-			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await notify(
+				bot,
+				chatId,
+				cfg.notifLevel,
+				"action",
+				formatAction({
+					action: "open",
+					poolName: d.pool.name,
+					failed: true,
+				}),
+			);
 		}
 	}
 
 	rt.state.llmStatus = journal.llmStatus;
 	appendJournal(journal);
 	saveState(rt.state);
-	await liveSend(
-		bot,
-		chatId,
-		live,
-		formatCycleSummary(readJournal(1), degraded),
-	);
+	const summary = formatCycleSummary(readJournal(1), degraded);
+	if (cfg.notifLevel === "verbose") {
+		await liveSend(bot, chatId, live, summary);
+	} else {
+		await notify(bot, chatId, cfg.notifLevel, "summary", summary);
+	}
 }
