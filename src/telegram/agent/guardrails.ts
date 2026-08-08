@@ -2,6 +2,8 @@ import type {
 	ResolvedAgentConfig,
 	ResolvedAgentRisks,
 } from "../../services/Config.js";
+import type { ScreenedPool } from "../../domain/screened.js";
+import type { AgentCooldown } from "./state.js";
 
 export interface GuardOk {
 	ok: boolean;
@@ -150,4 +152,65 @@ export function checkRisks(input: {
 		};
 	}
 	return { ok: true, reason: null };
+}
+
+/** Pools matching an active cooldown (by pool address or baseMint) are skipped before ranking/LLM. */
+export function filterCooldown(
+	pools: readonly ScreenedPool[],
+	cooldowns: readonly AgentCooldown[],
+	nowMs: number,
+): { pools: ScreenedPool[]; skipped: number } {
+	const active = cooldowns.filter((c) => Date.parse(c.until) > nowMs);
+	const out: ScreenedPool[] = [];
+	let skipped = 0;
+	for (const p of pools) {
+		const blocked = active.some(
+			(c) =>
+				c.pool === p.pool ||
+				(c.baseMint != null && c.baseMint === p.baseMint),
+		);
+		if (blocked) skipped++;
+		else out.push(p);
+	}
+	return { pools: out, skipped };
+}
+
+export function checkPoolCooldown(
+	pool: string,
+	baseMint: string | null,
+	cooldowns: readonly AgentCooldown[],
+	nowMs: number,
+): GuardOk {
+	for (const c of cooldowns) {
+		if (Date.parse(c.until) <= nowMs) continue;
+		if (c.pool === pool || (c.baseMint != null && c.baseMint === baseMint)) {
+			return { ok: false, reason: `cooldown until ${c.until} (${c.reason})` };
+		}
+	}
+	return { ok: true, reason: null };
+}
+
+/** Returns a new list with the entry added and expired entries pruned. */
+export function recordCooldown(
+	cooldowns: readonly AgentCooldown[],
+	input: {
+		pool: string;
+		poolName: string;
+		baseMint: string | null;
+		reason: string;
+	},
+	durationMs: number,
+	nowMs: number,
+): AgentCooldown[] {
+	const active = cooldowns.filter((c) => Date.parse(c.until) > nowMs);
+	return [
+		...active,
+		{
+			pool: input.pool,
+			poolName: input.poolName,
+			baseMint: input.baseMint,
+			until: new Date(nowMs + durationMs).toISOString(),
+			reason: input.reason,
+		},
+	];
 }

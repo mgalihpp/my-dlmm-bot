@@ -1,10 +1,15 @@
 import { describe, expect, it } from "vitest";
+import type { ScreenedPool } from "../src/domain/screened.js";
+import type { AgentCooldown } from "../src/telegram/agent/state.js";
 import {
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
+	checkPoolCooldown,
 	checkRisks,
 	deriveOpenAmount,
+	filterCooldown,
+	recordCooldown,
 } from "../src/telegram/agent/guardrails.js";
 
 const cfg = {
@@ -16,6 +21,7 @@ const cfg = {
 	maxTotalSol: 3,
 	maxOpenPositions: 4,
 	txCooldownMs: 300_000,
+	poolCooldownMs: 24 * 3_600_000,
 	tpPct: 25,
 	slPct: -10,
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
@@ -248,5 +254,113 @@ describe("checkRisks", () => {
 			risks: { ...riskCfg, blockWash: false },
 		});
 		expect(r.ok).toBe(true);
+	});
+});
+
+const pool = (over: Partial<ScreenedPool> = {}): ScreenedPool =>
+	({
+		pool: "P1",
+		name: "A/SOL",
+		baseSymbol: "A",
+		baseMint: "mx",
+		quoteSymbol: "SOL",
+		tvl: 1,
+		activeTvl: 1,
+		mcap: 1,
+		holders: 1,
+		organicScore: 1,
+		quoteOrganic: 1,
+		feeActiveTvlRatio: 1,
+		volatility: 1,
+		binStep: 1,
+		baseFeePct: 0,
+		volume: 1,
+		fee: 1,
+		activePositions: 1,
+		openPositions: 1,
+		tokenAgeHours: 1,
+		score: 0,
+		price: 1,
+		priceChangePct: null,
+		volumeChangePct: null,
+		fromAthPct: null,
+		tokenXAddress: "mx",
+		rugScore: null,
+		...over,
+	}) as ScreenedPool;
+
+const NOW = 1_000_000;
+const cd = (over: Partial<AgentCooldown> = {}): AgentCooldown => ({
+	pool: "P1",
+	poolName: "A/SOL",
+	baseMint: "mx",
+	until: new Date(NOW + 60_000).toISOString(),
+	reason: "test",
+	...over,
+});
+
+describe("filterCooldown", () => {
+	it("skips pools matching pool or baseMint", () => {
+		const { pools, skipped } = filterCooldown(
+			[
+				pool({ pool: "P1", baseMint: "mx" }),
+				pool({ pool: "P2", baseMint: "other" }),
+			],
+			[cd()],
+			NOW,
+		);
+		expect(skipped).toBe(1);
+		expect(pools.map((p) => p.pool)).toEqual(["P2"]);
+	});
+
+	it("ignores expired entries", () => {
+		const { skipped } = filterCooldown(
+			[pool()],
+			[cd({ until: new Date(NOW - 1).toISOString() })],
+			NOW,
+		);
+		expect(skipped).toBe(0);
+	});
+
+	it("null baseMint only matches exact pool", () => {
+		const { skipped } = filterCooldown(
+			[pool({ pool: "P2", baseMint: "mx" })],
+			[cd({ baseMint: null })],
+			NOW,
+		);
+		expect(skipped).toBe(0);
+	});
+});
+
+describe("checkPoolCooldown", () => {
+	it("blocks active pool, passes expired and unknown", () => {
+		expect(checkPoolCooldown("P1", "mx", [cd()], NOW).ok).toBe(false);
+		expect(
+			checkPoolCooldown(
+				"P1",
+				"mx",
+				[cd({ until: new Date(NOW - 1).toISOString() })],
+				NOW,
+			).ok,
+		).toBe(true);
+		expect(checkPoolCooldown("P9", "other", [cd()], NOW).ok).toBe(true);
+	});
+});
+
+describe("recordCooldown", () => {
+	it("adds an entry and prunes expired ones", () => {
+		const expired = cd({
+			pool: "OLD",
+			until: new Date(NOW - 1).toISOString(),
+		});
+		const out = recordCooldown(
+			[expired],
+			{ pool: "P2", poolName: "B/SOL", baseMint: "other", reason: "closed" },
+			60_000,
+			NOW,
+		);
+		expect(out).toHaveLength(1);
+		expect(out[0].pool).toBe("P2");
+		expect(out[0].reason).toBe("closed");
 	});
 });
