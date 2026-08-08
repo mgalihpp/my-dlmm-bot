@@ -112,6 +112,16 @@ describe("heuristicScore risk factors", () => {
 		const belowAth = heuristicScore({ ...basePool, priceVsAthPct: 40 });
 		expect(belowAth).toBeGreaterThan(atAth);
 	});
+	it("peaks ~20% below ATH, penalizes both ATH and dead tokens", () => {
+		const sweet = heuristicScore({ ...basePool, priceVsAthPct: 80 });
+		const atAth = heuristicScore({ ...basePool, priceVsAthPct: 100 });
+		const dead = heuristicScore({ ...basePool, priceVsAthPct: 0 });
+		const mid = heuristicScore({ ...basePool, priceVsAthPct: 40 });
+		expect(sweet).toBeGreaterThan(atAth);
+		expect(sweet).toBeGreaterThan(dead);
+		expect(mid).toBeGreaterThan(atAth);
+		expect(dead).toBeLessThan(mid);
+	});
 	it("prefers lower rugScore (higher risk is penalized)", () => {
 		const low = heuristicScore({ ...basePool, rugScore: 100 });
 		const high = heuristicScore({ ...basePool, rugScore: 3000 });

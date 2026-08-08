@@ -31,7 +31,18 @@ export function heuristicScore(
 	const athPct =
 		pool.priceVsAthPct ??
 		(pool.fromAthPct != null ? (1 - pool.fromAthPct) * 100 : null);
-	const athSafe = athPct != null ? clamp((100 - athPct) / 100) : 0.5;
+	// ATH band: ideal = 20% below ATH (80% of ATH, e.g. 1M→800k); penalize
+	// both being at ATH (overbought) and a token dead far below ATH.
+	// ATH_PEAK keeps the ideal from dominating the score.
+	const ATH_PEAK = 0.6;
+	const athSafe =
+		athPct == null
+			? 0.5
+			: athPct >= 100
+				? 0
+				: athPct >= 80
+					? ((100 - athPct) / 20) * ATH_PEAK
+					: clamp(athPct / 80) * ATH_PEAK;
 	const rug = pool.rugScore != null ? clamp(1 - pool.rugScore / 2500) : 0.5;
 	const top10 = pool.top10Pct != null ? clamp(1 - pool.top10Pct / 100) : 0.5;
 	const bundle = pool.bundlePct != null ? clamp(1 - pool.bundlePct / 100) : 0.5;

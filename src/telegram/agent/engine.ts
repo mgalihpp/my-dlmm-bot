@@ -41,6 +41,7 @@ import {
 	requestPositionDecisions,
 	requestSignals,
 } from "./llm.js";
+import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
 import { buildCreateParams } from "./params.js";
 import {
 	appendPerf,
@@ -124,7 +125,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		runtime.runFork(
 			Effect.tryPromise(job).pipe(
 				Effect.catchAll((e) =>
-					Effect.sync(() => console.error(`[agent] ${label} failed:`, e)),
+					Effect.sync(() => logError(`${label} failed:`, e)),
 				),
 				Effect.repeat(Schedule.spaced(Duration.millis(intervalMs))),
 			),
@@ -163,12 +164,12 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			try {
 				const cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
-				console.log("[agent] fast check (tp/sl)");
+				section("TP/SL FAST CHECK");
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: false,
 				});
 			} catch (e) {
-				console.error("[agent] fast cycle error:", e);
+				logError("fast cycle error:", e);
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
@@ -180,22 +181,22 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			try {
 				const cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
-				console.log(
-					`[agent] cycle #${rt.state.cycle + 1} start | plans: ${rt.state.plans.length} | interval: ${cfg.intervalMinutes}m`,
+				section(
+					`CYCLE #${rt.state.cycle + 1} | plans: ${rt.state.plans.length} | interval: ${cfg.intervalMinutes}m`,
 				);
 				const open = await api.openPortfolio(wallet, 1, 100);
 				const deployed = Number(open.total?.balancesSol ?? 0);
-				console.log(
-					`[agent] deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD)`,
+				logInfo(
+					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD)`,
 				);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet);
 				await evaluatePlans(rt, bot, chatId, cfg, deployed);
 				rt.state.lastCycleAt = new Date().toISOString();
-				console.log(
-					`[agent] cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
+				logInfo(
+					`cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
 				);
 			} catch (e) {
-				console.error("[agent] cycle error:", e);
+				logError("cycle error:", e);
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
@@ -220,7 +221,7 @@ async function evaluateTpSl(
 		try {
 			pdata = await api.positionPnl(plan.pool, wallet, "open");
 		} catch (e) {
-			console.error("[agent] positionPnl failed for", plan.pool, e);
+			logError("positionPnl failed for", plan.pool, e);
 			continue;
 		}
 		const pos = pdata.positions.find(
@@ -230,9 +231,7 @@ async function evaluateTpSl(
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
-			console.log(
-				`[agent] position check: ${plan.poolName} → closed, plan removed`,
-			);
+			logInfo(`position check: ${plan.poolName} → closed, plan removed`);
 			continue;
 		}
 		const pct = pnlPctValue(pos);
@@ -248,13 +247,11 @@ async function evaluateTpSl(
 		}
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
-		console.log(
-			`[agent] position check: ${plan.poolName} pnl=${pct}% → ${action}`,
+		logInfo(
+			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
 		if (action === "hold") continue;
-		console.log(
-			`[agent] ${action.toUpperCase()} ${plan.poolName} at ${pct}% → closing...`,
-		);
+		logInfo(`${action.toUpperCase()} ${plan.poolName} at ${pct}% → closing...`);
 		try {
 			const out = await zap.closeAndZapOut(
 				plan.pool,
@@ -281,8 +278,8 @@ async function evaluateTpSl(
 						cfg: cfg.darwin,
 					});
 					if (changes.length > 0) {
-						console.log(
-							`[agent] signal weights recalculated: ${changes
+						logInfo(
+							`signal weights recalculated: ${changes
 								.map((c) => `${c.signal}: ${c.from}→${c.to}`)
 								.join(", ")}`,
 						);
@@ -332,12 +329,12 @@ async function evaluateTpSl(
 			};
 			appendJournal(entry);
 			saveState(rt.state);
-			console.log(
-				`[agent] ${action.toUpperCase()} ${plan.poolName} done: sig=${sig || "?"}`,
+			logSuccess(
+				`${action.toUpperCase()} ${plan.poolName} done: sig=${shortSig(sig) || "?"}`,
 			);
 			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
 		} catch (e) {
-			console.error("[agent] tp/sl close failed:", e);
+			logError("tp/sl close failed:", e);
 		}
 	}
 	if (opts.includeOor && oorPositions.length > 0) {
@@ -352,15 +349,13 @@ async function evaluateOor(
 	cfg: AgentCfg,
 	positions: readonly OorPosition[],
 ) {
-	console.log(
-		`[agent] OOR: ${positions.length} position(s) out of range → LLM`,
-	);
+	logInfo(`OOR: ${positions.length} position(s) out of range → LLM`);
 	const { decisions, degraded } = await requestPositionDecisions({
 		cfg,
 		positions,
 	});
 	if (degraded) {
-		console.log(`[agent] OOR: LLM degraded — ${positions.length} held`);
+		logInfo(`OOR: LLM degraded — ${positions.length} held`);
 		return;
 	}
 	for (const d of decisions) {
@@ -390,7 +385,7 @@ async function evaluateOor(
 				llmStatus: "ok",
 				candidates: [base],
 			});
-			console.log(`[agent] OOR decide: ${pos.poolName} → hold`);
+			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
 			continue;
 		}
 		try {
@@ -425,10 +420,10 @@ async function evaluateOor(
 				candidates: [{ ...base, execution: "ok", txSignature: sig || null }],
 			});
 			saveState(rt.state);
-			console.log(`[agent] OOR close ${pos.poolName} done: sig=${sig || "?"}`);
+			logSuccess(`OOR close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`);
 			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
 		} catch (e) {
-			console.error("[agent] OOR close failed:", e);
+			logError("OOR close failed:", e);
 			appendJournal({
 				ts: new Date().toISOString(),
 				cycle: rt.state.cycle,
@@ -447,8 +442,8 @@ async function evaluatePlans(
 	deployedSol: number,
 ) {
 	if (rt.state.plans.length >= cfg.maxOpenPositions) {
-		console.log(
-			`[agent] at max positions (${rt.state.plans.length}/${cfg.maxOpenPositions}), skipping screening + LLM`,
+		logInfo(
+			`at max positions (${rt.state.plans.length}/${cfg.maxOpenPositions}), skipping screening + LLM`,
 		);
 		return;
 	}
@@ -460,13 +455,13 @@ async function evaluatePlans(
 	try {
 		screen = await screenPools();
 	} catch (e) {
-		console.error("[agent] screening failed:", e);
+		logError("screening failed:", e);
 		liveLines.push("❌ screening failed");
 		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		return;
 	}
-	console.log(
-		`[agent] screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
+	logInfo(
+		`screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
@@ -526,9 +521,12 @@ async function evaluatePlans(
 		candidates: llmCandidates,
 		weightsSummary: weightsSummary(weights),
 	});
-	console.log(
-		`[agent] LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
+	logInfo(
+		`LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
 	);
+	for (const s of signals) {
+		logInfo(`llm ${s.pool}: favorability=${s.favorability} — ${s.rationale}`);
+	}
 	journal.llmStatus = degraded
 		? cfg.llm.apiKey
 			? "degraded"
@@ -573,7 +571,7 @@ async function evaluatePlans(
 		};
 		if (d.action === "hold") {
 			journal.candidates.push(base);
-			console.log(`[agent] decide: ${d.pool.name} score ${d.score} → hold`);
+			logInfo(`decide: ${d.pool.name} score ${d.score} → hold`);
 			await liveDecision(`➖ ${d.pool.name} hold (score ${d.score})`);
 			continue;
 		}
@@ -599,8 +597,8 @@ async function evaluatePlans(
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
+			logInfo(
+				`decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
 			);
 			await liveDecision(`⛔ ${d.pool.name} blocked: ${dup.reason ?? ""}`);
 			continue;
@@ -617,8 +615,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: cd.reason,
 			});
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${cd.reason})`,
+			logInfo(
+				`decide: ${d.pool.name} score ${d.score} → blocked (${cd.reason})`,
 			);
 			await liveDecision(`⏳ ${d.pool.name} in cooldown: ${cd.reason ?? ""}`);
 			continue;
@@ -641,8 +639,8 @@ async function evaluatePlans(
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
+			logInfo(
+				`decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
 			);
 			await liveDecision(`⛔ ${d.pool.name} blocked: ${risk.reason ?? ""}`);
 			continue;
@@ -673,8 +671,8 @@ async function evaluatePlans(
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
+			logInfo(
+				`decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
 			);
 			await liveDecision(`⛔ ${d.pool.name} blocked: ${guard.reason ?? ""}`);
 			continue;
@@ -685,9 +683,7 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: "no budget remaining",
 			});
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (no budget)`,
-			);
+			logInfo(`decide: ${d.pool.name} score ${d.score} → blocked (no budget)`);
 			await liveDecision(`⛔ ${d.pool.name} blocked: no budget`);
 			continue;
 		}
@@ -702,14 +698,14 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: cooldown.reason,
 			});
-			console.log(
-				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${cooldown.reason})`,
+			logInfo(
+				`decide: ${d.pool.name} score ${d.score} → blocked (${cooldown.reason})`,
 			);
 			await liveDecision(`⛔ ${d.pool.name} blocked: ${cooldown.reason ?? ""}`);
 			continue;
 		}
-		console.log(
-			`[agent] decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
+		logInfo(
+			`decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
 		liveLines.push(`🚀 OPEN ${d.pool.name} ${amountSol} SOL (sending tx...)`);
 		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
@@ -746,14 +742,14 @@ async function evaluatePlans(
 				execution: "ok",
 				txSignature: sig || null,
 			});
-			console.log(
-				`[agent] opened ${d.pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${sig}`,
+			logInfo(
+				`opened ${d.pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${shortSig(sig) || "?"}`,
 			);
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${d.pool.name} ${amountSol} SOL ${sig || "?"}`;
 			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 		} catch (e) {
-			console.error("[agent] open failed:", d.pool.pool, e);
+			logError("open failed:", d.pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
 			liveLines[liveLines.length - 1] = `❌ OPEN ${d.pool.name} failed`;
 			await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
