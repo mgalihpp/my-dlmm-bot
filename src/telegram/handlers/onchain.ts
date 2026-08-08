@@ -1104,7 +1104,7 @@ function formatOnchainCostQuote(quote: PositionCostQuote): string {
 	}
 	if (quote.binArraysCount > 0) {
 		lines.push(
-			`⚠ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ = ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ (non-refundable)`,
+			`⚠ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ \\= ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ \\(non\\-refundable\\)`,
 		);
 	}
 	if (quote.bitmapExtensionCost > 0) {

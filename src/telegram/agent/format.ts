@@ -63,7 +63,7 @@ export function formatJournal(
 			(c) => c.guardrail === "blocked",
 		).length;
 		lines.push(
-			`• \\#${e.cycle} ${tgTs(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
+			`• \\#${e.cycle} ${tgTs(e.ts)} ${escapeMarkdown(`llm=${e.llmStatus} opened=${opened} blocked=${blocked}`)}`,
 		);
 	}
 	return lines.join("\n");
