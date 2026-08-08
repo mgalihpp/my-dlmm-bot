@@ -18,3 +18,4 @@ vexis.config.json
 # agent runtime state (autonomous trading loop)
 .vexis-agent.json
 .vexis-agent-journal.jsonl
+.vexis-agent-signals.json
