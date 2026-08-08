@@ -174,6 +174,25 @@ export function filterCooldown(
 	return { pools: out, skipped };
 }
 
+/** Pools with an existing open plan (same pool address or baseMint) are skipped before ranking/LLM. */
+export function filterDuplicates(
+	pools: readonly ScreenedPool[],
+	plans: ReadonlyArray<{ pool: string; baseMint?: string | null }>,
+): { pools: ScreenedPool[]; skipped: number } {
+	const out: ScreenedPool[] = [];
+	let skipped = 0;
+	for (const p of pools) {
+		const dup = plans.some(
+			(pl) =>
+				pl.pool === p.pool ||
+				(pl.baseMint != null && pl.baseMint === p.baseMint),
+		);
+		if (dup) skipped++;
+		else out.push(p);
+	}
+	return { pools: out, skipped };
+}
+
 export function checkPoolCooldown(
 	pool: string,
 	baseMint: string | null,

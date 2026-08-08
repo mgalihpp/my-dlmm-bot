@@ -8,6 +8,7 @@ import {
 	checkRisks,
 	deriveOpenAmount,
 	filterCooldown,
+	filterDuplicates,
 	recordCooldown,
 } from "../src/telegram/agent/guardrails.js";
 import type { AgentCooldown } from "../src/telegram/agent/state.js";
@@ -329,6 +330,30 @@ describe("filterCooldown", () => {
 			NOW,
 		);
 		expect(skipped).toBe(0);
+	});
+});
+
+describe("filterDuplicates", () => {
+	it("skips pools matching an open plan by pool or baseMint", () => {
+		const { pools: out, skipped } = filterDuplicates(
+			[
+				pool({ pool: "P1", baseMint: "mx" }),
+				pool({ pool: "P2", baseMint: "other" }),
+				pool({ pool: "P3", baseMint: "mx" }),
+			],
+			[{ pool: "P1", baseMint: "mx" }],
+		);
+		expect(skipped).toBe(2);
+		expect(out.map((p) => p.pool)).toEqual(["P2"]);
+	});
+
+	it("keeps all pools when no plans exist", () => {
+		const { pools: out, skipped } = filterDuplicates(
+			[pool({ pool: "P1", baseMint: "mx" })],
+			[],
+		);
+		expect(skipped).toBe(0);
+		expect(out.map((p) => p.pool)).toEqual(["P1"]);
 	});
 });
 

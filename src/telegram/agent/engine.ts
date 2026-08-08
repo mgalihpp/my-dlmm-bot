@@ -26,6 +26,7 @@ import {
 	checkRisks,
 	deriveOpenAmount,
 	filterCooldown,
+	filterDuplicates,
 	recordCooldown,
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
@@ -189,7 +190,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				logInfo(
 					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD)`,
 				);
-				await evaluateTpSl(rt, bot, chatId, cfg, wallet);
+				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
+					includeOor: true,
+				});
 				await evaluatePlans(rt, bot, chatId, cfg, deployed);
 				rt.state.lastCycleAt = new Date().toISOString();
 				logInfo(
@@ -465,7 +468,7 @@ async function evaluatePlans(
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
-	const { pools: candidatePools, skipped: cooldownSkipped } = filterCooldown(
+	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,
 		rt.state.cooldowns,
 		Date.now(),
@@ -473,6 +476,16 @@ async function evaluatePlans(
 	if (cooldownSkipped > 0) {
 		liveLines.push(
 			`⏳ ${cooldownSkipped} pool${cooldownSkipped === 1 ? "" : "s"} in cooldown, skipped`,
+		);
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	}
+	const { pools: candidatePools, skipped: dupSkipped } = filterDuplicates(
+		noCooldownPools,
+		rt.state.plans,
+	);
+	if (dupSkipped > 0) {
+		liveLines.push(
+			`🔁 ${dupSkipped} pool${dupSkipped === 1 ? "" : "s"} already open, skipped`,
 		);
 		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	}

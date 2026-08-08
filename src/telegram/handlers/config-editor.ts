@@ -205,6 +205,67 @@ const EDITABLE_FIELDS = [
 		label: "Max Token Age (h)",
 		type: "number" as const,
 	},
+	// ── Agent (DLMM bot) ──
+	{ key: "agent.enabled", label: "Agent Enabled", type: "boolean" as const },
+	{
+		key: "agent.intervalMinutes",
+		label: "Agent Interval (min)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxCandidates",
+		label: "Max Candidates",
+		type: "number" as const,
+	},
+	{
+		key: "agent.minCandidate",
+		label: "Min Candidate Score",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxSolPerPosition",
+		label: "Max SOL / Position",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxTotalSol",
+		label: "Max Total SOL",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxOpenPositions",
+		label: "Max Open Positions",
+		type: "number" as const,
+	},
+	{
+		key: "agent.txCooldownMs",
+		label: "Tx Cooldown (ms)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.poolCooldownMs",
+		label: "Pool Cooldown (ms)",
+		type: "number" as const,
+	},
+	{ key: "agent.tpPct", label: "Agent Take Profit %", type: "number" as const },
+	{ key: "agent.slPct", label: "Agent Stop Loss %", type: "number" as const },
+	{
+		key: "agent.llm.baseUrl",
+		label: "LLM Base URL",
+		type: "string" as const,
+	},
+	{ key: "agent.llm.apiKey", label: "LLM API Key", type: "string" as const },
+	{ key: "agent.llm.model", label: "LLM Model", type: "string" as const },
+	{
+		key: "agent.llm.timeoutMs",
+		label: "LLM Timeout (ms)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxPriceVsAthPct",
+		label: "Max Price vs ATH %",
+		type: "number" as const,
+	},
 ] as const;
 
 function getNestedValue(obj: any, path: string): any {
@@ -273,6 +334,16 @@ function buildConfigText(
 			val === undefined || val === null ? "(default)" : String(val);
 		lines.push(`  ${escapeMarkdown(field.label)}: ${tgCode(display)}`);
 	}
+	lines.push(
+		"",
+		tgBold("Agent 🤖"),
+		`  Enabled: ${tgCode(formatValue("agent.enabled", config))}`,
+		`  Interval: ${tgCode(formatValue("agent.intervalMinutes", config))}m`,
+		`  Max Open: ${tgCode(formatValue("agent.maxOpenPositions", config))}`,
+		`  TP: ${tgCode(formatValue("agent.tpPct", config))}%  SL: ${tgCode(formatValue("agent.slPct", config))}%`,
+		`  Pool Cooldown: ${tgCode(formatValue("agent.poolCooldownMs", config))}ms`,
+		`  LLM Model: ${tgCode(formatValue("agent.llm.model", config))}`,
+	);
 	return lines.join("\n");
 }
 
@@ -294,7 +365,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Take Profit %", "cfg:set:takeProfitPct")
 			.row()
 			.text("⚡ Create »", "cfg:page:6")
-			.text("MC/Holders »", "cfg:page:2");
+			.text("MC/Holders »", "cfg:page:2")
+			.row()
+			.text("🤖 Agent »", "cfg:page:7");
 	}
 	if (page === 6) {
 		return new InlineKeyboard()
@@ -316,6 +389,34 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.row()
 			.text("✏️ Default X", "cfg:set:create.xAmount")
 			.text("✏️ Default Y", "cfg:set:create.yAmount")
+			.row()
+			.text("« General", "cfg:page:1");
+	}
+	if (page === 7) {
+		return new InlineKeyboard()
+			.text("🔄 Agent On", "cfg:toggle:agent.enabled")
+			.text("✏️ Interval (min)", "cfg:set:agent.intervalMinutes")
+			.row()
+			.text("✏️ Max Candidates", "cfg:set:agent.maxCandidates")
+			.text("✏️ Min Score", "cfg:set:agent.minCandidate")
+			.row()
+			.text("✏️ Max SOL/Pos", "cfg:set:agent.maxSolPerPosition")
+			.text("✏️ Max Total SOL", "cfg:set:agent.maxTotalSol")
+			.row()
+			.text("✏️ Max Open Pos", "cfg:set:agent.maxOpenPositions")
+			.text("✏️ Tx Cooldown (ms)", "cfg:set:agent.txCooldownMs")
+			.row()
+			.text("✏️ Pool Cooldown", "cfg:set:agent.poolCooldownMs")
+			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.row()
+			.text("✏️ TP %", "cfg:set:agent.tpPct")
+			.text("✏️ SL %", "cfg:set:agent.slPct")
+			.row()
+			.text("✏️ LLM URL", "cfg:set:agent.llm.baseUrl")
+			.text("✏️ LLM Model", "cfg:set:agent.llm.model")
+			.row()
+			.text("✏️ LLM Timeout", "cfg:set:agent.llm.timeoutMs")
+			.text("✏️ LLM API Key", "cfg:set:agent.llm.apiKey")
 			.row()
 			.text("« General", "cfg:page:1");
 	}
@@ -391,6 +492,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 
 function pageForKey(key: string): number {
 	if (key.startsWith("create.")) return 6;
+	if (key.startsWith("agent.")) return 7;
 	const page1 = new Set([
 		"wallet",
 		"rpcUrl",
