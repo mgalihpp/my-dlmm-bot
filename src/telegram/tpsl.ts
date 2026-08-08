@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Duration, Effect, type Fiber, Schedule } from "effect";
+import { Effect, type Fiber } from "effect";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { registerAction } from "./action-store.js";
+import { alignedSchedule } from "./agent/schedule.js";
 import { escapeMarkdown, tgBold, tgCode, tgPct } from "./format.js";
 import { api, getConfig, resolveWallet } from "./fx.js";
 import { runtime } from "./runtime.js";
@@ -80,7 +81,7 @@ export function createTpSl(bot: Bot, chatId: string): RuntimeTpSl {
 	);
 
 	rt.fiber = runtime.runFork(
-		check.pipe(Effect.repeat(Schedule.spaced(Duration.minutes(1)))),
+		check.pipe(Effect.repeat(alignedSchedule(60_000))),
 	);
 
 	return rt;
