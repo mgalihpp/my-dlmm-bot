@@ -131,7 +131,7 @@ async function main() {
 		},
 		{
 			command: "agent",
-			description: "Autonomous trading agent (start/stop/status/journal)",
+			description: "DLMM Agent (start/stop/status/portfolio/journal)",
 		},
 		{
 			command: "create",
