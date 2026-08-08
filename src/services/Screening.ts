@@ -1,4 +1,4 @@
-import { Context, Effect, Layer } from "effect";
+import { Context, Effect, type Either, Layer } from "effect";
 import type { PoolsConfig } from "../domain/config.js";
 import type { DecodeError, MeteoraApiError } from "../errors.js";
 import {
@@ -7,7 +7,9 @@ import {
 	type ScreenResult,
 } from "../lib/screening.js";
 import { AppConfig } from "./Config.js";
+import { Jupiter } from "./Jupiter.js";
 import { MeteoraApi } from "./MeteoraApi.js";
+import { Okx } from "./Okx.js";
 import { RugCheck } from "./RugCheck.js";
 
 export interface ScreeningService {
@@ -16,7 +18,11 @@ export interface ScreeningService {
 		category?: string;
 		displayLimit?: number;
 		poolsOverride?: PoolsConfig;
-	}) => Effect.Effect<ScreenResult, MeteoraApiError | DecodeError, RugCheck>;
+	}) => Effect.Effect<
+		ScreenResult,
+		MeteoraApiError | DecodeError,
+		Okx | Jupiter | RugCheck
+	>;
 }
 
 export class Screening extends Context.Tag("Screening")<
@@ -27,6 +33,9 @@ export class Screening extends Context.Tag("Screening")<
 const make = Effect.gen(function* () {
 	const config = yield* AppConfig;
 	const api = yield* MeteoraApi;
+	const rugcheck = yield* RugCheck;
+	const okx = yield* Okx;
+	const jupiter = yield* Jupiter;
 
 	const service: ScreeningService = {
 		screen: (opts) =>
@@ -50,7 +59,6 @@ const make = Effect.gen(function* () {
 				const rawPools = Array.isArray(res.data) ? res.data : [];
 				const result = finalizeScreen(rawPools, res.total, displayLimit);
 
-				const rugcheck = yield* RugCheck;
 				yield* Effect.forEach(
 					result.pools,
 					(pool) =>
@@ -79,6 +87,52 @@ const make = Effect.gen(function* () {
 							}),
 							Effect.catchAll(() => Effect.succeed(void 0)),
 						),
+					{ concurrency: 5, discard: true },
+				);
+
+				yield* Effect.forEach(
+					result.pools,
+					(pool) =>
+						Effect.gen(function* () {
+							const mint = pool.baseMint;
+							if (!mint) return;
+							const [adv, risk, price, audit] = yield* Effect.all(
+								[
+									okx.advancedInfo(mint).pipe(Effect.either),
+									okx.riskFlags(mint).pipe(Effect.either),
+									okx.priceInfo(mint).pipe(Effect.either),
+									jupiter.search(mint).pipe(Effect.either),
+								],
+								{ concurrency: 4 },
+							);
+							const assign = <T>(e: Either.Either<T, unknown>): T | null =>
+								e._tag === "Left" ? null : e.right;
+							const poolMut = pool as {
+								bundlePct?: number | null;
+								top10Pct?: number | null;
+								botHoldersPct?: number | null;
+								globalFeesSol?: number | null;
+								isRugpull?: boolean | null;
+								isWash?: boolean | null;
+								devSoldAll?: boolean | null;
+								dexScreenerPaid?: boolean | null;
+								priceVsAthPct?: number | null;
+							};
+							const a = assign(adv);
+							poolMut.bundlePct = a?.bundlePct ?? null;
+							poolMut.top10Pct = a?.top10Pct ?? null;
+							poolMut.devSoldAll = a?.devSoldAll ?? null;
+							poolMut.dexScreenerPaid = a?.dexScreenerPaid ?? null;
+							const r = assign(risk);
+							poolMut.isRugpull = r?.isRugpull ?? null;
+							poolMut.isWash = r?.isWash ?? null;
+							const p = assign(price);
+							poolMut.priceVsAthPct = p?.priceVsAthPct ?? null;
+							const t = assign(audit);
+							poolMut.botHoldersPct = t?.botHoldersPct ?? null;
+							poolMut.top10Pct = t?.top10Pct ?? null;
+							poolMut.globalFeesSol = t?.globalFeesSol ?? null;
+						}),
 					{ concurrency: 5, discard: true },
 				);
 
