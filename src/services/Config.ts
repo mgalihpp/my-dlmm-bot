@@ -90,6 +90,30 @@ export interface ResolvedAgentLlm {
 	timeoutMs: number;
 }
 
+export interface ResolvedAgentRisks {
+	enabled: boolean;
+	minTokenFeesSol: number;
+	maxBundlePct: number;
+	maxBotHoldersPct: number;
+	maxTop10Pct: number;
+	maxPriceVsAthPct: number;
+	blockWash: boolean;
+	blockRugpull: boolean;
+	blockDexScreenerPaid: boolean;
+	blockDevSoldAll: boolean;
+}
+
+export interface ResolvedAgentDarwin {
+	enabled: boolean;
+	windowDays: number;
+	recalcEvery: number;
+	boostFactor: number;
+	decayFactor: number;
+	weightFloor: number;
+	weightCeiling: number;
+	minSamples: number;
+}
+
 export interface ResolvedAgentConfig {
 	enabled: boolean;
 	intervalMinutes: number;
@@ -102,6 +126,8 @@ export interface ResolvedAgentConfig {
 	tpPct: number;
 	slPct: number;
 	llm: ResolvedAgentLlm;
+	risks: ResolvedAgentRisks;
+	darwin: ResolvedAgentDarwin;
 }
 
 export const resolveAgentConfigFrom = (
@@ -110,6 +136,8 @@ export const resolveAgentConfigFrom = (
 ): ResolvedAgentConfig => {
 	const a = c.agent ?? {};
 	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
+	const r = a.risks ?? {};
+	const d = a.darwin ?? {};
 	return {
 		enabled: a.enabled ?? false,
 		intervalMinutes: a.intervalMinutes ?? 15,
@@ -129,6 +157,28 @@ export const resolveAgentConfigFrom = (
 			model: a.llm?.model ?? "gpt-4o-mini",
 			apiKey,
 			timeoutMs: a.llm?.timeoutMs ?? 120_000,
+		},
+		risks: {
+			enabled: r.enabled ?? true,
+			minTokenFeesSol: r.minTokenFeesSol ?? 30,
+			maxBundlePct: r.maxBundlePct ?? 30,
+			maxBotHoldersPct: r.maxBotHoldersPct ?? 30,
+			maxTop10Pct: r.maxTop10Pct ?? 60,
+			maxPriceVsAthPct: r.maxPriceVsAthPct ?? 80,
+			blockWash: r.blockWash ?? true,
+			blockRugpull: r.blockRugpull ?? true,
+			blockDexScreenerPaid: r.blockDexScreenerPaid ?? true,
+			blockDevSoldAll: r.blockDevSoldAll ?? true,
+		},
+		darwin: {
+			enabled: d.enabled ?? true,
+			windowDays: d.windowDays ?? 60,
+			recalcEvery: d.recalcEvery ?? 5,
+			boostFactor: d.boostFactor ?? 1.05,
+			decayFactor: d.decayFactor ?? 0.95,
+			weightFloor: d.weightFloor ?? 0.3,
+			weightCeiling: d.weightCeiling ?? 2.5,
+			minSamples: d.minSamples ?? 10,
 		},
 	};
 };

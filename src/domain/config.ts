@@ -76,6 +76,30 @@ export interface AgentLlmConfig {
 	timeoutMs?: number;
 }
 
+export interface AgentRiskConfig {
+	enabled?: boolean;
+	minTokenFeesSol?: number;
+	maxBundlePct?: number;
+	maxBotHoldersPct?: number;
+	maxTop10Pct?: number;
+	maxPriceVsAthPct?: number;
+	blockWash?: boolean;
+	blockRugpull?: boolean;
+	blockDexScreenerPaid?: boolean;
+	blockDevSoldAll?: boolean;
+}
+
+export interface AgentDarwinConfig {
+	enabled?: boolean;
+	windowDays?: number;
+	recalcEvery?: number;
+	boostFactor?: number;
+	decayFactor?: number;
+	weightFloor?: number;
+	weightCeiling?: number;
+	minSamples?: number;
+}
+
 export interface AgentConfig {
 	enabled?: boolean;
 	intervalMinutes?: number;
@@ -88,6 +112,8 @@ export interface AgentConfig {
 	tpPct?: number;
 	slPct?: number;
 	llm?: AgentLlmConfig;
+	risks?: AgentRiskConfig;
+	darwin?: AgentDarwinConfig;
 }
 
 export interface VexisConfig {

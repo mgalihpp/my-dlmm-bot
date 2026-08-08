@@ -30,6 +30,45 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.llm.apiKey).toBe("env-key");
 	});
 
+	describe("resolveAgentConfigFrom risk/darwin defaults", () => {
+		it("fills risks and darwin defaults", () => {
+			const c = resolveAgentConfigFrom({}, {});
+			expect(c.risks.enabled).toBe(true);
+			expect(c.risks.minTokenFeesSol).toBe(30);
+			expect(c.risks.maxBundlePct).toBe(30);
+			expect(c.risks.maxBotHoldersPct).toBe(30);
+			expect(c.risks.maxTop10Pct).toBe(60);
+			expect(c.risks.maxPriceVsAthPct).toBe(80);
+			expect(c.risks.blockWash).toBe(true);
+			expect(c.risks.blockRugpull).toBe(true);
+			expect(c.risks.blockDexScreenerPaid).toBe(true);
+			expect(c.risks.blockDevSoldAll).toBe(true);
+			expect(c.darwin.enabled).toBe(true);
+			expect(c.darwin.windowDays).toBe(60);
+			expect(c.darwin.recalcEvery).toBe(5);
+			expect(c.darwin.boostFactor).toBe(1.05);
+			expect(c.darwin.decayFactor).toBe(0.95);
+			expect(c.darwin.weightFloor).toBe(0.3);
+			expect(c.darwin.weightCeiling).toBe(2.5);
+			expect(c.darwin.minSamples).toBe(10);
+		});
+		it("honors overrides", () => {
+			const c = resolveAgentConfigFrom(
+				{
+					agent: {
+						risks: { maxBundlePct: 15, blockWash: false },
+						darwin: { boostFactor: 1.1, enabled: false },
+					},
+				},
+				{},
+			);
+			expect(c.risks.maxBundlePct).toBe(15);
+			expect(c.risks.blockWash).toBe(false);
+			expect(c.darwin.boostFactor).toBe(1.1);
+			expect(c.darwin.enabled).toBe(false);
+		});
+	});
+
 	it("uses explicit agent overrides", () => {
 		const cfg: VexisConfig = {
 			agent: {

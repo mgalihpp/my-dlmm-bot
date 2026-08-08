@@ -18,6 +18,28 @@ const cfg = {
 	tpPct: 25,
 	slPct: -10,
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
+	risks: {
+		enabled: true,
+		minTokenFeesSol: 30,
+		maxBundlePct: 30,
+		maxBotHoldersPct: 30,
+		maxTop10Pct: 60,
+		maxPriceVsAthPct: 80,
+		blockWash: true,
+		blockRugpull: true,
+		blockDexScreenerPaid: true,
+		blockDevSoldAll: true,
+	},
+	darwin: {
+		enabled: true,
+		windowDays: 60,
+		recalcEvery: 5,
+		boostFactor: 1.05,
+		decayFactor: 0.95,
+		weightFloor: 0.3,
+		weightCeiling: 2.5,
+		minSamples: 10,
+	},
 };
 
 describe("checkOpenGuardrail", () => {
