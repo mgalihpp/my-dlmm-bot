@@ -1,8 +1,8 @@
+import type { ScreenedPool } from "../../domain/screened.js";
 import type {
 	ResolvedAgentConfig,
 	ResolvedAgentRisks,
 } from "../../services/Config.js";
-import type { ScreenedPool } from "../../domain/screened.js";
 import type { AgentCooldown } from "./state.js";
 
 export interface GuardOk {
@@ -166,8 +166,7 @@ export function filterCooldown(
 	for (const p of pools) {
 		const blocked = active.some(
 			(c) =>
-				c.pool === p.pool ||
-				(c.baseMint != null && c.baseMint === p.baseMint),
+				c.pool === p.pool || (c.baseMint != null && c.baseMint === p.baseMint),
 		);
 		if (blocked) skipped++;
 		else out.push(p);

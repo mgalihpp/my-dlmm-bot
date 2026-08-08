@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 import type { ScreenedPool } from "../src/domain/screened.js";
-import type { AgentCooldown } from "../src/telegram/agent/state.js";
 import {
 	checkCooldown,
 	checkDuplicate,
@@ -11,6 +10,7 @@ import {
 	filterCooldown,
 	recordCooldown,
 } from "../src/telegram/agent/guardrails.js";
+import type { AgentCooldown } from "../src/telegram/agent/state.js";
 
 const cfg = {
 	enabled: true,

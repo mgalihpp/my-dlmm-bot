@@ -115,9 +115,7 @@ describe("parsePositionResponse", () => {
 	});
 
 	it("ignores empty pool and malformed responses", () => {
-		expect(parsePositionResponse('[{"pool":"","action":"close"}]')).toEqual(
-			[],
-		);
+		expect(parsePositionResponse('[{"pool":"","action":"close"}]')).toEqual([]);
 		expect(parsePositionResponse("not json")).toEqual([]);
 	});
 });
