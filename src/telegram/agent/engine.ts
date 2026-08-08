@@ -64,6 +64,7 @@ export interface RuntimeAgent {
 	stop(): void;
 	runCycle(): Promise<void>;
 	runFast(): Promise<void>;
+	runOor(): Promise<void>;
 }
 
 type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
@@ -132,6 +133,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	const state = loadState();
 	let intervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let eventFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
+	let oorFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 
 	const stopFiber = (f: Fiber.RuntimeFiber<unknown, unknown> | null) => {
 		if (f) runtime.runFork(Fiber.interrupt(f));
@@ -156,24 +158,30 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		start() {
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
+			stopFiber(oorFiber);
 			void getConfig().then((cfg) => {
 				const agentCfg = resolveAgentConfigFrom(cfg);
 				rt.state.enabled = true;
 				rt.state.running = false;
 				saveState(rt.state);
 				intervalFiber = schedule(
-					"loop",
-					agentCfg.intervalMinutes * 60_000,
+					"cycle",
+					Math.max(agentCfg.txCooldownMs, 60_000),
 					() => rt.runCycle(),
 				);
 				eventFiber = schedule("event", 60_000, () => rt.runFast());
+				oorFiber = schedule("oor", agentCfg.intervalMinutes * 60_000, () =>
+					rt.runOor(),
+				);
 			});
 		},
 		stop() {
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
+			stopFiber(oorFiber);
 			intervalFiber = null;
 			eventFiber = null;
+			oorFiber = null;
 			rt.state.enabled = false;
 			rt.state.running = false;
 			saveState(rt.state);
@@ -203,18 +211,12 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				const cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section(
-					`CYCLE #${rt.state.cycle + 1} | plans: ${rt.state.plans.length} | interval: ${cfg.intervalMinutes}m`,
+					`CYCLE #${rt.state.cycle + 1} | plans: ${rt.state.plans.length} | interval: ${cfg.txCooldownMs / 60_000}m`,
 				);
 				const open = await api.openPortfolio(wallet, 1, 100);
 				const deployed = Number(open.total?.balancesSol ?? 0);
 				const openPositions = open.totalPositions ?? 0;
-				logInfo(
-					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD), open positions on-chain: ${openPositions}`,
-				);
 				await syncOnchainPlans(rt, wallet, open);
-				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
-					includeOor: true,
-				});
 				await evaluatePlans(rt, bot, chatId, cfg, deployed, openPositions);
 				rt.state.lastCycleAt = new Date().toISOString();
 				logInfo(
@@ -222,6 +224,23 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				);
 			} catch (e) {
 				logError("cycle error:", e);
+			} finally {
+				rt.state.running = false;
+				saveState(rt.state);
+			}
+		},
+		async runOor() {
+			if (rt.state.running || !rt.state.enabled) return;
+			rt.state.running = true;
+			try {
+				const cfg = resolveAgentConfigFrom(await getConfig());
+				const wallet = await resolveWallet();
+				section("OOR CHECK");
+				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
+					includeOor: true,
+				});
+			} catch (e) {
+				logError("oor error:", e);
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
