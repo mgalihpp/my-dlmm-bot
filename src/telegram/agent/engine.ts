@@ -187,13 +187,14 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				);
 				const open = await api.openPortfolio(wallet, 1, 100);
 				const deployed = Number(open.total?.balancesSol ?? 0);
+				const openPositions = open.totalPositions ?? 0;
 				logInfo(
-					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD)`,
+					`deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD), open positions on-chain: ${openPositions}`,
 				);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: true,
 				});
-				await evaluatePlans(rt, bot, chatId, cfg, deployed);
+				await evaluatePlans(rt, bot, chatId, cfg, deployed, openPositions);
 				rt.state.lastCycleAt = new Date().toISOString();
 				logInfo(
 					`cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
@@ -443,10 +444,11 @@ async function evaluatePlans(
 	chatId: string,
 	cfg: AgentCfg,
 	deployedSol: number,
+	openPositions: number,
 ) {
-	if (rt.state.plans.length >= cfg.maxOpenPositions) {
+	if (openPositions >= cfg.maxOpenPositions) {
 		logInfo(
-			`at max positions (${rt.state.plans.length}/${cfg.maxOpenPositions}), skipping screening + LLM`,
+			`at max positions (${openPositions}/${cfg.maxOpenPositions} on-chain), skipping screening + LLM`,
 		);
 		return;
 	}
@@ -665,7 +667,7 @@ async function evaluatePlans(
 			maxSolPerPosition: cfg.maxSolPerPosition,
 			maxTotalSol: cfg.maxTotalSol,
 			maxOpenPositions: cfg.maxOpenPositions,
-			openPositionCount: rt.state.plans.length,
+			openPositionCount: openPositions,
 		});
 		if (!guard.ok) {
 			journal.candidates.push({
