@@ -1,6 +1,5 @@
-import type { Bot } from "grammy";
+import { type Bot, InlineKeyboard } from "grammy";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
-import { escapeMarkdown, tgBold } from "../format.js";
 import { getConfig } from "../fx.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
@@ -22,25 +21,62 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				break;
 			}
 			case "status": {
-				const cfg = resolveAgentConfigFrom(await getConfig());
-				await ctx.reply(formatStatus(rt.state, cfg), MD);
+				await ctx.reply(
+					formatStatus(rt.state, resolveAgentConfigFrom(await getConfig())),
+					{ ...MD, reply_markup: agentKeyboard() },
+				);
 				break;
 			}
 			case "journal": {
 				const n = Math.min(parseInt(arg || "5", 10) || 5, 20);
-				await ctx.reply(formatJournal(readJournal(n), n), MD);
+				await ctx.reply(formatJournal(readJournal(n), n), {
+					...MD,
+					reply_markup: agentKeyboard(),
+				});
 				break;
 			}
 			default: {
-				const lines = [
-					tgBold("🤖 AI Agent"),
-					escapeMarkdown("/agent start — enable & loop"),
-					escapeMarkdown("/agent stop — emergency stop"),
-					escapeMarkdown("/agent status — state & caps"),
-					escapeMarkdown("/agent journal [n] — last decisions"),
-				];
-				await ctx.reply(lines.join("\n"), MD);
+				await ctx.reply(
+					formatStatus(rt.state, resolveAgentConfigFrom(await getConfig())),
+					{ ...MD, reply_markup: agentKeyboard() },
+				);
 			}
 		}
 	});
+
+	// ─── Interactive menu ────────────────────────────────────────────────────
+	bot.callbackQuery(/^agent:(start|stop)$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		if (ctx.match[1] === "start") rt.start();
+		else rt.stop();
+		await ctx.editMessageText(
+			formatStatus(rt.state, resolveAgentConfigFrom(await getConfig())),
+			{ ...MD, reply_markup: agentKeyboard() },
+		);
+	});
+
+	bot.callbackQuery(/^agent:(status|main)$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(
+			formatStatus(rt.state, resolveAgentConfigFrom(await getConfig())),
+			{ ...MD, reply_markup: agentKeyboard() },
+		);
+	});
+
+	bot.callbackQuery(/^agent:journal$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		await ctx.editMessageText(formatJournal(readJournal(5), 5), {
+			...MD,
+			reply_markup: agentKeyboard(),
+		});
+	});
+}
+
+function agentKeyboard(): InlineKeyboard {
+	return new InlineKeyboard()
+		.text("▶️ Start", "agent:start")
+		.text("⏹ Stop", "agent:stop")
+		.text("📊 Status", "agent:status")
+		.row()
+		.text("📒 Journal", "agent:journal");
 }

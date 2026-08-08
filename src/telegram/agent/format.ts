@@ -13,9 +13,9 @@ export function formatStatus(
 		`Running: ${state.running ? "yes" : "no"}`,
 		`Cycle: ${state.cycle} \\| last: ${escapeMarkdown(state.lastCycleAt ?? "—")}`,
 		`LLM status: ${escapeMarkdown(state.llmStatus)}`,
-		`Caps: ${opened}/${cfg.maxOpenPositions} open`,
-		`Per-position cap: ${cfg.maxSolPerPosition} SOL \\| total cap: ${cfg.maxTotalSol} SOL`,
-		`TP ${cfg.tpPct}% / SL ${cfg.slPct}%`,
+		`Caps: ${escapeMarkdown(`${opened}/${cfg.maxOpenPositions}`)} open`,
+		`${escapeMarkdown(`Per-position cap: ${cfg.maxSolPerPosition} SOL`)} \\| total cap: ${escapeMarkdown(String(cfg.maxTotalSol))} SOL`,
+		`TP ${escapeMarkdown(String(cfg.tpPct))}% / SL ${escapeMarkdown(String(cfg.slPct))}%`,
 		"",
 		tgBold("Agent plans"),
 		...state.plans.map(
@@ -63,7 +63,7 @@ export function formatJournal(
 			(c) => c.guardrail === "blocked",
 		).length;
 		lines.push(
-			`• #${e.cycle} ${escapeMarkdown(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
+			`• \\#${e.cycle} ${escapeMarkdown(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
 		);
 	}
 	return lines.join("\n");
