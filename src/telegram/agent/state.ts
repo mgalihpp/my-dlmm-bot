@@ -10,6 +10,7 @@ export interface AgentPlan {
 	amountSol: number;
 	positionAddress: string | null;
 	openedAt: string | null;
+	signals?: Record<string, number>;
 }
 
 export interface AgentExecution {

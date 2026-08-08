@@ -20,6 +20,33 @@ describe("buildPrompt", () => {
 		expect(prompt).toContain("90");
 		expect(prompt).toContain("favorability");
 	});
+
+	it("includes risk fields and weights summary in prompt", () => {
+		const prompt = buildPrompt(
+			[
+				{
+					pool: "Pool111",
+					pair: "FOO/SOL",
+					heuristic: 80,
+					feeActiveTvlRatio: 0.05,
+					organicScore: 70,
+					holders: 1000,
+					volume: 50000,
+					priceVsAthPct: 60,
+					rugScore: 1500,
+					top10Pct: 40,
+					bundlePct: 10,
+					botHoldersPct: 5,
+					globalFeesSol: 45,
+					activePositions: 200,
+				},
+			],
+			"Signal weights (Darwinian, learned from PnL):\n- volume: 1.50",
+		);
+		expect(prompt).toContain("priceVsAthPct=60");
+		expect(prompt).toContain("rugScore=1500");
+		expect(prompt).toContain("Darwinian");
+	});
 });
 
 describe("parseLlmResponse", () => {

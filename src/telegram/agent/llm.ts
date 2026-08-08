@@ -10,6 +10,13 @@ export interface LlmCandidate {
 	organicScore: number;
 	holders: number;
 	volume: number;
+	priceVsAthPct?: number | null;
+	rugScore?: number | null;
+	top10Pct?: number | null;
+	bundlePct?: number | null;
+	botHoldersPct?: number | null;
+	globalFeesSol?: number | null;
+	activePositions?: number | null;
 }
 
 export interface LlmSignal {
@@ -23,11 +30,14 @@ const clampFav = (v: unknown): number | null => {
 	return Math.max(-1, Math.min(1, v));
 };
 
-export function buildPrompt(candidates: readonly LlmCandidate[]): string {
+export function buildPrompt(
+	candidates: readonly LlmCandidate[],
+	weightsSummary?: string,
+): string {
 	const table = candidates
 		.map(
 			(c) =>
-				`- pool=${c.pool} pair=${c.pair} heuristic=${c.heuristic} feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)} organic=${c.organicScore} holders=${c.holders} volume=${c.volume}`,
+				`- pool=${c.pool} pair=${c.pair} heuristic=${c.heuristic} feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)} organic=${c.organicScore} holders=${c.holders} volume=${c.volume}${c.priceVsAthPct != null ? ` priceVsAthPct=${c.priceVsAthPct}` : ""}${c.rugScore != null ? ` rugScore=${c.rugScore}` : ""}${c.top10Pct != null ? ` top10Pct=${c.top10Pct}` : ""}${c.bundlePct != null ? ` bundlePct=${c.bundlePct}` : ""}${c.botHoldersPct != null ? ` botHoldersPct=${c.botHoldersPct}` : ""}${c.globalFeesSol != null ? ` globalFeesSol=${c.globalFeesSol}` : ""}${c.activePositions != null ? ` activePositions=${c.activePositions}` : ""}`,
 		)
 		.join("\n");
 	return [
@@ -36,6 +46,7 @@ export function buildPrompt(candidates: readonly LlmCandidate[]): string {
 		"",
 		"Candidates:",
 		table,
+		...(weightsSummary ? ["", weightsSummary] : []),
 	].join("\n");
 }
 
@@ -76,6 +87,7 @@ export function parseLlmResponse(content: string): LlmSignal[] {
 export async function requestSignals(opts: {
 	cfg: ResolvedAgentConfig;
 	candidates: readonly LlmCandidate[];
+	weightsSummary?: string;
 }): Promise<{ signals: LlmSignal[]; degraded: boolean }> {
 	const { cfg } = opts;
 	if (!cfg.llm.apiKey || opts.candidates.length === 0) {
@@ -89,7 +101,12 @@ export async function requestSignals(opts: {
 	try {
 		const { text } = await generateText({
 			model: provider(cfg.llm.model),
-			messages: [{ role: "user", content: buildPrompt(opts.candidates) }],
+			messages: [
+				{
+					role: "user",
+					content: buildPrompt(opts.candidates, opts.weightsSummary),
+				},
+			],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,

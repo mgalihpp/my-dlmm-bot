@@ -22,6 +22,7 @@ import {
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
+	checkRisks,
 	deriveOpenAmount,
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
@@ -33,6 +34,14 @@ import {
 } from "./journal.js";
 import { type LlmCandidate, requestSignals } from "./llm.js";
 import { buildCreateParams } from "./params.js";
+import {
+	appendPerf,
+	loadSignalWeights,
+	recalculateWeights,
+	saveSignalWeights,
+	signalSnapshot,
+	weightsSummary,
+} from "./signalWeights.js";
 import { type AgentState, loadState, saveState } from "./state.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
@@ -188,6 +197,45 @@ async function evaluateTpSl(
 				WSOL_MINT,
 			);
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
+			const signals = plan.signals;
+			if (signals && Number.isFinite(pct)) {
+				const swf = loadSignalWeights();
+				const updated = appendPerf(swf, {
+					closedAt: new Date().toISOString(),
+					pnlPct: pct,
+					signals,
+				});
+				let toSave = updated;
+				if (
+					cfg.darwin.enabled &&
+					updated.closesSinceRecalc >= cfg.darwin.recalcEvery
+				) {
+					const { weights, changes } = recalculateWeights({
+						perf: updated.perf,
+						weights: updated.weights,
+						cfg: cfg.darwin,
+					});
+					if (changes.length > 0) {
+						console.log(
+							`[agent] signal weights recalculated: ${changes
+								.map((c) => `${c.signal}: ${c.from}→${c.to}`)
+								.join(", ")}`,
+						);
+					}
+					toSave = {
+						...updated,
+						weights,
+						lastRecalc: new Date().toISOString(),
+						recalcCount: updated.recalcCount + 1,
+						closesSinceRecalc: 0,
+						history: [
+							...updated.history,
+							{ at: new Date().toISOString(), changes },
+						],
+					};
+				}
+				saveSignalWeights(toSave);
+			}
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
@@ -265,22 +313,34 @@ async function evaluatePlans(
 		candidates: [],
 	};
 
+	const sw = loadSignalWeights();
+	const weights = sw.weights;
+
 	const ranked = rankPools(screen.pools, {
 		minCandidate: cfg.minCandidate,
 		maxCandidates: cfg.maxCandidates,
+		weights,
 	});
 	const llmCandidates: LlmCandidate[] = ranked.map((p) => ({
 		pool: p.pool,
 		pair: `${p.baseSymbol}/${p.quoteSymbol}`,
-		heuristic: heuristicScore(p),
+		heuristic: heuristicScore(p, weights),
 		feeActiveTvlRatio: p.feeActiveTvlRatio,
 		organicScore: p.organicScore,
 		holders: p.holders,
 		volume: p.volume,
+		priceVsAthPct: p.priceVsAthPct ?? null,
+		rugScore: p.rugScore ?? null,
+		top10Pct: p.top10Pct ?? null,
+		bundlePct: p.bundlePct ?? null,
+		botHoldersPct: p.botHoldersPct ?? null,
+		globalFeesSol: p.globalFeesSol ?? null,
+		activePositions: p.activePositions,
 	}));
 	const { signals, degraded } = await requestSignals({
 		cfg,
 		candidates: llmCandidates,
+		weightsSummary: weightsSummary(weights),
 	});
 	console.log(
 		`[agent] LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
@@ -295,6 +355,7 @@ async function evaluatePlans(
 		pools: ranked,
 		signals,
 		minScoreToOpen: cfg.minCandidate,
+		weights,
 	});
 
 	let budget = deployedSol;
@@ -337,6 +398,18 @@ async function evaluatePlans(
 			});
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
+			);
+			continue;
+		}
+		const risk = checkRisks({ pool: d.pool, risks: cfg.risks });
+		if (!risk.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: risk.reason,
+			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
 			);
 			continue;
 		}
@@ -408,6 +481,7 @@ async function evaluatePlans(
 				amountSol,
 				positionAddress: res.positions[0] ?? null,
 				openedAt: now,
+				signals: signalSnapshot(d.pool),
 			});
 			rt.state.executions.push({
 				at: now,

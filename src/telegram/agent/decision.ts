@@ -27,12 +27,13 @@ export function decideCandidates(input: {
 	pools: readonly ScreenedPool[];
 	signals: readonly LlmSignal[];
 	minScoreToOpen: number;
+	weights?: Record<string, number>;
 }): CandidateDecision[] {
 	const sigMap = new Map<string, LlmSignal>(
 		input.signals.map((s) => [s.pool, s]),
 	);
 	return input.pools.map((pool) => {
-		const h = heuristicScore(pool);
+		const h = heuristicScore(pool, input.weights);
 		const sig = sigMap.get(pool.pool);
 		const favorability = sig?.favorability ?? null;
 		const score = combineScore(h, favorability);
