@@ -11,7 +11,7 @@ export function formatStatus(
 ): string {
 	const opened = state.plans.filter((p) => p.positionAddress != null).length;
 	const lines = [
-		tgBold(state.enabled ? "🤖 Agent: ON" : "🤖 Agent: OFF"),
+		tgBold(state.enabled ? "🤖 DLMM Agent: ON" : "🤖 DLMM Agent: OFF"),
 		`Running: ${state.running ? "yes" : "no"}`,
 		`Cycle: ${state.cycle} \\| last: ${tgTs(state.lastCycleAt)}`,
 		`LLM status: ${escapeMarkdown(state.llmStatus)}`,
@@ -36,7 +36,7 @@ export function formatStatus(
 				]
 			: []),
 		"",
-		tgBold("Agent plans"),
+		tgBold("DLMM Agent plans"),
 		...state.plans.map(
 			(p) =>
 				`• ${escapeMarkdown(p.poolName)} ${tgCode(p.pool)} — ${escapeMarkdown(String(p.amountSol))} SOL${p.openedAt ? " ✅" : " ⏳"}`,
@@ -75,7 +75,7 @@ export function formatAction(msg: {
 
 export function formatError(scope: string, err: unknown): string {
 	const msg = err instanceof Error ? err.message : String(err);
-	return `${tgBold(`❌ Agent ${escapeMarkdown(scope)} failed`)}\n${escapeMarkdown(msg)}`;
+	return `${tgBold(`❌ DLMM Agent ${escapeMarkdown(scope)} failed`)}\n${escapeMarkdown(msg)}`;
 }
 
 export function formatCycleSummary(
@@ -83,8 +83,8 @@ export function formatCycleSummary(
 	degraded: boolean,
 ): string {
 	const last = entries[0];
-	if (!last) return "🤖 No agent cycle has run yet.";
-	const lines = [tgBold(`🤖 Agent cycle #${last.cycle}`)];
+	if (!last) return "🤖 No DLMM Agent cycle has run yet.";
+	const lines = [tgBold(`🤖 DLMM Agent cycle #${last.cycle}`)];
 	if (degraded) lines.push("⚠️ LLM degraded — heuristic only");
 	for (const c of last.candidates) {
 		const sign = c.favorability == null ? "—" : c.favorability.toFixed(2);
@@ -107,7 +107,7 @@ export function formatCycleSummary(
 /** Live in-cycle status — header + phase lines, edited in place as the cycle runs. */
 export function formatLive(cycle: number, lines: readonly string[]): string {
 	return [
-		tgBold(`🤖 Agent cycle #${cycle}`),
+		tgBold(`🤖 DLMM Agent cycle #${cycle}`),
 		...lines.map((l) => escapeMarkdown(l)),
 	].join("\n");
 }
@@ -124,7 +124,7 @@ export function formatPortfolio(
 	deployedSol: number,
 	stats: TradeStats,
 ): string {
-	const lines = [tgBold(`📊 Agent portfolio (${rows.length})`)];
+	const lines = [tgBold(`📊 DLMM Agent portfolio (${rows.length})`)];
 	if (rows.length === 0) {
 		lines.push("No open positions.");
 	} else {
@@ -182,7 +182,7 @@ export function formatJournalPage(
 	);
 	const lines = [
 		tgBold(
-			`📒 Agent journal (page ${page + 1}/${totalPages} · ${opts.filter})`,
+			`📒 DLMM Agent journal (page ${page + 1}/${totalPages} · ${opts.filter})`,
 		),
 		`opens ${escapeMarkdown(String(counts.open))} \\| closes ${escapeMarkdown(String(counts.tp + counts.sl + counts.close))} \\| blocked ${escapeMarkdown(String(counts.blocked))}`,
 	];
@@ -214,7 +214,7 @@ export function formatJournal(
 	entries: readonly AgentJournalEntry[],
 	n: number,
 ): string {
-	const lines = [tgBold(`📒 Agent journal (last ${n})`)];
+	const lines = [tgBold(`📒 DLMM Agent journal (last ${n})`)];
 	for (const e of entries.slice(0, n)) {
 		const opened = e.candidates.filter((c) => c.execution === "ok").length;
 		const blocked = e.candidates.filter(

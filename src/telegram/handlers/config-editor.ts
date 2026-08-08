@@ -206,10 +206,14 @@ const EDITABLE_FIELDS = [
 		type: "number" as const,
 	},
 	// ── Agent (DLMM bot) ──
-	{ key: "agent.enabled", label: "Agent Enabled", type: "boolean" as const },
+	{
+		key: "agent.enabled",
+		label: "DLMM Agent Enabled",
+		type: "boolean" as const,
+	},
 	{
 		key: "agent.intervalMinutes",
-		label: "Agent Interval (min)",
+		label: "DLMM Agent Interval (min)",
 		type: "number" as const,
 	},
 	{
@@ -247,11 +251,19 @@ const EDITABLE_FIELDS = [
 		label: "Pool Cooldown (ms)",
 		type: "number" as const,
 	},
-	{ key: "agent.tpPct", label: "Agent Take Profit %", type: "number" as const },
-	{ key: "agent.slPct", label: "Agent Stop Loss %", type: "number" as const },
+	{
+		key: "agent.tpPct",
+		label: "DLMM Agent Take Profit %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.slPct",
+		label: "DLMM Agent Stop Loss %",
+		type: "number" as const,
+	},
 	{
 		key: "agent.notifLevel",
-		label: "Agent Notif Level (verbose/normal/errors-only)",
+		label: "DLMM Agent Notif Level (verbose/normal/errors-only)",
 		type: "string" as const,
 	},
 	{
@@ -341,7 +353,7 @@ function buildConfigText(
 	}
 	lines.push(
 		"",
-		tgBold("Agent 🤖"),
+		tgBold("DLMM Agent 🤖"),
 		`  Enabled: ${tgCode(formatValue("agent.enabled", config))}`,
 		`  Interval: ${tgCode(formatValue("agent.intervalMinutes", config))}m`,
 		`  Max Open: ${tgCode(formatValue("agent.maxOpenPositions", config))}`,
@@ -372,7 +384,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("⚡ Create »", "cfg:page:6")
 			.text("MC/Holders »", "cfg:page:2")
 			.row()
-			.text("🤖 Agent »", "cfg:page:7");
+			.text("🤖 DLMM Agent »", "cfg:page:7");
 	}
 	if (page === 6) {
 		return new InlineKeyboard()
@@ -399,7 +411,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 	}
 	if (page === 7) {
 		return new InlineKeyboard()
-			.text("🔄 Agent On", "cfg:toggle:agent.enabled")
+			.text("🔄 DLMM Agent On", "cfg:toggle:agent.enabled")
 			.text("✏️ Interval (min)", "cfg:set:agent.intervalMinutes")
 			.row()
 			.text("✏️ Max Candidates", "cfg:set:agent.maxCandidates")
