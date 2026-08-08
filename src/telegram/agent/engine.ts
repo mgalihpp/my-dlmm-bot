@@ -236,6 +236,12 @@ async function evaluatePlans(
 	cfg: AgentCfg,
 	deployedSol: number,
 ) {
+	if (rt.state.plans.length >= cfg.maxOpenPositions) {
+		console.log(
+			`[agent] at max positions (${rt.state.plans.length}/${cfg.maxOpenPositions}), skipping screening + LLM`,
+		);
+		return;
+	}
 	let screen;
 	try {
 		screen = await screenPools();
