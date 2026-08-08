@@ -1,5 +1,7 @@
 # Agent Risk Screening — Design
 
+> Status: implemented — see plan 2026-08-08-agent-risk-screening.md
+
 Date: 2026-08-08
 
 ## Problem
