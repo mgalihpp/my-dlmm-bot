@@ -22,8 +22,10 @@ import {
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
+	checkPoolCooldown,
 	checkRisks,
 	deriveOpenAmount,
+	filterCooldown,
 	recordCooldown,
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
@@ -468,8 +470,19 @@ async function evaluatePlans(
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	const { pools: candidatePools, skipped: cooldownSkipped } = filterCooldown(
+		screen.pools,
+		rt.state.cooldowns,
+		Date.now(),
+	);
+	if (cooldownSkipped > 0) {
+		liveLines.push(
+			`⏳ ${cooldownSkipped} pool${cooldownSkipped === 1 ? "" : "s"} in cooldown, skipped`,
+		);
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	}
 	const mintByPool = new Map(
-		screen.pools.map((p) => [p.pool, p.baseMint] as const),
+		candidatePools.map((p) => [p.pool, p.baseMint] as const),
 	);
 	for (const plan of rt.state.plans) {
 		if (!plan.baseMint) plan.baseMint = mintByPool.get(plan.pool) ?? null;
@@ -484,7 +497,7 @@ async function evaluatePlans(
 	const sw = loadSignalWeights();
 	const weights = sw.weights;
 
-	const ranked = rankPools(screen.pools, {
+	const ranked = rankPools(candidatePools, {
 		// LLM evaluates regardless of the heuristic floor; minCandidate gates opening only
 		minCandidate: 0,
 		maxCandidates: cfg.maxCandidates,
@@ -506,6 +519,8 @@ async function evaluatePlans(
 		globalFeesSol: p.globalFeesSol ?? null,
 		activePositions: p.activePositions,
 	}));
+	liveLines.push(`🧠 LLM: thinking...`);
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	const { signals, degraded } = await requestSignals({
 		cfg,
 		candidates: llmCandidates,
@@ -520,9 +535,8 @@ async function evaluatePlans(
 			: "skipped"
 		: "ok";
 
-	liveLines.push(
-		`🧠 LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
-	);
+	liveLines[liveLines.length - 1] =
+		`🧠 LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`;
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 
 	const decisions = decideCandidates({
@@ -574,10 +588,39 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: dup.reason,
 			});
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: d.pool.pool,
+					poolName: d.pool.name,
+					baseMint: d.pool.baseMint,
+					reason: dup.reason ?? "blocked",
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
 			);
 			await liveDecision(`⛔ ${d.pool.name} blocked: ${dup.reason ?? ""}`);
+			continue;
+		}
+		const cd = checkPoolCooldown(
+			d.pool.pool,
+			d.pool.baseMint,
+			rt.state.cooldowns,
+			Date.now(),
+		);
+		if (!cd.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: cd.reason,
+			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${cd.reason})`,
+			);
+			await liveDecision(`⏳ ${d.pool.name} in cooldown: ${cd.reason ?? ""}`);
 			continue;
 		}
 		const risk = checkRisks({ pool: d.pool, risks: cfg.risks });
@@ -587,6 +630,17 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: risk.reason,
 			});
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: d.pool.pool,
+					poolName: d.pool.name,
+					baseMint: d.pool.baseMint,
+					reason: risk.reason ?? "blocked",
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
 			);
@@ -608,6 +662,17 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: guard.reason,
 			});
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: d.pool.pool,
+					poolName: d.pool.name,
+					baseMint: d.pool.baseMint,
+					reason: guard.reason ?? "blocked",
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
 			console.log(
 				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
 			);
