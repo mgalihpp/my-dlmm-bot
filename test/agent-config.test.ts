@@ -13,10 +13,16 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.maxTotalSol).toBe(3);
 		expect(c.maxOpenPositions).toBe(4);
 		expect(c.txCooldownMs).toBe(300_000);
+		expect(c.poolCooldownMs).toBe(24 * 3_600_000);
 		expect(c.tpPct).toBe(25);
 		expect(c.slPct).toBe(-10);
 		expect(c.llm.model).toBe("gpt-4o-mini");
 		expect(c.llm.timeoutMs).toBe(120_000);
+	});
+
+	it("honors poolCooldownMs override", () => {
+		const c = resolveAgentConfigFrom({ agent: { poolCooldownMs: 60_000 } }, {});
+		expect(c.poolCooldownMs).toBe(60_000);
 	});
 
 	it("falls back to global tp/sl and env api key", () => {

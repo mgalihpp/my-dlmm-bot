@@ -123,6 +123,7 @@ export interface ResolvedAgentConfig {
 	maxTotalSol: number;
 	maxOpenPositions: number;
 	txCooldownMs: number;
+	poolCooldownMs: number;
 	tpPct: number;
 	slPct: number;
 	llm: ResolvedAgentLlm;
@@ -147,6 +148,7 @@ export const resolveAgentConfigFrom = (
 		maxTotalSol: a.maxTotalSol ?? 3,
 		maxOpenPositions: a.maxOpenPositions ?? 4,
 		txCooldownMs: a.txCooldownMs ?? 300_000,
+		poolCooldownMs: a.poolCooldownMs ?? 24 * 3_600_000,
 		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
 		slPct: a.slPct ?? c.stopLossPct ?? -10,
 		llm: {

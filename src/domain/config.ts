@@ -109,6 +109,7 @@ export interface AgentConfig {
 	maxTotalSol?: number;
 	maxOpenPositions?: number;
 	txCooldownMs?: number;
+	poolCooldownMs?: number;
 	tpPct?: number;
 	slPct?: number;
 	llm?: AgentLlmConfig;
