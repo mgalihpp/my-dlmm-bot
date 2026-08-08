@@ -24,6 +24,7 @@ import {
 	checkOpenGuardrail,
 	checkRisks,
 	deriveOpenAmount,
+	recordCooldown,
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
 import {
@@ -32,7 +33,12 @@ import {
 	type JournalCandidate,
 	readJournal,
 } from "./journal.js";
-import { type LlmCandidate, requestSignals } from "./llm.js";
+import {
+	type LlmCandidate,
+	type OorPosition,
+	requestPositionDecisions,
+	requestSignals,
+} from "./llm.js";
 import { buildCreateParams } from "./params.js";
 import {
 	appendPerf,
@@ -51,6 +57,7 @@ export interface RuntimeAgent {
 	start(): void;
 	stop(): void;
 	runCycle(): Promise<void>;
+	runFast(): Promise<void>;
 }
 
 type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
@@ -136,7 +143,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					agentCfg.intervalMinutes * 60_000,
 					() => rt.runCycle(),
 				);
-				eventFiber = schedule("event", 60_000, () => rt.runCycle());
+				eventFiber = schedule("event", 60_000, () => rt.runFast());
 			});
 		},
 		stop() {
@@ -147,6 +154,23 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			rt.state.enabled = false;
 			rt.state.running = false;
 			saveState(rt.state);
+		},
+		async runFast() {
+			if (rt.state.running || !rt.state.enabled) return;
+			rt.state.running = true;
+			try {
+				const cfg = resolveAgentConfigFrom(await getConfig());
+				const wallet = await resolveWallet();
+				console.log("[agent] fast check (tp/sl)");
+				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
+					includeOor: false,
+				});
+			} catch (e) {
+				console.error("[agent] fast cycle error:", e);
+			} finally {
+				rt.state.running = false;
+				saveState(rt.state);
+			}
 		},
 		async runCycle() {
 			if (rt.state.running || !rt.state.enabled) return;
@@ -185,7 +209,9 @@ async function evaluateTpSl(
 	chatId: string,
 	cfg: AgentCfg,
 	wallet: string,
+	opts: { includeOor?: boolean } = {},
 ) {
+	const oorPositions: OorPosition[] = [];
 	for (const plan of [...rt.state.plans]) {
 		if (!plan.positionAddress) continue;
 		let pdata;
@@ -208,6 +234,16 @@ async function evaluateTpSl(
 			continue;
 		}
 		const pct = pnlPctValue(pos);
+		if (pos.isOutOfRange === true) {
+			oorPositions.push({
+				pool: plan.pool,
+				poolName: plan.poolName,
+				pnlPct: pct ?? 0,
+				minPrice: pos.minPrice,
+				maxPrice: pos.maxPrice,
+				poolActivePrice: pos.poolActivePrice,
+			});
+		}
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		console.log(
@@ -300,6 +336,103 @@ async function evaluateTpSl(
 			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
 		} catch (e) {
 			console.error("[agent] tp/sl close failed:", e);
+		}
+	}
+	if (opts.includeOor && oorPositions.length > 0) {
+		await evaluateOor(rt, bot, chatId, cfg, oorPositions);
+	}
+}
+
+async function evaluateOor(
+	rt: RuntimeAgent,
+	bot: Bot,
+	chatId: string,
+	cfg: AgentCfg,
+	positions: readonly OorPosition[],
+) {
+	console.log(
+		`[agent] OOR: ${positions.length} position(s) out of range → LLM`,
+	);
+	const { decisions, degraded } = await requestPositionDecisions({
+		cfg,
+		positions,
+	});
+	if (degraded) {
+		console.log(`[agent] OOR: LLM degraded — ${positions.length} held`);
+		return;
+	}
+	for (const d of decisions) {
+		const pos = positions.find((p) => p.pool === d.pool);
+		if (!pos) continue;
+		const plan = rt.state.plans.find(
+			(p) => p.pool === pos.pool && p.positionAddress != null,
+		);
+		if (!plan) continue; // closed this cycle by tp/sl
+		const base: JournalCandidate = {
+			pool: pos.pool,
+			poolName: pos.poolName,
+			heuristicScore: 0,
+			favorability: null,
+			rationale: `OOR ${d.action}: ${d.rationale}`,
+			score: 0,
+			action: d.action,
+			guardrail: "pass",
+			blockedReason: null,
+			execution: null,
+			txSignature: null,
+		};
+		if (d.action === "hold") {
+			appendJournal({
+				ts: new Date().toISOString(),
+				cycle: rt.state.cycle,
+				llmStatus: "ok",
+				candidates: [base],
+			});
+			console.log(`[agent] OOR decide: ${pos.poolName} → hold`);
+			continue;
+		}
+		try {
+			const out = await zap.closeAndZapOut(
+				pos.pool,
+				plan.positionAddress!,
+				WSOL_MINT,
+			);
+			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
+			rt.state.plans = rt.state.plans.filter((x) => x !== plan);
+			rt.state.executions.push({
+				at: new Date().toISOString(),
+				action: "close",
+				pool: pos.pool,
+				txSignature: sig || null,
+			});
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: pos.pool,
+					poolName: pos.poolName,
+					baseMint: plan.baseMint,
+					reason: "closed (OOR)",
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
+			appendJournal({
+				ts: new Date().toISOString(),
+				cycle: rt.state.cycle,
+				llmStatus: "ok",
+				candidates: [{ ...base, execution: "ok", txSignature: sig || null }],
+			});
+			saveState(rt.state);
+			console.log(`[agent] OOR close ${pos.poolName} done: sig=${sig || "?"}`);
+			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
+		} catch (e) {
+			console.error("[agent] OOR close failed:", e);
+			appendJournal({
+				ts: new Date().toISOString(),
+				cycle: rt.state.cycle,
+				llmStatus: "ok",
+				candidates: [{ ...base, execution: "failed" }],
+			});
 		}
 	}
 }
