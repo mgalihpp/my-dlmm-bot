@@ -1,0 +1,111 @@
+import type { ResolvedAgentConfig } from "../../services/Config.js";
+
+export interface LlmCandidate {
+	pool: string;
+	pair: string;
+	heuristic: number;
+	feeActiveTvlRatio: number;
+	organicScore: number;
+	holders: number;
+	volume: number;
+}
+
+export interface LlmSignal {
+	pool: string;
+	favorability: number;
+	rationale: string;
+}
+
+const clampFav = (v: unknown): number | null => {
+	if (typeof v !== "number" || !Number.isFinite(v)) return null;
+	return Math.max(-1, Math.min(1, v));
+};
+
+export function buildPrompt(candidates: readonly LlmCandidate[]): string {
+	const table = candidates
+		.map(
+			(c) =>
+				`- pool=${c.pool} pair=${c.pair} heuristic=${c.heuristic} feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)} organic=${c.organicScore} holders=${c.holders} volume=${c.volume}`,
+		)
+		.join("\n");
+	return [
+		"You are a market advisor for a DLMM liquidity bot. For each pool, output a `favorability` score between -1 (strongly avoid) and +1 (strongly favorable), plus a one-line rationale.",
+		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","favorability":0.5,"rationale":"..."}]',
+		"",
+		"Candidates:",
+		table,
+	].join("\n");
+}
+
+export function parseLlmResponse(content: string): LlmSignal[] {
+	const cleaned = content
+		.trim()
+		.replace(/^```(?:json)?\s*/i, "")
+		.replace(/\s*```$/, "");
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(cleaned);
+	} catch {
+		return [];
+	}
+	const arr = Array.isArray(parsed)
+		? parsed
+		: (parsed as { candidates?: unknown }).candidates;
+	if (!Array.isArray(arr)) return [];
+	const out: LlmSignal[] = [];
+	for (const item of arr) {
+		const o = item as {
+			pool?: unknown;
+			favorability?: unknown;
+			rationale?: unknown;
+		};
+		if (typeof o.pool !== "string" || o.pool === "") continue;
+		const fav = clampFav(o.favorability);
+		if (fav === null) continue;
+		out.push({
+			pool: o.pool,
+			favorability: fav,
+			rationale: typeof o.rationale === "string" ? o.rationale : "",
+		});
+	}
+	return out;
+}
+
+export async function requestSignals(opts: {
+	cfg: ResolvedAgentConfig;
+	candidates: readonly LlmCandidate[];
+}): Promise<{ signals: LlmSignal[]; degraded: boolean }> {
+	const { cfg } = opts;
+	if (!cfg.llm.apiKey || opts.candidates.length === 0) {
+		return { signals: [], degraded: true };
+	}
+	const controller = new AbortController();
+	const timer = setTimeout(() => controller.abort(), cfg.llm.timeoutMs);
+	try {
+		const res = await fetch(`${cfg.llm.baseUrl}/chat/completions`, {
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${cfg.llm.apiKey}`,
+			},
+			signal: controller.signal,
+			body: JSON.stringify({
+				model: cfg.llm.model,
+				messages: [{ role: "user", content: buildPrompt(opts.candidates) }],
+				temperature: 0,
+			}),
+		});
+		if (!res.ok) return { signals: [], degraded: true };
+		const body = (await res.json()) as {
+			choices?: { message?: { content?: string } }[];
+		};
+		const content = body.choices?.[0]?.message?.content;
+		if (!content) return { signals: [], degraded: true };
+		return { signals: parseLlmResponse(content), degraded: false };
+	} catch {
+		// timeout / network: degrade to heuristic-only
+		return { signals: [], degraded: true };
+	} finally {
+		clearTimeout(timer);
+	}
+}
