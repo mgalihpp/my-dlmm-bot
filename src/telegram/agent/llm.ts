@@ -1,3 +1,5 @@
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
 import type { ResolvedAgentConfig } from "../../services/Config.js";
 
 export interface LlmCandidate {
@@ -79,33 +81,23 @@ export async function requestSignals(opts: {
 	if (!cfg.llm.apiKey || opts.candidates.length === 0) {
 		return { signals: [], degraded: true };
 	}
-	const controller = new AbortController();
-	const timer = setTimeout(() => controller.abort(), cfg.llm.timeoutMs);
+	const provider = createOpenAICompatible({
+		name: "vexis-llm",
+		baseURL: cfg.llm.baseUrl,
+		apiKey: cfg.llm.apiKey,
+	});
 	try {
-		const res = await fetch(`${cfg.llm.baseUrl}/chat/completions`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-				Authorization: `Bearer ${cfg.llm.apiKey}`,
-			},
-			signal: controller.signal,
-			body: JSON.stringify({
-				model: cfg.llm.model,
-				messages: [{ role: "user", content: buildPrompt(opts.candidates) }],
-				temperature: 0,
-			}),
+		const { text } = await generateText({
+			model: provider(cfg.llm.model),
+			messages: [{ role: "user", content: buildPrompt(opts.candidates) }],
+			temperature: 0,
+			maxRetries: 0,
+			timeout: cfg.llm.timeoutMs,
 		});
-		if (!res.ok) return { signals: [], degraded: true };
-		const body = (await res.json()) as {
-			choices?: { message?: { content?: string } }[];
-		};
-		const content = body.choices?.[0]?.message?.content;
-		if (!content) return { signals: [], degraded: true };
-		return { signals: parseLlmResponse(content), degraded: false };
+		if (!text) return { signals: [], degraded: true };
+		return { signals: parseLlmResponse(text), degraded: false };
 	} catch {
 		// timeout / network: degrade to heuristic-only
 		return { signals: [], degraded: true };
-	} finally {
-		clearTimeout(timer);
 	}
 }

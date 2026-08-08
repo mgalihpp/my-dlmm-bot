@@ -1,5 +1,5 @@
 import type { ResolvedAgentConfig } from "../../services/Config.js";
-import { escapeMarkdown, tgBold, tgCode } from "../format.js";
+import { escapeMarkdown, tgBold, tgCode, tgTs } from "../format.js";
 import type { AgentJournalEntry } from "./journal.js";
 import type { AgentState } from "./state.js";
 
@@ -11,7 +11,7 @@ export function formatStatus(
 	const lines = [
 		tgBold(state.enabled ? "🤖 Agent: ON" : "🤖 Agent: OFF"),
 		`Running: ${state.running ? "yes" : "no"}`,
-		`Cycle: ${state.cycle} \\| last: ${escapeMarkdown(state.lastCycleAt ?? "—")}`,
+		`Cycle: ${state.cycle} \\| last: ${tgTs(state.lastCycleAt)}`,
 		`LLM status: ${escapeMarkdown(state.llmStatus)}`,
 		`Caps: ${escapeMarkdown(`${opened}/${cfg.maxOpenPositions}`)} open`,
 		`${escapeMarkdown(`Per-position cap: ${cfg.maxSolPerPosition} SOL`)} \\| total cap: ${escapeMarkdown(String(cfg.maxTotalSol))} SOL`,
@@ -63,7 +63,7 @@ export function formatJournal(
 			(c) => c.guardrail === "blocked",
 		).length;
 		lines.push(
-			`• \\#${e.cycle} ${escapeMarkdown(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
+			`• \\#${e.cycle} ${tgTs(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
 		);
 	}
 	return lines.join("\n");

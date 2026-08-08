@@ -40,6 +40,17 @@ export function tgPct(value: string | number | null): string {
 	return `${emoji} ${escapeMarkdown(`${sign}${formatNum(n)}%`)}`;
 }
 
+/** ISO timestamp → local `YYYY-MM-DD HH:mm`, escaped. */
+export function tgTs(iso: string | null | undefined): string {
+	if (!iso) return "\\-";
+	const d = new Date(iso);
+	if (Number.isNaN(d.getTime())) return "\\-";
+	const p = (n: number) => String(n).padStart(2, "0");
+	return escapeMarkdown(
+		`${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`,
+	);
+}
+
 /** SOL amount, signed, escaped. */
 export function tgSol(value: string | number | null): string {
 	if (value === null || value === undefined) return "\\-";
