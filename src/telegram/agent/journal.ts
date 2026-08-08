@@ -1,7 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
-export type JournalAction = "open" | "hold" | "tp" | "sl";
+export type JournalAction = "open" | "hold" | "tp" | "sl" | "close";
 
 export interface JournalCandidate {
 	pool: string;
