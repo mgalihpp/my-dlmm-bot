@@ -41,18 +41,22 @@ Pure gate + thin sender, both exported:
 
 ### 3. Engine routing (`src/telegram/agent/engine.ts`)
 
-All Telegram sends route through `notify` with an explicit tag. The `liveSend`/`send` helpers stay, but call `notify` and take `cfg` (for level) — or `notify` is called at each call site with `cfg.notifLevel`.
+All Telegram sends route through `notify` with an explicit tag, called at each call site with `cfg.notifLevel`. Rules per site:
+
+- **Live step lines** in `evaluatePlans`: only produced when `allowed(cfg.notifLevel, "live")`; otherwise skipped (no live message started, no no-op `liveSend` calls). A small `liveStep` wrapper checks the gate once.
+- **Cycle summary** at end of `evaluatePlans`: when `verbose` → `liveSend` edits the live message in place (current behavior); when `normal`/`errors-only` → fresh `sendMessage` via `notify(..., "summary", ...)`.
+- **Per-tx failures** (open/close throws) are an action outcome: the action message carries the `❌ FAILED` prefix and is tagged `action`, so `errors-only` still surfaces them. The `error` tag is reserved for cycle-level crashes — the `runCycle` / `runFast` catch blocks and unexpected errors.
 
 | Site today | Tag | Level |
 |---|---|---|
 | `liveSend` in `evaluatePlans` (screening, cooldown/dup skips, LLM thinking, decisions, open progress) | `live` | verbose |
-| New per-action message (open / tp / sl / OOR close), incl. failures | `action` | normal+ |
+| New per-action message (open / tp / sl / OOR close), incl. tx failures | `action` | normal+ |
 | Cycle summary after full cycle (`formatCycleSummary`) | `summary` | normal+ |
-| New error messages for cycle/fast-cycle/open/close/tx failures | `error` | all |
+| Cycle-level crashes (`runCycle` / `runFast` catch) | `error` | all |
 
 **New action message `formatAction`** (`src/telegram/agent/format.ts`): one message per executed action, replacing the current "cycle summary on close" behavior. Fields: action, pool name, amount SOL, PnL% (closes), reason (tp/sl/OOR/LLM), tx signature. MarkdownV2-escaped per existing helpers.
 
-**New error notifications**: wrap the `runCycle` / `runFast` catch blocks and the per-tx `try/catch` in `evaluateTpSl`, `evaluateOor`, `evaluatePlans`; send a `❌` message with the failure context (cycle number, pool, action). LLM degradation stays console-only (it's not a failure, and the cycle summary already shows the degraded flag).
+**New error notifications**: wrap the `runCycle` / `runFast` catch blocks; send a `❌` message with the failure context (cycle number). LLM degradation stays console-only (it's not a failure, and the cycle summary already shows the degraded flag).
 
 ### 4. New module `src/telegram/agent/stats.ts` (pure)
 
