@@ -1,4 +1,7 @@
-import type { ResolvedAgentConfig } from "../../services/Config.js";
+import type {
+	ResolvedAgentConfig,
+	ResolvedAgentRisks,
+} from "../../services/Config.js";
 
 export interface GuardOk {
 	ok: boolean;
@@ -76,4 +79,75 @@ export function deriveOpenAmount(
 		Math.max(0, cfg.maxTotalSol - deployedSol),
 	);
 	return Math.max(0, Math.round(wanted * 1000) / 1000);
+}
+
+export function checkRisks(input: {
+	pool: {
+		isRugpull?: boolean | null;
+		isWash?: boolean | null;
+		bundlePct?: number | null;
+		botHoldersPct?: number | null;
+		top10Pct?: number | null;
+		globalFeesSol?: number | null;
+		devSoldAll?: boolean | null;
+		dexScreenerPaid?: boolean | null;
+		priceVsAthPct?: number | null;
+		fromAthPct?: number | null;
+	};
+	risks: ResolvedAgentRisks;
+}): GuardOk {
+	const { risks, pool } = input;
+	if (!risks.enabled) return { ok: true, reason: null };
+	if (risks.blockRugpull && pool.isRugpull === true) {
+		return { ok: false, reason: "rugpull flagged" };
+	}
+	if (risks.blockWash && pool.isWash === true) {
+		return { ok: false, reason: "wash trading flagged" };
+	}
+	if (pool.bundlePct != null && pool.bundlePct > risks.maxBundlePct) {
+		return {
+			ok: false,
+			reason: `bundle ${pool.bundlePct}% > ${risks.maxBundlePct}%`,
+		};
+	}
+	if (
+		pool.botHoldersPct != null &&
+		pool.botHoldersPct > risks.maxBotHoldersPct
+	) {
+		return {
+			ok: false,
+			reason: `bot holders ${pool.botHoldersPct}% > ${risks.maxBotHoldersPct}%`,
+		};
+	}
+	if (pool.top10Pct != null && pool.top10Pct > risks.maxTop10Pct) {
+		return {
+			ok: false,
+			reason: `top10 ${pool.top10Pct}% > ${risks.maxTop10Pct}%`,
+		};
+	}
+	if (
+		pool.globalFeesSol != null &&
+		pool.globalFeesSol < risks.minTokenFeesSol
+	) {
+		return {
+			ok: false,
+			reason: `global fees ${pool.globalFeesSol} SOL < ${risks.minTokenFeesSol} SOL`,
+		};
+	}
+	if (risks.blockDexScreenerPaid && pool.dexScreenerPaid === true) {
+		return { ok: false, reason: "dex screener paid boost flagged" };
+	}
+	if (risks.blockDevSoldAll && pool.devSoldAll === true) {
+		return { ok: false, reason: "dev sold all holdings" };
+	}
+	const athPct =
+		pool.priceVsAthPct ??
+		(pool.fromAthPct != null ? (1 - pool.fromAthPct) * 100 : null);
+	if (athPct != null && athPct > risks.maxPriceVsAthPct) {
+		return {
+			ok: false,
+			reason: `price ${athPct}% of ATH > ${risks.maxPriceVsAthPct}%`,
+		};
+	}
+	return { ok: true, reason: null };
 }
