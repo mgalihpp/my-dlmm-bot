@@ -122,7 +122,10 @@ export const resolveAgentConfigFrom = (
 		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
 		slPct: a.slPct ?? c.stopLossPct ?? -10,
 		llm: {
-			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(/\/$/, ""),
+			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(
+				/\/$/,
+				"",
+			),
 			model: a.llm?.model ?? "gpt-4o-mini",
 			apiKey,
 			timeoutMs: a.llm?.timeoutMs ?? 30_000,

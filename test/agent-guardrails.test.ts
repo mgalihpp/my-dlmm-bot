@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-	checkOpenGuardrail,
 	checkCooldown,
+	checkOpenGuardrail,
 	deriveOpenAmount,
 } from "../src/telegram/agent/guardrails.js";
 

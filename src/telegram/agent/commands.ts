@@ -1,7 +1,7 @@
 import type { Bot } from "grammy";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
-import { getConfig } from "../fx.js";
 import { escapeMarkdown, tgBold } from "../format.js";
+import { getConfig } from "../fx.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
 import { formatJournal, formatStatus } from "./format.js";

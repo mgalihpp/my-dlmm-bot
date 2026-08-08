@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
-import { formatCycleSummary, formatStatus } from "../src/telegram/agent/format.js";
+import {
+	formatCycleSummary,
+	formatStatus,
+} from "../src/telegram/agent/format.js";
 import type { AgentJournalEntry } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
 

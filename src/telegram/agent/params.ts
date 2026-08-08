@@ -1,5 +1,8 @@
 import type { CreatePreset } from "../../domain/config.js";
-import type { CreatePositionParams, StrategyType } from "../../domain/onchain.js";
+import type {
+	CreatePositionParams,
+	StrategyType,
+} from "../../domain/onchain.js";
 
 const DEFAULT_SOL_BINS = { minBin: -69, maxBin: 0 } as const;
 
@@ -23,7 +26,12 @@ export function buildCreateParams(input: {
 		return { ...base, minPct: r.minPct, maxPct: r.maxPct };
 	}
 	if (r.type === "bin" && r.minBin != null && r.maxBin != null) {
-		return { ...base, minBinId: r.minBin, maxBinId: r.maxBin, relativeBins: true };
+		return {
+			...base,
+			minBinId: r.minBin,
+			maxBinId: r.maxBin,
+			relativeBins: true,
+		};
 	}
 	return {
 		...base,

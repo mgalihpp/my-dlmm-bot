@@ -1,11 +1,7 @@
-import {
-	appendFileSync,
-	existsSync,
-	mkdirSync,
-	readFileSync,
-} from "node:fs";
+import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
-import type { AgentAction } from "./decision.js";
+
+export type JournalAction = "open" | "hold" | "tp" | "sl";
 
 export interface JournalCandidate {
 	pool: string;
@@ -14,7 +10,7 @@ export interface JournalCandidate {
 	favorability: number | null;
 	rationale: string | null;
 	score: number;
-	action: AgentAction;
+	action: JournalAction;
 	guardrail: "pass" | "blocked";
 	blockedReason: string | null;
 	execution: "ok" | "failed" | null;
@@ -36,16 +32,13 @@ export function appendJournal(
 ): void {
 	try {
 		mkdirSync(dirname(file), { recursive: true });
-		appendFileSync(file, JSON.stringify(entry) + "\n", "utf8");
+		appendFileSync(file, `${JSON.stringify(entry)}\n`, "utf8");
 	} catch (e) {
 		console.warn("[agent] journal write failed:", e);
 	}
 }
 
-export function readJournal(
-	n = 10,
-	file = DEFAULT_FILE,
-): AgentJournalEntry[] {
+export function readJournal(n = 10, file = DEFAULT_FILE): AgentJournalEntry[] {
 	if (!existsSync(file)) return [];
 	try {
 		const lines = readFileSync(file, "utf8").split("\n").filter(Boolean);

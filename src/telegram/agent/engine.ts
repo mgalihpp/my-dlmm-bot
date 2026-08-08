@@ -25,18 +25,14 @@ import {
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
 import {
-	appendJournal,
-	readJournal,
 	type AgentJournalEntry,
+	appendJournal,
 	type JournalCandidate,
+	readJournal,
 } from "./journal.js";
-import { requestSignals, type LlmCandidate } from "./llm.js";
+import { type LlmCandidate, requestSignals } from "./llm.js";
 import { buildCreateParams } from "./params.js";
-import {
-	loadState,
-	saveState,
-	type AgentState,
-} from "./state.js";
+import { type AgentState, loadState, saveState } from "./state.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -167,7 +163,11 @@ async function evaluateTpSl(
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		if (action === "hold") continue;
 		try {
-			const out = await zap.closeAndZapOut(plan.pool, plan.positionAddress, WSOL_MINT);
+			const out = await zap.closeAndZapOut(
+				plan.pool,
+				plan.positionAddress,
+				WSOL_MINT,
+			);
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,

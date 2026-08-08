@@ -10,7 +10,12 @@ export function heuristicScore(pool: ScreenedPool): number {
 	const volume = clamp(pool.volume / 100_000);
 	const binStep = clamp(1 - pool.binStep / 125);
 	const raw =
-		100 * (0.35 * feeTvl + 0.25 * organic + 0.1 * holders + 0.1 * volume + 0.2 * binStep);
+		100 *
+		(0.35 * feeTvl +
+			0.25 * organic +
+			0.1 * holders +
+			0.1 * volume +
+			0.2 * binStep);
 	return Math.round(clamp(raw, 0, 100));
 }
 

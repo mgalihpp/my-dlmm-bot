@@ -45,7 +45,9 @@ export function formatCycleSummary(
 					: c.guardrail === "blocked"
 						? ` ⛔blocked: ${escapeMarkdown(c.blockedReason ?? "")}`
 						: "";
-		lines.push(`${action} ${escapeMarkdown(c.poolName)} score ${c.score} fav ${sign}${executed}`);
+		lines.push(
+			`${action} ${escapeMarkdown(c.poolName)} score ${escapeMarkdown(String(c.score))} fav ${escapeMarkdown(sign)}${executed}`,
+		);
 	}
 	return lines.join("\n");
 }
@@ -57,7 +59,9 @@ export function formatJournal(
 	const lines = [tgBold(`📒 Agent journal (last ${n})`)];
 	for (const e of entries.slice(0, n)) {
 		const opened = e.candidates.filter((c) => c.execution === "ok").length;
-		const blocked = e.candidates.filter((c) => c.guardrail === "blocked").length;
+		const blocked = e.candidates.filter(
+			(c) => c.guardrail === "blocked",
+		).length;
 		lines.push(
 			`• #${e.cycle} ${escapeMarkdown(e.ts)} llm=${escapeMarkdown(e.llmStatus)} opened=${opened} blocked=${blocked}`,
 		);
