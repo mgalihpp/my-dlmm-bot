@@ -117,11 +117,20 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			try {
 				const cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
+				console.log(
+					`[agent] cycle #${rt.state.cycle + 1} start | plans: ${rt.state.plans.length} | interval: ${cfg.intervalMinutes}m`,
+				);
 				const open = await api.openPortfolio(wallet, 1, 100);
 				const deployed = Number(open.total?.balancesSol ?? 0);
+				console.log(
+					`[agent] deployed: ${deployed} SOL (${open.total?.balances ?? "0"} USD)`,
+				);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet);
 				await evaluatePlans(rt, bot, chatId, cfg, deployed);
 				rt.state.lastCycleAt = new Date().toISOString();
+				console.log(
+					`[agent] cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
+				);
 			} catch (e) {
 				console.error("[agent] cycle error:", e);
 			} finally {
@@ -156,12 +165,21 @@ async function evaluateTpSl(
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
+			console.log(
+				`[agent] position check: ${plan.poolName} → closed, plan removed`,
+			);
 			continue;
 		}
 		const pct = pnlPctValue(pos);
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
+		console.log(
+			`[agent] position check: ${plan.poolName} pnl=${pct}% → ${action}`,
+		);
 		if (action === "hold") continue;
+		console.log(
+			`[agent] ${action.toUpperCase()} ${plan.poolName} at ${pct}% → closing...`,
+		);
 		try {
 			const out = await zap.closeAndZapOut(
 				plan.pool,
@@ -200,6 +218,9 @@ async function evaluateTpSl(
 			};
 			appendJournal(entry);
 			saveState(rt.state);
+			console.log(
+				`[agent] ${action.toUpperCase()} ${plan.poolName} done: sig=${sig || "?"}`,
+			);
 			await send(bot, chatId, formatCycleSummary(readJournal(1), false));
 		} catch (e) {
 			console.error("[agent] tp/sl close failed:", e);
@@ -221,6 +242,9 @@ async function evaluatePlans(
 		console.error("[agent] screening failed:", e);
 		return;
 	}
+	console.log(
+		`[agent] screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
+	);
 	const journal: AgentJournalEntry = {
 		ts: new Date().toISOString(),
 		cycle: ++rt.state.cycle,
@@ -245,6 +269,9 @@ async function evaluatePlans(
 		cfg,
 		candidates: llmCandidates,
 	});
+	console.log(
+		`[agent] LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
+	);
 	journal.llmStatus = degraded
 		? cfg.llm.apiKey
 			? "degraded"
@@ -279,6 +306,9 @@ async function evaluatePlans(
 		};
 		if (d.action === "hold") {
 			journal.candidates.push(base);
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → hold (below ${cfg.minCandidate})`,
+			);
 			continue;
 		}
 		const amountSol = deriveOpenAmount(budget, cfg);
@@ -296,6 +326,9 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: guard.reason,
 			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
+			);
 			continue;
 		}
 		if (amountSol <= 0) {
@@ -304,6 +337,9 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: "no budget remaining",
 			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (no budget)`,
+			);
 			continue;
 		}
 		const cooldown = checkCooldown({
@@ -317,8 +353,14 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: cooldown.reason,
 			});
+			console.log(
+				`[agent] decide: ${d.pool.name} score ${d.score} → blocked (${cooldown.reason})`,
+			);
 			continue;
 		}
+		console.log(
+			`[agent] decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
+		);
 		try {
 			const preset = resolveCreatePresetFrom(getConfigSync());
 			const params = buildCreateParams({
@@ -350,6 +392,9 @@ async function evaluatePlans(
 				execution: "ok",
 				txSignature: sig || null,
 			});
+			console.log(
+				`[agent] opened ${d.pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${sig}`,
+			);
 		} catch (e) {
 			console.error("[agent] open failed:", d.pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
