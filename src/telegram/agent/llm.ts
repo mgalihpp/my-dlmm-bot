@@ -91,7 +91,7 @@ export async function requestSignals(opts: {
 			model: provider(cfg.llm.model),
 			messages: [{ role: "user", content: buildPrompt(opts.candidates) }],
 			temperature: 0,
-			maxRetries: 0,
+			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
 		});
 		if (!text) return { signals: [], degraded: true };

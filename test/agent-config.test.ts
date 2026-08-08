@@ -16,7 +16,7 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.tpPct).toBe(25);
 		expect(c.slPct).toBe(-10);
 		expect(c.llm.model).toBe("gpt-4o-mini");
-		expect(c.llm.timeoutMs).toBe(30_000);
+		expect(c.llm.timeoutMs).toBe(120_000);
 	});
 
 	it("falls back to global tp/sl and env api key", () => {

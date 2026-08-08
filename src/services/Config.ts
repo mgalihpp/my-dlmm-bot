@@ -128,7 +128,7 @@ export const resolveAgentConfigFrom = (
 			),
 			model: a.llm?.model ?? "gpt-4o-mini",
 			apiKey,
-			timeoutMs: a.llm?.timeoutMs ?? 30_000,
+			timeoutMs: a.llm?.timeoutMs ?? 120_000,
 		},
 	};
 };
