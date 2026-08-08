@@ -1,4 +1,10 @@
-import { Duration, Effect, Fiber, Schedule } from "effect";
+import {
+	Effect,
+	Fiber,
+	Schedule,
+	ScheduleDecision,
+	ScheduleInterval,
+} from "effect";
 import type { Bot } from "grammy";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
 import type { PositionPnLData } from "../../domain/position.js";
@@ -52,6 +58,7 @@ import {
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
 import { allowed, notify } from "./notify.js";
 import { buildCreateParams } from "./params.js";
+import { delayToNextBoundary } from "./schedule.js";
 import {
 	appendPerf,
 	loadSignalWeights,
@@ -153,6 +160,17 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		if (f) runtime.runFork(Fiber.interrupt(f));
 	};
 
+	const alignedSchedule = (intervalMs: number) =>
+		Schedule.makeWithState<void, void, number>(void 0, (now) =>
+			Effect.succeed([
+				void 0,
+				0,
+				ScheduleDecision.continueWith(
+					ScheduleInterval.after(now + delayToNextBoundary(intervalMs, now)),
+				),
+			]),
+		);
+
 	const schedule = (
 		label: string,
 		intervalMs: number,
@@ -163,7 +181,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				Effect.catchAll((e) =>
 					Effect.sync(() => logError(`${label} failed:`, e)),
 				),
-				Effect.repeat(Schedule.spaced(Duration.millis(intervalMs))),
+				Effect.repeat(alignedSchedule(intervalMs)),
 			),
 		);
 
