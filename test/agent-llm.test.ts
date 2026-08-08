@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { buildPrompt, parseLlmResponse } from "../src/telegram/agent/llm.js";
+import {
+	buildPrompt,
+	parseLlmResponse,
+	parsePositionResponse,
+} from "../src/telegram/agent/llm.js";
 
 const candidates = [
 	{
@@ -89,5 +93,31 @@ describe("parseLlmResponse", () => {
 
 	it("returns empty array on garbage", () => {
 		expect(parseLlmResponse("not json at all")).toEqual([]);
+	});
+});
+
+describe("parsePositionResponse", () => {
+	it("parses valid close and hold decisions", () => {
+		const out = parsePositionResponse(
+			'[{"pool":"P1","action":"close","rationale":"OOR, losing fees"},{"pool":"P2","action":"hold","rationale":"wait"}]',
+		);
+		expect(out).toEqual([
+			{ pool: "P1", action: "close", rationale: "OOR, losing fees" },
+			{ pool: "P2", action: "hold", rationale: "wait" },
+		]);
+	});
+
+	it("treats invalid action as hold", () => {
+		const out = parsePositionResponse(
+			'[{"pool":"P1","action":"sell","rationale":"x"}]',
+		);
+		expect(out[0].action).toBe("hold");
+	});
+
+	it("ignores empty pool and malformed responses", () => {
+		expect(parsePositionResponse('[{"pool":"","action":"close"}]')).toEqual(
+			[],
+		);
+		expect(parsePositionResponse("not json")).toEqual([]);
 	});
 });
