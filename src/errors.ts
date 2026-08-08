@@ -7,7 +7,7 @@ export class MeteoraApiError extends Data.TaggedError("MeteoraApiError")<{
 }> {}
 
 export class JupiterApiError extends Data.TaggedError("JupiterApiError")<{
-	readonly stage: "order" | "execute";
+	readonly stage: "order" | "execute" | "audit";
 	readonly status?: number;
 	readonly message: string;
 }> {}
