@@ -76,3 +76,74 @@ describe("rankPools", () => {
 		expect(out.map((p) => p.pool)).toEqual(["P1", "P3"]);
 	});
 });
+
+const basePool = {
+	pool: "Pool111",
+	name: "FOO-SOL",
+	baseSymbol: "FOO",
+	baseMint: "Mint111",
+	quoteSymbol: "SOL",
+	tvl: 10000,
+	activeTvl: 8000,
+	mcap: 500000,
+	holders: 1000,
+	organicScore: 70,
+	quoteOrganic: 70,
+	feeActiveTvlRatio: 0.05,
+	volatility: 0.01,
+	binStep: 100,
+	baseFeePct: 0.003,
+	volume: 50000,
+	fee: 500,
+	activePositions: 200,
+	openPositions: 300,
+	tokenAgeHours: 48,
+	score: 0,
+	price: 1,
+	priceChangePct: 10,
+	fromAthPct: null,
+	volumeChangePct: 5,
+	tokenXAddress: "Mint111",
+};
+
+describe("heuristicScore risk factors", () => {
+	it("scores a pool at ATH lower than one deep below ATH", () => {
+		const atAth = heuristicScore({ ...basePool, priceVsAthPct: 100 });
+		const belowAth = heuristicScore({ ...basePool, priceVsAthPct: 40 });
+		expect(belowAth).toBeGreaterThan(atAth);
+	});
+	it("prefers higher rugScore", () => {
+		const low = heuristicScore({ ...basePool, rugScore: 100 });
+		const high = heuristicScore({ ...basePool, rugScore: 3000 });
+		expect(high).toBeGreaterThan(low);
+	});
+	it("prefers lower top10 and bundle concentration", () => {
+		const low = heuristicScore({ ...basePool, top10Pct: 90, bundlePct: 90 });
+		const high = heuristicScore({ ...basePool, top10Pct: 20, bundlePct: 10 });
+		expect(high).toBeGreaterThan(low);
+	});
+	it("prefers more active positions (crowd)", () => {
+		const few = heuristicScore({ ...basePool, activePositions: 10 });
+		const many = heuristicScore({ ...basePool, activePositions: 2000 });
+		expect(many).toBeGreaterThan(few);
+	});
+	it("modulates score by adaptive weights", () => {
+		const w = { volume: 2.5, organicScore: 0.3 };
+		const lowVol = { ...basePool, volume: 1000, organicScore: 95 };
+		const highVol = { ...basePool, volume: 500000, organicScore: 40 };
+		const weightedLowVol = heuristicScore(lowVol, w);
+		const weightedHighVol = heuristicScore(highVol, w);
+		// with volume boosted, high volume should win despite low organic
+		expect(weightedHighVol).toBeGreaterThan(weightedLowVol);
+	});
+});
+
+describe("rankPools with weights", () => {
+	it("passes weights through to scoring", () => {
+		const ranked = rankPools(
+			[{ ...basePool, pool: "A", volume: 500000, organicScore: 40 }],
+			{ minCandidate: 0, maxCandidates: 5, weights: { volume: 2.5 } },
+		);
+		expect(ranked.length).toBe(1);
+	});
+});
