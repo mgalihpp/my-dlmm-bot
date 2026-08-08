@@ -100,6 +100,8 @@ export interface AgentDarwinConfig {
 	minSamples?: number;
 }
 
+export type NotifLevel = "verbose" | "normal" | "errors-only";
+
 export interface AgentConfig {
 	enabled?: boolean;
 	intervalMinutes?: number;
@@ -112,6 +114,7 @@ export interface AgentConfig {
 	poolCooldownMs?: number;
 	tpPct?: number;
 	slPct?: number;
+	notifLevel?: NotifLevel;
 	llm?: AgentLlmConfig;
 	risks?: AgentRiskConfig;
 	darwin?: AgentDarwinConfig;

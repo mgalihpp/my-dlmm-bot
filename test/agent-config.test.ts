@@ -25,6 +25,16 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.poolCooldownMs).toBe(60_000);
 	});
 
+	it("defaults notifLevel to normal and honors override", () => {
+		const c = resolveAgentConfigFrom({}, {});
+		expect(c.notifLevel).toBe("normal");
+		const c2 = resolveAgentConfigFrom(
+			{ agent: { notifLevel: "errors-only" } },
+			{},
+		);
+		expect(c2.notifLevel).toBe("errors-only");
+	});
+
 	it("falls back to global tp/sl and env api key", () => {
 		const cfg: VexisConfig = {
 			takeProfitPct: 40,

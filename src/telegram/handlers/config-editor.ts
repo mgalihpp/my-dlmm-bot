@@ -250,6 +250,11 @@ const EDITABLE_FIELDS = [
 	{ key: "agent.tpPct", label: "Agent Take Profit %", type: "number" as const },
 	{ key: "agent.slPct", label: "Agent Stop Loss %", type: "number" as const },
 	{
+		key: "agent.notifLevel",
+		label: "Agent Notif Level (verbose/normal/errors-only)",
+		type: "string" as const,
+	},
+	{
 		key: "agent.llm.baseUrl",
 		label: "LLM Base URL",
 		type: "string" as const,

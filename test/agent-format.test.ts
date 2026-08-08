@@ -19,6 +19,8 @@ const cfg: ResolvedAgentConfig = {
 	txCooldownMs: 300_000,
 	tpPct: 25,
 	slPct: -10,
+	poolCooldownMs: 24 * 3_600_000,
+	notifLevel: "normal",
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
 	risks: {
 		enabled: true,
@@ -63,6 +65,7 @@ describe("formatStatus", () => {
 				},
 			],
 			executions: [],
+			cooldowns: [],
 		};
 		expect(formatStatus(s, cfg)).toContain("0/4");
 		expect(formatStatus(s, cfg)).toContain("A/SOL");
