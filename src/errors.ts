@@ -18,6 +18,12 @@ export class RugCheckApiError extends Data.TaggedError("RugCheckApiError")<{
 	readonly message: string;
 }> {}
 
+export class OkxApiError extends Data.TaggedError("OkxApiError")<{
+	readonly path: string;
+	readonly status?: number;
+	readonly message: string;
+}> {}
+
 export class DecodeError extends Data.TaggedError("DecodeError")<{
 	readonly source: string;
 	readonly message: string;
@@ -58,6 +64,7 @@ export type AppError =
 	| MeteoraApiError
 	| JupiterApiError
 	| RugCheckApiError
+	| OkxApiError
 	| DecodeError
 	| RpcError
 	| OnchainError
