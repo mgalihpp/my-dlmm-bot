@@ -3,8 +3,10 @@
 import { Effect } from "effect";
 import { Bot } from "grammy";
 import { errorMessage } from "../errors.js";
-import { AppConfig } from "../services/Config.js";
+import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
+import { registerAgentCommands } from "./agent/commands.js";
+import { createAgent } from "./agent/engine.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { registerBalance } from "./handlers/balance.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
@@ -106,6 +108,13 @@ async function main() {
 		registerAlertCommands(bot, chatId, rt);
 		createTpSl(bot, chatId);
 		registerTpSlCommands(bot);
+
+		const rtAgent = createAgent(bot, chatId);
+		registerAgentCommands(bot, rtAgent);
+		const agentCfg = resolveAgentConfigFrom(
+			await runtime.runPromise(Effect.flatMap(AppConfig, (c) => c.get)),
+		);
+		if (agentCfg.enabled) rtAgent.start();
 	}
 
 	bot.catch((err) => {
@@ -119,6 +128,10 @@ async function main() {
 		{
 			command: "tpsl",
 			description: "Show global stop-loss / take-profit thresholds",
+		},
+		{
+			command: "agent",
+			description: "Autonomous trading agent (start/stop/status/journal)",
 		},
 		{
 			command: "create",
