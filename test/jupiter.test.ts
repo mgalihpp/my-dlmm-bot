@@ -43,9 +43,13 @@ describe("Jupiter", () => {
 							{
 								id: "Mint111",
 								fees: 45.2,
+								dexPaidAt: "2026-01-01T00:00:00Z",
 								audit: {
 									topHoldersPercentage: 55,
 									botHoldersPercentage: 22,
+									bundlerStats: {
+										holdingPct: 0.7,
+									},
 								},
 							},
 						],
@@ -57,6 +61,8 @@ describe("Jupiter", () => {
 			botHoldersPct: 22,
 			top10Pct: 55,
 			globalFeesSol: 45.2,
+			bundlePct: 0.7,
+			dexScreenerPaid: true,
 		});
 	});
 
@@ -84,6 +90,8 @@ describe("Jupiter", () => {
 			botHoldersPct: 5,
 			top10Pct: 70,
 			globalFeesSol: 10,
+			bundlePct: null,
+			dexScreenerPaid: false,
 		});
 	});
 

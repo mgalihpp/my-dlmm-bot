@@ -21,6 +21,10 @@ export interface JupiterTokenAudit {
 	botHoldersPct: number | null;
 	top10Pct: number | null;
 	globalFeesSol: number | null;
+	/** Bundled-supply share (%). */
+	bundlePct: number | null;
+	/** True when the project paid for DEX-Screener promotion. */
+	dexScreenerPaid: boolean;
 }
 
 export interface JupiterService {
@@ -37,11 +41,21 @@ export class Jupiter extends Context.Tag("Jupiter")<
 const Asset = Schema.Struct({
 	id: Schema.optional(Schema.String),
 	fees: Schema.optional(Schema.Unknown),
+	dexPaidAt: Schema.optional(Schema.NullOr(Schema.String)),
 	audit: Schema.optional(
-		Schema.Struct({
-			topHoldersPercentage: Schema.optional(Schema.Unknown),
-			botHoldersPercentage: Schema.optional(Schema.Unknown),
-		}),
+		Schema.NullOr(
+			Schema.Struct({
+				topHoldersPercentage: Schema.optional(Schema.Unknown),
+				botHoldersPercentage: Schema.optional(Schema.Unknown),
+				bundlerStats: Schema.optional(
+					Schema.NullOr(
+						Schema.Struct({
+							holdingPct: Schema.optional(Schema.Unknown),
+						}),
+					),
+				),
+			}),
+		),
 	),
 });
 
@@ -114,6 +128,8 @@ const make = Effect.gen(function* () {
 						botHoldersPct: toNum(first.audit?.botHoldersPercentage),
 						top10Pct: toNum(first.audit?.topHoldersPercentage),
 						globalFeesSol: toNum(first.fees),
+						bundlePct: toNum(first.audit?.bundlerStats?.holdingPct),
+						dexScreenerPaid: first.dexPaidAt != null,
 					};
 				}),
 				Effect.retry({ schedule: retryPolicy, while: transient }),

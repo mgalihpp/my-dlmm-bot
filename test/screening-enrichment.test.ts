@@ -8,7 +8,6 @@ import { describe, expect, it } from "vitest";
 import { AppConfigTest } from "../src/services/Config.js";
 import { JupiterLayer } from "../src/services/Jupiter.js";
 import { MeteoraApiLayer } from "../src/services/MeteoraApi.js";
-import { OkxLayer } from "../src/services/Okx.js";
 import { RugCheckLayer } from "../src/services/RugCheck.js";
 import { Screening, ScreeningLive } from "../src/services/Screening.js";
 
@@ -60,31 +59,18 @@ const poolFixture = {
 };
 
 const route = (url: string): { body: unknown; status?: number } => {
-	if (url.includes("web3.okx.com")) {
-		if (url.includes("advanced-info"))
-			return {
-				body: {
-					code: "0",
-					data: [
-						{
-							bundleHoldingPercent: "20",
-							top10HoldPercent: "50",
-							tokenTags: [],
-						},
-					],
-				},
-			};
-		if (url.includes("/risk/"))
-			return { body: { code: "0", data: { allAnalysis: [] } } };
-		return { body: { code: "0", data: [{ price: "0.8", maxPrice: "1" }] } };
-	}
 	if (url.includes("datapi.jup.ag"))
 		return {
 			body: [
 				{
 					id: "Mint111",
 					fees: 40,
-					audit: { topHoldersPercentage: 50, botHoldersPercentage: 15 },
+					dexPaidAt: null,
+					audit: {
+						topHoldersPercentage: 50,
+						botHoldersPercentage: 15,
+						bundlerStats: { holdingPct: 20 },
+					},
 				},
 			],
 		};
@@ -96,6 +82,7 @@ const route = (url: string): { body: unknown; status?: number } => {
 				lpLockedPct: 0,
 				tokenType: "token",
 				tokenProgram: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA",
+				risks: [],
 			},
 		};
 	if (url.includes("pool-discovery"))
@@ -108,7 +95,6 @@ const route = (url: string): { body: unknown; status?: number } => {
 const ScreeningLiveForTest = ScreeningLive.pipe(
 	Layer.provideMerge(MeteoraApiLayer),
 	Layer.provideMerge(RugCheckLayer),
-	Layer.provideMerge(OkxLayer),
 	Layer.provideMerge(JupiterLayer),
 );
 
@@ -129,7 +115,7 @@ const layerWith = () =>
 	);
 
 describe("Screening enrichment", () => {
-	it("attaches okx + jupiter risk fields to screened pools", async () => {
+	it("attaches jupiter + rugcheck risk fields to screened pools", async () => {
 		const result = await Effect.runPromise(
 			Effect.gen(function* () {
 				const s = yield* Screening;
@@ -143,7 +129,7 @@ describe("Screening enrichment", () => {
 		expect(pool.globalFeesSol).toBe(40);
 		expect(pool.isRugpull).toBe(false);
 		expect(pool.isWash).toBe(false);
-		expect(pool.priceVsAthPct).toBe(80);
+		expect(pool.dexScreenerPaid).toBe(false);
 		expect(pool.rugScore).toBe(1200);
 	});
 });

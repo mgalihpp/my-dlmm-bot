@@ -9,7 +9,6 @@ import {
 import { AppConfig } from "./Config.js";
 import { Jupiter } from "./Jupiter.js";
 import { MeteoraApi } from "./MeteoraApi.js";
-import { Okx } from "./Okx.js";
 import { RugCheck } from "./RugCheck.js";
 
 export interface ScreeningService {
@@ -21,7 +20,7 @@ export interface ScreeningService {
 	}) => Effect.Effect<
 		ScreenResult,
 		MeteoraApiError | DecodeError,
-		Okx | Jupiter | RugCheck
+		Jupiter | RugCheck
 	>;
 }
 
@@ -34,7 +33,6 @@ const make = Effect.gen(function* () {
 	const config = yield* AppConfig;
 	const api = yield* MeteoraApi;
 	const rugcheck = yield* RugCheck;
-	const okx = yield* Okx;
 	const jupiter = yield* Jupiter;
 
 	const service: ScreeningService = {
@@ -62,18 +60,6 @@ const make = Effect.gen(function* () {
 				yield* Effect.forEach(
 					result.pools,
 					(pool) =>
-						rugcheck.getScore(pool.baseMint).pipe(
-							Effect.map((score) => {
-								(pool as { rugScore?: number | null }).rugScore = score;
-							}),
-							Effect.catchAll(() => Effect.succeed(void 0)),
-						),
-					{ concurrency: 5, discard: true },
-				);
-
-				yield* Effect.forEach(
-					result.pools,
-					(pool) =>
 						api.poolOhlcv(pool.pool, { timeframe: "24h" }).pipe(
 							Effect.map((res) => {
 								const high = res.data.reduce(
@@ -96,42 +82,46 @@ const make = Effect.gen(function* () {
 						Effect.gen(function* () {
 							const mint = pool.baseMint;
 							if (!mint) return;
-							const [adv, risk, price, audit] = yield* Effect.all(
+							const [audit, summary] = yield* Effect.all(
 								[
-									okx.advancedInfo(mint).pipe(Effect.either),
-									okx.riskFlags(mint).pipe(Effect.either),
-									okx.priceInfo(mint).pipe(Effect.either),
 									jupiter.search(mint).pipe(Effect.either),
+									rugcheck.getSummary(mint).pipe(Effect.either),
 								],
-								{ concurrency: 4 },
+								{ concurrency: 2 },
 							);
 							const assign = <T>(e: Either.Either<T, unknown>): T | null =>
 								e._tag === "Left" ? null : e.right;
 							const poolMut = pool as {
+								rugScore?: number | null;
 								bundlePct?: number | null;
 								top10Pct?: number | null;
 								botHoldersPct?: number | null;
 								globalFeesSol?: number | null;
+								dexScreenerPaid?: boolean | null;
 								isRugpull?: boolean | null;
 								isWash?: boolean | null;
 								devSoldAll?: boolean | null;
-								dexScreenerPaid?: boolean | null;
-								priceVsAthPct?: number | null;
 							};
-							const a = assign(adv);
-							poolMut.bundlePct = a?.bundlePct ?? null;
-							poolMut.top10Pct = a?.top10Pct ?? null;
-							poolMut.devSoldAll = a?.devSoldAll ?? null;
-							poolMut.dexScreenerPaid = a?.dexScreenerPaid ?? null;
-							const r = assign(risk);
-							poolMut.isRugpull = r?.isRugpull ?? null;
-							poolMut.isWash = r?.isWash ?? null;
-							const p = assign(price);
-							poolMut.priceVsAthPct = p?.priceVsAthPct ?? null;
 							const t = assign(audit);
-							poolMut.botHoldersPct = t?.botHoldersPct ?? null;
+							poolMut.bundlePct = t?.bundlePct ?? null;
 							poolMut.top10Pct = t?.top10Pct ?? null;
+							poolMut.botHoldersPct = t?.botHoldersPct ?? null;
 							poolMut.globalFeesSol = t?.globalFeesSol ?? null;
+							poolMut.dexScreenerPaid = t?.dexScreenerPaid ?? null;
+							const s = assign(summary);
+							poolMut.rugScore = s?.score ?? null;
+							poolMut.isRugpull =
+								s?.risks.some(
+									(r) =>
+										r.name.includes("Liquidity Removal") &&
+										r.level === "danger",
+								) ?? null;
+							poolMut.isWash =
+								s?.risks.some((r) => /wash/i.test(r.name)) ?? null;
+							poolMut.devSoldAll =
+								s?.risks.some(
+									(r) => /dev.*sold/i.test(r.name) && r.level === "danger",
+								) ?? null;
 						}),
 					{ concurrency: 5, discard: true },
 				);

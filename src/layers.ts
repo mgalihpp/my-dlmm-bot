@@ -3,7 +3,6 @@ import { AppConfigLive } from "./services/Config.js";
 import { DlmmLive } from "./services/Dlmm.js";
 import { JupiterLive } from "./services/Jupiter.js";
 import { MeteoraApiLive } from "./services/MeteoraApi.js";
-import { OkxLive } from "./services/Okx.js";
 import { RugCheckLive } from "./services/RugCheck.js";
 import { ScreeningLive } from "./services/Screening.js";
 import { SessionStoreLive } from "./services/SessionStore.js";
@@ -15,7 +14,6 @@ import { ZapLive } from "./services/Zap.js";
 export const AppLayer = Layer.mergeAll(
 	MeteoraApiLive,
 	RugCheckLive,
-	OkxLive,
 	JupiterLive,
 	DlmmLive,
 	ZapLive,
@@ -28,7 +26,6 @@ export const AppLayer = Layer.mergeAll(
 	Layer.provideMerge(SolanaLive),
 	Layer.provideMerge(MeteoraApiLive),
 	Layer.provideMerge(RugCheckLive),
-	Layer.provideMerge(OkxLive),
 	Layer.provideMerge(JupiterLive),
 	Layer.provideMerge(AppConfigLive),
 );
