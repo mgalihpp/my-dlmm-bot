@@ -19,8 +19,8 @@ import {
 } from "./format.js";
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
-import { actionCounts, pnlPctValue, tradeStats } from "./stats.js";
 import { clearCooldowns } from "./state.js";
+import { actionCounts, pnlPctValue, tradeStats } from "./stats.js";
 
 export const PAGE_SIZE = 5;
 
@@ -215,6 +215,11 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				});
 			}
 		}
+	});
+
+	bot.command("briefing", async (ctx) => {
+		await rt.runBriefing();
+		await ctx.reply("📋 Briefing sent.", MD);
 	});
 
 	// ─── Interactive menu ────────────────────────────────────────────────────
