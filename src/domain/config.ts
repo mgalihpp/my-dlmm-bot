@@ -106,6 +106,7 @@ export interface AgentConfig {
 	enabled?: boolean;
 	intervalMinutes?: number;
 	maxCandidates?: number;
+	/** @deprecated No longer gates opening — the LLM decides. Kept for config-file compatibility. */
 	minCandidate?: number;
 	maxSolPerPosition?: number;
 	maxTotalSol?: number;
