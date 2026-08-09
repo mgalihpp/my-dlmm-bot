@@ -173,7 +173,7 @@ export function checkRisks(input: {
 	if (athPct != null && athPct > risks.maxPriceVsAthPct) {
 		return {
 			ok: false,
-			reason: `price ${athPct.toFixed(2)}% of ATH > ${risks.maxPriceVsAthPct.toFixed(2)}%`,
+			reason: `price ${athPct.toFixed(2)}% from ATH > ${risks.maxPriceVsAthPct.toFixed(2)}%`,
 		};
 	}
 	return { ok: true, reason: null };

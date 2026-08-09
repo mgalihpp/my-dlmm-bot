@@ -69,8 +69,10 @@ const make = Effect.gen(function* () {
 								if (high > 0) {
 									const pctFromAth = 1 - pool.price / high;
 									(pool as { fromAthPct: number }).fromAthPct = pctFromAth;
+									// priceVsAthPct = price as % of peak, NOT drop %. Guardrail
+									// blocks when price is CLOSE to peak (high pct), not after a dump.
 									(pool as { priceVsAthPct: number }).priceVsAthPct =
-										pctFromAth * 100;
+										(pool.price / high) * 100;
 								}
 							}),
 							Effect.catchAll(() => Effect.succeed(void 0)),

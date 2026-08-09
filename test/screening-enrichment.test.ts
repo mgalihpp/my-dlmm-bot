@@ -141,13 +141,13 @@ describe("Screening enrichment", () => {
 		expect(pool.rugScore).toBe(1200);
 	});
 
-	it("fills priceVsAthPct from 24h OHLCV high", async () => {
+	it("fills priceVsAthPct as price % of 24h OHLCV high (not drop %)", async () => {
 		const result = await screen([
-			{ timestamp: 0, high: 2, low: 1, open: 1, close: 1, volume: 100 },
+			{ timestamp: 0, high: 2.5, low: 1, open: 1, close: 1, volume: 100 },
 		]);
 		const pool = result.pools[0];
-		// price=1, high=2 → fromAthPct 0.5, priceVsAthPct 50
-		expect(pool.fromAthPct).toBe(0.5);
-		expect(pool.priceVsAthPct).toBe(50);
+		// price=1, high=2.5 → drop = 0.6, price as % of high = 40
+		expect(pool.fromAthPct).toBe(0.6);
+		expect(pool.priceVsAthPct).toBe(40);
 	});
 });
