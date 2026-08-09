@@ -81,7 +81,7 @@ export function createTpSl(bot: Bot, chatId: string): RuntimeTpSl {
 	);
 
 	rt.fiber = runtime.runFork(
-		check.pipe(Effect.repeat(alignedSchedule(60_000))),
+		check.pipe(Effect.repeat(alignedSchedule(30_000))),
 	);
 
 	return rt;
@@ -219,7 +219,7 @@ export function registerTpSlCommands(bot: Bot) {
 			`Take Profit: ${tpTxt}`,
 			"",
 			escapeMarkdown(
-				"Basis: PnL % (SOL). Applies to all open positions, checked every 1m.",
+				"Basis: PnL % (SOL). Applies to all open positions, checked every 30s.",
 			),
 			escapeMarkdown(
 				"Edit via /config → Stop Loss % / Take Profit %, or vexis.config.json.",

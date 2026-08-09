@@ -208,7 +208,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					Math.max(agentCfg.txCooldownMs, 60_000),
 					() => rt.runCycle(),
 				);
-				eventFiber = schedule("event", 60_000, () => rt.runFast());
+				eventFiber = schedule("event", 30_000, () => rt.runFast());
 				oorFiber = schedule("oor", agentCfg.intervalMinutes * 60_000, () =>
 					rt.runOor(),
 				);
