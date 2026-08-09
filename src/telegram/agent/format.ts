@@ -1,5 +1,13 @@
 import type { ResolvedAgentConfig } from "../../services/Config.js";
-import { escapeMarkdown, tgBold, tgCode, tgPct, tgTs } from "../format.js";
+import {
+	escapeMarkdown,
+	tgBold,
+	tgCode,
+	tgPct,
+	tgPoolAddr,
+	tgTs,
+	tgUsd,
+} from "../format.js";
 import type { AgentJournalEntry, JournalCandidate } from "./journal.js";
 import type { AgentState } from "./state.js";
 import type { ActionCounts, TradeStats } from "./stats.js";
@@ -225,4 +233,109 @@ export function formatJournal(
 		);
 	}
 	return lines.join("\n");
+}
+
+export function statusDot(state: AgentState): "🟢" | "🟡" | "⚫" {
+	if (!state.enabled) return "⚫";
+	return state.running ? "🟢" : "🟡";
+}
+
+/** Ten-cell budget bar: `██████░░░░ 60%` (percent escaped). */
+export function formatBudgetBar(deployed: number, max: number): string {
+	const pct =
+		max > 0 ? Math.min(100, Math.max(0, (deployed / max) * 100)) : 100;
+	const filled = Math.round((pct / 100) * 10);
+	return `${"█".repeat(filled)}${"░".repeat(10 - filled)} ${escapeMarkdown(`${Math.round(pct)}%`)}`;
+}
+
+export function formatDashboardHeader(
+	state: AgentState,
+	cfg: ResolvedAgentConfig,
+	deployed: number,
+	stats: TradeStats | null,
+): string {
+	const dot = statusDot(state);
+	const neverRan = !state.enabled && state.cycle === 0 && !state.lastCycleAt;
+	const headline = neverRan
+		? "idle"
+		: state.running
+			? `cycle ${state.cycle} \\| ${tgTs(state.lastCycleAt)}`
+			: `last cycle ${state.cycle} @ ${tgTs(state.lastCycleAt)}`;
+	const winLine =
+		stats && stats.closes > 0
+			? `win ${escapeMarkdown(`${Math.round(stats.winRate ?? 0)}%`)} \\| avg ${escapeMarkdown(`${(stats.avgPnlPct ?? 0).toFixed(2)}%`)}`
+			: "no closed trades yet";
+	return [
+		tgBold("🤖 VEXIS DLMM Agent"),
+		`${dot} ${escapeMarkdown(headline)}`,
+		`Budget: ${formatBudgetBar(deployed, cfg.maxTotalSol)}`,
+		`Deployed ${tgUsd(deployed)} \\| max ${tgUsd(cfg.maxTotalSol)}`,
+		winLine,
+	].join("\n");
+}
+
+/** 10-cell range bar with a ▸ marker at the price's position. */
+export function formatRangeBar(
+	price: number,
+	min: number,
+	max: number,
+): string {
+	if (min >= max) return "range unavailable";
+	const width = 10;
+	const clamp = Math.min(1, Math.max(0, (price - min) / (max - min)));
+	const tick = Math.round(clamp * (width - 1));
+	const cells = Array.from({ length: width }, (_, i) =>
+		i === tick ? "▸" : "▬",
+	);
+	const label = price < min ? "below" : price > max ? "above" : "in-range";
+	return `${cells.join("")} ${escapeMarkdown(label)}`;
+}
+
+export interface PositionCard {
+	tokenX: string;
+	tokenY: string;
+	poolAddress: string;
+	positionAddress: string;
+	amountSol: number | null;
+	pnlPct: number | null;
+	isOutOfRange: boolean | null;
+	price: number | null;
+	minPrice: number | null;
+	maxPrice: number | null;
+	feeSol: number | null;
+}
+
+export function formatPositionCard(o: PositionCard): string {
+	const range =
+		o.price != null && o.minPrice != null && o.maxPrice != null
+			? formatRangeBar(o.price, o.minPrice, o.maxPrice)
+			: escapeMarkdown("range n/a");
+	const pnl = o.pnlPct == null ? tgBold("PnL n/a") : `PnL ${tgPct(o.pnlPct)}`;
+	const lines = [
+		tgBold(`${escapeMarkdown(o.tokenX)}/${escapeMarkdown(o.tokenY)}`) +
+			(o.isOutOfRange ? escapeMarkdown(" ⚠️ OOR") : ""),
+		tgPoolAddr(o.poolAddress),
+		`Position: ${escapeMarkdown(o.positionAddress)}`,
+		"",
+		pnl,
+	];
+	if (o.amountSol != null) {
+		lines.push(`Amount: ${escapeMarkdown(`${o.amountSol} SOL`)}`);
+	}
+	lines.push(`Range: ${range}`);
+	if (o.feeSol != null) {
+		lines.push(`Unclaimed fees: ${tgUsd(o.feeSol)}`);
+	}
+	return lines.join("\n");
+}
+
+export function formatConfigQuick(cfg: ResolvedAgentConfig): string {
+	return [
+		tgBold("⚙️ DLMM Agent Config"),
+		`Budget max ${escapeMarkdown(`${cfg.maxTotalSol} ◎`)} \\| slot ${escapeMarkdown(`${cfg.maxSolPerPosition} ◎`)}`,
+		`TP ${escapeMarkdown(`${cfg.tpPct}%`)} \\| SL ${escapeMarkdown(`${cfg.slPct}%`)}`,
+		`Max open ${escapeMarkdown(String(cfg.maxOpenPositions))} \\| candidates ${escapeMarkdown(String(cfg.maxCandidates))}`,
+		`Notif level ${escapeMarkdown(cfg.notifLevel)}`,
+		`Guardrails ${escapeMarkdown(cfg.risks.enabled === false ? "off" : "on")}`,
+	].join("\n");
 }

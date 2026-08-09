@@ -2,13 +2,19 @@ import { describe, expect, it } from "vitest";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
 	formatAction,
+	formatBudgetBar,
+	formatConfigQuick,
 	formatCycleSummary,
+	formatDashboardHeader,
 	formatError,
 	formatJournalPage,
 	formatLive,
 	formatPortfolio,
+	formatPositionCard,
+	formatRangeBar,
 	formatStatus,
 	journalPageCount,
+	statusDot,
 } from "../src/telegram/agent/format.js";
 import type { AgentJournalEntry } from "../src/telegram/agent/journal.js";
 import type { PerfRecord } from "../src/telegram/agent/signalWeights.js";
@@ -274,5 +280,117 @@ describe("journal page", () => {
 		);
 		expect(out).toContain("Pool 1");
 		expect(out).not.toContain("Pool 6");
+	});
+});
+
+const baseState = (over: Partial<AgentState> = {}): AgentState => ({
+	enabled: true,
+	running: true,
+	lastCycleAt: "2026-08-08T00:00:00Z",
+	llmStatus: "ok",
+	cycle: 3,
+	plans: [],
+	executions: [],
+	cooldowns: [],
+	...over,
+});
+
+describe("statusDot", () => {
+	it("maps states to health dots", () => {
+		expect(statusDot(baseState())).toBe("🟢");
+		expect(statusDot(baseState({ running: false }))).toBe("🟡");
+		expect(statusDot(baseState({ enabled: false }))).toBe("⚫");
+	});
+});
+
+describe("formatBudgetBar", () => {
+	it("draws ten cells plus an escaped percent", () => {
+		expect(formatBudgetBar(1, 4)).toContain("25%");
+	});
+	it("clamps above 100%", () => {
+		expect(formatBudgetBar(5, 4)).toContain("100%");
+	});
+});
+
+describe("formatDashboardHeader", () => {
+	it("renders dot, budget and deployed", () => {
+		const out = formatDashboardHeader(baseState(), cfg, 1.5, null);
+		expect(out).toContain("VEXIS");
+		expect(out).toContain("🟢");
+		expect(out).toContain("1\\.5");
+	});
+	it("renders idle for a fresh disabled state", () => {
+		const out = formatDashboardHeader(
+			baseState({
+				enabled: false,
+				running: false,
+				lastCycleAt: null,
+				cycle: 0,
+			}),
+			cfg,
+			0,
+			null,
+		);
+		expect(out).toContain("⚫");
+		expect(out).toContain("idle");
+	});
+});
+
+describe("formatRangeBar", () => {
+	it("flags in-range / below / above", () => {
+		expect(formatRangeBar(1, 0.5, 2)).toContain("in\\-range");
+		expect(formatRangeBar(0.2, 0.5, 2)).toContain("below");
+		expect(formatRangeBar(5, 0.5, 2)).toContain("above");
+	});
+	it("guards inverted ranges", () => {
+		expect(formatRangeBar(1, 5, 2)).toContain("unavailable");
+	});
+});
+
+describe("formatPositionCard", () => {
+	it("renders a full position card", () => {
+		const out = formatPositionCard({
+			tokenX: "SOL",
+			tokenY: "JUP",
+			poolAddress: "ABC",
+			positionAddress: "POS1",
+			amountSol: 1,
+			pnlPct: 12.4,
+			isOutOfRange: false,
+			price: 1.5,
+			minPrice: 0.5,
+			maxPrice: 2,
+			feeSol: 0.02,
+		});
+		expect(out).toContain("SOL/JUP");
+		expect(out).toContain("12\\.40%");
+		expect(out).toContain("0\\.02");
+		expect(out).toContain("in\\-range");
+		expect(out).toContain("meteora");
+	});
+	it("handles missing data", () => {
+		const out = formatPositionCard({
+			tokenX: "SOL",
+			tokenY: "USDC",
+			poolAddress: "ABC",
+			positionAddress: "POS1",
+			amountSol: null,
+			pnlPct: null,
+			isOutOfRange: null,
+			price: null,
+			minPrice: null,
+			maxPrice: null,
+			feeSol: null,
+		});
+		expect(out).toContain("n/a");
+	});
+});
+
+describe("formatConfigQuick", () => {
+	it("renders budget, TP/SL and notif level", () => {
+		const out = formatConfigQuick(cfg);
+		expect(out).toContain("3 ◎");
+		expect(out).toContain("25%");
+		expect(out).toContain("normal");
 	});
 });
