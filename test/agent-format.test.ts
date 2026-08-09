@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
+	fmtDuration,
 	formatAction,
 	formatBudgetBar,
 	formatConfigQuick,
@@ -420,5 +421,19 @@ describe("formatConfigQuick", () => {
 		expect(out).toContain("3 ◎");
 		expect(out).toContain("25%");
 		expect(out).toContain("normal");
+	});
+});
+
+describe("fmtDuration", () => {
+	it("shows seconds under a minute", () => {
+		expect(fmtDuration(45_000)).toBe("45s");
+		expect(fmtDuration(500)).toBe("1s");
+		expect(fmtDuration(59_999)).toBe("60s");
+	});
+	it("keeps minute/hour/day formats above a minute", () => {
+		expect(fmtDuration(60_000)).toBe("1m");
+		expect(fmtDuration(125_000)).toBe("2m");
+		expect(fmtDuration(7_500_000)).toBe("2h 5m");
+		expect(fmtDuration(108_000_000)).toBe("1d 6h");
 	});
 });

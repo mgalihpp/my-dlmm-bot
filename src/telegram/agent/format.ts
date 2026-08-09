@@ -275,9 +275,10 @@ export function statusDot(state: AgentState): "🟢" | "🟡" | "⚫" {
 	return state.running ? "🟢" : "🟡";
 }
 
-/** Format a duration in ms as `3m`, `2h 5m`, `1d`. */
+/** Format a duration in ms as `45s`, `3m`, `2h 5m`, `1d`. */
 export function fmtDuration(ms: number): string {
 	if (ms < 0) ms = 0;
+	if (ms < 60_000) return `${Math.ceil(ms / 1000)}s`;
 	const min = Math.floor(ms / 60_000);
 	const days = Math.floor(min / 1440);
 	const hours = Math.floor((min % 1440) / 60);
