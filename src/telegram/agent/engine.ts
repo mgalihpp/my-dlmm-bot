@@ -1,5 +1,6 @@
 import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
+import type { PositionCostQuote } from "../../domain/onchain.js";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
 import {
 	resolveAgentConfigFrom,
@@ -31,6 +32,7 @@ import {
 	checkDuplicate,
 	checkOpenGuardrail,
 	checkPoolCooldown,
+	checkRent,
 	checkRisks,
 	deriveOpenAmount,
 	filterCooldown,
@@ -909,14 +911,38 @@ async function evaluatePlans(
 		);
 		liveLines.push(`🚀 OPEN ${pool.name} ${amountSol} SOL (sending tx...)`);
 		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		const preset = resolveCreatePresetFrom(getConfigSync());
+		const params = buildCreateParams({
+			poolAddress: pool.pool,
+			strategy: preset.strategy,
+			range: preset.range,
+			amountSol,
+		});
+		let quote: PositionCostQuote;
 		try {
-			const preset = resolveCreatePresetFrom(getConfigSync());
-			const params = buildCreateParams({
-				poolAddress: pool.pool,
-				strategy: preset.strategy,
-				range: preset.range,
-				amountSol,
+			quote = await dlmm.quotePositionCost(params);
+		} catch (e) {
+			logError("rent quote failed:", pool.pool, e);
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: "rent quote failed",
 			});
+			await liveDecision(`⛔ ${pool.name} blocked: rent quote failed`);
+			continue;
+		}
+		const rent = checkRent(quote);
+		if (!rent.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: rent.reason,
+			});
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${rent.reason})`);
+			await liveDecision(`⛔ ${pool.name} blocked: ${rent.reason ?? ""}`);
+			continue;
+		}
+		try {
 			const res = await dlmm.createPosition(params);
 			const sig = res.signatures.join(",");
 			const now = new Date().toISOString();

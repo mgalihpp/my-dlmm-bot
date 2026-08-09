@@ -1,3 +1,4 @@
+import type { PositionCostQuote } from "../../domain/onchain.js";
 import type { OpenPool } from "../../domain/portfolio.js";
 import type { ScreenedPool } from "../../domain/screened.js";
 import type {
@@ -38,6 +39,17 @@ export function checkOpenGuardrail(input: {
 		return {
 			ok: false,
 			reason: `already ${input.openPositionCount} open positions`,
+		};
+	}
+	return { ok: true, reason: null };
+}
+
+/** Blocks opening when the position quote includes non-refundable rent (new bin arrays / bitmap extension). */
+export function checkRent(quote: PositionCostQuote): GuardOk {
+	if (quote.nonRefundableCost > 0) {
+		return {
+			ok: false,
+			reason: `non-refundable rent ${quote.nonRefundableCost.toFixed(4)} SOL`,
 		};
 	}
 	return { ok: true, reason: null };

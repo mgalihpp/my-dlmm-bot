@@ -7,6 +7,7 @@ import {
 	checkDuplicate,
 	checkOpenGuardrail,
 	checkPoolCooldown,
+	checkRent,
 	checkRisks,
 	deriveOpenAmount,
 	filterCooldown,
@@ -88,6 +89,30 @@ describe("checkOpenGuardrail", () => {
 			maxOpenPositions: 4,
 		});
 		expect(r.ok).toBe(true);
+	});
+});
+
+describe("checkRent", () => {
+	const quote = (nonRefundableCost: number) =>
+		({
+			positionCount: 1,
+			positionCost: 0.01,
+			positionReallocCost: 0,
+			bitmapExtensionCost: 0,
+			binArraysCount: 0,
+			binArrayCost: nonRefundableCost,
+			transactionCount: 1,
+			totalCost: nonRefundableCost + 0.01,
+			nonRefundableCost,
+			refundableCost: 0.01,
+		}) as const;
+	it("blocks when there is non-refundable rent", () => {
+		const r = checkRent(quote(0.02));
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("non-refundable rent");
+	});
+	it("allows when there is no non-refundable rent", () => {
+		expect(checkRent(quote(0)).ok).toBe(true);
 	});
 });
 
