@@ -1,12 +1,16 @@
-import type { Api } from "grammy";
+import type { Api, Context } from "grammy";
 import { type Bot, InlineKeyboard } from "grammy";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
+import { registerAction, resolveAction } from "../action-store.js";
+import { escapeMarkdown } from "../format.js";
 import { api, getConfig, resolveWallet } from "../fx.js";
+import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
 import {
 	formatJournalPage,
 	formatPortfolio,
+	formatPositionCard,
 	formatStatus,
 	type JournalFilter,
 	journalPageCount,
@@ -16,10 +20,10 @@ import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
 import { actionCounts, tradeStats } from "./stats.js";
 
-const PAGE_SIZE = 5;
+export const PAGE_SIZE = 5;
 
 // Telegram rejects editMessageText when content is unchanged. Ignore it.
-async function editOrIgnore(
+export async function editOrIgnore(
 	api: Api,
 	chatId: string | number,
 	messageId: number,
@@ -35,6 +39,41 @@ async function editOrIgnore(
 		const desc = e instanceof Error ? e.message : String(e);
 		if (!desc.includes("not modified")) throw e;
 	}
+}
+
+export async function replyOrIgnore(
+	ctx: Context,
+	text: string,
+	keyboard?: InlineKeyboard,
+): Promise<void> {
+	try {
+		await ctx.reply(text, {
+			...MD,
+			...(keyboard ? { reply_markup: keyboard } : {}),
+		});
+	} catch {
+		// no-op — best effort
+	}
+}
+
+export function planActionLabel(p: {
+	poolName: string;
+	amountSol: number;
+	positionAddress: string | null;
+}): string {
+	return p.positionAddress
+		? `${escapeMarkdown(p.poolName)} ${escapeMarkdown(`${p.amountSol} SOL`)}`
+		: `${escapeMarkdown(p.poolName)} · ${escapeMarkdown(`${p.amountSol} SOL`)} (pending)`;
+}
+
+function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
+	const kb = agentKeyboard();
+	for (const p of rt.state.plans) {
+		if (p.positionAddress == null) continue;
+		const id = registerAction(p.pool, p.positionAddress);
+		kb.row().text(planActionLabel(p).slice(0, 32), `agent:pos:${id}`);
+	}
+	return kb;
 }
 
 function tradeStatsOf() {
@@ -74,7 +113,7 @@ async function portfolioRows(
 	return { rows, deployedSol };
 }
 
-function journalKeyboard(
+export function journalKeyboard(
 	page: number,
 	totalPages: number,
 	filter: JournalFilter = "all",
@@ -108,7 +147,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			case "status": {
 				await ctx.reply(formatStatus(rt.state, cfg, stats), {
 					...MD,
-					reply_markup: agentKeyboard(),
+					reply_markup: statusKeyboard(rt),
 				});
 				break;
 			}
@@ -159,6 +198,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatStatus(rt.state, cfg, tradeStatsOf()),
+			statusKeyboard(rt),
 		);
 	});
 
@@ -173,6 +213,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatStatus(rt.state, cfg, tradeStatsOf()),
+			statusKeyboard(rt),
 		);
 	});
 
@@ -259,9 +300,137 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			journalKeyboard(0, totalPages),
 		);
 	});
+
+	// ─── Position drill-down ─────────────────────────────────────────────────
+	bot.callbackQuery(/^agent:pos:(.+)$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const action = resolveAction(ctx.match[1]);
+		if (!action) {
+			await ctx.reply("⌛ Expired — refresh /agent.", MD);
+			return;
+		}
+		await ctx.editMessageText("⏳ Loading position…", MD);
+		try {
+			const wallet = await resolveWallet();
+			const detail = await resolvePoolDetail(action.poolAddress);
+			const pdata = await api.positionPnl(action.poolAddress, wallet, "open");
+			const pos = pdata.positions.find(
+				(p) => p.positionAddress === action.positionPubkey,
+			);
+			if (!pos) throw new Error("position not found");
+			const text = formatPositionCard({
+				tokenX: detail?.tokenX ?? "?",
+				tokenY: detail?.tokenY ?? "?",
+				poolAddress: action.poolAddress,
+				positionAddress: action.positionPubkey,
+				amountSol: null,
+				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
+				isOutOfRange: pos.isOutOfRange ?? null,
+				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
+				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
+				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
+				feeSol: null,
+			});
+			const kb = new InlineKeyboard()
+				.text("🔄", `agent:pos:${ctx.match[1]}`)
+				.text("⬅️ Status", "menu:agent")
+				.row()
+				.text("⬅️ Dashboard", "menu:main");
+			await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
+				...MD,
+				reply_markup: new InlineKeyboard().text("⬅️ Status", "menu:agent"),
+			});
+		}
+	});
+
+	// ─── Notification quick actions ──────────────────────────────────────────
+	bot.callbackQuery(/^notif:pnl:(.+)$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const action = resolveAction(ctx.match[1]);
+		if (!action) {
+			await ctx.reply("⌛ Expired.", MD);
+			return;
+		}
+		await ctx.editMessageText("⏳ Loading…", MD);
+		try {
+			const wallet = await resolveWallet();
+			const detail = await resolvePoolDetail(action.poolAddress);
+			const pdata = await api.positionPnl(action.poolAddress, wallet, "open");
+			const pos = pdata.positions.find(
+				(p) => p.positionAddress === action.positionPubkey,
+			);
+			if (!pos) throw new Error("position not found");
+			const text = formatPositionCard({
+				tokenX: detail?.tokenX ?? "?",
+				tokenY: detail?.tokenY ?? "?",
+				poolAddress: action.poolAddress,
+				positionAddress: action.positionPubkey,
+				amountSol: null,
+				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
+				isOutOfRange: pos.isOutOfRange ?? null,
+				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
+				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
+				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
+				feeSol: null,
+			});
+			const kb = new InlineKeyboard()
+				.text("🔄", `notif:pnl:${ctx.match[1]}`)
+				.text("⬅️ Dashboard", "menu:main");
+			await ctx.editMessageText(text, { ...MD, reply_markup: kb });
+		} catch (e) {
+			const msg = e instanceof Error ? e.message : String(e);
+			await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
+				...MD,
+				reply_markup: new InlineKeyboard().text("⬅️ Dashboard", "menu:main"),
+			});
+		}
+	});
+
+	bot.callbackQuery("notif:journal", async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const chatId = ctx.chat?.id;
+		const messageId = ctx.msgId;
+		if (chatId == null || messageId == null) return;
+		const entries = readJournalAll();
+		const totalPages = journalPageCount(entries.length, PAGE_SIZE);
+		await editOrIgnore(
+			ctx.api,
+			chatId,
+			messageId,
+			formatJournalPage(
+				entries,
+				{ page: 0, pageSize: PAGE_SIZE, filter: "all" },
+				actionCounts(entries),
+			),
+			journalKeyboard(0, totalPages),
+		);
+	});
+
+	bot.callbackQuery(/^notif:retry:(.+)$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const pool = ctx.match[1];
+		await rt.runFast();
+		await ctx.reply(
+			`⚠️ Retry triggered for ${escapeMarkdown(pool)} — TP/SL check re-run.`,
+			MD,
+		);
+	});
+
+	bot.callbackQuery("notif:clear", async (ctx) => {
+		await ctx.answerCallbackQuery();
+		rt.state.running = false;
+		await ctx.editMessageText("🧼 Agent state cleared.", MD);
+	});
+
+	bot.callbackQuery("notif:ack", async (ctx) => {
+		await ctx.answerCallbackQuery();
+	});
 }
 
-function agentKeyboard(): InlineKeyboard {
+export function agentKeyboard(): InlineKeyboard {
 	return new InlineKeyboard()
 		.text("▶️ Start", "agent:start")
 		.text("⏹ Stop", "agent:stop")
@@ -269,4 +438,41 @@ function agentKeyboard(): InlineKeyboard {
 		.row()
 		.text("📊 Portfolio", "agent:portfolio")
 		.text("📒 Journal", "agent:journal");
+}
+
+export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
+	bot.callbackQuery("menu:agent", async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const chatId = ctx.chat?.id;
+		const messageId = ctx.msgId;
+		if (chatId == null || messageId == null) return;
+		const cfg = resolveAgentConfigFrom(await getConfig());
+		await editOrIgnore(
+			ctx.api,
+			chatId,
+			messageId,
+			formatStatus(rt.state, cfg, tradeStatsOf()),
+		);
+	});
+
+	bot.callbackQuery("menu:journal", async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const chatId = ctx.chat?.id;
+		const messageId = ctx.msgId;
+		if (chatId == null || messageId == null) return;
+		const entries = readJournalAll();
+		const totalPages = journalPageCount(entries.length, PAGE_SIZE);
+		const text = formatJournalPage(
+			entries,
+			{ page: 0, pageSize: PAGE_SIZE, filter: "all" },
+			actionCounts(entries),
+		);
+		await editOrIgnore(
+			ctx.api,
+			chatId,
+			messageId,
+			text,
+			journalKeyboard(0, totalPages),
+		);
+	});
 }
