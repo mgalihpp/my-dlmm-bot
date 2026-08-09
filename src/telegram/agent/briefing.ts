@@ -1,5 +1,21 @@
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
+import type { Bot } from "grammy";
+import type { ResolvedAgentConfig } from "../../services/Config.js";
 import { escapeMarkdown, tgBold, tgPct, tgSolAmt } from "../format.js";
-import type { ActionCounts, TradeStats } from "./stats.js";
+import { api, resolveWallet, screenPools } from "../fx.js";
+import { MD } from "../utils.js";
+import { heuristicScore, rankPools } from "./heuristic.js";
+import { readJournalAll } from "./journal.js";
+import { loadSignalWeights } from "./signalWeights.js";
+import { type AgentState, loadState } from "./state.js";
+import {
+	type ActionCounts,
+	actionCounts,
+	pnlPctValue,
+	type TradeStats,
+	tradeStats,
+} from "./stats.js";
 
 export interface BriefingPoolLine {
 	poolName: string;
@@ -117,4 +133,115 @@ export function formatBriefingFallback(
 		}
 	}
 	return lines.join("\n");
+}
+
+const DAY_MS = 24 * 3_600_000;
+
+/** Wallet PnL fetch yang gagal di-skip; posisi pending (no positionAddress) tidak muncul di daftar tapi tetap dihitung deployed. */
+export async function collectBriefingData(
+	state: AgentState,
+	wallet: string,
+	nowMs: number = Date.now(),
+): Promise<BriefingData> {
+	const portfolio: BriefingPoolLine[] = [];
+	let deployedSol = 0;
+	for (const plan of state.plans) {
+		deployedSol += plan.amountSol ?? 0;
+		if (!plan.positionAddress) continue;
+		try {
+			const pdata = await api.positionPnl(plan.pool, wallet, "open");
+			const pos = pdata.positions.find(
+				(pp) => pp.positionAddress === plan.positionAddress,
+			);
+			if (!pos || pos.isClosed) continue;
+			portfolio.push({
+				poolName: plan.poolName,
+				amountSol: plan.amountSol,
+				pnlPct: pnlPctValue(pos),
+			});
+		} catch {
+			// positionPnl failed for this pool → skip
+		}
+	}
+	const cutoff = nowMs - DAY_MS;
+	const activityEntries = readJournalAll().filter(
+		(e) => Date.parse(e.ts) >= cutoff,
+	);
+	const sw = loadSignalWeights();
+	const market: BriefingMarketLine[] = [];
+	try {
+		const screen = await screenPools();
+		const top = rankPools(screen.pools, {
+			minCandidate: 0,
+			maxCandidates: 5,
+			weights: sw.weights,
+		});
+		for (const p of top) {
+			market.push({
+				name: p.name,
+				heuristic: heuristicScore(p, sw.weights),
+				feeActiveTvlRatio: p.feeActiveTvlRatio,
+				volume: p.volume,
+				priceVsAthPct: p.priceVsAthPct ?? null,
+			});
+		}
+	} catch {
+		// screening failed → market section empty
+	}
+	return {
+		portfolio,
+		deployedSol,
+		stats: tradeStats(sw.perf),
+		activity: actionCounts(activityEntries),
+		market,
+	};
+}
+
+export async function requestBriefing(
+	cfg: ResolvedAgentConfig,
+	data: BriefingData,
+): Promise<{ text: string | null; failed: boolean }> {
+	if (!cfg.llm.apiKey) return { text: null, failed: true };
+	const provider = createOpenAICompatible({
+		name: "vexis-llm",
+		baseURL: cfg.llm.baseUrl,
+		apiKey: cfg.llm.apiKey,
+	});
+	try {
+		const { text } = await generateText({
+			model: provider(cfg.llm.model),
+			messages: [{ role: "user", content: buildBriefingPrompt(data) }],
+			temperature: 0,
+			maxRetries: 1,
+			timeout: cfg.llm.timeoutMs,
+		});
+		if (!text) return { text: null, failed: true };
+		return { text, failed: false };
+	} catch (e) {
+		console.error(
+			"[agent] briefing LLM request failed:",
+			e instanceof Error ? e.message : String(e),
+		);
+		return { text: null, failed: true };
+	}
+}
+
+/** Core briefing: collect → LLM → send, fallback data mentah saat LLM gagal. Read-only. */
+export async function runBriefing(
+	bot: Bot,
+	chatId: string,
+	cfg: ResolvedAgentConfig,
+): Promise<void> {
+	try {
+		const wallet = await resolveWallet();
+		const data = await collectBriefingData(loadState(), wallet);
+		const { text, failed } = await requestBriefing(cfg, data);
+		const msg = failed ? formatBriefingFallback(data) : formatBriefing(text!);
+		await bot.api.sendMessage(chatId, msg, MD);
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		await bot.api
+			.sendMessage(chatId, `✖ Briefing failed: ${msg}`, MD)
+			.catch(() => {});
+	}
 }
