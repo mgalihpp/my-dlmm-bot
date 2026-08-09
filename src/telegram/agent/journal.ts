@@ -7,9 +7,7 @@ export interface JournalCandidate {
 	pool: string;
 	poolName: string;
 	heuristicScore: number;
-	favorability: number | null;
 	rationale: string | null;
-	score: number;
 	action: JournalAction;
 	guardrail: "pass" | "blocked";
 	blockedReason: string | null;
