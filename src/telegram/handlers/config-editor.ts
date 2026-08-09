@@ -263,8 +263,9 @@ const EDITABLE_FIELDS = [
 	},
 	{
 		key: "agent.notifLevel",
-		label: "DLMM Agent Notif Level (verbose/normal/errors-only)",
-		type: "string" as const,
+		label: "DLMM Agent Notif Level",
+		type: "enum" as const,
+		values: ["verbose", "normal", "errors-only"],
 	},
 	{
 		key: "agent.llm.baseUrl",
@@ -428,6 +429,8 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.row()
 			.text("✏️ TP %", "cfg:set:agent.tpPct")
 			.text("✏️ SL %", "cfg:set:agent.slPct")
+			.row()
+			.text("✏️ Notif Level", "cfg:set:agent.notifLevel")
 			.row()
 			.text("✏️ LLM URL", "cfg:set:agent.llm.baseUrl")
 			.text("✏️ LLM Model", "cfg:set:agent.llm.model")
