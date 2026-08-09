@@ -18,7 +18,7 @@ import {
 } from "../fx.js";
 import { runtime } from "../runtime.js";
 import { MD } from "../utils.js";
-import { decideCandidates, tpslAction } from "./decision.js";
+import { tpslAction, validateOpenDecisions } from "./decision.js";
 import {
 	formatAction,
 	formatCycleSummary,
@@ -48,8 +48,8 @@ import {
 import {
 	type LlmCandidate,
 	type OorPosition,
+	requestOpenDecisions,
 	requestPositionDecisions,
-	requestSignals,
 } from "./llm.js";
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
 import { allowed, notify, notifyKeyboard } from "./notify.js";
@@ -658,7 +658,7 @@ async function evaluatePlans(
 	const weights = sw.weights;
 
 	const ranked = rankPools(candidatePools, {
-		// LLM evaluates regardless of the heuristic floor; minCandidate gates opening only
+		// heuristic selects WHICH pools the LLM sees; it does not gate the decision
 		minCandidate: 0,
 		maxCandidates: cfg.maxCandidates,
 		weights,
@@ -681,29 +681,54 @@ async function evaluatePlans(
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
-	const { signals, degraded } = await requestSignals({
+	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
+	const { decisions: rawDecisions, failed } = await requestOpenDecisions({
 		cfg,
 		candidates: llmCandidates,
 		weightsSummary: weightsSummary(weights),
+		portfolioContext,
 	});
-	logInfo(
-		`LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`,
-	);
-	for (const s of signals) {
-		logInfo(`llm ${s.pool}: favorability=${s.favorability} — ${s.rationale}`);
+	journal.llmStatus =
+		llmCandidates.length === 0 ? "skipped" : failed ? "failed" : "ok";
+	// `rawDecisions` is `LlmOpenDecision[] | null`; null only pairs with failed.
+	// Narrowing on `failed || rawDecisions === null` lets TS treat it as non-null below.
+	if (failed || rawDecisions === null) {
+		logError("LLM: request failed — cycle skipped");
+		liveLines[liveLines.length - 1] = "❌ LLM failed — cycle skipped";
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		rt.state.llmStatus = "failed";
+		appendJournal(journal);
+		saveState(rt.state);
+		await notify(
+			bot,
+			chatId,
+			cfg.notifLevel,
+			"error",
+			formatError(
+				"LLM decision",
+				new Error("LLM request failed — cycle skipped"),
+			),
+		);
+		return;
 	}
-	journal.llmStatus = degraded ? (cfg.llm.apiKey ? "failed" : "skipped") : "ok";
-
+	logInfo(
+		`LLM: ${llmCandidates.length} candidates → ${rawDecisions.length} decisions`,
+	);
+	for (const d of rawDecisions) {
+		logInfo(`llm ${d.pool}: ${d.action} — ${d.rationale}`);
+	}
 	liveLines[liveLines.length - 1] =
-		`🧠 LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`;
+		`🧠 LLM: ${llmCandidates.length} candidates → ${rawDecisions.length} decisions`;
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 
-	const decisions = decideCandidates({
-		pools: ranked,
-		signals,
-		minScoreToOpen: cfg.minCandidate,
-		weights,
-	});
+	const { decisions: validated, dropped } = validateOpenDecisions(
+		ranked,
+		rawDecisions,
+	);
+	if (dropped > 0) {
+		logInfo(`LLM: ${dropped} decision(s) ignored (unknown pool or duplicate)`);
+	}
+	const poolByAddr = new Map(ranked.map((p) => [p.pool, p] as const));
 
 	let budget = deployedSol;
 	let lastExecAt = lastOpenExecutionAt(rt.state.executions);
@@ -713,11 +738,14 @@ async function evaluatePlans(
 		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	};
 
-	for (const d of decisions) {
+	for (const d of validated) {
+		const pool = poolByAddr.get(d.pool);
+		if (!pool) continue; // defensive — validation already filtered
+		const h = heuristicScore(pool, weights);
 		const base: JournalCandidate = {
-			pool: d.pool.pool,
-			poolName: d.pool.name,
-			heuristicScore: d.heuristicScore,
+			pool: pool.pool,
+			poolName: pool.name,
+			heuristicScore: h,
 			rationale: d.rationale,
 			action: d.action,
 			guardrail: "pass",
@@ -727,13 +755,13 @@ async function evaluatePlans(
 		};
 		if (d.action === "hold") {
 			journal.candidates.push(base);
-			logInfo(`decide: ${d.pool.name} score ${d.score} → hold`);
-			await liveDecision(`➖ ${d.pool.name} hold (score ${d.score})`);
+			logInfo(`decide: ${pool.name} heuristic ${h} → hold`);
+			await liveDecision(`➖ ${pool.name} hold (heuristic ${h})`);
 			continue;
 		}
 		const dup = checkDuplicate({
-			pool: d.pool.pool,
-			baseMint: d.pool.baseMint,
+			pool: pool.pool,
+			baseMint: pool.baseMint,
 			plans: rt.state.plans,
 		});
 		if (!dup.ok) {
@@ -745,23 +773,21 @@ async function evaluatePlans(
 			rt.state.cooldowns = recordCooldown(
 				rt.state.cooldowns,
 				{
-					pool: d.pool.pool,
-					poolName: d.pool.name,
-					baseMint: d.pool.baseMint,
+					pool: pool.pool,
+					poolName: pool.name,
+					baseMint: pool.baseMint,
 					reason: dup.reason ?? "blocked",
 				},
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			logInfo(
-				`decide: ${d.pool.name} score ${d.score} → blocked (${dup.reason})`,
-			);
-			await liveDecision(`⛔ ${d.pool.name} blocked: ${dup.reason ?? ""}`);
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${dup.reason})`);
+			await liveDecision(`⛔ ${pool.name} blocked: ${dup.reason ?? ""}`);
 			continue;
 		}
 		const cd = checkPoolCooldown(
-			d.pool.pool,
-			d.pool.baseMint,
+			pool.pool,
+			pool.baseMint,
 			rt.state.cooldowns,
 			Date.now(),
 		);
@@ -771,13 +797,11 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: cd.reason,
 			});
-			logInfo(
-				`decide: ${d.pool.name} score ${d.score} → blocked (${cd.reason})`,
-			);
-			await liveDecision(`⏳ ${d.pool.name} in cooldown: ${cd.reason ?? ""}`);
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${cd.reason})`);
+			await liveDecision(`⏳ ${pool.name} in cooldown: ${cd.reason ?? ""}`);
 			continue;
 		}
-		const risk = checkRisks({ pool: d.pool, risks: cfg.risks });
+		const risk = checkRisks({ pool, risks: cfg.risks });
 		if (!risk.ok) {
 			journal.candidates.push({
 				...base,
@@ -787,18 +811,16 @@ async function evaluatePlans(
 			rt.state.cooldowns = recordCooldown(
 				rt.state.cooldowns,
 				{
-					pool: d.pool.pool,
-					poolName: d.pool.name,
-					baseMint: d.pool.baseMint,
+					pool: pool.pool,
+					poolName: pool.name,
+					baseMint: pool.baseMint,
 					reason: risk.reason ?? "blocked",
 				},
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			logInfo(
-				`decide: ${d.pool.name} score ${d.score} → blocked (${risk.reason})`,
-			);
-			await liveDecision(`⛔ ${d.pool.name} blocked: ${risk.reason ?? ""}`);
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${risk.reason})`);
+			await liveDecision(`⛔ ${pool.name} blocked: ${risk.reason ?? ""}`);
 			continue;
 		}
 		const amountSol = deriveOpenAmount(budget, cfg);
@@ -819,18 +841,18 @@ async function evaluatePlans(
 			rt.state.cooldowns = recordCooldown(
 				rt.state.cooldowns,
 				{
-					pool: d.pool.pool,
-					poolName: d.pool.name,
-					baseMint: d.pool.baseMint,
+					pool: pool.pool,
+					poolName: pool.name,
+					baseMint: pool.baseMint,
 					reason: guard.reason ?? "blocked",
 				},
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
 			logInfo(
-				`decide: ${d.pool.name} score ${d.score} → blocked (${guard.reason})`,
+				`decide: ${pool.name} heuristic ${h} → blocked (${guard.reason})`,
 			);
-			await liveDecision(`⛔ ${d.pool.name} blocked: ${guard.reason ?? ""}`);
+			await liveDecision(`⛔ ${pool.name} blocked: ${guard.reason ?? ""}`);
 			continue;
 		}
 		if (amountSol <= 0) {
@@ -839,8 +861,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: "no budget remaining",
 			});
-			logInfo(`decide: ${d.pool.name} score ${d.score} → blocked (no budget)`);
-			await liveDecision(`⛔ ${d.pool.name} blocked: no budget`);
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (no budget)`);
+			await liveDecision(`⛔ ${pool.name} blocked: no budget`);
 			continue;
 		}
 		const cooldown = checkCooldown({
@@ -855,20 +877,20 @@ async function evaluatePlans(
 				blockedReason: cooldown.reason,
 			});
 			logInfo(
-				`decide: ${d.pool.name} score ${d.score} → blocked (${cooldown.reason})`,
+				`decide: ${pool.name} heuristic ${h} → blocked (${cooldown.reason})`,
 			);
-			await liveDecision(`⛔ ${d.pool.name} blocked: ${cooldown.reason ?? ""}`);
+			await liveDecision(`⛔ ${pool.name} blocked: ${cooldown.reason ?? ""}`);
 			continue;
 		}
 		logInfo(
-			`decide: ${d.pool.name} score ${d.score} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
+			`decide: ${pool.name} heuristic ${h} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
-		liveLines.push(`🚀 OPEN ${d.pool.name} ${amountSol} SOL (sending tx...)`);
+		liveLines.push(`🚀 OPEN ${pool.name} ${amountSol} SOL (sending tx...)`);
 		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 		try {
 			const preset = resolveCreatePresetFrom(getConfigSync());
 			const params = buildCreateParams({
-				poolAddress: d.pool.pool,
+				poolAddress: pool.pool,
 				strategy: preset.strategy,
 				range: preset.range,
 				amountSol,
@@ -877,18 +899,18 @@ async function evaluatePlans(
 			const sig = res.signatures.join(",");
 			const now = new Date().toISOString();
 			rt.state.plans.push({
-				pool: d.pool.pool,
-				poolName: d.pool.name,
-				baseMint: d.pool.baseMint,
+				pool: pool.pool,
+				poolName: pool.name,
+				baseMint: pool.baseMint,
 				amountSol,
 				positionAddress: res.positions[0] ?? null,
 				openedAt: now,
-				signals: signalSnapshot(d.pool),
+				signals: signalSnapshot(pool),
 			});
 			rt.state.executions.push({
 				at: now,
 				action: "open",
-				pool: d.pool.pool,
+				pool: pool.pool,
 				txSignature: sig || null,
 			});
 			budget += amountSol;
@@ -899,13 +921,13 @@ async function evaluatePlans(
 				txSignature: sig || null,
 			});
 			logInfo(
-				`opened ${d.pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${shortSig(sig) || "?"}`,
+				`opened ${pool.name}: ${amountSol} SOL pos=${res.positions[0] ?? "?"} sig=${shortSig(sig) || "?"}`,
 			);
 			liveLines[liveLines.length - 1] =
-				`✅ OPEN ${d.pool.name} ${amountSol} SOL ${sig || "?"}`;
+				`✅ OPEN ${pool.name} ${amountSol} SOL ${sig || "?"}`;
 			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 			const openActionId = res.positions[0]
-				? registerAction(d.pool.pool, res.positions[0])
+				? registerAction(pool.pool, res.positions[0])
 				: undefined;
 			await notify(
 				bot,
@@ -914,7 +936,7 @@ async function evaluatePlans(
 				"action",
 				formatAction({
 					action: "open",
-					poolName: d.pool.name,
+					poolName: pool.name,
 					amountSol,
 					reason: d.rationale,
 					txSignature: sig || null,
@@ -922,9 +944,9 @@ async function evaluatePlans(
 				{ keyboard: notifyKeyboard("open", openActionId) },
 			);
 		} catch (e) {
-			logError("open failed:", d.pool.pool, e);
+			logError("open failed:", pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
-			liveLines[liveLines.length - 1] = `❌ OPEN ${d.pool.name} failed`;
+			liveLines[liveLines.length - 1] = `❌ OPEN ${pool.name} failed`;
 			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 			await notify(
 				bot,
@@ -933,10 +955,10 @@ async function evaluatePlans(
 				"action",
 				formatAction({
 					action: "open",
-					poolName: d.pool.name,
+					poolName: pool.name,
 					failed: true,
 				}),
-				{ keyboard: notifyKeyboard("failed", d.pool.pool) },
+				{ keyboard: notifyKeyboard("failed", pool.pool) },
 			);
 		}
 	}
