@@ -1,4 +1,4 @@
-import { Effect, Fiber } from "effect";
+import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
 import {
@@ -17,6 +17,7 @@ import {
 } from "../fx.js";
 import { runtime } from "../runtime.js";
 import { MD } from "../utils.js";
+import { runBriefing as runBriefingJob } from "./briefing.js";
 import { tpslAction, validateOpenDecisions } from "./decision.js";
 import {
 	formatAction,
@@ -53,7 +54,7 @@ import {
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
 import { allowed, notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
-import { alignedSchedule } from "./schedule.js";
+import { alignedSchedule, delayToDaily } from "./schedule.js";
 import {
 	appendPerf,
 	loadSignalWeights,
@@ -62,8 +63,8 @@ import {
 	signalSnapshot,
 	weightsSummary,
 } from "./signalWeights.js";
-import { pnlPctValue } from "./stats.js";
 import { type AgentState, loadState, saveState } from "./state.js";
+import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -74,6 +75,7 @@ export interface RuntimeAgent {
 	runCycle(): Promise<void>;
 	runFast(): Promise<void>;
 	runOor(): Promise<void>;
+	runBriefing(): Promise<void>;
 }
 
 type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
@@ -139,6 +141,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	let intervalFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let eventFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 	let oorFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
+	let briefingFiber: Fiber.RuntimeFiber<unknown, unknown> | null = null;
 
 	const stopFiber = (f: Fiber.RuntimeFiber<unknown, unknown> | null) => {
 		if (f) runtime.runFork(Fiber.interrupt(f));
@@ -164,6 +167,25 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
 			stopFiber(oorFiber);
+			stopFiber(briefingFiber);
+			const briefingJob = () =>
+				Effect.tryPromise(async () => {
+					if (rt.state.enabled) await rt.runBriefing();
+				}).pipe(
+					Effect.catchAll((e) =>
+						Effect.sync(() => logError("briefing failed:", e)),
+					),
+				);
+			briefingFiber = runtime.runFork(
+				Effect.repeat(
+					Effect.sync(() => delayToDaily(9, Date.now())).pipe(
+						Effect.flatMap((ms) =>
+							briefingJob().pipe(Effect.delay(Duration.millis(ms))),
+						),
+					),
+					Schedule.spaced(24 * 3_600_000),
+				),
+			);
 			void getConfig().then((cfg) => {
 				const agentCfg = resolveAgentConfigFrom(cfg);
 				rt.state.enabled = true;
@@ -184,9 +206,11 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
 			stopFiber(oorFiber);
+			stopFiber(briefingFiber);
 			intervalFiber = null;
 			eventFiber = null;
 			oorFiber = null;
+			briefingFiber = null;
 			rt.state.enabled = false;
 			rt.state.running = false;
 			saveState(rt.state);
@@ -282,6 +306,14 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} finally {
 				rt.state.running = false;
 				saveState(rt.state);
+			}
+		},
+		async runBriefing() {
+			try {
+				const cfg = resolveAgentConfigFrom(await getConfig());
+				await runBriefingJob(bot, chatId, cfg);
+			} catch (e) {
+				logError("briefing error:", e);
 			}
 		},
 	};
