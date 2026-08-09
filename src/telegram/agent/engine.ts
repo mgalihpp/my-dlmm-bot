@@ -34,6 +34,7 @@ import {
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
+	lastOpenExecutionAt,
 	recordCooldown,
 } from "./guardrails.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
@@ -704,10 +705,7 @@ async function evaluatePlans(
 	});
 
 	let budget = deployedSol;
-	let lastExecAt =
-		rt.state.executions.length > 0
-			? Date.parse(rt.state.executions[rt.state.executions.length - 1].at)
-			: null;
+	let lastExecAt = lastOpenExecutionAt(rt.state.executions);
 
 	const liveDecision = async (line: string) => {
 		liveLines.push(line);

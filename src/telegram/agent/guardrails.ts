@@ -4,7 +4,7 @@ import type {
 	ResolvedAgentConfig,
 	ResolvedAgentRisks,
 } from "../../services/Config.js";
-import type { AgentCooldown, AgentPlan } from "./state.js";
+import type { AgentCooldown, AgentExecution, AgentPlan } from "./state.js";
 
 export interface GuardOk {
 	ok: boolean;
@@ -70,6 +70,18 @@ export function checkCooldown(input: {
 		return { ok: false, reason: "within tx cooldown" };
 	}
 	return { ok: true, reason: null };
+}
+
+/** Timestamp of the most recent successful OPEN, ignoring tp/sl/close executions. */
+export function lastOpenExecutionAt(
+	executions: ReadonlyArray<AgentExecution>,
+): number | null {
+	for (let i = executions.length - 1; i >= 0; i--) {
+		if (executions[i].action === "open") {
+			return Date.parse(executions[i].at);
+		}
+	}
+	return null;
 }
 
 /** SOL amount to deploy for one new position, bounded by the remaining budget. */

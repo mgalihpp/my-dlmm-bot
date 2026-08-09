@@ -11,6 +11,7 @@ import {
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
+	lastOpenExecutionAt,
 	recordCooldown,
 } from "../src/telegram/agent/guardrails.js";
 import type { AgentCooldown } from "../src/telegram/agent/state.js";
@@ -106,6 +107,51 @@ describe("checkCooldown", () => {
 			txCooldownMs: 300_000,
 		});
 		expect(r.ok).toBe(true);
+	});
+});
+
+describe("lastOpenExecutionAt", () => {
+	it("returns the most recent open, ignoring tp/sl/close", () => {
+		const r = lastOpenExecutionAt([
+			{
+				at: "2026-08-09T08:50:00.000Z",
+				action: "open",
+				pool: "A",
+				txSignature: null,
+			},
+			{
+				at: "2026-08-09T08:53:00.000Z",
+				action: "tp",
+				pool: "A",
+				txSignature: null,
+			},
+			{
+				at: "2026-08-09T08:55:00.000Z",
+				action: "open",
+				pool: "B",
+				txSignature: null,
+			},
+			{
+				at: "2026-08-09T08:56:00.000Z",
+				action: "close",
+				pool: "B",
+				txSignature: null,
+			},
+		]);
+		expect(r).toBe(Date.parse("2026-08-09T08:55:00.000Z"));
+	});
+	it("returns null when there are no opens", () => {
+		expect(lastOpenExecutionAt([])).toBeNull();
+		expect(
+			lastOpenExecutionAt([
+				{
+					at: "2026-08-09T08:53:00.000Z",
+					action: "sl",
+					pool: "A",
+					txSignature: null,
+				},
+			]),
+		).toBeNull();
 	});
 });
 
