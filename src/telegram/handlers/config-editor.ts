@@ -284,6 +284,91 @@ const EDITABLE_FIELDS = [
 		label: "Max Price vs ATH %",
 		type: "number" as const,
 	},
+	{
+		key: "agent.risks.enabled",
+		label: "Guardrails Enabled",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.minTokenFeesSol",
+		label: "Min Token Fees (SOL)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxBundlePct",
+		label: "Max Bundle %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxBotHoldersPct",
+		label: "Max Bot Holders %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxTop10Pct",
+		label: "Max Top10 %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.blockWash",
+		label: "Block Wash Trading",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockRugpull",
+		label: "Block Rugpull",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockDexScreenerPaid",
+		label: "Block DexScreener Paid",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockDevSoldAll",
+		label: "Block Dev Sold All",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.darwin.enabled",
+		label: "Darwin Enabled",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.darwin.windowDays",
+		label: "Darwin Window (days)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.recalcEvery",
+		label: "Darwin Recalc Every",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.boostFactor",
+		label: "Darwin Boost Factor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.decayFactor",
+		label: "Darwin Decay Factor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.weightFloor",
+		label: "Darwin Weight Floor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.weightCeiling",
+		label: "Darwin Weight Ceiling",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.minSamples",
+		label: "Darwin Min Samples",
+		type: "number" as const,
+	},
 ] as const;
 
 function getNestedValue(obj: any, path: string): any {
@@ -361,6 +446,20 @@ function buildConfigText(
 		`  TP: ${tgCode(formatValue("agent.tpPct", config))}%  SL: ${tgCode(formatValue("agent.slPct", config))}%`,
 		`  Pool Cooldown: ${tgCode(formatValue("agent.poolCooldownMs", config))}ms`,
 		`  LLM Model: ${tgCode(formatValue("agent.llm.model", config))}`,
+		"",
+		tgBold("Guardrails 🛡"),
+		`  Enabled: ${tgCode(formatValue("agent.risks.enabled", config))}`,
+		`  Max Bot Holders: ${tgCode(formatValue("agent.risks.maxBotHoldersPct", config))}%`,
+		`  Max Bundle: ${tgCode(formatValue("agent.risks.maxBundlePct", config))}%`,
+		`  Max Top10: ${tgCode(formatValue("agent.risks.maxTop10Pct", config))}%`,
+		`  Max ATH: ${tgCode(formatValue("agent.risks.maxPriceVsAthPct", config))}%`,
+		`  Min Fees: ${tgCode(formatValue("agent.risks.minTokenFeesSol", config))} SOL`,
+		`  Block Wash: ${tgCode(formatValue("agent.risks.blockWash", config))}  Rugpull: ${tgCode(formatValue("agent.risks.blockRugpull", config))}  DexPaid: ${tgCode(formatValue("agent.risks.blockDexScreenerPaid", config))}  DevSold: ${tgCode(formatValue("agent.risks.blockDevSoldAll", config))}`,
+		"",
+		tgBold("Darwin 🧬"),
+		`  Enabled: ${tgCode(formatValue("agent.darwin.enabled", config))}`,
+		`  Window: ${tgCode(formatValue("agent.darwin.windowDays", config))}d  Recalc: ${tgCode(formatValue("agent.darwin.recalcEvery", config))}  MinSamples: ${tgCode(formatValue("agent.darwin.minSamples", config))}`,
+		`  Boost: ${tgCode(formatValue("agent.darwin.boostFactor", config))}  Decay: ${tgCode(formatValue("agent.darwin.decayFactor", config))}  Floor: ${tgCode(formatValue("agent.darwin.weightFloor", config))}  Ceil: ${tgCode(formatValue("agent.darwin.weightCeiling", config))}`,
 	);
 	return lines.join("\n");
 }
@@ -438,7 +537,46 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ LLM Timeout", "cfg:set:agent.llm.timeoutMs")
 			.text("✏️ LLM API Key", "cfg:set:agent.llm.apiKey")
 			.row()
+			.text("🛡 Guardrails »", "cfg:page:8")
+			.text("🧬 Darwin »", "cfg:page:9")
+			.row()
 			.text("« General", "cfg:page:1");
+	}
+	if (page === 8) {
+		return new InlineKeyboard()
+			.text("🔄 Guardrails On", "cfg:toggle:agent.risks.enabled")
+			.row()
+			.text("✏️ Max Bot Holders %", "cfg:set:agent.risks.maxBotHoldersPct")
+			.text("✏️ Max Bundle %", "cfg:set:agent.risks.maxBundlePct")
+			.row()
+			.text("✏️ Max Top10 %", "cfg:set:agent.risks.maxTop10Pct")
+			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.row()
+			.text("✏️ Min Token Fees (SOL)", "cfg:set:agent.risks.minTokenFeesSol")
+			.text("🔄 Block Wash", "cfg:toggle:agent.risks.blockWash")
+			.row()
+			.text("🔄 Block Rugpull", "cfg:toggle:agent.risks.blockRugpull")
+			.text("🔄 Block Dex Paid", "cfg:toggle:agent.risks.blockDexScreenerPaid")
+			.row()
+			.text("🔄 Block Dev Sold", "cfg:toggle:agent.risks.blockDevSoldAll")
+			.row()
+			.text("« DLMM Agent", "cfg:page:7");
+	}
+	if (page === 9) {
+		return new InlineKeyboard()
+			.text("🔄 Darwin On", "cfg:toggle:agent.darwin.enabled")
+			.text("✏️ Window (days)", "cfg:set:agent.darwin.windowDays")
+			.row()
+			.text("✏️ Recalc Every", "cfg:set:agent.darwin.recalcEvery")
+			.text("✏️ Min Samples", "cfg:set:agent.darwin.minSamples")
+			.row()
+			.text("✏️ Boost Factor", "cfg:set:agent.darwin.boostFactor")
+			.text("✏️ Decay Factor", "cfg:set:agent.darwin.decayFactor")
+			.row()
+			.text("✏️ Weight Floor", "cfg:set:agent.darwin.weightFloor")
+			.text("✏️ Weight Ceiling", "cfg:set:agent.darwin.weightCeiling")
+			.row()
+			.text("« DLMM Agent", "cfg:page:7");
 	}
 	if (page === 2) {
 		return new InlineKeyboard()
@@ -512,6 +650,8 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 
 function pageForKey(key: string): number {
 	if (key.startsWith("create.")) return 6;
+	if (key.startsWith("agent.risks.")) return 8;
+	if (key.startsWith("agent.darwin.")) return 9;
 	if (key.startsWith("agent.")) return 7;
 	const page1 = new Set([
 		"wallet",
