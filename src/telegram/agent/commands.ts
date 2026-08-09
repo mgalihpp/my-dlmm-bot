@@ -62,9 +62,11 @@ export function planActionLabel(p: {
 	amountSol: number;
 	positionAddress: string | null;
 }): string {
+	// Keyboard-button label — buttons are plain text, Telegram doesn't parse
+	// MarkdownV2 there, so escaping would show literal backslashes.
 	return p.positionAddress
-		? `${escapeMarkdown(p.poolName)} ${escapeMarkdown(`${p.amountSol} SOL`)}`
-		: `${escapeMarkdown(p.poolName)} · ${escapeMarkdown(`${p.amountSol} SOL`)} (pending)`;
+		? `${p.poolName} ${p.amountSol} SOL`
+		: `${p.poolName} · ${p.amountSol} SOL (pending)`;
 }
 
 function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
@@ -198,7 +200,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				const pnl = await pnlByPool(rt);
 				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
 					...MD,
-					reply_markup: agentKeyboard(),
+					reply_markup: statusKeyboard(rt),
 				});
 			}
 		}
@@ -363,14 +365,13 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 					`https://app.meteora.ag/dlmm/${action.poolAddress}`,
 				)
 				.row()
-				.text("⬅️ Status", "menu:agent")
-				.text("⬅️ Dashboard", "menu:main");
+				.text("⬅️ Agent", "menu:agent");
 			await ctx.editMessageText(text, { ...MD, reply_markup: kb });
 		} catch (e) {
 			const msg = e instanceof Error ? e.message : String(e);
 			await ctx.editMessageText(`✖ ${escapeMarkdown(msg)}`, {
 				...MD,
-				reply_markup: new InlineKeyboard().text("⬅️ Status", "menu:agent"),
+				reply_markup: new InlineKeyboard().text("⬅️ Agent", "menu:agent"),
 			});
 		}
 	});
@@ -471,12 +472,9 @@ export function agentKeyboard(): InlineKeyboard {
 	return new InlineKeyboard()
 		.text("▶️ Start", "agent:start")
 		.text("⏹ Stop", "agent:stop")
-		.text("📊 Status", "agent:status")
 		.row()
 		.text("📊 Portfolio", "agent:portfolio")
-		.text("📒 Journal", "agent:journal")
-		.row()
-		.text("⬅️ Dashboard", "menu:main");
+		.text("📒 Journal", "agent:journal");
 }
 
 export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
@@ -492,6 +490,7 @@ export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
+			statusKeyboard(rt),
 		);
 	});
 

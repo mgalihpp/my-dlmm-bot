@@ -78,12 +78,6 @@ function escapeUrl(url: string): string {
 	return url.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
 }
 
-/** Full pool address as a tappable link to Meteora. */
-export function tgPoolAddr(addr: string): string {
-	const url = `https://app.meteora.ag/dlmm/${addr}`;
-	return `[🔗 ${escapeMarkdown(addr)}](${escapeUrl(url)})`;
-}
-
 /** Pool name as a tappable link to its Meteora page (short link text). */
 export function tgPoolLink(name: string, pool: string): string {
 	const url = `https://app.meteora.ag/dlmm/${pool}`;
@@ -95,9 +89,6 @@ export function tgTxLink(sig: string): string {
 	const url = `https://solscan.io/tx/${sig}`;
 	return `${tgCode(sig)}\n  🔗 [Solscan](${escapeUrl(url)})`;
 }
-
-const tgPair = (x: string, y: string) =>
-	escapeMarkdown(`${x ?? "?"}/${y ?? "?"}`);
 
 /** Full portfolio summary message. */
 export function tgPortfolioSummary(total: PortfolioTotal): string {
@@ -137,8 +128,8 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 
 		lines.push(
 			"━".repeat(24),
-			`${escapeMarkdown(`${i + 1}.`)} ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
-			`   ${tgPoolAddr(p.poolAddress)} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
+			`${escapeMarkdown(`${i + 1}.`)} ${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}${escapeMarkdown(range)}`,
+			`   Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
 			"",
 			`   Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
 			`   PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
@@ -206,8 +197,7 @@ export function tgClosedPools(pools: readonly ClosedPool[]): string {
 	const lines = [tgBold("📉 Closed Positions"), ""];
 	for (const p of pools) {
 		lines.push(
-			`${tgBold(tgPair(p.tokenX, p.tokenY))}`,
-			`  ${tgPoolAddr(p.poolAddress)}`,
+			`${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}`,
 			`  Deposit: ${tgUsd(p.totalDeposit)} \\| Withdraw: ${tgUsd(p.totalWithdrawal)}`,
 			`  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
 		);
@@ -247,7 +237,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 		const volChg = p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
 		const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
 		lines.push(
-			`${escapeMarkdown(`${i + 1}.`)} ${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
+			`${escapeMarkdown(`${i + 1}.`)} ${tgPoolLink(`${p.baseSymbol}/${p.quoteSymbol}`, p.pool)}`,
 			`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
 			`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 			`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
@@ -297,8 +287,8 @@ export function tgMultiWalletPositions(
 				totalPnl += parseFloat(p.pnl || "0");
 				const range = p.outOfRange ? " ⚠️ OOR" : "";
 				lines.push(
-					`  ${tgBold(tgPair(p.tokenX, p.tokenY))}${escapeMarkdown(range)}`,
-					`  ${tgPoolAddr(p.poolAddress)} \\| Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
+					`  ${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}${escapeMarkdown(range)}`,
+					`  Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
 					`  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
 					`  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
 				);
@@ -371,9 +361,8 @@ export function tgWatchlistAlert(
 		poolInfo.length > 0 ? ` \\| ${poolInfo.join(" \\| ")}` : "";
 
 	const lines = [
-		tgBold(`${icon} ${tokenX}/${tokenY}`),
+		`${tgPoolLink(`${icon} ${tokenX}/${tokenY}`, poolAddress)}${poolInfoStr}`,
 		`Wallet: ${tgCode(walletAddress)}`,
-		`${tgPoolAddr(poolAddress)}${poolInfoStr}`,
 	];
 
 	if (opts?.pnl != null) {
@@ -431,8 +420,7 @@ export function tgPoolDetail(p: DlmmPool): string {
 	const mc = p.token_x.market_cap;
 	const holders = p.token_x.holders;
 	const lines = [
-		tgBold(`🔍 ${p.name}`),
-		`${tgPoolAddr(p.address)}`,
+		tgPoolLink(`🔍 ${p.name}`, p.address),
 		"",
 		`Tokens: ${escapeMarkdown(`${p.token_x.symbol} / ${p.token_y.symbol}`)}`,
 		`Price: ${escapeMarkdown(formatNum(p.current_price, 6))}`,

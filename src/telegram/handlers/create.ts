@@ -10,7 +10,7 @@ import {
 	tgCode,
 	tgOrganic,
 	tgPct,
-	tgPoolAddr,
+	tgPoolLink,
 	tgTxLink,
 	tgUsd,
 } from "../format.js";
@@ -107,7 +107,7 @@ export function registerCreate(bot: Bot) {
 					p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
 				const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
 				lines.push(
-					`${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
+					`${tgPoolLink(`${p.baseSymbol}/${p.quoteSymbol}`, p.pool)}`,
 					`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
 					`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 					`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,

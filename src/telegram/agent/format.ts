@@ -4,7 +4,6 @@ import {
 	tgBold,
 	tgCode,
 	tgPct,
-	tgPoolAddr,
 	tgPoolLink,
 	tgSolAmt,
 	tgTs,
@@ -391,9 +390,8 @@ export function formatPositionCard(o: PositionCard): string {
 				}`;
 	const marker = o.isOutOfRange ? "▼" : "▲";
 	const lines = [
-		tgBold(`${escapeMarkdown(o.tokenX)}/${escapeMarkdown(o.tokenY)}`) +
+		tgPoolLink(`${o.tokenX}/${o.tokenY}`, o.poolAddress) +
 			(o.isOutOfRange ? escapeMarkdown(" ⚠️ OOR") : ""),
-		tgPoolAddr(o.poolAddress),
 		"",
 		pnl,
 	];

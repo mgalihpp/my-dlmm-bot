@@ -25,7 +25,7 @@ describe("planActionLabel", () => {
 				amountSol: 1.5,
 				positionAddress: "P1",
 			}),
-		).toContain("1\\.5");
+		).toContain("1.5");
 	});
 	it("marks pending plans", () => {
 		expect(
