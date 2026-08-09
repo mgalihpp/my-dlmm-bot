@@ -69,3 +69,9 @@ export function saveState(state: AgentState, file = DEFAULT_FILE): void {
 		console.warn("[agent] state write failed:", e);
 	}
 }
+
+/** Clears all cooldowns and persists. */
+export function clearCooldowns(state: AgentState, file = DEFAULT_FILE): void {
+	state.cooldowns = [];
+	saveState(state, file);
+}

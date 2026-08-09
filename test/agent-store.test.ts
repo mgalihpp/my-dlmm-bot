@@ -3,7 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, describe, expect, it } from "vitest";
 import { appendJournal, readJournal } from "../src/telegram/agent/journal.js";
-import { loadState, saveState } from "../src/telegram/agent/state.js";
+import {
+	clearCooldowns,
+	loadState,
+	saveState,
+} from "../src/telegram/agent/state.js";
 
 let dir = "";
 const tmpFile = (name: string) => {
@@ -100,5 +104,32 @@ describe("state", () => {
 		);
 		expect(loadState(f).cooldowns).toHaveLength(1);
 		expect(loadState(f).cooldowns[0].reason).toBe("closed");
+	});
+
+	it("clearCooldowns empties the list and persists", () => {
+		const f = tmpFile("state-clear.json");
+		saveState(
+			{
+				enabled: true,
+				running: false,
+				lastCycleAt: null,
+				llmStatus: "skipped",
+				cycle: 0,
+				plans: [],
+				executions: [],
+				cooldowns: [
+					{
+						pool: "P1",
+						poolName: "A/SOL",
+						baseMint: "mx",
+						until: "2099-01-01T00:00:00Z",
+						reason: "tp",
+					},
+				],
+			},
+			f,
+		);
+		clearCooldowns(loadState(f), f);
+		expect(loadState(f).cooldowns).toHaveLength(0);
 	});
 });

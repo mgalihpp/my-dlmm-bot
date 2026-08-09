@@ -20,6 +20,7 @@ import {
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
 import { actionCounts, tradeStats } from "./stats.js";
+import { clearCooldowns } from "./state.js";
 
 export const PAGE_SIZE = 5;
 
@@ -77,6 +78,9 @@ function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
 		kb.row().text(planActionLabel(p).slice(0, 32), `agent:pos:${id}`);
 	}
 	kb.row().text("🔄 Refresh", "agent:status");
+	if (rt.state.cooldowns.some((c) => Date.parse(c.until) > Date.now())) {
+		kb.text("🧹 Clear cooldowns", "agent:clear-cooldowns");
+	}
 	return kb;
 }
 
@@ -164,6 +168,15 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				await ctx.reply("🛑 DLMM Agent stopped.", MD);
 				break;
 			}
+			case "clear-cooldowns": {
+				const n = rt.state.cooldowns.length;
+				clearCooldowns(rt.state);
+				await ctx.reply(
+					n > 0 ? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.` : "No cooldowns to clear.",
+					MD,
+				);
+				break;
+			}
 			case "status": {
 				const pnl = await pnlByPool(rt);
 				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
@@ -221,6 +234,24 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
+			statusKeyboard(rt),
+		);
+	});
+
+	bot.callbackQuery(/^agent:clear-cooldowns$/, async (ctx) => {
+		await ctx.answerCallbackQuery();
+		const chatId = ctx.chat?.id;
+		const messageId = ctx.msgId;
+		if (chatId == null || messageId == null) return;
+		const n = rt.state.cooldowns.length;
+		clearCooldowns(rt.state);
+		const cfg = resolveAgentConfigFrom(await getConfig());
+		const pnl = await pnlByPool(rt);
+		await editOrIgnore(
+			ctx.api,
+			chatId,
+			messageId,
+			`🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.\n\n${formatStatus(rt.state, cfg, tradeStatsOf(), pnl)}`,
 			statusKeyboard(rt),
 		);
 	});
