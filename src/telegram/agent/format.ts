@@ -53,13 +53,18 @@ export function formatStatus(
 	if (state.plans.length > 0) {
 		lines.push("", tgBold("📦 OPEN POSITIONS"));
 		state.plans.forEach((p, i) => {
-			const stateMarker = p.openedAt ? "▢" : "⏳";
 			const live = pnl.get(p.pool);
+			const marker = !p.openedAt
+				? "⏳"
+				: live == null
+					? "·"
+					: live.outOfRange
+						? "⚠️"
+						: "✓";
 			const pnlStr =
 				live && live.pnlPct != null ? ` ${tgPct(live.pnlPct)}` : "";
-			const oor = live?.outOfRange ? " OOR" : "";
 			lines.push(
-				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSolAmt(p.amountSol)} ${stateMarker}${pnlStr}${escapeMarkdown(oor)}`,
+				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSolAmt(p.amountSol)} ${marker}${pnlStr}`,
 			);
 		});
 	}

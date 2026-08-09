@@ -117,7 +117,8 @@ async function liveStep(
 	}
 }
 
-function pnlPctValue(pos: {
+/** Canonical PnL %: prefer SOL-side change, fall back to token-side. */
+export function pnlPctValue(pos: {
 	pnlSolPctChange: PositionPnLData["pnlSolPctChange"];
 	pnlPctChange: string;
 }): number | null {

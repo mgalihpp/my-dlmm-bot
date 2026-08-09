@@ -6,7 +6,7 @@ import { escapeMarkdown } from "../format.js";
 import { api, getConfig, resolveWallet } from "../fx.js";
 import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
-import type { RuntimeAgent } from "./engine.js";
+import { type RuntimeAgent, pnlPctValue } from "./engine.js";
 import {
 	formatJournalPage,
 	formatPortfolio,
@@ -100,13 +100,9 @@ async function pnlByPool(rt: RuntimeAgent): Promise<Map<string, PositionPnl>> {
 				(pp) => pp.positionAddress === plan.positionAddress,
 			);
 			if (!pos || pos.isClosed) continue;
-			const solRaw =
-				pos.pnlSolPctChange != null ? Number(pos.pnlSolPctChange) : Number.NaN;
-			const pnlPct = Number.isFinite(solRaw)
-				? solRaw
-				: parseFloat(pos.pnlPctChange);
+			const pnlPct = pnlPctValue(pos);
 			map.set(plan.pool, {
-				pnlPct: Number.isFinite(pnlPct) ? pnlPct : null,
+				pnlPct,
 				outOfRange: pos.isOutOfRange ?? null,
 			});
 		} catch {
@@ -383,7 +379,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				poolAddress: action.poolAddress,
 				positionAddress: action.positionPubkey,
 				amountSol: plan?.amountSol ?? null,
-				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
+				pnlPct: pnlPctValue(pos),
 				isOutOfRange: pos.isOutOfRange ?? null,
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
 				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
@@ -434,7 +430,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				poolAddress: action.poolAddress,
 				positionAddress: action.positionPubkey,
 				amountSol: plan?.amountSol ?? null,
-				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
+				pnlPct: pnlPctValue(pos),
 				isOutOfRange: pos.isOutOfRange ?? null,
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
 				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
