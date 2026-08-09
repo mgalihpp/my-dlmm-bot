@@ -12,7 +12,10 @@ describe("dashboard hub", () => {
 	});
 	it("builds a 2-column keyboard with a refresh row", () => {
 		const kb = dashboardKeyboard();
-		const flat = kb.inline_keyboard.flat().map((b) => b.callback_data);
+		const flat = kb.inline_keyboard
+			.flat()
+			.filter((b) => "callback_data" in b)
+			.map((b) => b.callback_data);
 		expect(flat).toContain("menu:main");
 		expect(kb.inline_keyboard.length).toBeGreaterThanOrEqual(6);
 	});
