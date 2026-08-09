@@ -58,7 +58,7 @@ const poolFixture = {
 	fee_pct: 0.003,
 };
 
-const route = (url: string): { body: unknown; status?: number } => {
+const route = (url: string, ohlcvData: unknown[] = []): { body: unknown; status?: number } => {
 	if (url.includes("datapi.jup.ag"))
 		return {
 			body: [
@@ -88,7 +88,7 @@ const route = (url: string): { body: unknown; status?: number } => {
 	if (url.includes("pool-discovery"))
 		return { body: { data: [poolFixture], total: 1 } };
 	if (url.includes("ohlcv"))
-		return { body: { start_time: 0, end_time: 0, timeframe: "24h", data: [] } };
+		return { body: { start_time: 0, end_time: 0, timeframe: "24h", data: ohlcvData } };
 	return { body: { data: [] } };
 };
 
@@ -98,13 +98,13 @@ const ScreeningLiveForTest = ScreeningLive.pipe(
 	Layer.provideMerge(JupiterLayer),
 );
 
-const layerWith = () =>
+const layerWith = (ohlcvData?: unknown[]) =>
 	ScreeningLiveForTest.pipe(
 		Layer.provide(
 			Layer.succeed(
 				HttpClient.HttpClient,
 				HttpClient.make((req) => {
-					const { body, status } = route(req.url.toString());
+					const { body, status } = route(req.url.toString(), ohlcvData);
 					return Effect.succeed(
 						jsonResponse(req.url.toString(), body, status ?? 200),
 					);
@@ -114,14 +114,17 @@ const layerWith = () =>
 		Layer.provideMerge(AppConfigTest({})),
 	);
 
+const screen = (ohlcvData?: unknown[]) =>
+	Effect.runPromise(
+		Effect.gen(function* () {
+			const s = yield* Screening;
+			return yield* s.screen({ displayLimit: 1 });
+		}).pipe(Effect.provide(layerWith(ohlcvData))),
+	);
+
 describe("Screening enrichment", () => {
 	it("attaches jupiter + rugcheck risk fields to screened pools", async () => {
-		const result = await Effect.runPromise(
-			Effect.gen(function* () {
-				const s = yield* Screening;
-				return yield* s.screen({ displayLimit: 1 });
-			}).pipe(Effect.provide(layerWith())),
-		);
+		const result = await screen();
 		const pool = result.pools[0];
 		expect(pool.bundlePct).toBe(20);
 		expect(pool.top10Pct).toBe(50);
@@ -131,5 +134,15 @@ describe("Screening enrichment", () => {
 		expect(pool.isWash).toBe(false);
 		expect(pool.dexScreenerPaid).toBe(false);
 		expect(pool.rugScore).toBe(1200);
+	});
+
+	it("fills priceVsAthPct from 24h OHLCV high", async () => {
+		const result = await screen([
+			{ timestamp: 0, high: 2, low: 1, open: 1, close: 1, volume: 100 },
+		]);
+		const pool = result.pools[0];
+		// price=1, high=2 → fromAthPct 0.5, priceVsAthPct 50
+		expect(pool.fromAthPct).toBe(0.5);
+		expect(pool.priceVsAthPct).toBe(50);
 	});
 });
