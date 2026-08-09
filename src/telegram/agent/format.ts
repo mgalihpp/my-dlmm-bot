@@ -46,7 +46,7 @@ export function formatStatus(
 				.slice(-3)
 				.map(
 					(c) =>
-						`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
+						`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\) — reset in ${escapeMarkdown(fmtDuration(Date.parse(c.until) - nowMs))}`,
 				),
 		);
 	}
@@ -148,7 +148,7 @@ export function formatCycleSummary(
 			`⏳ Cooldowns: ${escapeMarkdown(String(active.length))}`,
 			...active.map(
 				(c) =>
-					`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
+					`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\) — reset in ${escapeMarkdown(fmtDuration(Date.parse(c.until) - nowMs))}`,
 			),
 		);
 	}

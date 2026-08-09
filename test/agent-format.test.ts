@@ -229,6 +229,7 @@ describe("formatStatus stats", () => {
 		const out = formatStatus(s, { ...cfg, notifLevel: "verbose" }, stats);
 		expect(out).toContain("verbose");
 		expect(out).toContain("Cooldowns: 1");
+		expect(out).toContain("reset in");
 		expect(out).toContain("win 100%");
 	});
 });
