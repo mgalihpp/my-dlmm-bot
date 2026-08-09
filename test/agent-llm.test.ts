@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
-	buildPrompt,
-	parseLlmResponse,
+	buildOpenDecisionPrompt,
+	parseOpenDecisionResponse,
 	parsePositionResponse,
 } from "../src/telegram/agent/llm.js";
 
@@ -17,82 +17,97 @@ const candidates = [
 	},
 ];
 
-describe("buildPrompt", () => {
-	it("includes each candidate pool id and heuristic", () => {
-		const prompt = buildPrompt(candidates);
+describe("buildOpenDecisionPrompt", () => {
+	it("includes candidates, open/hold instruction and portfolio context", () => {
+		const prompt = buildOpenDecisionPrompt(
+			candidates,
+			undefined,
+			"3/5 open positions, deployed 4.5/10 SOL cap",
+		);
 		expect(prompt).toContain("PoolA");
 		expect(prompt).toContain("90");
-		expect(prompt).toContain("favorability");
+		expect(prompt).toContain("OPEN");
+		expect(prompt).toContain("3/5 open positions");
+		expect(prompt).not.toContain("favorability");
 	});
 
-	it("includes risk fields and weights summary in prompt", () => {
-		const prompt = buildPrompt(
-			[
-				{
-					pool: "Pool111",
-					pair: "FOO/SOL",
-					heuristic: 80,
-					feeActiveTvlRatio: 0.05,
-					organicScore: 70,
-					holders: 1000,
-					volume: 50000,
-					priceVsAthPct: 60,
-					rugScore: 1500,
-					top10Pct: 40,
-					bundlePct: 10,
-					botHoldersPct: 5,
-					globalFeesSol: 45,
-					activePositions: 200,
-				},
-			],
+	it("appends signal weights summary when provided", () => {
+		const prompt = buildOpenDecisionPrompt(
+			candidates,
 			"Signal weights (Darwinian, learned from PnL):\n- volume: 1.50",
 		);
-		expect(prompt).toContain("priceVsAthPct=60");
-		expect(prompt).toContain("rugScore=1500");
 		expect(prompt).toContain("Darwinian");
+	});
+
+	it("includes optional risk fields when present", () => {
+		const prompt = buildOpenDecisionPrompt([
+			{
+				pool: "Pool111",
+				pair: "FOO/SOL",
+				heuristic: 80,
+				feeActiveTvlRatio: 0.05,
+				organicScore: 70,
+				holders: 1000,
+				volume: 50000,
+				priceVsAthPct: 60,
+				rugScore: 1500,
+				top10Pct: 40,
+			},
+		]);
+		expect(prompt).toContain("rugScore=1500");
+		expect(prompt).toContain("priceVsAthPct=60");
 	});
 });
 
-describe("parseLlmResponse", () => {
+describe("parseOpenDecisionResponse", () => {
 	it("parses a plain JSON array", () => {
-		const out = parseLlmResponse(
-			JSON.stringify([
-				{ pool: "PoolA", favorability: 0.6, rationale: "strong" },
-			]),
+		const out = parseOpenDecisionResponse(
+			JSON.stringify([{ pool: "PoolA", action: "open", rationale: "strong" }]),
 		);
 		expect(out).toEqual([
-			{ pool: "PoolA", favorability: 0.6, rationale: "strong" },
+			{ pool: "PoolA", action: "open", rationale: "strong" },
 		]);
 	});
 
 	it("strips markdown code fences", () => {
 		const body =
 			"```json\n" +
-			JSON.stringify([
-				{ pool: "PoolA", favorability: -0.2, rationale: "meh" },
-			]) +
+			JSON.stringify([{ pool: "PoolA", action: "hold", rationale: "meh" }]) +
 			"\n```";
-		const out = parseLlmResponse(body);
-		expect(out).toHaveLength(1);
-		expect(out[0].favorability).toBe(-0.2);
+		const out = parseOpenDecisionResponse(body);
+		expect(out).toEqual([{ pool: "PoolA", action: "hold", rationale: "meh" }]);
 	});
 
-	it("clamps favorability into -1..1 and skips malformed entries", () => {
-		const out = parseLlmResponse(
+	it("treats invalid action as hold and skips missing pool", () => {
+		const out = parseOpenDecisionResponse(
 			JSON.stringify([
-				{ pool: "PoolA", favorability: 1.9 },
-				{ pool: "PoolB", favorability: 0.2 },
-				{ favorability: 0.1 },
-				{ pool: "PoolC" },
+				{ pool: "PoolA", action: "sell", rationale: "x" },
+				{ pool: "PoolB", action: "open", rationale: "y" },
+				{ action: "open" },
 			]),
 		);
-		expect(out).toHaveLength(2);
-		expect(out[0].favorability).toBe(1);
-		expect(out[1].pool).toBe("PoolB");
+		expect(out).toEqual([
+			{ pool: "PoolA", action: "hold", rationale: "x" },
+			{ pool: "PoolB", action: "open", rationale: "y" },
+		]);
 	});
 
-	it("returns empty array on garbage", () => {
-		expect(parseLlmResponse("not json at all")).toEqual([]);
+	it("accepts an empty array (LLM said open nothing)", () => {
+		expect(parseOpenDecisionResponse("[]")).toEqual([]);
+	});
+
+	it("accepts an object with a decisions key", () => {
+		const out = parseOpenDecisionResponse(
+			JSON.stringify({
+				decisions: [{ pool: "PoolA", action: "open", rationale: "r" }],
+			}),
+		);
+		expect(out).toEqual([{ pool: "PoolA", action: "open", rationale: "r" }]);
+	});
+
+	it("returns null on garbage (malformed → skip cycle)", () => {
+		expect(parseOpenDecisionResponse("not json at all")).toBeNull();
+		expect(parseOpenDecisionResponse('{"foo":1}')).toBeNull();
 	});
 });
 

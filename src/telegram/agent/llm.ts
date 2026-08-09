@@ -101,6 +101,115 @@ export function parseLlmResponse(content: string): LlmSignal[] {
 	return out;
 }
 
+export interface LlmOpenDecision {
+	pool: string;
+	action: "open" | "hold";
+	rationale: string;
+}
+
+export function buildOpenDecisionPrompt(
+	candidates: readonly LlmCandidate[],
+	weightsSummary?: string,
+	portfolioContext?: string,
+): string {
+	const table = candidates
+		.map(
+			(c) =>
+				`- pool=${c.pool} pair=${c.pair} heuristic=${c.heuristic} feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)} organic=${c.organicScore} holders=${c.holders} volume=${c.volume}${c.priceVsAthPct != null ? ` priceVsAthPct=${c.priceVsAthPct}` : ""}${c.rugScore != null ? ` rugScore=${c.rugScore}` : ""}${c.top10Pct != null ? ` top10Pct=${c.top10Pct}` : ""}${c.bundlePct != null ? ` bundlePct=${c.bundlePct}` : ""}${c.botHoldersPct != null ? ` botHoldersPct=${c.botHoldersPct}` : ""}${c.globalFeesSol != null ? ` globalFeesSol=${c.globalFeesSol}` : ""}${c.activePositions != null ? ` activePositions=${c.activePositions}` : ""}`,
+		)
+		.join("\n");
+	return [
+		"You are a portfolio manager for a DLMM liquidity bot. Candidate pools below passed deterministic screening.",
+		"Decide for EACH whether to OPEN a new position now or HOLD.",
+		"- OPEN = strong fee potential, acceptable risk, fits portfolio context",
+		"- HOLD = wait or avoid",
+		"Use the heuristic score as context, not the only factor. Weigh risk fields.",
+		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"open|hold","rationale":"..."}]',
+		"",
+		"Candidates:",
+		table,
+		...(weightsSummary ? ["", weightsSummary] : []),
+		...(portfolioContext ? ["", portfolioContext] : []),
+	].join("\n");
+}
+
+/** Returns null when the body is not parseable as a JSON array — caller skips the cycle. */
+export function parseOpenDecisionResponse(
+	content: string,
+): LlmOpenDecision[] | null {
+	const cleaned = content
+		.trim()
+		.replace(/^```(?:json)?\s*/i, "")
+		.replace(/\s*```$/, "");
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(cleaned);
+	} catch {
+		return null;
+	}
+	const arr = Array.isArray(parsed)
+		? parsed
+		: (parsed as { decisions?: unknown }).decisions;
+	if (!Array.isArray(arr)) return null;
+	const out: LlmOpenDecision[] = [];
+	for (const item of arr) {
+		const o = item as { pool?: unknown; action?: unknown; rationale?: unknown };
+		if (typeof o.pool !== "string" || o.pool === "") continue;
+		out.push({
+			pool: o.pool,
+			action: o.action === "open" ? "open" : "hold",
+			rationale: typeof o.rationale === "string" ? o.rationale : "",
+		});
+	}
+	return out;
+}
+
+export async function requestOpenDecisions(opts: {
+	cfg: ResolvedAgentConfig;
+	candidates: readonly LlmCandidate[];
+	weightsSummary?: string;
+	portfolioContext?: string;
+}): Promise<{ decisions: LlmOpenDecision[] | null; failed: boolean }> {
+	const { cfg } = opts;
+	if (!cfg.llm.apiKey) return { decisions: null, failed: true };
+	// no candidates is a normal state, not an LLM failure
+	if (opts.candidates.length === 0) return { decisions: [], failed: false };
+	const provider = createOpenAICompatible({
+		name: "vexis-llm",
+		baseURL: cfg.llm.baseUrl,
+		apiKey: cfg.llm.apiKey,
+	});
+	try {
+		const { text } = await generateText({
+			model: provider(cfg.llm.model),
+			messages: [
+				{
+					role: "user",
+					content: buildOpenDecisionPrompt(
+						opts.candidates,
+						opts.weightsSummary,
+						opts.portfolioContext,
+					),
+				},
+			],
+			temperature: 0,
+			maxRetries: 1,
+			timeout: cfg.llm.timeoutMs,
+		});
+		if (!text) return { decisions: null, failed: true };
+		const decisions = parseOpenDecisionResponse(text);
+		if (decisions === null) return { decisions: null, failed: true };
+		return { decisions, failed: false };
+	} catch (e) {
+		// timeout / network: skip cycle, no trades
+		console.error(
+			"[agent] LLM request failed:",
+			e instanceof Error ? e.message : String(e),
+		);
+		return { decisions: null, failed: true };
+	}
+}
+
 export async function requestSignals(opts: {
 	cfg: ResolvedAgentConfig;
 	candidates: readonly LlmCandidate[];
