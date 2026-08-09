@@ -6,7 +6,7 @@ import { escapeMarkdown } from "../format.js";
 import { api, getConfig, resolveWallet } from "../fx.js";
 import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
-import { type RuntimeAgent, pnlPctValue } from "./engine.js";
+import type { RuntimeAgent } from "./engine.js";
 import {
 	formatJournalPage,
 	formatPortfolio,
@@ -19,7 +19,7 @@ import {
 } from "./format.js";
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
-import { actionCounts, tradeStats } from "./stats.js";
+import { actionCounts, pnlPctValue, tradeStats } from "./stats.js";
 import { clearCooldowns } from "./state.js";
 
 export const PAGE_SIZE = 5;
@@ -168,7 +168,9 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				const n = rt.state.cooldowns.length;
 				clearCooldowns(rt.state);
 				await ctx.reply(
-					n > 0 ? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.` : "No cooldowns to clear.",
+					n > 0
+						? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.`
+						: "No cooldowns to clear.",
 					MD,
 				);
 				break;

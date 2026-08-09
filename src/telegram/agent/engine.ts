@@ -1,7 +1,6 @@
 import { Effect, Fiber } from "effect";
 import type { Bot } from "grammy";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
-import type { PositionPnLData } from "../../domain/position.js";
 import {
 	resolveAgentConfigFrom,
 	resolveCreatePresetFrom,
@@ -63,6 +62,7 @@ import {
 	signalSnapshot,
 	weightsSummary,
 } from "./signalWeights.js";
+import { pnlPctValue } from "./stats.js";
 import { type AgentState, loadState, saveState } from "./state.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
@@ -115,19 +115,6 @@ async function liveStep(
 	if (allowed(cfg.notifLevel, "live")) {
 		await liveSend(bot, chatId, live, msg);
 	}
-}
-
-/** Canonical PnL %: prefer SOL-side change, fall back to token-side. */
-export function pnlPctValue(pos: {
-	pnlSolPctChange: PositionPnLData["pnlSolPctChange"];
-	pnlPctChange: string;
-}): number | null {
-	if (pos.pnlSolPctChange != null) {
-		const n = Number(pos.pnlSolPctChange);
-		if (Number.isFinite(n)) return n;
-	}
-	const n = parseFloat(pos.pnlPctChange);
-	return Number.isFinite(n) ? n : null;
 }
 
 /** Merge on-chain open positions (opened manually or before a fresh start) into tracked plans. */

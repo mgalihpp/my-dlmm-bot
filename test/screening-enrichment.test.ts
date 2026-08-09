@@ -58,7 +58,10 @@ const poolFixture = {
 	fee_pct: 0.003,
 };
 
-const route = (url: string, ohlcvData: unknown[] = []): { body: unknown; status?: number } => {
+const route = (
+	url: string,
+	ohlcvData: unknown[] = [],
+): { body: unknown; status?: number } => {
 	if (url.includes("datapi.jup.ag"))
 		return {
 			body: [
@@ -88,7 +91,9 @@ const route = (url: string, ohlcvData: unknown[] = []): { body: unknown; status?
 	if (url.includes("pool-discovery"))
 		return { body: { data: [poolFixture], total: 1 } };
 	if (url.includes("ohlcv"))
-		return { body: { start_time: 0, end_time: 0, timeframe: "24h", data: ohlcvData } };
+		return {
+			body: { start_time: 0, end_time: 0, timeframe: "24h", data: ohlcvData },
+		};
 	return { body: { data: [] } };
 };
 

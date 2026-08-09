@@ -77,3 +77,16 @@ export function actionCounts(
 	}
 	return counts;
 }
+
+/** Canonical PnL %: prefer SOL-side change, fall back to token-side. */
+export function pnlPctValue(pos: {
+	pnlSolPctChange: string | number | null;
+	pnlPctChange: string;
+}): number | null {
+	if (pos.pnlSolPctChange != null) {
+		const n = Number(pos.pnlSolPctChange);
+		if (Number.isFinite(n)) return n;
+	}
+	const n = parseFloat(pos.pnlPctChange);
+	return Number.isFinite(n) ? n : null;
+}

@@ -68,8 +68,7 @@ const make = Effect.gen(function* () {
 								);
 								if (high > 0) {
 									const pctFromAth = 1 - pool.price / high;
-									(pool as { fromAthPct: number }).fromAthPct =
-										pctFromAth;
+									(pool as { fromAthPct: number }).fromAthPct = pctFromAth;
 									(pool as { priceVsAthPct: number }).priceVsAthPct =
 										pctFromAth * 100;
 								}
