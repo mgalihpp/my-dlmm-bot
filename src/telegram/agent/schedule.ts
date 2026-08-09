@@ -21,3 +21,12 @@ export const alignedSchedule = (intervalMs: number) =>
 			),
 		]),
 	);
+
+/** Milliseconds until `hour` (0-23, local time) today, or tomorrow if already past. */
+export function delayToDaily(hour: number, nowMs: number): number {
+	const d = new Date(nowMs);
+	const target = new Date(d);
+	target.setHours(hour, 0, 0, 0);
+	if (target.getTime() <= nowMs) target.setDate(target.getDate() + 1);
+	return target.getTime() - nowMs;
+}
