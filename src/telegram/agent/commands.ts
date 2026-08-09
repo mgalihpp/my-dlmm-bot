@@ -15,6 +15,7 @@ import {
 	type JournalFilter,
 	journalPageCount,
 	type PortfolioRow,
+	type PositionPnl,
 } from "./format.js";
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
@@ -81,14 +82,11 @@ function tradeStatsOf() {
 	return tradeStats(loadSignalWeights().perf);
 }
 
-async function portfolioRows(
-	rt: RuntimeAgent,
-): Promise<{ rows: PortfolioRow[]; deployedSol: number }> {
+/** Live PnL per plan (by pool address). Skips plans with no open position or failed fetch. */
+async function pnlByPool(rt: RuntimeAgent): Promise<Map<string, PositionPnl>> {
 	const wallet = await resolveWallet();
-	const rows: PortfolioRow[] = [];
-	let deployedSol = 0;
+	const map = new Map<string, PositionPnl>();
 	for (const plan of rt.state.plans) {
-		deployedSol += plan.amountSol ?? 0;
 		if (!plan.positionAddress) continue;
 		try {
 			const pdata = await api.positionPnl(plan.pool, wallet, "open");
@@ -101,15 +99,33 @@ async function portfolioRows(
 			const pnlPct = Number.isFinite(solRaw)
 				? solRaw
 				: parseFloat(pos.pnlPctChange);
-			rows.push({
-				poolName: plan.poolName,
-				amountSol: plan.amountSol,
+			map.set(plan.pool, {
 				pnlPct: Number.isFinite(pnlPct) ? pnlPct : null,
 				outOfRange: pos.isOutOfRange ?? null,
 			});
 		} catch {
 			// positionPnl failed for this pool → skip, PnL n/a
 		}
+	}
+	return map;
+}
+
+async function portfolioRows(
+	rt: RuntimeAgent,
+): Promise<{ rows: PortfolioRow[]; deployedSol: number }> {
+	const byPool = await pnlByPool(rt);
+	const rows: PortfolioRow[] = [];
+	let deployedSol = 0;
+	for (const plan of rt.state.plans) {
+		deployedSol += plan.amountSol ?? 0;
+		const live = byPool.get(plan.pool);
+		if (!live) continue;
+		rows.push({
+			poolName: plan.poolName,
+			amountSol: plan.amountSol,
+			pnlPct: live.pnlPct,
+			outOfRange: live.outOfRange,
+		});
 	}
 	return { rows, deployedSol };
 }
@@ -126,7 +142,7 @@ export function journalKeyboard(
 	for (const f of ["all", "opens", "closes", "blocked"] as const) {
 		kb.text(f === filter ? `• ${f}` : f, `agent:journal:filter:${f}`);
 	}
-	kb.row().text("⬅️ Dashboard", "menu:main");
+	kb.row().text("⬅️ Agent", "menu:agent");
 	return kb;
 }
 
@@ -147,7 +163,8 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				break;
 			}
 			case "status": {
-				await ctx.reply(formatStatus(rt.state, cfg, stats), {
+				const pnl = await pnlByPool(rt);
+				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
 					...MD,
 					reply_markup: statusKeyboard(rt),
 				});
@@ -178,7 +195,8 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				break;
 			}
 			default: {
-				await ctx.reply(formatStatus(rt.state, cfg, stats), {
+				const pnl = await pnlByPool(rt);
+				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
 					...MD,
 					reply_markup: agentKeyboard(),
 				});
@@ -195,11 +213,12 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		if (ctx.match[1] === "start") rt.start();
 		else rt.stop();
 		const cfg = resolveAgentConfigFrom(await getConfig());
+		const pnl = await pnlByPool(rt);
 		await editOrIgnore(
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf()),
+			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
 			statusKeyboard(rt),
 		);
 	});
@@ -210,11 +229,12 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		const messageId = ctx.msgId;
 		if (chatId == null || messageId == null) return;
 		const cfg = resolveAgentConfigFrom(await getConfig());
+		const pnl = await pnlByPool(rt);
 		await editOrIgnore(
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf()),
+			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
 			statusKeyboard(rt),
 		);
 	});
@@ -466,11 +486,12 @@ export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
 		const messageId = ctx.msgId;
 		if (chatId == null || messageId == null) return;
 		const cfg = resolveAgentConfigFrom(await getConfig());
+		const pnl = await pnlByPool(rt);
 		await editOrIgnore(
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf()),
+			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
 		);
 	});
 

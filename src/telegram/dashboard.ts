@@ -58,12 +58,6 @@ export function dashboardText(rt: RuntimeAgent | null): string {
 }
 
 export function registerDashboard(bot: Bot, rt: RuntimeAgent | null) {
-	bot.command("menu", async (ctx) => {
-		await ctx.reply(dashboardText(rt), {
-			...MD,
-			reply_markup: dashboardKeyboard(),
-		});
-	});
 	bot.command("dashboard", async (ctx) => {
 		await ctx.reply(dashboardText(rt), {
 			...MD,

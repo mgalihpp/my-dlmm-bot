@@ -5,19 +5,21 @@ import {
 	tgCode,
 	tgPct,
 	tgPoolAddr,
-	tgSol,
+	tgPoolLink,
+	tgSolAmt,
 	tgTs,
 	tgUsd,
 } from "../format.js";
 import type { AgentJournalEntry, JournalCandidate } from "./journal.js";
 import { delayToNextBoundary } from "./schedule.js";
-import type { AgentState } from "./state.js";
+import type { AgentCooldown, AgentState } from "./state.js";
 import type { ActionCounts, TradeStats } from "./stats.js";
 
 export function formatStatus(
 	state: AgentState,
 	cfg: ResolvedAgentConfig,
 	stats: TradeStats | null = null,
+	pnl: ReadonlyMap<string, PositionPnl> = new Map(),
 	nowMs: number = Date.now(),
 ): string {
 	const opened = state.plans.filter((p) => p.positionAddress != null).length;
@@ -35,11 +37,14 @@ export function formatStatus(
 	} else {
 		lines.push("🛑 Agent stopped — run `/agent start`");
 	}
-	if (state.cooldowns.length > 0) {
+	const activeCooldowns = state.cooldowns.filter(
+		(c) => Date.parse(c.until) > nowMs,
+	);
+	if (activeCooldowns.length > 0) {
 		lines.push(
-			`Cooldowns: ${escapeMarkdown(String(state.cooldowns.length))}`,
-			...state.cooldowns
-				.slice(0, 3)
+			`Cooldowns: ${escapeMarkdown(String(activeCooldowns.length))}`,
+			...activeCooldowns
+				.slice(-3)
 				.map(
 					(c) =>
 						`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
@@ -50,8 +55,12 @@ export function formatStatus(
 		lines.push("", tgBold("📦 OPEN POSITIONS"));
 		state.plans.forEach((p, i) => {
 			const stateMarker = p.openedAt ? "▢" : "⏳";
+			const live = pnl.get(p.pool);
+			const pnlStr =
+				live && live.pnlPct != null ? ` ${tgPct(live.pnlPct)}` : "";
+			const oor = live?.outOfRange ? " OOR" : "";
 			lines.push(
-				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSol(p.amountSol)} ${stateMarker}`,
+				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSolAmt(p.amountSol)} ${stateMarker}${pnlStr}${escapeMarkdown(oor)}`,
 			);
 		});
 	}
@@ -102,6 +111,8 @@ const ACT_ICON: Record<JournalCandidate["action"], string> = {
 export function formatCycleSummary(
 	entries: readonly AgentJournalEntry[],
 	degraded: boolean,
+	cooldowns: readonly AgentCooldown[] = [],
+	nowMs: number = Date.now(),
 ): string {
 	const last = entries[0];
 	if (!last) return "🤖 No DLMM Agent cycle has run yet.";
@@ -128,7 +139,18 @@ export function formatCycleSummary(
 							? "held"
 							: "";
 		lines.push(
-			`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${escapeMarkdown(c.poolName)}${status ? ` \\| ${status}` : ""}`,
+			`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${tgPoolLink(c.poolName, c.pool)}${status ? ` \\| ${status}` : ""}`,
+		);
+	}
+	const active = cooldowns.filter((c) => Date.parse(c.until) > nowMs);
+	if (active.length > 0) {
+		lines.push(
+			"",
+			`⏳ Cooldowns: ${escapeMarkdown(String(active.length))}`,
+			...active.map(
+				(c) =>
+					`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
+			),
 		);
 	}
 	return lines.join("\n");
@@ -146,6 +168,12 @@ export function formatLive(cycle: number, lines: readonly string[]): string {
 export interface PortfolioRow {
 	poolName: string;
 	amountSol: number;
+	pnlPct: number | null;
+	outOfRange: boolean | null;
+}
+
+/** Live PnL for one open plan, keyed by pool address. */
+export interface PositionPnl {
 	pnlPct: number | null;
 	outOfRange: boolean | null;
 }
@@ -235,7 +263,7 @@ export function formatJournalPage(
 							? "❌ FAILED"
 							: "";
 			lines.push(
-				`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${escapeMarkdown(c.poolName)}${status ? ` ${status}` : ""}`,
+				`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${tgPoolLink(c.poolName, c.pool)}${status ? ` ${status}` : ""}`,
 			);
 		}
 	}
@@ -314,7 +342,7 @@ export function formatDashboardHeader(
 		tgBold("🤖 VEXIS DLMM Agent"),
 		`${dot} ${headline}`,
 		`Budget: ${formatBudgetBar(deployed, cfg.maxTotalSol)}`,
-		`Deployed ${tgUsd(deployed)} \\| max ${tgUsd(cfg.maxTotalSol)}`,
+		`Deployed ${tgSolAmt(deployed)} \\| max ${tgSolAmt(cfg.maxTotalSol)}`,
 		winLine,
 	].join("\n");
 }
@@ -370,7 +398,7 @@ export function formatPositionCard(o: PositionCard): string {
 		pnl,
 	];
 	if (o.amountSol != null) {
-		lines.push(`Amount: ${tgSol(o.amountSol)}`);
+		lines.push(`Amount: ${tgSolAmt(o.amountSol)}`);
 	}
 	lines.push(`Range: ${range}`);
 	if (rangeOk && o.price! < o.minPrice!) {

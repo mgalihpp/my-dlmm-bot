@@ -22,13 +22,13 @@ export function checkOpenGuardrail(input: {
 	if (input.amountSol > input.maxSolPerPosition + 1e-9) {
 		return {
 			ok: false,
-			reason: `amount ${input.amountSol} > per-position cap ${input.maxSolPerPosition}`,
+			reason: `amount ${input.amountSol.toFixed(3)} > per-position cap ${input.maxSolPerPosition.toFixed(3)}`,
 		};
 	}
 	if (input.deployedSol + input.amountSol > input.maxTotalSol + 1e-9) {
 		return {
 			ok: false,
-			reason: `total ${input.deployedSol + input.amountSol} > cap ${input.maxTotalSol}`,
+			reason: `total ${(input.deployedSol + input.amountSol).toFixed(3)} > cap ${input.maxTotalSol.toFixed(3)}`,
 		};
 	}
 	if (
@@ -122,7 +122,7 @@ export function checkRisks(input: {
 	if (pool.bundlePct != null && pool.bundlePct > risks.maxBundlePct) {
 		return {
 			ok: false,
-			reason: `bundle ${pool.bundlePct}% > ${risks.maxBundlePct}%`,
+			reason: `bundle ${pool.bundlePct.toFixed(2)}% > ${risks.maxBundlePct.toFixed(2)}%`,
 		};
 	}
 	if (
@@ -131,13 +131,13 @@ export function checkRisks(input: {
 	) {
 		return {
 			ok: false,
-			reason: `bot holders ${pool.botHoldersPct}% > ${risks.maxBotHoldersPct}%`,
+			reason: `bot holders ${pool.botHoldersPct.toFixed(2)}% > ${risks.maxBotHoldersPct.toFixed(2)}%`,
 		};
 	}
 	if (pool.top10Pct != null && pool.top10Pct > risks.maxTop10Pct) {
 		return {
 			ok: false,
-			reason: `top10 ${pool.top10Pct}% > ${risks.maxTop10Pct}%`,
+			reason: `top10 ${pool.top10Pct.toFixed(2)}% > ${risks.maxTop10Pct.toFixed(2)}%`,
 		};
 	}
 	if (
@@ -146,7 +146,7 @@ export function checkRisks(input: {
 	) {
 		return {
 			ok: false,
-			reason: `global fees ${pool.globalFeesSol} SOL < ${risks.minTokenFeesSol} SOL`,
+			reason: `global fees ${pool.globalFeesSol.toFixed(2)} SOL < ${risks.minTokenFeesSol.toFixed(2)} SOL`,
 		};
 	}
 	if (risks.blockDexScreenerPaid && pool.dexScreenerPaid === true) {
@@ -161,7 +161,7 @@ export function checkRisks(input: {
 	if (athPct != null && athPct > risks.maxPriceVsAthPct) {
 		return {
 			ok: false,
-			reason: `price ${athPct}% of ATH > ${risks.maxPriceVsAthPct}%`,
+			reason: `price ${athPct.toFixed(2)}% of ATH > ${risks.maxPriceVsAthPct.toFixed(2)}%`,
 		};
 	}
 	return { ok: true, reason: null };

@@ -83,6 +83,34 @@ describe("formatStatus", () => {
 		expect(formatStatus(s, cfg)).toContain("OPEN POSITIONS");
 		expect(formatStatus(s, cfg)).toContain("A/SOL");
 	});
+	it("renders deployed header in SOL and live PnL on opened rows", () => {
+		const s: AgentState = {
+			enabled: true,
+			running: false,
+			lastCycleAt: "2026-08-08T00:00:00Z",
+			llmStatus: "ok",
+			cycle: 2,
+			plans: [
+				{
+					pool: "P1",
+					poolName: "A/SOL",
+					baseMint: null,
+					amountSol: 0.5,
+					positionAddress: "PA1",
+					openedAt: "2026-08-08T00:01:00Z",
+				},
+			],
+			executions: [],
+			cooldowns: [],
+		};
+		const pnl = new Map([["P1", { pnlPct: 12.4, outOfRange: false }]]);
+		const out = formatStatus(s, cfg, null, pnl);
+		expect(out).toContain("Deployed 0");
+		expect(out).not.toContain("Deployed $");
+		expect(out).toContain("◎");
+		expect(out).not.toContain("+0");
+		expect(out).toContain("🟢");
+	});
 });
 
 describe("formatCycleSummary", () => {

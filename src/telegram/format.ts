@@ -60,6 +60,14 @@ export function tgSol(value: string | number | null): string {
 	return escapeMarkdown(`${sign}${formatNum(Math.abs(n), 3)} ◎`);
 }
 
+/** SOL amount, unsigned (capital like deployed/position size), escaped. */
+export function tgSolAmt(value: string | number | null): string {
+	if (value === null || value === undefined) return "\\-";
+	const n = typeof value === "number" ? value : parseFloat(value);
+	if (Number.isNaN(n)) return escapeMarkdown(String(value));
+	return escapeMarkdown(`${formatNum(n, 3)} ◎`);
+}
+
 /** Full address in a code span — tap to copy in Telegram. */
 export function tgShortAddr(addr: string): string {
 	return tgCode(addr);
@@ -74,6 +82,12 @@ function escapeUrl(url: string): string {
 export function tgPoolAddr(addr: string): string {
 	const url = `https://app.meteora.ag/dlmm/${addr}`;
 	return `[🔗 ${escapeMarkdown(addr)}](${escapeUrl(url)})`;
+}
+
+/** Pool name as a tappable link to its Meteora page (short link text). */
+export function tgPoolLink(name: string, pool: string): string {
+	const url = `https://app.meteora.ag/dlmm/${pool}`;
+	return `[${escapeMarkdown(name)}](${escapeUrl(url)})`;
 }
 
 /** Transaction signature with Solscan link. */

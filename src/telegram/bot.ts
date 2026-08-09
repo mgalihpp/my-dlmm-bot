@@ -26,9 +26,8 @@ import { MD } from "./utils.js";
 const HELP = [
 	tgBold("🤖 Vexis DLMM Bot"),
 	"",
-	"`/menu` or `/dashboard` — open the hub",
-	"",
 	tgBold("Read-only"),
+	escapeMarkdown("/dashboard - open the hub"),
 	escapeMarkdown("/balance - SOL & token balances"),
 	escapeMarkdown("/portfolio - total PnL summary"),
 	escapeMarkdown("/open - open positions"),
@@ -131,7 +130,6 @@ async function main() {
 	await bot.api.setMyCommands([
 		{ command: "start", description: "Show the dashboard" },
 		{ command: "dashboard", description: "Open the hub menu" },
-		{ command: "menu", description: "Open the hub menu (alias)" },
 		{ command: "manage", description: "Position manager" },
 		{
 			command: "tpsl",

@@ -954,7 +954,11 @@ async function evaluatePlans(
 	rt.state.llmStatus = journal.llmStatus;
 	appendJournal(journal);
 	saveState(rt.state);
-	const summary = formatCycleSummary(readJournal(1), degraded);
+	const summary = formatCycleSummary(
+		readJournal(1),
+		degraded,
+		rt.state.cooldowns,
+	);
 	if (cfg.notifLevel === "verbose") {
 		await liveSend(bot, chatId, live, summary);
 	} else {
