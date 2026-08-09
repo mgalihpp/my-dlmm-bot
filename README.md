@@ -22,6 +22,7 @@ Built with TypeScript, [Effect](https://effect.website/) (functional effect syst
 - **Take-Profit / Stop-Loss** — Automated rules that trigger on PnL thresholds per position.
 - **Watchlist** — Track LP positions across multiple wallets in one place.
 - **Config Editor** — Edit any config value interactively from Telegram via `/config`.
+- **AI Agent** — Automated position management: an LLM decides `open`/`hold` per screened pool, deterministic guardrails block unsafe opens, plus TP/SL and out-of-range handling with Darwinian weight learning. See [AI Agent](#ai-agent).
 
 ## Architecture
 
@@ -55,6 +56,7 @@ src/
 │   ├── bot.ts           # Bot entry point
 │   ├── alerts.ts        # Cron-based alert engine
 │   ├── tpsl.ts          # Take-profit / stop-loss engine
+│   ├── agent/           # AI agent (LLM decisions, guardrails, journal)
 │   └── handlers/        # One handler per command group
 ├── services/            # Effect services (MeteoraApi, Dlmm, Screening, ...)
 ├── domain/              # Effect.Schema types (config, portfolio, pool, position)
@@ -132,6 +134,7 @@ Config search order: `$VEXIS_CONFIG` (explicit path) → `./vexis.config.json` �
 | `create.mode` | `single-y`, `single-x`, or `both` sided position |
 | `create.slippageBps` | Swap slippage in basis points |
 | `pools.*` | Pool screening filters (see below) |
+| `agent.*` | AI agent config (see [AI Agent](#ai-agent)) |
 
 ### Screening Filters
 
@@ -163,6 +166,47 @@ Set any filter to `null` to skip it.
 | Volume change % | `minVolumeChangePct` / `maxVolumeChangePct` | Min/max volume change percentage |
 | Price trend | `priceTrend` | Filter by price trend direction |
 | SOL pair only | `solPairOnly` | Boolean — only show SOL-paired pools |
+
+## AI Agent
+
+Automated DLMM position management (`/agent`). The agent screens pools, lets an LLM decide `open`/`hold` per candidate, then opens positions behind deterministic guardrails — with TP/SL and out-of-range (OOR) handling on top. Full details: [docs/ai-agent.md](docs/ai-agent.md).
+
+**How it works:**
+
+```
+Screening (deterministic) → LLM decides open/hold → validate (anti-hallucination) → guardrails (hard block) → createPosition
+```
+
+- **LLM decides** — the heuristic only ranks which pools the LLM sees (`minCandidate` no longer gates). If the LLM call fails, the whole cycle is skipped — zero trades.
+- **Guardrails** — deterministic filters that the LLM can't bypass: duplicate/cooldown/risk/budget checks.
+- **TP/SL** — automated take-profit / stop-loss on PnL thresholds.
+- **OOR** — out-of-range positions get a separate LLM `hold`/`close` decision.
+- **Darwinian weights** — signal weights re-learned from closed-position PnL.
+- **Journal** — every cycle logged to `.vexis-agent-journal.jsonl` (JSONL).
+
+```json
+{
+  "agent": {
+    "enabled": false,
+    "maxCandidates": 5,
+    "maxSolPerPosition": 0.5,
+    "maxTotalSol": 3,
+    "maxOpenPositions": 4,
+    "txCooldownMs": 300000,
+    "poolCooldownMs": 86400000,
+    "tpPct": 25,
+    "slPct": -10,
+    "llm": {
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "apiKey": "sk-...",
+      "timeoutMs": 120000
+    }
+  }
+}
+```
+
+Commands: `/agent start`, `/agent stop`, `/agent status`, `/agent portfolio`, `/agent journal [n]`. Agent state persists to `.vexis-agent.json`.
 
 ## Telegram Bot
 
