@@ -176,7 +176,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				const { rows, deployedSol } = await portfolioRows(rt);
 				await ctx.reply(formatPortfolio(rows, deployedSol, stats), {
 					...MD,
-					reply_markup: agentKeyboard(),
+					reply_markup: portfolioKeyboard(),
 				});
 				break;
 			}
@@ -252,6 +252,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatPortfolio(rows, deployedSol, tradeStatsOf()),
+			portfolioKeyboard(),
 		);
 	});
 
@@ -475,6 +476,17 @@ export function agentKeyboard(): InlineKeyboard {
 		.row()
 		.text("📊 Portfolio", "agent:portfolio")
 		.text("📒 Journal", "agent:journal");
+}
+
+function portfolioKeyboard(): InlineKeyboard {
+	return new InlineKeyboard()
+		.text("▶️ Start", "agent:start")
+		.text("⏹ Stop", "agent:stop")
+		.row()
+		.text("📒 Journal", "agent:journal")
+		.text("🔄 Refresh", "agent:portfolio")
+		.row()
+		.text("⬅️ Agent", "menu:agent");
 }
 
 export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
