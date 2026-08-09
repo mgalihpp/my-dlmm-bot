@@ -103,6 +103,16 @@ Satu pesan Telegram diedit in-place saat fase berjalan (`liveSend`/`liveStep`): 
 
 Semua job dijalankan via `Effect.repeat(alignedSchedule(interval))` — menembak di **batas wall-clock** (`:00/:05/:10`), bukan dari akhir run (anti-drift). Run pertama langsung jalan saat startup.
 
+### Daily briefing
+
+- Job `briefing` — tiap hari 09:00 lokal (`delayToDaily(9)` + `Schedule.spaced(24h)`). Fire pertama di 09:00 berikutnya (bukan saat startup) via dynamic delay per-run.
+- Kirim narasi LLM: portfolio health (posisi + PnL + win rate + deployed), aktivitas 24 jam terakhir (dari journal), market snapshot (top 5 pool screening).
+- LLM gagal → fallback data mentah (`formatBriefingFallback`).
+- Selalu terkirim — tidak terikat `notifLevel`.
+- Manual: `/briefing`.
+- Read-only: tidak menulis state/plans/cooldowns/journal.
+- File: `src/telegram/agent/briefing.ts`, `delayToDaily` di `schedule.ts`.
+
 ### TP/SL check (`evaluateTpSl`)
 - Per plan terbuka: `api.positionPnl` → hitung `pnlPct`.
 - OOR → kumpulkan ke daftar `oorPositions` untuk LLM OOR.
