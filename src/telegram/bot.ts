@@ -4,9 +4,10 @@ import { Effect } from "effect";
 import { Bot } from "grammy";
 import { errorMessage } from "../errors.js";
 import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
-import { registerAgentCommands } from "./agent/commands.js";
+import { registerAgentCommands, registerMenuSpokes } from "./agent/commands.js";
 import { createAgent } from "./agent/engine.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
+import { registerDashboard } from "./dashboard.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { registerBalance } from "./handlers/balance.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
@@ -24,6 +25,8 @@ import { MD } from "./utils.js";
 
 const HELP = [
 	tgBold("🤖 Vexis DLMM Bot"),
+	"",
+	"`/menu` or `/dashboard` — open the hub",
 	"",
 	tgBold("Read-only"),
 	escapeMarkdown("/balance - SOL & token balances"),
@@ -110,11 +113,15 @@ async function main() {
 		registerTpSlCommands(bot);
 
 		const rtAgent = createAgent(bot, chatId);
+		registerDashboard(bot, rtAgent); // live header
+		registerMenuSpokes(bot, rtAgent);
 		registerAgentCommands(bot, rtAgent);
 		const agentCfg = resolveAgentConfigFrom(
 			await runtime.runPromise(Effect.flatMap(AppConfig, (c) => c.get)),
 		);
 		if (agentCfg.enabled) rtAgent.start();
+	} else {
+		registerDashboard(bot, null); // idle header fallback
 	}
 
 	bot.catch((err) => {
@@ -122,12 +129,13 @@ async function main() {
 	});
 
 	await bot.api.setMyCommands([
-		{ command: "start", description: "Start the bot / show all commands" },
-		{ command: "menu", description: "Open menu" },
+		{ command: "start", description: "Show the dashboard" },
+		{ command: "dashboard", description: "Open the hub menu" },
+		{ command: "menu", description: "Open the hub menu (alias)" },
 		{ command: "manage", description: "Position manager" },
 		{
 			command: "tpsl",
-			description: "Show global stop-loss / take-profit thresholds",
+			description: "Global TP/SL thresholds",
 		},
 		{
 			command: "agent",
