@@ -692,11 +692,7 @@ async function evaluatePlans(
 	for (const s of signals) {
 		logInfo(`llm ${s.pool}: favorability=${s.favorability} — ${s.rationale}`);
 	}
-	journal.llmStatus = degraded
-		? cfg.llm.apiKey
-			? "degraded"
-			: "skipped"
-		: "ok";
+	journal.llmStatus = degraded ? (cfg.llm.apiKey ? "failed" : "skipped") : "ok";
 
 	liveLines[liveLines.length - 1] =
 		`🧠 LLM: ${llmCandidates.length} candidates → ${signals.length} signals${degraded ? " (degraded)" : ""}`;
@@ -950,7 +946,7 @@ async function evaluatePlans(
 	saveState(rt.state);
 	const summary = formatCycleSummary(
 		readJournal(1),
-		degraded,
+		journal.llmStatus,
 		rt.state.cooldowns,
 	);
 	if (cfg.notifLevel === "verbose") {

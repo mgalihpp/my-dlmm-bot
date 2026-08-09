@@ -115,7 +115,7 @@ describe("formatStatus", () => {
 });
 
 describe("formatCycleSummary", () => {
-	it("renders blocks and degraded", () => {
+	it("renders blocks", () => {
 		const entry: AgentJournalEntry = {
 			ts: "2026-08-08T00:00:00Z",
 			cycle: 3,
@@ -134,7 +134,7 @@ describe("formatCycleSummary", () => {
 				},
 			],
 		};
-		const text = formatCycleSummary([entry], false);
+		const text = formatCycleSummary([entry], "ok");
 		expect(text).toContain("A/SOL");
 		expect(text).toContain("sig");
 	});

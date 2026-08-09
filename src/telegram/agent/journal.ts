@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
+import type { LlmStatus } from "./state.js";
 
 export type JournalAction = "open" | "hold" | "tp" | "sl" | "close";
 
@@ -18,7 +19,7 @@ export interface JournalCandidate {
 export interface AgentJournalEntry {
 	ts: string;
 	cycle: number;
-	llmStatus: "ok" | "degraded" | "skipped";
+	llmStatus: LlmStatus;
 	candidates: JournalCandidate[];
 }
 

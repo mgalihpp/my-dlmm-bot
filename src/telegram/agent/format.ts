@@ -11,7 +11,7 @@ import {
 } from "../format.js";
 import type { AgentJournalEntry, JournalCandidate } from "./journal.js";
 import { delayToNextBoundary } from "./schedule.js";
-import type { AgentCooldown, AgentState } from "./state.js";
+import type { AgentCooldown, AgentState, LlmStatus } from "./state.js";
 import type { ActionCounts, TradeStats } from "./stats.js";
 
 export function formatStatus(
@@ -109,7 +109,7 @@ const ACT_ICON: Record<JournalCandidate["action"], string> = {
 
 export function formatCycleSummary(
 	entries: readonly AgentJournalEntry[],
-	degraded: boolean,
+	llmStatus: LlmStatus,
 	cooldowns: readonly AgentCooldown[] = [],
 	nowMs: number = Date.now(),
 ): string {
@@ -124,7 +124,8 @@ export function formatCycleSummary(
 		`${tgTs(last.ts)} \\| opened ${escapeMarkdown(String(opened))} \\| blocked ${escapeMarkdown(String(blocked))}`,
 		"━━━━━━━━━━━━",
 	];
-	if (degraded) lines.push("⚠️ LLM degraded — heuristic only");
+	if (llmStatus === "failed") lines.push("❌ LLM failed — cycle skipped");
+	else if (llmStatus === "skipped") lines.push("— no LLM signal (skipped)");
 	for (const c of last.candidates) {
 		const icon = ACT_ICON[c.action] ?? "•";
 		const status =

@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
-export type LlmStatus = "ok" | "degraded" | "skipped";
+export type LlmStatus = "ok" | "failed" | "skipped";
 
 export interface AgentPlan {
 	pool: string;

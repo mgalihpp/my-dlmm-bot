@@ -30,7 +30,7 @@ describe("journal", () => {
 			{
 				ts: "2026-08-08T01:00:00Z",
 				cycle: 2,
-				llmStatus: "degraded",
+				llmStatus: "failed",
 				candidates: [
 					{
 						pool: "P1",
@@ -67,7 +67,7 @@ describe("state", () => {
 				cooldowns: [],
 				enabled: true,
 				lastCycleAt: "x",
-				llmStatus: "degraded",
+				llmStatus: "failed",
 			},
 			f,
 		);
