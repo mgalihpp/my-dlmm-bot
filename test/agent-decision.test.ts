@@ -4,7 +4,10 @@ import {
 	combineScore,
 	decideCandidates,
 	tpslAction,
+	validateOpenDecisions,
 } from "../src/telegram/agent/decision.js";
+
+const candidates = [{ pool: "PoolA" }, { pool: "PoolB" }, { pool: "PoolC" }];
 
 const pool = (over: Partial<ScreenedPool> = {}): ScreenedPool =>
 	({
@@ -37,6 +40,46 @@ const pool = (over: Partial<ScreenedPool> = {}): ScreenedPool =>
 		rugScore: null,
 		...over,
 	}) as ScreenedPool;
+
+describe("validateOpenDecisions", () => {
+	it("keeps known pools in order", () => {
+		const { decisions, dropped } = validateOpenDecisions(candidates, [
+			{ pool: "PoolA", action: "open", rationale: "r" },
+			{ pool: "PoolC", action: "hold", rationale: "h" },
+		]);
+		expect(decisions).toEqual([
+			{ pool: "PoolA", action: "open", rationale: "r" },
+			{ pool: "PoolC", action: "hold", rationale: "h" },
+		]);
+		expect(dropped).toBe(0);
+	});
+
+	it("drops unknown pools (anti-hallucination)", () => {
+		const { decisions, dropped } = validateOpenDecisions(candidates, [
+			{ pool: "Ghost", action: "open", rationale: "hallucinated" },
+			{ pool: "PoolB", action: "open", rationale: "ok" },
+		]);
+		expect(decisions).toEqual([{ pool: "PoolB", action: "open", rationale: "ok" }]);
+		expect(dropped).toBe(1);
+	});
+
+	it("keeps first duplicate occurrence, counts rest as dropped", () => {
+		const { decisions, dropped } = validateOpenDecisions(candidates, [
+			{ pool: "PoolA", action: "open", rationale: "first" },
+			{ pool: "PoolA", action: "hold", rationale: "second" },
+		]);
+		expect(decisions).toEqual([
+			{ pool: "PoolA", action: "open", rationale: "first" },
+		]);
+		expect(dropped).toBe(1);
+	});
+
+	it("passes an empty decision list through", () => {
+		const { decisions, dropped } = validateOpenDecisions(candidates, []);
+		expect(decisions).toEqual([]);
+		expect(dropped).toBe(0);
+	});
+});
 
 describe("combineScore", () => {
 	it("blends 80/20 and pivots to heuristic when no signal", () => {
