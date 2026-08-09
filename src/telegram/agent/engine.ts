@@ -390,6 +390,17 @@ async function evaluateTpSl(
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: plan.pool,
+					poolName: plan.poolName,
+					baseMint: plan.baseMint,
+					reason: `${action} triggered`,
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
 			rt.state.executions.push({
 				at: new Date().toISOString(),
 				action,
