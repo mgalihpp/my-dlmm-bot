@@ -151,6 +151,14 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		if (f) runtime.runFork(Fiber.interrupt(f));
 	};
 
+	// Per-job busy flags: cycle / TP-SL / OOR run independently so a slow check
+	// at a cycle boundary no longer silently skips the cycle (shared `running`
+	// flag caused intermittent no-op cycles and permanent stall if one hung).
+	const busy = { cycle: false, fast: false, oor: false };
+	const syncRunning = () => {
+		rt.state.running = busy.cycle || busy.fast || busy.oor;
+	};
+
 	const schedule = (
 		label: string,
 		intervalMs: number,
@@ -217,11 +225,13 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			briefingFiber = null;
 			rt.state.enabled = false;
 			rt.state.running = false;
+			busy.cycle = busy.fast = busy.oor = false;
 			saveState(rt.state);
 		},
 		async runFast() {
-			if (rt.state.running || !rt.state.enabled) return;
-			rt.state.running = true;
+			if (busy.fast || !rt.state.enabled) return;
+			busy.fast = true;
+			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
@@ -244,13 +254,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				rt.state.running = false;
+				busy.fast = false;
+				syncRunning();
 				saveState(rt.state);
 			}
 		},
 		async runCycle() {
-			if (rt.state.running || !rt.state.enabled) return;
-			rt.state.running = true;
+			if (busy.cycle || !rt.state.enabled) return;
+			busy.cycle = true;
+			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
@@ -280,13 +292,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				rt.state.running = false;
+				busy.cycle = false;
+				syncRunning();
 				saveState(rt.state);
 			}
 		},
 		async runOor() {
-			if (rt.state.running || !rt.state.enabled) return;
-			rt.state.running = true;
+			if (busy.oor || !rt.state.enabled) return;
+			busy.oor = true;
+			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
@@ -308,7 +322,8 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				rt.state.running = false;
+				busy.oor = false;
+				syncRunning();
 				saveState(rt.state);
 			}
 		},
