@@ -82,4 +82,18 @@ describe("RugCheck", () => {
 		);
 		expect(result).toBeNull();
 	});
+
+	it("returns null on non-404 API error", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const r = yield* RugCheck;
+				return yield* r.getSummary("RateLimited");
+			}).pipe(
+				Effect.provide(
+					layerWith(() => ({ body: { error: "rate limit" }, status: 429 })),
+				),
+			),
+		);
+		expect(result).toBeNull();
+	});
 });

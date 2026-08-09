@@ -126,8 +126,9 @@ const make = Effect.gen(function* () {
 		);
 	};
 
-	const nullOn404 = <A>(e: RugCheckApiError): A | null =>
-		e.status === 404 ? null : (e as never);
+	// Enrichment callers (screening) treat null as "no data"; an error object
+	// would leak into consumers and crash them (e.g. `summary.risks.some`).
+	const swallowToNull = <A>(_e: RugCheckApiError): A | null => null;
 
 	const service: RugCheckService = {
 		getSummary: (mint) =>
@@ -140,12 +141,14 @@ const make = Effect.gen(function* () {
 					})),
 					lpLockedPct: s.lpLockedPct,
 				})),
-				Effect.catchAll((e) => Effect.succeed(nullOn404<RugCheckSummary>(e))),
+				Effect.catchAll((e) =>
+					Effect.succeed(swallowToNull<RugCheckSummary>(e)),
+				),
 			),
 		getScore: (mint) =>
 			getSummary(mint).pipe(
 				Effect.map((s) => s.score),
-				Effect.catchAll((e) => Effect.succeed(nullOn404<number>(e))),
+				Effect.catchAll((e) => Effect.succeed(swallowToNull<number>(e))),
 			),
 	};
 	return service;

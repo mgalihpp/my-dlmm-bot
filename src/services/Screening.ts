@@ -113,15 +113,15 @@ const make = Effect.gen(function* () {
 							const s = assign(summary);
 							poolMut.rugScore = s?.score ?? null;
 							poolMut.isRugpull =
-								s?.risks.some(
+								s?.risks?.some(
 									(r) =>
 										r.name.includes("Liquidity Removal") &&
 										r.level === "danger",
 								) ?? null;
 							poolMut.isWash =
-								s?.risks.some((r) => /wash/i.test(r.name)) ?? null;
+								s?.risks?.some((r) => /wash/i.test(r.name)) ?? null;
 							poolMut.devSoldAll =
-								s?.risks.some(
+								s?.risks?.some(
 									(r) => /dev.*sold/i.test(r.name) && r.level === "danger",
 								) ?? null;
 						}),
