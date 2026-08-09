@@ -484,4 +484,58 @@ describe("adoptOnchainPlans", () => {
 		);
 		expect(out).toHaveLength(0);
 	});
+
+	it("prunes plans whose position is no longer on-chain", () => {
+		const plans = [
+			{
+				pool: "P1",
+				poolName: "A/SOL",
+				baseMint: "mx",
+				amountSol: 0.5,
+				positionAddress: "pos1",
+				openedAt: "x",
+			},
+			{
+				pool: "GONE",
+				poolName: "B/SOL",
+				baseMint: "mx2",
+				amountSol: 0.5,
+				positionAddress: "pos2",
+				openedAt: "x",
+			},
+		];
+		const out = adoptOnchainPlans(plans, [openPool()]);
+		expect(out).toHaveLength(1);
+		expect(out[0].pool).toBe("P1");
+	});
+
+	it("keeps pending plans (no confirmed position) when pool missing", () => {
+		const plans = [
+			{
+				pool: "GONE",
+				poolName: "B/SOL",
+				baseMint: "mx2",
+				amountSol: 0.5,
+				positionAddress: null,
+				openedAt: null,
+			},
+		];
+		const out = adoptOnchainPlans(plans, []);
+		expect(out).toHaveLength(1);
+	});
+
+	it("does not prune when portfolio response is incomplete", () => {
+		const plans = [
+			{
+				pool: "GONE",
+				poolName: "B/SOL",
+				baseMint: "mx2",
+				amountSol: 0.5,
+				positionAddress: "pos2",
+				openedAt: "x",
+			},
+		];
+		const out = adoptOnchainPlans(plans, [], { complete: false });
+		expect(out).toHaveLength(1);
+	});
 });

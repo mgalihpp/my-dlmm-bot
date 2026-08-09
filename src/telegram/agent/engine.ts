@@ -119,7 +119,7 @@ async function liveStep(
 	}
 }
 
-/** Merge on-chain open positions (opened manually or before a fresh start) into tracked plans. */
+/** Reconciles tracked plans against the on-chain open portfolio: adopts positions opened manually/elsewhere and prunes plans whose position is no longer on-chain. */
 async function syncOnchainPlans(
 	rt: RuntimeAgent,
 	wallet: string,
@@ -127,12 +127,14 @@ async function syncOnchainPlans(
 ) {
 	const res = open ?? (await api.openPortfolio(wallet, 1, 100));
 	const before = rt.state.plans.length;
-	rt.state.plans = [...adoptOnchainPlans(rt.state.plans, res.pools ?? [])];
-	if (rt.state.plans.length > before) {
+	rt.state.plans = [
+		...adoptOnchainPlans(rt.state.plans, res.pools ?? [], {
+			complete: !res.hasNext,
+		}),
+	];
+	if (rt.state.plans.length !== before) {
 		saveState(rt.state);
-		logInfo(
-			`adopted ${rt.state.plans.length - before} on-chain open position(s) into agent tracking`,
-		);
+		logInfo(`plans reconciled on-chain: ${before} → ${rt.state.plans.length}`);
 	}
 }
 

@@ -246,7 +246,13 @@ export function recordCooldown(
 	];
 }
 
-/** Adopts on-chain open positions the agent does not track yet (opened manually or before a fresh start) into plans. */
+/**
+ * Reconciles plans against the on-chain open portfolio: adopts positions the
+ * agent does not track yet (opened manually or before a fresh start) and, when
+ * the portfolio response is complete, prunes tracked positions that are no
+ * longer on-chain (e.g. closed manually). Only plans with a confirmed
+ * positionAddress are pruned — pending opens are kept until confirmed.
+ */
 export function adoptOnchainPlans(
 	plans: readonly AgentPlan[],
 	openPools: readonly Pick<
@@ -258,8 +264,19 @@ export function adoptOnchainPlans(
 		| "openPositionCount"
 		| "listPositions"
 	>[],
+	opts: { complete?: boolean } = {},
 ): readonly AgentPlan[] {
-	const known = new Set(plans.map((p) => p.pool));
+	const { complete = true } = opts;
+	const openPoolSet = new Set(openPools.map((p) => p.poolAddress));
+	// Skip pruning when the response may be truncated (pagination) — a missing
+	// pool could simply be on a later page, and pruning would wrongly drop it.
+	const kept =
+		complete === true
+			? plans.filter(
+					(p) => p.positionAddress == null || openPoolSet.has(p.pool),
+				)
+			: plans;
+	const known = new Set(kept.map((p) => p.pool));
 	const adopted: AgentPlan[] = [];
 	for (const pool of openPools) {
 		if (pool.openPositionCount <= 0 || known.has(pool.poolAddress)) continue;
@@ -273,5 +290,5 @@ export function adoptOnchainPlans(
 		});
 		known.add(pool.poolAddress);
 	}
-	return adopted.length > 0 ? [...plans, ...adopted] : plans;
+	return adopted.length > 0 ? [...kept, ...adopted] : kept;
 }
