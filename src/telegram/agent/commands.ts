@@ -73,6 +73,7 @@ function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
 		const id = registerAction(p.pool, p.positionAddress);
 		kb.row().text(planActionLabel(p).slice(0, 32), `agent:pos:${id}`);
 	}
+	kb.row().text("🔄 Refresh", "agent:status");
 	return kb;
 }
 
@@ -125,6 +126,7 @@ export function journalKeyboard(
 	for (const f of ["all", "opens", "closes", "blocked"] as const) {
 		kb.text(f === filter ? `• ${f}` : f, `agent:journal:filter:${f}`);
 	}
+	kb.row().text("⬅️ Dashboard", "menu:main");
 	return kb;
 }
 
@@ -313,6 +315,9 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		try {
 			const wallet = await resolveWallet();
 			const detail = await resolvePoolDetail(action.poolAddress);
+			const plan = rt.state.plans.find(
+				(p) => p.positionAddress === action.positionPubkey,
+			);
 			const pdata = await api.positionPnl(action.poolAddress, wallet, "open");
 			const pos = pdata.positions.find(
 				(p) => p.positionAddress === action.positionPubkey,
@@ -323,7 +328,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				tokenY: detail?.tokenY ?? "?",
 				poolAddress: action.poolAddress,
 				positionAddress: action.positionPubkey,
-				amountSol: null,
+				amountSol: plan?.amountSol ?? null,
 				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
 				isOutOfRange: pos.isOutOfRange ?? null,
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
@@ -333,8 +338,12 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			});
 			const kb = new InlineKeyboard()
 				.text("🔄", `agent:pos:${ctx.match[1]}`)
-				.text("⬅️ Status", "menu:agent")
+				.url(
+					"🙂 View on Meteora",
+					`https://app.meteora.ag/dlmm/${action.poolAddress}`,
+				)
 				.row()
+				.text("⬅️ Status", "menu:agent")
 				.text("⬅️ Dashboard", "menu:main");
 			await ctx.editMessageText(text, { ...MD, reply_markup: kb });
 		} catch (e) {
@@ -358,6 +367,9 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		try {
 			const wallet = await resolveWallet();
 			const detail = await resolvePoolDetail(action.poolAddress);
+			const plan = rt.state.plans.find(
+				(p) => p.positionAddress === action.positionPubkey,
+			);
 			const pdata = await api.positionPnl(action.poolAddress, wallet, "open");
 			const pos = pdata.positions.find(
 				(p) => p.positionAddress === action.positionPubkey,
@@ -368,7 +380,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				tokenY: detail?.tokenY ?? "?",
 				poolAddress: action.poolAddress,
 				positionAddress: action.positionPubkey,
-				amountSol: null,
+				amountSol: plan?.amountSol ?? null,
 				pnlPct: pos.pnlPctChange != null ? parseFloat(pos.pnlPctChange) : null,
 				isOutOfRange: pos.isOutOfRange ?? null,
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
@@ -378,6 +390,11 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			});
 			const kb = new InlineKeyboard()
 				.text("🔄", `notif:pnl:${ctx.match[1]}`)
+				.url(
+					"🙂 View on Meteora",
+					`https://app.meteora.ag/dlmm/${action.poolAddress}`,
+				)
+				.row()
 				.text("⬅️ Dashboard", "menu:main");
 			await ctx.editMessageText(text, { ...MD, reply_markup: kb });
 		} catch (e) {
@@ -437,7 +454,9 @@ export function agentKeyboard(): InlineKeyboard {
 		.text("📊 Status", "agent:status")
 		.row()
 		.text("📊 Portfolio", "agent:portfolio")
-		.text("📒 Journal", "agent:journal");
+		.text("📒 Journal", "agent:journal")
+		.row()
+		.text("⬅️ Dashboard", "menu:main");
 }
 
 export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {

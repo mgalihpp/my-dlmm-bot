@@ -80,7 +80,7 @@ describe("formatStatus", () => {
 			executions: [],
 			cooldowns: [],
 		};
-		expect(formatStatus(s, cfg)).toContain("0/4");
+		expect(formatStatus(s, cfg)).toContain("OPEN POSITIONS");
 		expect(formatStatus(s, cfg)).toContain("A/SOL");
 	});
 });

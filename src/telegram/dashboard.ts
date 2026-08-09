@@ -1,9 +1,11 @@
 import { type Bot, InlineKeyboard } from "grammy";
 import { resolveAgentConfigFrom } from "../services/Config.js";
 import type { RuntimeAgent } from "./agent/engine.js";
-import { formatConfigQuick } from "./agent/format.js";
-import { escapeMarkdown, tgBold } from "./format.js";
-import { getConfig } from "./fx.js";
+import { formatConfigQuick, formatDashboardHeader } from "./agent/format.js";
+import { loadSignalWeights } from "./agent/signalWeights.js";
+import { tradeStats } from "./agent/stats.js";
+import { tgBold } from "./format.js";
+import { getConfigSync } from "./fx.js";
 import { MD } from "./utils.js";
 
 export interface HubRow {
@@ -38,15 +40,21 @@ export function dashboardKeyboard(): InlineKeyboard {
 }
 
 export function dashboardText(rt: RuntimeAgent | null): string {
-	if (!rt?.state.enabled) {
-		return `${tgBold("🤖 Vexis Hub")}\n\nAgent idle — pick a panel below\\.`;
+	if (!rt) {
+		return [
+			tgBold("🤖 Vexis Hub"),
+			"",
+			"Agent idle — pick a panel below\\.",
+		].join("\n");
 	}
-	return [
-		tgBold("🤖 Vexis Hub"),
-		`${rt.state.running ? "🟢" : "🟡"} agent ${escapeMarkdown(rt.state.running ? "running" : "stopped")} · cycle ${escapeMarkdown(String(rt.state.cycle))}`,
-		"",
-		"Pick a panel, or run a command:",
-	].join("\n");
+	const cfg = resolveAgentConfigFrom(getConfigSync());
+	const deployed = rt.state.plans.reduce((s, p) => s + (p.amountSol ?? 0), 0);
+	return formatDashboardHeader(
+		rt.state,
+		cfg,
+		deployed,
+		tradeStats(loadSignalWeights().perf),
+	);
 }
 
 export function registerDashboard(bot: Bot, rt: RuntimeAgent | null) {
@@ -73,7 +81,7 @@ export function registerDashboard(bot: Bot, rt: RuntimeAgent | null) {
 
 	bot.callbackQuery("menu:config", async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const cfg = resolveAgentConfigFrom(await getConfig());
+		const cfg = resolveAgentConfigFrom(getConfigSync());
 		await ctx.editMessageText(formatConfigQuick(cfg), {
 			...MD,
 			reply_markup: new InlineKeyboard().text("⬅️ Back", "menu:main"),

@@ -5,10 +5,12 @@ import {
 	tgCode,
 	tgPct,
 	tgPoolAddr,
+	tgSol,
 	tgTs,
 	tgUsd,
 } from "../format.js";
 import type { AgentJournalEntry, JournalCandidate } from "./journal.js";
+import { delayToNextBoundary } from "./schedule.js";
 import type { AgentState } from "./state.js";
 import type { ActionCounts, TradeStats } from "./stats.js";
 
@@ -16,41 +18,44 @@ export function formatStatus(
 	state: AgentState,
 	cfg: ResolvedAgentConfig,
 	stats: TradeStats | null = null,
+	nowMs: number = Date.now(),
 ): string {
 	const opened = state.plans.filter((p) => p.positionAddress != null).length;
-	const lines = [
-		tgBold(state.enabled ? "🤖 DLMM Agent: ON" : "🤖 DLMM Agent: OFF"),
-		`Running: ${state.running ? "yes" : "no"}`,
-		`Cycle: ${state.cycle} \\| last: ${tgTs(state.lastCycleAt)}`,
-		`LLM status: ${escapeMarkdown(state.llmStatus)}`,
-		`Caps: ${escapeMarkdown(`${opened}/${cfg.maxOpenPositions}`)} open`,
-		`${escapeMarkdown(`Per-position cap: ${cfg.maxSolPerPosition} SOL`)} \\| total cap: ${escapeMarkdown(String(cfg.maxTotalSol))} SOL`,
-		`TP ${escapeMarkdown(String(cfg.tpPct))}% / SL ${escapeMarkdown(String(cfg.slPct))}%`,
-		`Notif: ${escapeMarkdown(cfg.notifLevel)}`,
-		...(state.cooldowns.length > 0
-			? [
-					`Cooldowns: ${escapeMarkdown(String(state.cooldowns.length))}`,
-					...state.cooldowns
-						.slice(0, 3)
-						.map(
-							(c) =>
-								`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
-						),
-				]
-			: []),
-		...(stats && stats.closes > 0
-			? [
-					`Trades: ${escapeMarkdown(`${stats.closes} closed`)} \\| win ${escapeMarkdown(`${Math.round(stats.winRate ?? 0)}%`)} \\| avg ${escapeMarkdown(`${(stats.avgPnlPct ?? 0).toFixed(2)}%`)}`,
-				]
-			: []),
-		"",
-		tgBold("DLMM Agent plans"),
-		...state.plans.map(
-			(p) =>
-				`• ${escapeMarkdown(p.poolName)} ${tgCode(p.pool)} — ${escapeMarkdown(String(p.amountSol))} SOL${p.openedAt ? " ✅" : " ⏳"}`,
-		),
-	].join("\n");
-	return lines;
+	const deployed = state.plans.reduce((s, p) => s + (p.amountSol ?? 0), 0);
+	const lines: string[] = [
+		formatDashboardHeader(state, cfg, deployed, stats),
+		`Open     ${formatBudgetBar(opened, cfg.maxOpenPositions)}`,
+		`TP ${escapeMarkdown(String(cfg.tpPct))}% \\| SL ${escapeMarkdown(String(cfg.slPct))}% \\| notif ${escapeMarkdown(cfg.notifLevel)}`,
+		...(state.llmStatus === "ok"
+			? []
+			: [`LLM: ${escapeMarkdown(state.llmStatus)}`]),
+	];
+	if (state.enabled) {
+		lines.push(...formatSchedule(state, cfg, nowMs));
+	} else {
+		lines.push("🛑 Agent stopped — run `/agent start`");
+	}
+	if (state.cooldowns.length > 0) {
+		lines.push(
+			`Cooldowns: ${escapeMarkdown(String(state.cooldowns.length))}`,
+			...state.cooldowns
+				.slice(0, 3)
+				.map(
+					(c) =>
+						`  • ${escapeMarkdown(c.poolName)} \\(${escapeMarkdown(c.reason)}\\)`,
+				),
+		);
+	}
+	if (state.plans.length > 0) {
+		lines.push("", tgBold("📦 OPEN POSITIONS"));
+		state.plans.forEach((p, i) => {
+			const stateMarker = p.openedAt ? "▢" : "⏳";
+			lines.push(
+				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSol(p.amountSol)} ${stateMarker}`,
+			);
+		});
+	}
+	return lines.join("\n");
 }
 
 export function formatAction(msg: {
@@ -86,27 +91,44 @@ export function formatError(scope: string, err: unknown): string {
 	return `${tgBold(`❌ DLMM Agent ${escapeMarkdown(scope)} failed`)}\n${escapeMarkdown(msg)}`;
 }
 
+const ACT_ICON: Record<JournalCandidate["action"], string> = {
+	open: "🚀",
+	tp: "🎯",
+	sl: "🛑",
+	close: "📉",
+	hold: "➖",
+};
+
 export function formatCycleSummary(
 	entries: readonly AgentJournalEntry[],
 	degraded: boolean,
 ): string {
 	const last = entries[0];
 	if (!last) return "🤖 No DLMM Agent cycle has run yet.";
-	const lines = [tgBold(`🤖 DLMM Agent cycle #${last.cycle}`)];
+	const opened = last.candidates.filter((c) => c.execution === "ok").length;
+	const blocked = last.candidates.filter(
+		(c) => c.guardrail === "blocked",
+	).length;
+	const lines: string[] = [
+		tgBold(`🤖 VEXIS DLMM Agent · cycle #${last.cycle}`),
+		`${tgTs(last.ts)} \\| opened ${escapeMarkdown(String(opened))} \\| blocked ${escapeMarkdown(String(blocked))}`,
+		"━━━━━━━━━━━━",
+	];
 	if (degraded) lines.push("⚠️ LLM degraded — heuristic only");
 	for (const c of last.candidates) {
-		const sign = c.favorability == null ? "—" : c.favorability.toFixed(2);
-		const action = c.action.toUpperCase();
-		const executed =
+		const icon = ACT_ICON[c.action] ?? "•";
+		const status =
 			c.execution === "ok"
-				? ` ${escapeMarkdown("[")}${tgCode(c.txSignature ?? "")}${escapeMarkdown("]")}`
+				? `✅ ${tgCode(c.txSignature ?? "")}`
 				: c.execution === "failed"
-					? " ❌FAILED"
+					? "❌ FAILED"
 					: c.guardrail === "blocked"
-						? ` ⛔blocked: ${escapeMarkdown(c.blockedReason ?? "")}`
-						: "";
+						? `⛔ blocked: ${escapeMarkdown(c.blockedReason ?? "")}`
+						: c.action === "hold"
+							? "held"
+							: "";
 		lines.push(
-			`${action} ${escapeMarkdown(c.poolName)} score ${escapeMarkdown(String(c.score))} fav ${escapeMarkdown(sign)}${executed}`,
+			`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${escapeMarkdown(c.poolName)}${status ? ` \\| ${status}` : ""}`,
 		);
 	}
 	return lines.join("\n");
@@ -115,7 +137,8 @@ export function formatCycleSummary(
 /** Live in-cycle status — header + phase lines, edited in place as the cycle runs. */
 export function formatLive(cycle: number, lines: readonly string[]): string {
 	return [
-		tgBold(`🤖 DLMM Agent cycle #${cycle}`),
+		tgBold(`🤖 VEXIS DLMM Agent · cycle #${cycle}`),
+		"━━━━━━━━━━━━",
 		...lines.map((l) => escapeMarkdown(l)),
 	].join("\n");
 }
@@ -189,18 +212,20 @@ export function formatJournalPage(
 		(page + 1) * opts.pageSize,
 	);
 	const lines = [
-		tgBold(
-			`📒 DLMM Agent journal (page ${page + 1}/${totalPages} · ${opts.filter})`,
-		),
-		`opens ${escapeMarkdown(String(counts.open))} \\| closes ${escapeMarkdown(String(counts.tp + counts.sl + counts.close))} \\| blocked ${escapeMarkdown(String(counts.blocked))}`,
+		tgBold(`📒 DLMM Agent journal · page ${page + 1}/${totalPages}`),
+		`${escapeMarkdown(opts.filter)} filter \\| 🚀 ${escapeMarkdown(String(counts.open))} \\| 🎯${escapeMarkdown(String(counts.tp + counts.sl + counts.close))} \\| ⛔ ${escapeMarkdown(String(counts.blocked))}`,
+		"━━━━━━━━━━━━",
 	];
 	let any = false;
 	for (const e of slice) {
 		const cands = e.candidates.filter((c) => journalMatches(c, opts.filter));
 		if (cands.length === 0) continue;
 		any = true;
-		lines.push(`• \\#${e.cycle} ${tgTs(e.ts)}`);
+		lines.push(
+			`${tgBold(`#${e.cycle}`)} ${tgTs(e.ts)} \\| llm ${escapeMarkdown(e.llmStatus)}`,
+		);
 		for (const c of cands) {
+			const icon = ACT_ICON[c.action] ?? "•";
 			const status =
 				c.guardrail === "blocked"
 					? `⛔ ${escapeMarkdown(c.blockedReason ?? "")}`
@@ -210,7 +235,7 @@ export function formatJournalPage(
 							? "❌ FAILED"
 							: "";
 			lines.push(
-				`  ${escapeMarkdown(c.action.toUpperCase())} ${escapeMarkdown(c.poolName)} ${status}`,
+				`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${escapeMarkdown(c.poolName)}${status ? ` ${status}` : ""}`,
 			);
 		}
 	}
@@ -218,26 +243,40 @@ export function formatJournalPage(
 	return lines.join("\n");
 }
 
-export function formatJournal(
-	entries: readonly AgentJournalEntry[],
-	n: number,
-): string {
-	const lines = [tgBold(`📒 DLMM Agent journal (last ${n})`)];
-	for (const e of entries.slice(0, n)) {
-		const opened = e.candidates.filter((c) => c.execution === "ok").length;
-		const blocked = e.candidates.filter(
-			(c) => c.guardrail === "blocked",
-		).length;
-		lines.push(
-			`• \\#${e.cycle} ${tgTs(e.ts)} ${escapeMarkdown(`llm=${e.llmStatus} opened=${opened} blocked=${blocked}`)}`,
-		);
-	}
-	return lines.join("\n");
-}
-
 export function statusDot(state: AgentState): "🟢" | "🟡" | "⚫" {
 	if (!state.enabled) return "⚫";
 	return state.running ? "🟢" : "🟡";
+}
+
+/** Format a duration in ms as `3m`, `2h 5m`, `1d`. */
+export function fmtDuration(ms: number): string {
+	if (ms < 0) ms = 0;
+	const min = Math.floor(ms / 60_000);
+	const days = Math.floor(min / 1440);
+	const hours = Math.floor((min % 1440) / 60);
+	const mins = min % 60;
+	if (days > 0) return `${days}d ${hours}h`;
+	if (hours > 0) return `${hours}h ${mins}m`;
+	return `${mins}m`;
+}
+
+/** Next-run schedule for cycle, TP/SL and OOR checks, all wall-clock aligned. */
+export function formatSchedule(
+	state: AgentState,
+	cfg: ResolvedAgentConfig,
+	nowMs: number,
+): string[] {
+	if (state.running) return ["🟢 running now — schedule after this cycle"];
+	const cycleMs = Math.max(cfg.txCooldownMs, 60_000);
+	const next = {
+		Cycle: delayToNextBoundary(cycleMs, nowMs),
+		"TP/SL": delayToNextBoundary(60_000, nowMs),
+		OOR: delayToNextBoundary(cfg.intervalMinutes * 60_000, nowMs),
+	};
+	return Object.entries(next).map(
+		([label, ms]) =>
+			`⏰ next ${label} check ${escapeMarkdown(fmtDuration(ms))}`,
+	);
 }
 
 /** Ten-cell budget bar: `██████░░░░ 60%` (percent escaped). */
@@ -256,39 +295,43 @@ export function formatDashboardHeader(
 ): string {
 	const dot = statusDot(state);
 	const neverRan = !state.enabled && state.cycle === 0 && !state.lastCycleAt;
+	const statusWord = state.running
+		? "Online"
+		: state.enabled
+			? "Idle"
+			: "Stopped";
+	const lastTime = tgTs(state.lastCycleAt).split(" ").pop() ?? "\\-";
 	const headline = neverRan
 		? "idle"
-		: state.running
-			? `cycle ${state.cycle} \\| ${tgTs(state.lastCycleAt)}`
-			: `last cycle ${state.cycle} @ ${tgTs(state.lastCycleAt)}`;
+		: `${escapeMarkdown(statusWord)} · cycle ${escapeMarkdown(
+				String(state.cycle).padStart(2, "0"),
+			)} · run last ${escapeMarkdown(lastTime)}`;
 	const winLine =
 		stats && stats.closes > 0
-			? `win ${escapeMarkdown(`${Math.round(stats.winRate ?? 0)}%`)} \\| avg ${escapeMarkdown(`${(stats.avgPnlPct ?? 0).toFixed(2)}%`)}`
+			? `win ${escapeMarkdown(`${Math.round(stats.winRate ?? 0)}%`)} \\(${escapeMarkdown(String(stats.closes))}\\) \\| avg ${escapeMarkdown(`${(stats.avgPnlPct ?? 0).toFixed(2)}%`)}`
 			: "no closed trades yet";
 	return [
 		tgBold("🤖 VEXIS DLMM Agent"),
-		`${dot} ${escapeMarkdown(headline)}`,
+		`${dot} ${headline}`,
 		`Budget: ${formatBudgetBar(deployed, cfg.maxTotalSol)}`,
 		`Deployed ${tgUsd(deployed)} \\| max ${tgUsd(cfg.maxTotalSol)}`,
 		winLine,
 	].join("\n");
 }
 
-/** 10-cell range bar with a ▸ marker at the price's position. */
+/** 20-cell range bar: filled `▰` up to the price tick, `▱` after. */
 export function formatRangeBar(
 	price: number,
 	min: number,
 	max: number,
 ): string {
 	if (min >= max) return "range unavailable";
-	const width = 10;
+	const width = 20;
 	const clamp = Math.min(1, Math.max(0, (price - min) / (max - min)));
-	const tick = Math.round(clamp * (width - 1));
-	const cells = Array.from({ length: width }, (_, i) =>
-		i === tick ? "▸" : "▬",
-	);
+	const tick = Math.round(clamp * width);
+	const cells = `${"▰".repeat(tick)}${"▱".repeat(width - tick)}`;
 	const label = price < min ? "below" : price > max ? "above" : "in-range";
-	return `${cells.join("")} ${escapeMarkdown(label)}`;
+	return `${cells} ${escapeMarkdown(label)}`;
 }
 
 export interface PositionCard {
@@ -306,25 +349,38 @@ export interface PositionCard {
 }
 
 export function formatPositionCard(o: PositionCard): string {
-	const range =
-		o.price != null && o.minPrice != null && o.maxPrice != null
-			? formatRangeBar(o.price, o.minPrice, o.maxPrice)
-			: escapeMarkdown("range n/a");
-	const pnl = o.pnlPct == null ? tgBold("PnL n/a") : `PnL ${tgPct(o.pnlPct)}`;
+	const rangeOk = o.price != null && o.minPrice != null && o.maxPrice != null;
+	const range = rangeOk
+		? formatRangeBar(o.price!, o.minPrice!, o.maxPrice!)
+		: escapeMarkdown("range n/a");
+	const pnl =
+		o.pnlPct == null
+			? tgBold("PnL n/a")
+			: `PnL ${tgPct(o.pnlPct)}${
+					o.amountSol != null
+						? ` \\(${escapeMarkdown(`+${((o.amountSol * o.pnlPct) / 100).toFixed(3)} ◎`)}\\)`
+						: ""
+				}`;
+	const marker = o.isOutOfRange ? "▼" : "▲";
 	const lines = [
 		tgBold(`${escapeMarkdown(o.tokenX)}/${escapeMarkdown(o.tokenY)}`) +
 			(o.isOutOfRange ? escapeMarkdown(" ⚠️ OOR") : ""),
 		tgPoolAddr(o.poolAddress),
-		`Position: ${escapeMarkdown(o.positionAddress)}`,
 		"",
 		pnl,
 	];
 	if (o.amountSol != null) {
-		lines.push(`Amount: ${escapeMarkdown(`${o.amountSol} SOL`)}`);
+		lines.push(`Amount: ${tgSol(o.amountSol)}`);
 	}
 	lines.push(`Range: ${range}`);
-	if (o.feeSol != null) {
-		lines.push(`Unclaimed fees: ${tgUsd(o.feeSol)}`);
+	if (rangeOk && o.price! < o.minPrice!) {
+		lines.push(`${escapeMarkdown("▼ below range")}`);
+	} else if (rangeOk && o.price! > o.maxPrice!) {
+		lines.push(`${escapeMarkdown("▲ above range")}`);
+	} else if (rangeOk) {
+		lines.push(
+			`${escapeMarkdown(marker)} in range · fees ${tgUsd(o.feeSol ?? 0)} unclaimed`,
+		);
 	}
 	return lines.join("\n");
 }
