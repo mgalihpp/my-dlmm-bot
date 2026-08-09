@@ -6,6 +6,7 @@ import {
 	resolveAgentConfigFrom,
 	resolveCreatePresetFrom,
 } from "../../services/Config.js";
+import { registerAction } from "../action-store.js";
 import {
 	api,
 	dlmm,
@@ -51,7 +52,7 @@ import {
 	requestSignals,
 } from "./llm.js";
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
-import { allowed, notify } from "./notify.js";
+import { allowed, notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import { alignedSchedule } from "./schedule.js";
 import {
@@ -223,6 +224,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 						cfg.notifLevel,
 						"error",
 						formatError("fast cycle", e),
+						{ keyboard: notifyKeyboard("error") },
 					);
 				}
 			} finally {
@@ -258,6 +260,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 						cfg.notifLevel,
 						"error",
 						formatError("cycle", e),
+						{ keyboard: notifyKeyboard("error") },
 					);
 				}
 			} finally {
@@ -285,6 +288,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 						cfg.notifLevel,
 						"error",
 						formatError("OOR check", e),
+						{ keyboard: notifyKeyboard("error") },
 					);
 				}
 			} finally {
@@ -433,6 +437,7 @@ async function evaluateTpSl(
 			logSuccess(
 				`${action.toUpperCase()} ${plan.poolName} done: sig=${shortSig(sig) || "?"}`,
 			);
+			const closeId = registerAction(plan.pool, plan.positionAddress!);
 			await notify(
 				bot,
 				chatId,
@@ -447,6 +452,7 @@ async function evaluateTpSl(
 						action === "tp" ? `TP ${cfg.tpPct}% hit` : `SL ${cfg.slPct}% hit`,
 					txSignature: sig || null,
 				}),
+				{ keyboard: notifyKeyboard(action, closeId) },
 			);
 		} catch (e) {
 			logError("tp/sl close failed:", e);
@@ -547,6 +553,7 @@ async function evaluateOor(
 			});
 			saveState(rt.state);
 			logSuccess(`OOR close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`);
+			const closeId = registerAction(pos.pool, plan.positionAddress!);
 			await notify(
 				bot,
 				chatId,
@@ -559,6 +566,7 @@ async function evaluateOor(
 					reason: `OOR close: ${d.rationale ?? ""}`,
 					txSignature: sig || null,
 				}),
+				{ keyboard: notifyKeyboard("close", closeId) },
 			);
 		} catch (e) {
 			logError("OOR close failed:", e);
@@ -572,6 +580,7 @@ async function evaluateOor(
 					poolName: pos.poolName,
 					failed: true,
 				}),
+				{ keyboard: notifyKeyboard("failed", pos.pool) },
 			);
 			appendJournal({
 				ts: new Date().toISOString(),
@@ -905,6 +914,9 @@ async function evaluatePlans(
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${d.pool.name} ${amountSol} SOL ${sig || "?"}`;
 			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			const openActionId = res.positions[0]
+				? registerAction(d.pool.pool, res.positions[0])
+				: undefined;
 			await notify(
 				bot,
 				chatId,
@@ -917,6 +929,7 @@ async function evaluatePlans(
 					reason: d.rationale,
 					txSignature: sig || null,
 				}),
+				{ keyboard: notifyKeyboard("open", openActionId) },
 			);
 		} catch (e) {
 			logError("open failed:", d.pool.pool, e);
@@ -933,6 +946,7 @@ async function evaluatePlans(
 					poolName: d.pool.name,
 					failed: true,
 				}),
+				{ keyboard: notifyKeyboard("failed", d.pool.pool) },
 			);
 		}
 	}

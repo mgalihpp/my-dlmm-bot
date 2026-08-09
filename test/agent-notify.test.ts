@@ -1,6 +1,10 @@
 import type { Bot } from "grammy";
 import { describe, expect, it, vi } from "vitest";
-import { allowed, notify } from "../src/telegram/agent/notify.js";
+import {
+	allowed,
+	notify,
+	notifyKeyboard,
+} from "../src/telegram/agent/notify.js";
 
 const stubBot = (
 	sendMessage: (
@@ -53,5 +57,30 @@ describe("notify", () => {
 		await expect(
 			notify(bot, "c1", "normal", "action", "msg"),
 		).resolves.toBeUndefined();
+	});
+});
+
+describe("notifyKeyboard", () => {
+	it("open → PnL + Journal", () => {
+		const kb = notifyKeyboard("open", "a1");
+		const labels = kb.inline_keyboard.flat().map((b) => b.text);
+		expect(labels).toContain("📊 PnL");
+		expect(labels).toContain("📒 Journal");
+	});
+	it("failed → Retry", () => {
+		const kb = notifyKeyboard("failed", "pooladdr");
+		const labels = kb.inline_keyboard.flat().map((b) => b.text);
+		expect(labels).toContain("⚠️ Retry");
+	});
+	it("sl → Journal only", () => {
+		const kb = notifyKeyboard("sl");
+		const labels = kb.inline_keyboard.flat().map((b) => b.text);
+		expect(labels).toContain("📒 Journal");
+		expect(labels).not.toContain("📊 PnL");
+	});
+	it("error → Clear", () => {
+		const kb = notifyKeyboard("error");
+		const labels = kb.inline_keyboard.flat().map((b) => b.text);
+		expect(labels).toContain("🧼 Clear");
 	});
 });
