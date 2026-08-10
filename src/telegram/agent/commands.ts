@@ -30,7 +30,7 @@ export async function editOrIgnore(
 	chatId: string | number,
 	messageId: number,
 	text: string,
-	keyboard: InlineKeyboard = agentKeyboard(),
+	keyboard: InlineKeyboard,
 ): Promise<void> {
 	try {
 		await api.editMessageText(chatId, messageId, text, {
@@ -71,7 +71,7 @@ export function planActionLabel(p: {
 }
 
 function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
-	const kb = agentKeyboard();
+	const kb = agentKeyboard(rt.state.enabled);
 	for (const p of rt.state.plans) {
 		if (p.positionAddress == null) continue;
 		const id = registerAction(p.pool, p.positionAddress);
@@ -187,7 +187,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				const { rows, deployedSol } = await portfolioRows(rt);
 				await ctx.reply(formatPortfolio(rows, deployedSol, stats), {
 					...MD,
-					reply_markup: portfolioKeyboard(),
+					reply_markup: portfolioKeyboard(rt.state.enabled),
 				});
 				break;
 			}
@@ -286,7 +286,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			chatId,
 			messageId,
 			formatPortfolio(rows, deployedSol, tradeStatsOf()),
-			portfolioKeyboard(),
+			portfolioKeyboard(rt.state.enabled),
 		);
 	});
 
@@ -503,19 +503,23 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 	});
 }
 
-export function agentKeyboard(): InlineKeyboard {
+export function agentKeyboard(enabled: boolean): InlineKeyboard {
 	return new InlineKeyboard()
-		.text("▶️ Start", "agent:start")
-		.text("⏹ Stop", "agent:stop")
+		.text(
+			enabled ? "⏹ Stop" : "▶️ Start",
+			enabled ? "agent:stop" : "agent:start",
+		)
 		.row()
 		.text("📊 Portfolio", "agent:portfolio")
 		.text("📒 Journal", "agent:journal");
 }
 
-function portfolioKeyboard(): InlineKeyboard {
+function portfolioKeyboard(enabled: boolean): InlineKeyboard {
 	return new InlineKeyboard()
-		.text("▶️ Start", "agent:start")
-		.text("⏹ Stop", "agent:stop")
+		.text(
+			enabled ? "⏹ Stop" : "▶️ Start",
+			enabled ? "agent:stop" : "agent:start",
+		)
 		.row()
 		.text("📒 Journal", "agent:journal")
 		.text("🔄 Refresh", "agent:portfolio")
