@@ -499,8 +499,11 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 
 	bot.callbackQuery("notif:clear", async (ctx) => {
 		await ctx.answerCallbackQuery();
-		rt.state.running = false;
-		await ctx.editMessageText("🧼 Agent state cleared.", MD);
+		rt.stop();
+		await ctx.editMessageText("🧼 Agent stopped.", {
+			...MD,
+			reply_markup: agentKeyboard(false),
+		});
 	});
 
 	bot.callbackQuery("notif:ack", async (ctx) => {
