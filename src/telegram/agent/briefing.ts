@@ -7,6 +7,7 @@ import { api, resolveWallet, screenPools } from "../fx.js";
 import { MD } from "../utils.js";
 import { heuristicScore, rankPools } from "./heuristic.js";
 import { readJournalAll } from "./journal.js";
+import { logInfo } from "./log.js";
 import { loadSignalWeights } from "./signalWeights.js";
 import { type AgentState, loadState } from "./state.js";
 import {
@@ -207,14 +208,20 @@ export async function requestBriefing(
 		baseURL: cfg.llm.baseUrl,
 		apiKey: cfg.llm.apiKey,
 	});
+	const prompt = buildBriefingPrompt(data);
+	logInfo("LLM briefing request:", {
+		model: cfg.llm.model,
+		prompt,
+	});
 	try {
 		const { text } = await generateText({
 			model: provider(cfg.llm.model),
-			messages: [{ role: "user", content: buildBriefingPrompt(data) }],
+			messages: [{ role: "user", content: prompt }],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
 		});
+		logInfo("LLM briefing raw response:", text);
 		if (!text) return { text: null, failed: true };
 		return { text, failed: false };
 	} catch (e) {

@@ -1,6 +1,7 @@
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { ResolvedAgentConfig } from "../../services/Config.js";
+import { logInfo } from "./log.js";
 
 export interface LlmCandidate {
 	pool: string;
@@ -114,23 +115,25 @@ export async function requestOpenDecisions(opts: {
 		baseURL: cfg.llm.baseUrl,
 		apiKey: cfg.llm.apiKey,
 	});
+	const prompt = buildOpenDecisionPrompt(
+		opts.candidates,
+		opts.weightsSummary,
+		opts.portfolioContext,
+	);
+	logInfo("LLM open-decision request:", {
+		model: cfg.llm.model,
+		candidates: opts.candidates.length,
+		prompt,
+	});
 	try {
 		const { text } = await generateText({
 			model: provider(cfg.llm.model),
-			messages: [
-				{
-					role: "user",
-					content: buildOpenDecisionPrompt(
-						opts.candidates,
-						opts.weightsSummary,
-						opts.portfolioContext,
-					),
-				},
-			],
+			messages: [{ role: "user", content: prompt }],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
 		});
+		logInfo("LLM open-decision raw response:", text);
 		if (!text) return { decisions: null, failed: true };
 		const decisions = parseOpenDecisionResponse(text);
 		if (decisions === null) return { decisions: null, failed: true };
@@ -202,16 +205,21 @@ export async function requestPositionDecisions(opts: {
 		baseURL: cfg.llm.baseUrl,
 		apiKey: cfg.llm.apiKey,
 	});
+	const prompt = buildPositionPrompt(opts.positions);
+	logInfo("LLM OOR position request:", {
+		model: cfg.llm.model,
+		positions: opts.positions.length,
+		prompt,
+	});
 	try {
 		const { text } = await generateText({
 			model: provider(cfg.llm.model),
-			messages: [
-				{ role: "user", content: buildPositionPrompt(opts.positions) },
-			],
+			messages: [{ role: "user", content: prompt }],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
 		});
+		logInfo("LLM OOR position raw response:", text);
 		if (!text) return { decisions: [], degraded: true };
 		return { decisions: parsePositionResponse(text), degraded: false };
 	} catch (e) {
