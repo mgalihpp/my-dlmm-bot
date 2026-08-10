@@ -380,10 +380,10 @@ async function evaluateTpSl(
 		}
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
+		if (action === "hold") continue;
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
-		if (action === "hold") continue;
 		logInfo(`${action.toUpperCase()} ${plan.poolName} at ${pct}% → closing...`);
 		try {
 			const out = await zap.closeAndZapOut(
