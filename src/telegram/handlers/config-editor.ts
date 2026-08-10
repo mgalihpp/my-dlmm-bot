@@ -1,5 +1,6 @@
 import { type Bot, InlineKeyboard } from "grammy";
 import type { VexisConfig } from "../../domain/config.js";
+import type { RuntimeAgent } from "../agent/engine.js";
 import { escapeMarkdown, tgBold, tgCode } from "../format.js";
 import { configPath, getConfigSync, updateConfig } from "../fx.js";
 import { MD, replyError } from "../utils.js";
@@ -709,7 +710,13 @@ const pendingEdits = new Map<
 	}
 >();
 
-export function registerConfigEditor(bot: Bot) {
+export function registerConfigEditor(bot: Bot, rtAgent?: RuntimeAgent | null) {
+	const syncAgentRuntime = async (enabled: boolean) => {
+		if (!rtAgent) return;
+		if (enabled) rtAgent.start();
+		else rtAgent.stop();
+	};
+
 	// /config — show config with edit buttons
 	bot.command("config", async (ctx) => {
 		const text = buildConfigText(getConfigSync(), configPath());
@@ -811,6 +818,9 @@ export function registerConfigEditor(bot: Bot) {
 			await replyError(ctx, e);
 			return;
 		}
+		if (field === "agent.enabled") {
+			await syncAgentRuntime(getNestedValue(getConfigSync(), field) === true);
+		}
 		const text = buildConfigText(getConfigSync(), configPath());
 		await ctx.editMessageText(text, {
 			...MD,
@@ -899,6 +909,12 @@ export function registerConfigEditor(bot: Bot) {
 		} catch (e) {
 			await replyError(ctx, e);
 			return;
+		}
+
+		if (pending.key === "agent.enabled") {
+			await syncAgentRuntime(
+				getNestedValue(getConfigSync(), pending.key) === true,
+			);
 		}
 
 		const text = buildConfigText(getConfigSync(), configPath());

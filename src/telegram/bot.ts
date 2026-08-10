@@ -5,7 +5,7 @@ import { Bot } from "grammy";
 import { errorMessage } from "../errors.js";
 import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
 import { registerAgentCommands, registerMenuSpokes } from "./agent/commands.js";
-import { createAgent } from "./agent/engine.js";
+import { createAgent, type RuntimeAgent } from "./agent/engine.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
 import { registerDashboard } from "./dashboard.js";
 import { escapeMarkdown, tgBold } from "./format.js";
@@ -94,7 +94,6 @@ async function main() {
 	bot.command("start", (ctx) => ctx.reply(HELP, MD));
 	bot.command("help", (ctx) => ctx.reply(HELP, MD));
 
-	registerConfigEditor(bot);
 	registerPortfolio(bot);
 	registerPool(bot);
 	registerCreate(bot);
@@ -105,13 +104,14 @@ async function main() {
 	registerMenu(bot);
 
 	// Alerts need a destination chat. Only enable if one is configured.
+	let rtAgent: RuntimeAgent | null = null;
 	if (chatId) {
 		const rt = createAlerts(bot, chatId);
 		registerAlertCommands(bot, chatId, rt);
 		createTpSl(bot, chatId);
 		registerTpSlCommands(bot);
 
-		const rtAgent = createAgent(bot, chatId);
+		rtAgent = createAgent(bot, chatId);
 		registerDashboard(bot, rtAgent); // live header
 		registerMenuSpokes(bot, rtAgent);
 		registerAgentCommands(bot, rtAgent);
@@ -122,6 +122,8 @@ async function main() {
 	} else {
 		registerDashboard(bot, null); // idle header fallback
 	}
+
+	registerConfigEditor(bot, rtAgent);
 
 	bot.catch((err) => {
 		console.error("Bot error:", err.error);

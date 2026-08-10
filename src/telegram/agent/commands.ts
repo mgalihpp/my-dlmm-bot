@@ -3,7 +3,7 @@ import { type Bot, InlineKeyboard } from "grammy";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { escapeMarkdown } from "../format.js";
-import { api, getConfig, resolveWallet } from "../fx.js";
+import { api, getConfig, resolveWallet, updateConfig } from "../fx.js";
 import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
@@ -68,6 +68,17 @@ export function planActionLabel(p: {
 	return p.positionAddress
 		? `${p.poolName} ${p.amountSol} SOL`
 		: `${p.poolName} · ${p.amountSol} SOL (pending)`;
+}
+
+async function syncEnabledConfig(enabled: boolean): Promise<void> {
+	try {
+		await updateConfig((c) => {
+			c.agent = { ...c.agent, enabled };
+			return c;
+		});
+	} catch (e) {
+		console.warn("[agent] failed to sync agent.enabled to config:", e);
+	}
 }
 
 function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
@@ -157,11 +168,13 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		switch (cmd) {
 			case "start": {
 				rt.start();
+				await syncEnabledConfig(true);
 				await ctx.reply("🤖 DLMM Agent started.", MD);
 				break;
 			}
 			case "stop": {
 				rt.stop();
+				await syncEnabledConfig(false);
 				await ctx.reply("🛑 DLMM Agent stopped.", MD);
 				break;
 			}
@@ -231,6 +244,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		if (chatId == null || messageId == null) return;
 		if (ctx.match[1] === "start") rt.start();
 		else rt.stop();
+		await syncEnabledConfig(ctx.match[1] === "start");
 		const cfg = resolveAgentConfigFrom(await getConfig());
 		const pnl = await pnlByPool(rt);
 		await editOrIgnore(
