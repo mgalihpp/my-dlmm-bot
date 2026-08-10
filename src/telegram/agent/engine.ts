@@ -46,6 +46,7 @@ import {
 	appendJournal,
 	type JournalCandidate,
 	readJournal,
+	readJournalAll,
 } from "./journal.js";
 import {
 	type LlmCandidate,
@@ -70,6 +71,21 @@ import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
 
+/** Newest journal candidate with a failed execution for the pool, or null. */
+export function findFailedCandidate(
+	pool: string,
+	entries: readonly AgentJournalEntry[],
+): JournalCandidate | null {
+	for (let i = entries.length - 1; i >= 0; i--) {
+		const cands = entries[i].candidates;
+		for (let j = cands.length - 1; j >= 0; j--) {
+			const c = cands[j];
+			if (c.pool === pool && c.execution === "failed") return c;
+		}
+	}
+	return null;
+}
+
 export interface RuntimeAgent {
 	state: AgentState;
 	start(): void;
@@ -78,6 +94,7 @@ export interface RuntimeAgent {
 	runFast(): Promise<void>;
 	runOor(): Promise<void>;
 	runBriefing(): Promise<void>;
+	retryFailed(pool: string): Promise<string>;
 }
 
 type AgentCfg = ReturnType<typeof resolveAgentConfigFrom>;
@@ -137,6 +154,182 @@ async function syncOnchainPlans(
 	if (rt.state.plans.length !== before) {
 		saveState(rt.state);
 		logInfo(`plans reconciled on-chain: ${before} → ${rt.state.plans.length}`);
+	}
+}
+
+async function retryOpen(
+	rt: RuntimeAgent,
+	bot: Bot,
+	chatId: string,
+	cfg: AgentCfg,
+	cand: JournalCandidate,
+): Promise<string> {
+	const wallet = await resolveWallet();
+	const open = await api.openPortfolio(wallet, 1, 100);
+	const deployed = Number(open.total?.balancesSol ?? 0);
+	const openPositions = open.totalPositions ?? 0;
+	const baseMint =
+		rt.state.plans.find((p) => p.pool === cand.pool)?.baseMint ?? "";
+	const dup = checkDuplicate({
+		pool: cand.pool,
+		baseMint,
+		plans: rt.state.plans,
+	});
+	if (!dup.ok) return `retry blocked: ${dup.reason}`;
+	const cd = checkPoolCooldown(
+		cand.pool,
+		baseMint || null,
+		rt.state.cooldowns,
+		Date.now(),
+	);
+	if (!cd.ok) return `retry blocked: ${cd.reason}`;
+	const amountSol = deriveOpenAmount(deployed, cfg);
+	const guard = checkOpenGuardrail({
+		amountSol,
+		deployedSol: deployed,
+		maxSolPerPosition: cfg.maxSolPerPosition,
+		maxTotalSol: cfg.maxTotalSol,
+		maxOpenPositions: cfg.maxOpenPositions,
+		openPositionCount: openPositions,
+	});
+	if (!guard.ok) return `retry blocked: ${guard.reason}`;
+	if (amountSol <= 0) return "retry blocked: no budget remaining";
+	const cooldown = checkCooldown({
+		lastExecutionAt: lastOpenExecutionAt(rt.state.executions),
+		nowMs: Date.now(),
+		txCooldownMs: cfg.txCooldownMs,
+	});
+	if (!cooldown.ok) return `retry blocked: ${cooldown.reason}`;
+	const preset = resolveCreatePresetFrom(getConfigSync());
+	const params = buildCreateParams({
+		poolAddress: cand.pool,
+		strategy: preset.strategy,
+		range: preset.range,
+		amountSol,
+	});
+	let quote: PositionCostQuote;
+	try {
+		quote = await dlmm.quotePositionCost(params);
+	} catch {
+		return "retry blocked: rent quote failed";
+	}
+	const rent = checkRent(quote);
+	if (!rent.ok) return `retry blocked: ${rent.reason}`;
+	try {
+		const res = await dlmm.createPosition(params);
+		const sig = res.signatures.join(",");
+		const now = new Date().toISOString();
+		rt.state.plans.push({
+			pool: cand.pool,
+			poolName: cand.poolName,
+			baseMint: null,
+			amountSol,
+			positionAddress: res.positions[0] ?? null,
+			openedAt: now,
+		});
+		rt.state.executions.push({
+			at: now,
+			action: "open",
+			pool: cand.pool,
+			txSignature: sig || null,
+		});
+		appendJournal({
+			ts: now,
+			cycle: rt.state.cycle,
+			llmStatus: rt.state.llmStatus,
+			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
+		});
+		saveState(rt.state);
+		const actionId = res.positions[0]
+			? registerAction(cand.pool, res.positions[0])
+			: undefined;
+		await notify(
+			bot,
+			chatId,
+			cfg.notifLevel,
+			"action",
+			formatAction({
+				action: "open",
+				poolName: cand.poolName,
+				amountSol,
+				txSignature: sig || null,
+			}),
+			{ keyboard: notifyKeyboard("open", actionId) },
+		);
+		return `OPEN ${cand.poolName} ${amountSol} SOL (retried)`;
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		appendJournal({
+			ts: new Date().toISOString(),
+			cycle: rt.state.cycle,
+			llmStatus: rt.state.llmStatus,
+			candidates: [{ ...cand, execution: "failed" }],
+		});
+		return `retry failed: ${msg}`;
+	}
+}
+
+async function retryClose(
+	rt: RuntimeAgent,
+	bot: Bot,
+	chatId: string,
+	cfg: AgentCfg,
+	cand: JournalCandidate,
+): Promise<string> {
+	const plan = rt.state.plans.find(
+		(p) => p.pool === cand.pool && p.positionAddress != null,
+	);
+	if (!plan?.positionAddress)
+		return `no open position to close for ${cand.poolName}`;
+	try {
+		const out = await zap.closeAndZapOut(
+			cand.pool,
+			plan.positionAddress,
+			WSOL_MINT,
+		);
+		const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
+		rt.state.plans = rt.state.plans.filter((p) => p !== plan);
+		rt.state.executions.push({
+			at: new Date().toISOString(),
+			action: cand.action,
+			pool: cand.pool,
+			txSignature: sig || null,
+		});
+		rt.state.cooldowns = recordCooldown(
+			rt.state.cooldowns,
+			{
+				pool: cand.pool,
+				poolName: cand.poolName,
+				baseMint: plan.baseMint,
+				reason: `${cand.action} retried`,
+			},
+			cfg.poolCooldownMs,
+			Date.now(),
+		);
+		appendJournal({
+			ts: new Date().toISOString(),
+			cycle: rt.state.cycle,
+			llmStatus: rt.state.llmStatus,
+			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
+		});
+		saveState(rt.state);
+		const closeId = registerAction(cand.pool, plan.positionAddress);
+		await notify(
+			bot,
+			chatId,
+			cfg.notifLevel,
+			"action",
+			formatAction({
+				action: cand.action,
+				poolName: cand.poolName,
+				txSignature: sig || null,
+			}),
+			{ keyboard: notifyKeyboard("close", closeId) },
+		);
+		return `${cand.action.toUpperCase()} ${cand.poolName} (retried)`;
+	} catch (e) {
+		const msg = e instanceof Error ? e.message : String(e);
+		return `retry failed: ${msg}`;
 	}
 }
 
@@ -333,6 +526,19 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				await runBriefingJob(bot, chatId, cfg);
 			} catch (e) {
 				logError("briefing error:", e);
+			}
+		},
+		async retryFailed(pool: string): Promise<string> {
+			const cand = findFailedCandidate(pool, readJournalAll());
+			if (!cand) return "no failed action to retry for this pool";
+			const cfg = resolveAgentConfigFrom(await getConfig());
+			try {
+				if (cand.action === "open")
+					return await retryOpen(rt, bot, chatId, cfg, cand);
+				return await retryClose(rt, bot, chatId, cfg, cand);
+			} catch (e) {
+				const msg = e instanceof Error ? e.message : String(e);
+				return `retry failed: ${msg}`;
 			}
 		},
 	};

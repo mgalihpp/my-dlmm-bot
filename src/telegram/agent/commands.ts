@@ -490,11 +490,12 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 	bot.callbackQuery(/^notif:retry:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
 		const pool = ctx.match[1];
-		await rt.runFast();
-		await ctx.reply(
-			`⚠️ Retry triggered for ${escapeMarkdown(pool)} — TP/SL check re-run.`,
-			MD,
-		);
+		await ctx.editMessageText("⏳ Retrying…", MD);
+		const msg = await rt.retryFailed(pool);
+		await ctx.editMessageText(escapeMarkdown(msg), {
+			...MD,
+			reply_markup: new InlineKeyboard().text("⬅️ Dashboard", "menu:main"),
+		});
 	});
 
 	bot.callbackQuery("notif:clear", async (ctx) => {
