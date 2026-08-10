@@ -138,8 +138,9 @@ export function journalKeyboard(
 	filter: JournalFilter = "all",
 ): InlineKeyboard {
 	const kb = new InlineKeyboard();
-	if (page > 0) kb.text("⬅️", `agent:journal:page:${page - 1}`);
-	if (page < totalPages - 1) kb.text("➡️", `agent:journal:page:${page + 1}`);
+	if (page > 0) kb.text("⬅️", `agent:journal:page:${page - 1}:${filter}`);
+	if (page < totalPages - 1)
+		kb.text("➡️", `agent:journal:page:${page + 1}:${filter}`);
 	kb.row();
 	for (const f of ["all", "opens", "closes", "blocked"] as const) {
 		kb.text(f === filter ? `• ${f}` : f, `agent:journal:filter:${f}`);
@@ -290,30 +291,34 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		);
 	});
 
-	bot.callbackQuery(/^agent:journal:page:(-?\d+)$/, async (ctx) => {
-		await ctx.answerCallbackQuery();
-		const chatId = ctx.chat?.id;
-		const messageId = ctx.msgId;
-		if (chatId == null || messageId == null) return;
-		const entries = readJournalAll();
-		const totalPages = journalPageCount(entries.length, PAGE_SIZE);
-		const page = Math.min(
-			Math.max(0, parseInt(ctx.match[1], 10) || 0),
-			totalPages - 1,
-		);
-		const text = formatJournalPage(
-			entries,
-			{ page, pageSize: PAGE_SIZE, filter: "all" },
-			actionCounts(entries),
-		);
-		await editOrIgnore(
-			ctx.api,
-			chatId,
-			messageId,
-			text,
-			journalKeyboard(page, totalPages),
-		);
-	});
+	bot.callbackQuery(
+		/^agent:journal:page:(-?\d+):(all|opens|closes|blocked)$/,
+		async (ctx) => {
+			await ctx.answerCallbackQuery();
+			const chatId = ctx.chat?.id;
+			const messageId = ctx.msgId;
+			if (chatId == null || messageId == null) return;
+			const entries = readJournalAll();
+			const filter = ctx.match[2] as JournalFilter;
+			const totalPages = journalPageCount(entries.length, PAGE_SIZE);
+			const page = Math.min(
+				Math.max(0, parseInt(ctx.match[1], 10) || 0),
+				totalPages - 1,
+			);
+			const text = formatJournalPage(
+				entries,
+				{ page, pageSize: PAGE_SIZE, filter },
+				actionCounts(entries),
+			);
+			await editOrIgnore(
+				ctx.api,
+				chatId,
+				messageId,
+				text,
+				journalKeyboard(page, totalPages, filter),
+			);
+		},
+	);
 
 	bot.callbackQuery(
 		/^agent:journal:filter:(all|opens|closes|blocked)$/,
