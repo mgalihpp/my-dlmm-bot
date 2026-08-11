@@ -98,7 +98,7 @@ Satu pesan Telegram diedit in-place saat fase berjalan (`liveSend`/`liveStep`): 
 | Job | Interval | Fungsi | Decision engine |
 |---|---|---|---|
 | `cycle` | `max(txCooldownMs, 60s)` | Buka posisi baru | **Full-LLM** (`evaluatePlans`) |
-| `event` | 60s | TP/SL check | Deterministik `tpslAction` |
+| `event` | 30s | TP/SL check | Deterministik `tpslAction` |
 | `oor` | `intervalMinutes * 60s` | TP/SL + posisi out-of-range | LLM OOR (`requestPositionDecisions`) |
 
 Semua job dijalankan via `Effect.repeat(alignedSchedule(interval))` — menembak di **batas wall-clock** (`:00/:05/:10`), bukan dari akhir run (anti-drift). Run pertama langsung jalan saat startup.
