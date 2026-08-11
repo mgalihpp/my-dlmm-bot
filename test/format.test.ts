@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { formatNum, pair, shortAddr, timeAgo } from "../src/format.js";
 import {
 	escapeMarkdown,
+	formatRangeBar,
 	tgBold,
 	tgCode,
 	tgUsd,
@@ -65,5 +66,13 @@ describe("tg helpers", () => {
 	});
 	it("tgUsd formats and escapes", () => {
 		expect(tgUsd(1234.5)).toBe("$1,234\\.50");
+	});
+});
+
+describe("formatRangeBar", () => {
+	it("renders the 20-cell tick bar matching the agent style", () => {
+		expect(formatRangeBar(0.9, 0.5, 1.5)).toBe(
+			"▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ in\\-range",
+		);
 	});
 });

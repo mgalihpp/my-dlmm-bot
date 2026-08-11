@@ -1,6 +1,7 @@
 import type { ResolvedAgentConfig } from "../../services/Config.js";
 import {
 	escapeMarkdown,
+	formatRangeBar,
 	tgBold,
 	tgCode,
 	tgPct,
@@ -13,6 +14,8 @@ import type { AgentJournalEntry, JournalCandidate } from "./journal.js";
 import { delayToNextBoundary } from "./schedule.js";
 import type { AgentCooldown, AgentState, LlmStatus } from "./state.js";
 import type { ActionCounts, TradeStats } from "./stats.js";
+
+export { formatRangeBar };
 
 export function formatStatus(
 	state: AgentState,
@@ -361,21 +364,6 @@ export function formatDashboardHeader(
 		`Deployed ${tgSolAmt(deployed)} \\| max ${tgSolAmt(cfg.maxTotalSol)}`,
 		winLine,
 	].join("\n");
-}
-
-/** 20-cell range bar: filled `▰` up to the price tick, `▱` after. */
-export function formatRangeBar(
-	price: number,
-	min: number,
-	max: number,
-): string {
-	if (min >= max) return "range unavailable";
-	const width = 20;
-	const clamp = Math.min(1, Math.max(0, (price - min) / (max - min)));
-	const tick = Math.round(clamp * width);
-	const cells = `${"▰".repeat(tick)}${"▱".repeat(width - tick)}`;
-	const label = price < min ? "below" : price > max ? "above" : "in-range";
-	return `${cells} ${escapeMarkdown(label)}`;
 }
 
 export interface PositionCard {

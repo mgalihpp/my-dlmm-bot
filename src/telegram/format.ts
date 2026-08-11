@@ -437,3 +437,18 @@ export function tgPoolDetail(p: DlmmPool): string {
 	];
 	return lines.join("\n");
 }
+
+/** 20-cell range bar: filled `▰` up to the price tick, `▱` after. */
+export function formatRangeBar(
+	price: number,
+	min: number,
+	max: number,
+): string {
+	if (min >= max) return "range unavailable";
+	const width = 20;
+	const clamp = Math.min(1, Math.max(0, (price - min) / (max - min)));
+	const tick = Math.round(clamp * width);
+	const cells = `${"▰".repeat(tick)}${"▱".repeat(width - tick)}`;
+	const label = price < min ? "below" : price > max ? "above" : "in-range";
+	return `${cells} ${escapeMarkdown(label)}`;
+}
