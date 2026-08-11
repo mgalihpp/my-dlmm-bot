@@ -1,6 +1,12 @@
+import { mkdtempSync, readFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	computeLift,
+	HIGHER_IS_BETTER,
 	recalculateWeights,
+	recordClosePerf,
 	signalSnapshot,
 	weightsSummary,
 } from "../src/telegram/agent/signalWeights.js";
@@ -145,6 +151,87 @@ describe("recalculateWeights", () => {
 			cfg: darwin,
 		});
 		expect(r2.changes.length).toBe(0);
+	});
+});
+
+describe("signalWeights directionality", () => {
+	it("treats rugScore and binStep as lower-is-better (matches heuristic)", () => {
+		const wins = [
+			rec(10, { rugScore: 100, binStep: 20 }),
+			rec(8, { rugScore: 200, binStep: 30 }),
+		];
+		const losses = [
+			rec(-10, { rugScore: 2200, binStep: 110 }),
+			rec(-8, { rugScore: 2400, binStep: 120 }),
+		];
+		const rugLift = computeLift("rugScore", wins, losses, 2);
+		const binLift = computeLift("binStep", wins, losses, 2);
+		expect(rugLift).not.toBeNull();
+		expect(binLift).not.toBeNull();
+		expect(rugLift!).toBeGreaterThan(0);
+		expect(binLift!).toBeGreaterThan(0);
+	});
+
+	it("excludes rugScore and binStep from HIGHER_IS_BETTER", () => {
+		expect(HIGHER_IS_BETTER.has("rugScore")).toBe(false);
+		expect(HIGHER_IS_BETTER.has("binStep")).toBe(false);
+	});
+});
+
+describe("recordClosePerf", () => {
+	const signals = (organicScore: number) => ({
+		organicScore,
+		feeActiveTvlRatio: 0.05,
+		volume: 50000,
+		holders: 1000,
+		binStep: 100,
+		priceVsAthPct: 60,
+		rugScore: 1500,
+		top10Pct: 50,
+		bundlePct: 20,
+		botHoldersPct: 10,
+		globalFeesSol: 40,
+		activePositions: 200,
+	});
+
+	it("appends a perf sample and persists the file", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-sw-"));
+		const file = join(dir, "weights.json");
+		const res = recordClosePerf({
+			signals: signals(70),
+			pnlPct: 5,
+			darwin: { ...darwin, recalcEvery: 100 },
+			file,
+		});
+		expect(res.recalcCount).toBe(0);
+		const saved = JSON.parse(readFileSync(file, "utf8"));
+		expect(saved.perf).toHaveLength(1);
+		expect(saved.perf[0].pnlPct).toBe(5);
+		expect(saved.closesSinceRecalc).toBe(1);
+	});
+
+	it("recalculates weights once closesSinceRecalc reaches recalcEvery", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-sw-"));
+		const file = join(dir, "weights.json");
+		const cfg = { ...darwin, recalcEvery: 2, minSamples: 2 };
+		const first = recordClosePerf({
+			signals: signals(90),
+			pnlPct: 10,
+			darwin: cfg,
+			file,
+		});
+		expect(first.recalcCount).toBe(0);
+		const second = recordClosePerf({
+			signals: signals(30),
+			pnlPct: -10,
+			darwin: cfg,
+			file,
+		});
+		expect(second.recalcCount).toBe(1);
+		const saved = JSON.parse(readFileSync(file, "utf8"));
+		expect(saved.recalcCount).toBe(1);
+		expect(saved.closesSinceRecalc).toBe(0);
+		expect(saved.history).toHaveLength(1);
 	});
 });
 

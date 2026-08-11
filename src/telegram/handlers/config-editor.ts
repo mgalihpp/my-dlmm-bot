@@ -786,6 +786,9 @@ export function registerConfigEditor(bot: Bot, rtAgent?: RuntimeAgent | null) {
 			await replyError(ctx, e);
 			return;
 		}
+		if (field === "agent.enabled") {
+			await syncAgentRuntime(getNestedValue(getConfigSync(), field) === true);
+		}
 		const text = buildConfigText(getConfigSync(), configPath());
 		await ctx.editMessageText(`${tgBold("✅ Reset to default")}\n\n${text}`, {
 			...MD,

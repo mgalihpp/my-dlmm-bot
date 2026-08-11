@@ -20,7 +20,7 @@ import { registerWatchlist } from "./handlers/watchlist.js";
 import { takeInputSession } from "./input-store.js";
 import { registerMenu } from "./menu.js";
 import { runtime } from "./runtime.js";
-import { createTpSl, registerTpSlCommands } from "./tpsl.js";
+import { agentTracks, createTpSl, registerTpSlCommands } from "./tpsl.js";
 import { MD } from "./utils.js";
 
 const HELP = [
@@ -108,10 +108,15 @@ async function main() {
 	if (chatId) {
 		const rt = createAlerts(bot, chatId);
 		registerAlertCommands(bot, chatId, rt);
-		createTpSl(bot, chatId);
 		registerTpSlCommands(bot);
 
 		rtAgent = createAgent(bot, chatId);
+		// The global TP/SL watcher must skip positions the agent manages, or
+		// both fire on the same thresholds → double notifications and a stale
+		// manual close button.
+		createTpSl(bot, chatId, (poolAddress, positionAddress) =>
+			agentTracks(rtAgent!.state.plans, poolAddress, positionAddress),
+		);
 		registerDashboard(bot, rtAgent); // live header
 		registerMenuSpokes(bot, rtAgent);
 		registerAgentCommands(bot, rtAgent);

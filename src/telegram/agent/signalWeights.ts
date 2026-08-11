@@ -37,8 +37,6 @@ export const HIGHER_IS_BETTER: ReadonlySet<SignalName> = new Set([
 	"feeActiveTvlRatio",
 	"volume",
 	"holders",
-	"binStep",
-	"rugScore",
 	"globalFeesSol",
 	"activePositions",
 ]);
@@ -138,6 +136,65 @@ export function appendPerf(
 		perf: [...data.perf, rec],
 		closesSinceRecalc: data.closesSinceRecalc + 1,
 	};
+}
+
+/** Appends a closed-trade perf sample and persists, recalculating Darwinian
+ * weights once `closesSinceRecalc` reaches `recalcEvery`. */
+export function recordClosePerf(input: {
+	signals: Record<SignalName, number>;
+	pnlPct: number;
+	darwin: ResolvedAgentDarwin;
+	closedAt?: string;
+	file?: string;
+}): {
+	recalcCount: number;
+	changes: Array<{
+		signal: SignalName;
+		from: number;
+		to: number;
+		lift: number;
+	}>;
+} {
+	const file = input.file ?? SIGNAL_WEIGHTS_FILE;
+	const data = loadSignalWeights(file);
+	const updated = appendPerf(data, {
+		closedAt: input.closedAt ?? new Date().toISOString(),
+		pnlPct: input.pnlPct,
+		signals: input.signals,
+	});
+	let toSave = updated;
+	let changes: Array<{
+		signal: SignalName;
+		from: number;
+		to: number;
+		lift: number;
+	}> = [];
+	if (
+		input.darwin.enabled &&
+		updated.closesSinceRecalc >= input.darwin.recalcEvery
+	) {
+		const { weights, changes: recalcChanges } = recalculateWeights({
+			perf: updated.perf,
+			weights: updated.weights,
+			cfg: input.darwin,
+		});
+		changes = recalcChanges;
+		if (recalcChanges.length > 0) {
+			toSave = {
+				...updated,
+				weights,
+				lastRecalc: new Date().toISOString(),
+				recalcCount: updated.recalcCount + 1,
+				closesSinceRecalc: 0,
+				history: [
+					...updated.history,
+					{ at: new Date().toISOString(), changes: recalcChanges },
+				],
+			};
+		}
+	}
+	saveSignalWeights(toSave, file);
+	return { recalcCount: toSave.recalcCount, changes };
 }
 
 function normValue(

@@ -146,7 +146,7 @@ export const resolveAgentConfigFrom = (
 	const d = a.darwin ?? {};
 	return {
 		enabled: a.enabled ?? false,
-		intervalMinutes: a.intervalMinutes ?? 15,
+		intervalMinutes: Math.max(1, a.intervalMinutes ?? 15),
 		maxCandidates: a.maxCandidates ?? 5,
 		minCandidate: a.minCandidate ?? 70,
 		maxSolPerPosition: a.maxSolPerPosition ?? 0.5,

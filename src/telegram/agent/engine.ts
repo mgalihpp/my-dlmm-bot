@@ -58,10 +58,8 @@ import { allowed, notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import { alignedSchedule, delayToDaily } from "./schedule.js";
 import {
-	appendPerf,
 	loadSignalWeights,
-	recalculateWeights,
-	saveSignalWeights,
+	recordClosePerf,
 	signalSnapshot,
 	weightsSummary,
 } from "./signalWeights.js";
@@ -87,6 +85,10 @@ export function findFailedCandidate(
 
 export interface RuntimeAgent {
 	state: AgentState;
+	/** Monotonic generation counter — incremented on every start/stop so
+	 * in-flight jobs can detect that they were superseded (stop during a
+	 * running cycle, or a quick stop→start) and abort before any tx. */
+	gen: number;
 	start(): void;
 	stop(): void;
 	runCycle(): Promise<void>;
@@ -169,6 +171,17 @@ async function retryOpen(
 	const openPositions = open.totalPositions ?? 0;
 	const baseMint =
 		rt.state.plans.find((p) => p.pool === cand.pool)?.baseMint ?? "";
+	// On-chain double-open guard: a createPosition whose response was lost may
+	// have landed on-chain without a tracked plan — never open it twice.
+	if (
+		open.pools.some(
+			(p) =>
+				p.poolAddress === cand.pool ||
+				(baseMint && (p.tokenXMint === baseMint || p.tokenYMint === baseMint)),
+		)
+	) {
+		return "retry blocked: position already open on-chain for this pool/token";
+	}
 	const dup = checkDuplicate({
 		pool: cand.pool,
 		baseMint,
@@ -182,6 +195,17 @@ async function retryOpen(
 		Date.now(),
 	);
 	if (!cd.ok) return `retry blocked: ${cd.reason}`;
+	// Re-check deterministic risks against a fresh screen (the original pass
+	// may be stale by the time the user retries).
+	let risk: { ok: boolean; reason: string | null } = { ok: true, reason: null };
+	try {
+		const screen = await screenPools();
+		const sp = screen.pools.find((p) => p.pool === cand.pool);
+		if (sp) risk = checkRisks({ pool: sp, risks: cfg.risks });
+	} catch {
+		// screening unavailable — retry proceeds on the decision-time validation
+	}
+	if (!risk.ok) return `retry blocked: ${risk.reason}`;
 	const amountSol = deriveOpenAmount(deployed, cfg);
 	const guard = checkOpenGuardrail({
 		amountSol,
@@ -342,9 +366,14 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	// Per-job busy flags: cycle / TP-SL / OOR run independently so a slow check
 	// at a cycle boundary no longer silently skips the cycle (shared `running`
 	// flag caused intermittent no-op cycles and permanent stall if one hung).
-	const busy = { cycle: false, fast: false, oor: false };
+	// Each flag holds the generation that owns the in-flight run; a run started
+	// under an older generation never clears or blocks a newer one (stop→start
+	// race), and the generation check before each tx aborts orphaned runs.
+	let gen = 0;
+	const busy = { cycle: -1, fast: -1, oor: -1 };
 	const syncRunning = () => {
-		rt.state.running = busy.cycle || busy.fast || busy.oor;
+		rt.state.running =
+			busy.cycle === gen || busy.fast === gen || busy.oor === gen;
 	};
 
 	const schedule = (
@@ -363,11 +392,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 
 	const rt: RuntimeAgent = {
 		state,
+		get gen() {
+			return gen;
+		},
 		start() {
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
 			stopFiber(oorFiber);
 			stopFiber(briefingFiber);
+			const myGen = ++gen;
 			const briefingJob = () =>
 				Effect.tryPromise(async () => {
 					if (rt.state.enabled) await rt.runBriefing();
@@ -387,6 +420,8 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				),
 			);
 			void getConfig().then((cfg) => {
+				// A stop (or another start) before config resolved supersedes us.
+				if (myGen !== gen) return;
 				const agentCfg = resolveAgentConfigFrom(cfg);
 				rt.state.enabled = true;
 				rt.state.running = false;
@@ -403,6 +438,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			});
 		},
 		stop() {
+			gen++;
 			stopFiber(intervalFiber);
 			stopFiber(eventFiber);
 			stopFiber(oorFiber);
@@ -413,12 +449,14 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			briefingFiber = null;
 			rt.state.enabled = false;
 			rt.state.running = false;
-			busy.cycle = busy.fast = busy.oor = false;
+			// busy flags are NOT reset here: an in-flight run under an older
+			// generation owns them, and must not be cleared by stop().
 			saveState(rt.state);
 		},
 		async runFast() {
-			if (busy.fast || !rt.state.enabled) return;
-			busy.fast = true;
+			const myGen = gen;
+			if (busy.fast === myGen || !rt.state.enabled || myGen !== gen) return;
+			busy.fast = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
@@ -428,6 +466,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				await syncOnchainPlans(rt, wallet);
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: false,
+					myGen,
 				});
 			} catch (e) {
 				logError("fast cycle error:", e);
@@ -442,14 +481,17 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				busy.fast = false;
-				syncRunning();
-				saveState(rt.state);
+				if (busy.fast === myGen) {
+					busy.fast = -1;
+					syncRunning();
+					saveState(rt.state);
+				}
 			}
 		},
 		async runCycle() {
-			if (busy.cycle || !rt.state.enabled) return;
-			busy.cycle = true;
+			const myGen = gen;
+			if (busy.cycle === myGen || !rt.state.enabled || myGen !== gen) return;
+			busy.cycle = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
@@ -462,7 +504,15 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				const deployed = Number(open.total?.balancesSol ?? 0);
 				const openPositions = open.totalPositions ?? 0;
 				await syncOnchainPlans(rt, wallet, open);
-				await evaluatePlans(rt, bot, chatId, cfg, deployed, openPositions);
+				await evaluatePlans(
+					rt,
+					bot,
+					chatId,
+					cfg,
+					deployed,
+					openPositions,
+					myGen,
+				);
 				rt.state.lastCycleAt = new Date().toISOString();
 				logInfo(
 					`cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
@@ -480,14 +530,17 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				busy.cycle = false;
-				syncRunning();
-				saveState(rt.state);
+				if (busy.cycle === myGen) {
+					busy.cycle = -1;
+					syncRunning();
+					saveState(rt.state);
+				}
 			}
 		},
 		async runOor() {
-			if (busy.oor || !rt.state.enabled) return;
-			busy.oor = true;
+			const myGen = gen;
+			if (busy.oor === myGen || !rt.state.enabled || myGen !== gen) return;
+			busy.oor = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
@@ -496,6 +549,7 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				section("OOR CHECK");
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: true,
+					myGen,
 				});
 			} catch (e) {
 				logError("oor error:", e);
@@ -510,9 +564,11 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					);
 				}
 			} finally {
-				busy.oor = false;
-				syncRunning();
-				saveState(rt.state);
+				if (busy.oor === myGen) {
+					busy.oor = -1;
+					syncRunning();
+					saveState(rt.state);
+				}
 			}
 		},
 		async runBriefing() {
@@ -546,10 +602,11 @@ async function evaluateTpSl(
 	chatId: string,
 	cfg: AgentCfg,
 	wallet: string,
-	opts: { includeOor?: boolean } = {},
+	opts: { includeOor?: boolean; myGen: number } = { myGen: 0 },
 ) {
 	const oorPositions: OorPosition[] = [];
 	for (const plan of [...rt.state.plans]) {
+		if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 		if (!plan.positionAddress) continue;
 		let pdata;
 		try {
@@ -582,6 +639,7 @@ async function evaluateTpSl(
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		if (action === "hold") continue;
+		if (opts.myGen !== rt.gen) return; // aborted before the close tx
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
@@ -595,42 +653,18 @@ async function evaluateTpSl(
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 			const signals = plan.signals;
 			if (signals && Number.isFinite(pct)) {
-				const swf = loadSignalWeights();
-				const updated = appendPerf(swf, {
-					closedAt: new Date().toISOString(),
-					pnlPct: pct,
+				const { changes } = recordClosePerf({
 					signals,
+					pnlPct: pct,
+					darwin: cfg.darwin,
 				});
-				let toSave = updated;
-				if (
-					cfg.darwin.enabled &&
-					updated.closesSinceRecalc >= cfg.darwin.recalcEvery
-				) {
-					const { weights, changes } = recalculateWeights({
-						perf: updated.perf,
-						weights: updated.weights,
-						cfg: cfg.darwin,
-					});
-					if (changes.length > 0) {
-						logInfo(
-							`signal weights recalculated: ${changes
-								.map((c) => `${c.signal}: ${c.from}→${c.to}`)
-								.join(", ")}`,
-						);
-					}
-					toSave = {
-						...updated,
-						weights,
-						lastRecalc: new Date().toISOString(),
-						recalcCount: updated.recalcCount + 1,
-						closesSinceRecalc: 0,
-						history: [
-							...updated.history,
-							{ at: new Date().toISOString(), changes },
-						],
-					};
+				if (changes.length > 0) {
+					logInfo(
+						`signal weights recalculated: ${changes
+							.map((c) => `${c.signal}: ${c.from}→${c.to}`)
+							.join(", ")}`,
+					);
 				}
-				saveSignalWeights(toSave);
 			}
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
@@ -693,6 +727,24 @@ async function evaluateTpSl(
 			);
 		} catch (e) {
 			logError("tp/sl close failed:", e);
+			appendJournal({
+				ts: new Date().toISOString(),
+				cycle: rt.state.cycle,
+				llmStatus: rt.state.llmStatus,
+				candidates: [
+					{
+						pool: plan.pool,
+						poolName: plan.poolName,
+						heuristicScore: 0,
+						rationale: `${action} triggered at ${pct}%`,
+						action,
+						guardrail: "pass",
+						blockedReason: null,
+						execution: "failed",
+						txSignature: null,
+					},
+				],
+			});
 			await notify(
 				bot,
 				chatId,
@@ -703,11 +755,12 @@ async function evaluateTpSl(
 					poolName: plan.poolName,
 					failed: true,
 				}),
+				{ keyboard: notifyKeyboard("failed", plan.pool) },
 			);
 		}
 	}
 	if (opts.includeOor && oorPositions.length > 0) {
-		await evaluateOor(rt, bot, chatId, cfg, oorPositions);
+		await evaluateOor(rt, bot, chatId, cfg, oorPositions, opts.myGen);
 	}
 }
 
@@ -717,6 +770,7 @@ async function evaluateOor(
 	chatId: string,
 	cfg: AgentCfg,
 	positions: readonly OorPosition[],
+	myGen: number,
 ) {
 	logInfo(`OOR: ${positions.length} position(s) out of range → LLM`);
 	const { decisions, degraded } = await requestPositionDecisions({
@@ -728,6 +782,7 @@ async function evaluateOor(
 		return;
 	}
 	for (const d of decisions) {
+		if (myGen !== rt.gen) return; // aborted before the close tx
 		const pos = positions.find((p) => p.pool === d.pool);
 		if (!pos) continue;
 		const plan = rt.state.plans.find(
@@ -762,6 +817,21 @@ async function evaluateOor(
 				WSOL_MINT,
 			);
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
+			const signals = plan.signals;
+			if (signals && Number.isFinite(pos.pnlPct)) {
+				const { changes } = recordClosePerf({
+					signals,
+					pnlPct: pos.pnlPct,
+					darwin: cfg.darwin,
+				});
+				if (changes.length > 0) {
+					logInfo(
+						`signal weights recalculated: ${changes
+							.map((c) => `${c.signal}: ${c.from}→${c.to}`)
+							.join(", ")}`,
+					);
+				}
+			}
 			rt.state.plans = rt.state.plans.filter((x) => x !== plan);
 			rt.state.executions.push({
 				at: new Date().toISOString(),
@@ -833,6 +903,7 @@ async function evaluatePlans(
 	cfg: AgentCfg,
 	deployedSol: number,
 	openPositions: number,
+	myGen: number,
 ) {
 	if (openPositions >= cfg.maxOpenPositions) {
 		logInfo(
@@ -843,7 +914,9 @@ async function evaluatePlans(
 	const live: LiveMsg = { msgId: null };
 	const cycle = rt.state.cycle + 1;
 	const liveLines = [`🔎 screening pools...`];
-	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	if (allowed(cfg.notifLevel, "live")) {
+		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	}
 	let screen;
 	try {
 		screen = await screenPools();
@@ -857,7 +930,7 @@ async function evaluatePlans(
 		`screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
-	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,
 		rt.state.cooldowns,
@@ -918,7 +991,7 @@ async function evaluatePlans(
 		activePositions: p.activePositions,
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
-	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
 	const { decisions: rawDecisions, failed } = await requestOpenDecisions({
 		cfg,
@@ -933,7 +1006,7 @@ async function evaluatePlans(
 	if (failed || rawDecisions === null) {
 		logError("LLM: request failed — cycle skipped");
 		liveLines[liveLines.length - 1] = "❌ LLM failed — cycle skipped";
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 		rt.state.llmStatus = "failed";
 		appendJournal(journal);
 		saveState(rt.state);
@@ -957,7 +1030,7 @@ async function evaluatePlans(
 	}
 	liveLines[liveLines.length - 1] =
 		`🧠 LLM: ${llmCandidates.length} candidates → ${rawDecisions.length} decisions`;
-	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 
 	const { decisions: validated, dropped } = validateOpenDecisions(
 		ranked,
@@ -969,6 +1042,7 @@ async function evaluatePlans(
 	const poolByAddr = new Map(ranked.map((p) => [p.pool, p] as const));
 
 	let budget = deployedSol;
+	let opened = 0;
 	let lastExecAt = lastOpenExecutionAt(rt.state.executions);
 
 	const liveDecision = async (line: string) => {
@@ -977,6 +1051,7 @@ async function evaluatePlans(
 	};
 
 	for (const d of validated) {
+		if (myGen !== rt.gen) return; // aborted before the open tx
 		const pool = poolByAddr.get(d.pool);
 		if (!pool) continue; // defensive — validation already filtered
 		const h = heuristicScore(pool, weights);
@@ -1068,7 +1143,7 @@ async function evaluatePlans(
 			maxSolPerPosition: cfg.maxSolPerPosition,
 			maxTotalSol: cfg.maxTotalSol,
 			maxOpenPositions: cfg.maxOpenPositions,
-			openPositionCount: openPositions,
+			openPositionCount: openPositions + opened,
 		});
 		if (!guard.ok) {
 			journal.candidates.push({
@@ -1156,6 +1231,7 @@ async function evaluatePlans(
 			await liveDecision(`⛔ ${pool.name} blocked: ${rent.reason ?? ""}`);
 			continue;
 		}
+		if (myGen !== rt.gen) return; // aborted before the open tx
 		try {
 			const res = await dlmm.createPosition(params);
 			const sig = res.signatures.join(",");
@@ -1176,6 +1252,7 @@ async function evaluatePlans(
 				txSignature: sig || null,
 			});
 			budget += amountSol;
+			opened += 1;
 			lastExecAt = Date.now();
 			journal.candidates.push({
 				...base,

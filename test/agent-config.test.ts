@@ -25,6 +25,16 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.poolCooldownMs).toBe(60_000);
 	});
 
+	it("clamps intervalMinutes to at least 1", () => {
+		const zero = resolveAgentConfigFrom({ agent: { intervalMinutes: 0 } }, {});
+		const negative = resolveAgentConfigFrom(
+			{ agent: { intervalMinutes: -5 } },
+			{},
+		);
+		expect(zero.intervalMinutes).toBe(1);
+		expect(negative.intervalMinutes).toBe(1);
+	});
+
 	it("defaults notifLevel to normal and honors override", () => {
 		const c = resolveAgentConfigFrom({}, {});
 		expect(c.notifLevel).toBe("normal");
