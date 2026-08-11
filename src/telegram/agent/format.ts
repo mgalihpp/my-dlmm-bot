@@ -232,12 +232,22 @@ function journalMatches(c: JournalCandidate, filter: JournalFilter): boolean {
 	}
 }
 
+/** Entries containing at least one candidate that matches the filter. */
+export function journalFilteredEntries(
+	entries: readonly AgentJournalEntry[],
+	filter: JournalFilter,
+): AgentJournalEntry[] {
+	return entries.filter((e) =>
+		e.candidates.some((c) => journalMatches(c, filter)),
+	);
+}
+
 export function formatJournalPage(
 	entries: readonly AgentJournalEntry[],
 	opts: { page: number; pageSize: number; filter: JournalFilter },
 	counts: ActionCounts,
 ): string {
-	const newestFirst = [...entries].reverse();
+	const newestFirst = journalFilteredEntries(entries, opts.filter).reverse();
 	const totalPages = journalPageCount(newestFirst.length, opts.pageSize);
 	const page = Math.min(Math.max(0, opts.page), totalPages - 1);
 	const slice = newestFirst.slice(

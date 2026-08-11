@@ -13,6 +13,7 @@ import {
 	formatPositionCard,
 	formatStatus,
 	type JournalFilter,
+	journalFilteredEntries,
 	journalPageCount,
 	type PortfolioRow,
 	type PositionPnl,
@@ -314,7 +315,10 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			if (chatId == null || messageId == null) return;
 			const entries = readJournalAll();
 			const filter = ctx.match[2] as JournalFilter;
-			const totalPages = journalPageCount(entries.length, PAGE_SIZE);
+			const totalPages = journalPageCount(
+				journalFilteredEntries(entries, filter).length,
+				PAGE_SIZE,
+			);
 			const page = Math.min(
 				Math.max(0, parseInt(ctx.match[1], 10) || 0),
 				totalPages - 1,
@@ -348,12 +352,16 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				{ page: 0, pageSize: PAGE_SIZE, filter },
 				actionCounts(entries),
 			);
+			const totalPages = journalPageCount(
+				journalFilteredEntries(entries, filter).length,
+				PAGE_SIZE,
+			);
 			await editOrIgnore(
 				ctx.api,
 				chatId,
 				messageId,
 				text,
-				journalKeyboard(0, journalPageCount(entries.length, PAGE_SIZE), filter),
+				journalKeyboard(0, totalPages, filter),
 			);
 		},
 	);

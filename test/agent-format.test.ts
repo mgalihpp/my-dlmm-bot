@@ -261,6 +261,69 @@ describe("formatPortfolio", () => {
 	});
 });
 
+describe("journal page with filter", () => {
+	const entry = (
+		cycle: number,
+		action: "open" | "close" | "hold",
+		execution: "ok" | "failed" | null,
+	): AgentJournalEntry => ({
+		ts: "2026-08-08T00:00:00Z",
+		cycle,
+		llmStatus: "ok",
+		candidates: [
+			{
+				pool: `P${cycle}`,
+				poolName: `Pool ${cycle}`,
+				heuristicScore: 80,
+				rationale: "r",
+				action,
+				guardrail: "pass",
+				blockedReason: null,
+				execution,
+				txSignature: execution === "ok" ? "sig" : null,
+			},
+		],
+	});
+	// 12 entries, only cycles 12 and 11 match the "opens" filter
+	const entries = [
+		entry(12, "open", "ok"),
+		entry(11, "open", "ok"),
+		entry(10, "hold", null),
+		entry(9, "hold", null),
+		entry(8, "hold", null),
+		entry(7, "hold", null),
+		entry(6, "hold", null),
+		entry(5, "hold", null),
+		entry(4, "hold", null),
+		entry(3, "hold", null),
+		entry(2, "hold", null),
+		entry(1, "hold", null),
+	];
+	const counts = actionCounts(entries);
+
+	it("sizes pages by filtered matches, not all entries", () => {
+		const out = formatJournalPage(
+			entries,
+			{ page: 0, pageSize: 5, filter: "opens" },
+			counts,
+		);
+		expect(out).toContain("page 1/1");
+		expect(out).toContain("Pool 12");
+		expect(out).toContain("Pool 11");
+		expect(out).not.toContain("No matching entries");
+	});
+
+	it("a filter with no matches renders a single page", () => {
+		const out = formatJournalPage(
+			entries,
+			{ page: 0, pageSize: 5, filter: "closes" },
+			counts,
+		);
+		expect(out).toContain("page 1/1");
+		expect(out).toContain("No matching entries");
+	});
+});
+
 describe("journal page", () => {
 	const entry = (cycle: number): AgentJournalEntry => ({
 		ts: "2026-08-08T00:00:00Z",
