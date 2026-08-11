@@ -253,6 +253,7 @@ function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 			let currentPools = await api.enrichOpenPortfolioPnl(
 				res.pools ?? [],
 				wallet,
+				{ withRanges: true },
 			);
 			currentPools = await dlmm.attachLivePositions(currentPools, wallet);
 			console.log(
