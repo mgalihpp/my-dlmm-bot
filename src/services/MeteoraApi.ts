@@ -27,6 +27,7 @@ import {
 	PortfolioTotal,
 	PositionPnLResponse,
 	type PositionPnlEntry,
+	type PositionRangeEntry,
 } from "../domain/index.js";
 import { DecodeError, MeteoraApiError } from "../errors.js";
 import { AppConfig } from "./Config.js";
@@ -71,6 +72,7 @@ export interface MeteoraApiService {
 	readonly enrichOpenPortfolioPnl: (
 		pools: readonly OpenPool[],
 		wallet: string,
+		opts?: { withRanges?: boolean },
 	) => Effect.Effect<OpenPool[]>;
 	readonly poolHistoricalVolume: (
 		address: string,
@@ -234,11 +236,13 @@ const make = Effect.gen(function* () {
 			);
 		},
 		positionPnl,
-		enrichOpenPortfolioPnl: (pools, wallet) =>
+		enrichOpenPortfolioPnl: (pools, wallet, opts) =>
 			Effect.gen(function* () {
 				const enriched = pools.map((p) => ({ ...p }));
 				yield* Effect.forEach(
-					enriched.filter((pool) => pool.openPositionCount > 1),
+					enriched.filter(
+						(pool) => opts?.withRanges === true || pool.openPositionCount > 1,
+					),
 					(pool) =>
 						positionPnl(pool.poolAddress, wallet, "open").pipe(
 							Effect.map((res) => {
@@ -256,6 +260,19 @@ const make = Effect.gen(function* () {
 								);
 								(pool as { positionsPnl?: PositionPnlEntry[] }).positionsPnl =
 									entries;
+								if (opts?.withRanges === true) {
+									const ranges: PositionRangeEntry[] = res.positions.map(
+										(pos) => ({
+											address: pos.positionAddress,
+											minPrice: pos.minPrice,
+											maxPrice: pos.maxPrice,
+											poolActivePrice: pos.poolActivePrice,
+										}),
+									);
+									(
+										pool as { positionsRange?: PositionRangeEntry[] }
+									).positionsRange = ranges;
+								}
 							}),
 							Effect.ignore,
 						),
