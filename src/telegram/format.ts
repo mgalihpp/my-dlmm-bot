@@ -150,6 +150,8 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 					`      Fees: ${escapeMarkdown(`${live.feeX} ${p.tokenX} + ${live.feeY} ${p.tokenY}`)}`,
 				);
 			}
+			const rangeLine = positionRangeLine(p, pos);
+			if (rangeLine) lines.push(rangeLine);
 			lines.push("");
 			return;
 		}
@@ -171,6 +173,8 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 					`      Fees: ${escapeMarkdown(`${live.feeX} ${p.tokenX} + ${live.feeY} ${p.tokenY}`)}`,
 				);
 			}
+			const rangeLine = positionRangeLine(p, pos);
+			if (rangeLine) lines.push(rangeLine);
 			const pnl = p.positionsPnl?.find((e) => e.address === pos);
 			if (pnl) {
 				lines.push(
@@ -451,4 +455,19 @@ export function formatRangeBar(
 	const cells = `${"▰".repeat(tick)}${"▱".repeat(width - tick)}`;
 	const label = price < min ? "below" : price > max ? "above" : "in-range";
 	return `${cells} ${escapeMarkdown(label)}`;
+}
+
+/** Range bar line for one position, or null when range data is missing. */
+function positionRangeLine(p: OpenPool, pos: string): string | null {
+	const range = p.positionsRange?.find((e) => e.address === pos);
+	if (!range) return null;
+	const price =
+		range.poolActivePrice != null
+			? Number(range.poolActivePrice)
+			: Number(p.poolPrice);
+	return `      Range: ${formatRangeBar(
+		price,
+		Number(range.minPrice),
+		Number(range.maxPrice),
+	)}`;
 }

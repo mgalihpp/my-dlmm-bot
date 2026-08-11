@@ -1,10 +1,13 @@
+import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
+import { OpenPool } from "../src/domain/portfolio.js";
 import { formatNum, pair, shortAddr, timeAgo } from "../src/format.js";
 import {
 	escapeMarkdown,
 	formatRangeBar,
 	tgBold,
 	tgCode,
+	tgOpenPools,
 	tgUsd,
 } from "../src/telegram/format.js";
 
@@ -74,5 +77,96 @@ describe("formatRangeBar", () => {
 		expect(formatRangeBar(0.9, 0.5, 1.5)).toBe(
 			"▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ in\\-range",
 		);
+	});
+});
+
+describe("tgOpenPools range bars", () => {
+	const makePool = (overrides: Partial<OpenPool>): OpenPool =>
+		Schema.decodeUnknownSync(OpenPool)({
+			poolAddress: "Pool1",
+			binStep: 25,
+			baseFee: 0.25,
+			tokenX: "JUP",
+			tokenY: "SOL",
+			tokenXMint: "MintX",
+			tokenYMint: "So11111111111111111111111111111111111111112",
+			balances: "100",
+			unclaimedFees: "1.5",
+			feePerTvl24h: "0.5",
+			pnl: "10",
+			pnlPctChange: "5.2",
+			pnlSol: "0.1",
+			pnlSolPctChange: "5.1",
+			totalDeposit: "50",
+			openPositionCount: 1,
+			listPositions: ["Pos1"],
+			positionsOutOfRange: [],
+			outOfRange: false,
+			poolPrice: 1.5,
+			...overrides,
+		});
+
+	it("renders an in-range bar for a single position", () => {
+		const out = tgOpenPools([
+			makePool({
+				positionsRange: [
+					{
+						address: "Pos1",
+						minPrice: "0.5",
+						maxPrice: "1.5",
+						poolActivePrice: "0.9",
+					},
+				],
+			}),
+		]);
+		expect(out).toContain("Range: ▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ in\\-range");
+	});
+
+	it("marks below and above per position in multi-position pools", () => {
+		const out = tgOpenPools([
+			makePool({
+				openPositionCount: 2,
+				listPositions: ["Pos1", "Pos2"],
+				positionsOutOfRange: ["Pos1", "Pos2"],
+				positionsRange: [
+					{
+						address: "Pos1",
+						minPrice: "0.5",
+						maxPrice: "1.5",
+						poolActivePrice: "0.2",
+					},
+					{
+						address: "Pos2",
+						minPrice: "0.5",
+						maxPrice: "1.5",
+						poolActivePrice: "5",
+					},
+				],
+			}),
+		]);
+		expect(out).toContain("below");
+		expect(out).toContain("above");
+	});
+
+	it("omits the bar when no range data exists", () => {
+		const out = tgOpenPools([makePool({})]);
+		expect(out).not.toContain("Range:");
+	});
+
+	it("falls back to pool price when poolActivePrice is null", () => {
+		const out = tgOpenPools([
+			makePool({
+				poolPrice: 0.9,
+				positionsRange: [
+					{
+						address: "Pos1",
+						minPrice: "0.5",
+						maxPrice: "1.5",
+						poolActivePrice: null,
+					},
+				],
+			}),
+		]);
+		expect(out).toContain("Range: ▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ in\\-range");
 	});
 });

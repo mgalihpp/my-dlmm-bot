@@ -18,7 +18,9 @@ export function registerPortfolio(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const res = await api.openPortfolio(wallet, 1, 10);
-			const enriched = await api.enrichOpenPortfolioPnl(res.pools, wallet);
+			const enriched = await api.enrichOpenPortfolioPnl(res.pools, wallet, {
+				withRanges: true,
+			});
 			await dlmm.attachLivePositions(enriched, wallet);
 			await ctx.reply(tgOpenPools(enriched), MD);
 		} catch (e) {
