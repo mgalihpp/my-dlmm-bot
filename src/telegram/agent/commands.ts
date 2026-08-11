@@ -71,6 +71,25 @@ export function planActionLabel(p: {
 		: `${p.poolName} · ${p.amountSol} SOL (pending)`;
 }
 
+export interface PlanPosition {
+	pool: string;
+	positionAddress: string | null;
+	amountSol?: number | null;
+}
+
+/**
+ * Find the currently open plan for a pool from the persisted plans list.
+ * Pool-based — independent of the ephemeral action store, so PnL buttons keep
+ * working across bot restarts.
+ */
+export function resolvePlanPosition(
+	plans: readonly PlanPosition[],
+	pool: string,
+): PlanPosition | null {
+	const plan = plans.find((p) => p.pool === pool && p.positionAddress != null);
+	return plan?.positionAddress ? plan : null;
+}
+
 async function syncEnabledConfig(enabled: boolean): Promise<void> {
 	try {
 		await updateConfig((c) => {
@@ -392,7 +411,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 		await ctx.answerCallbackQuery();
 		const action = resolveAction(ctx.match[1]);
 		if (!action) {
-			await ctx.reply("⌛ Expired — refresh /agent.", MD);
+			await ctx.reply("⌛ Expired — refresh /agent\\.", MD);
 			return;
 		}
 		await ctx.editMessageText("⏳ Loading position…", MD);
@@ -441,29 +460,24 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 	// ─── Notification quick actions ──────────────────────────────────────────
 	bot.callbackQuery(/^notif:pnl:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const action = resolveAction(ctx.match[1]);
-		if (!action) {
-			await ctx.reply("⌛ Expired.", MD);
-			return;
-		}
+		const pool = ctx.match[1];
 		await ctx.editMessageText("⏳ Loading…", MD);
 		try {
 			const wallet = await resolveWallet();
-			const detail = await resolvePoolDetail(action.poolAddress);
-			const plan = rt.state.plans.find(
-				(p) => p.positionAddress === action.positionPubkey,
-			);
-			const pdata = await api.positionPnl(action.poolAddress, wallet, "open");
+			const detail = await resolvePoolDetail(pool);
+			const plan = resolvePlanPosition(rt.state.plans, pool);
+			if (!plan?.positionAddress) throw new Error("position not found");
+			const pdata = await api.positionPnl(pool, wallet, "open");
 			const pos = pdata.positions.find(
-				(p) => p.positionAddress === action.positionPubkey,
+				(p) => p.positionAddress === plan.positionAddress,
 			);
 			if (!pos) throw new Error("position not found");
 			const text = formatPositionCard({
 				tokenX: detail?.tokenX ?? "?",
 				tokenY: detail?.tokenY ?? "?",
-				poolAddress: action.poolAddress,
-				positionAddress: action.positionPubkey,
-				amountSol: plan?.amountSol ?? null,
+				poolAddress: pool,
+				positionAddress: plan.positionAddress,
+				amountSol: plan.amountSol ?? null,
 				pnlPct: pnlPctValue(pos),
 				isOutOfRange: pos.isOutOfRange ?? null,
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
@@ -472,11 +486,8 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				feeSol: null,
 			});
 			const kb = new InlineKeyboard()
-				.text("🔄", `notif:pnl:${ctx.match[1]}`)
-				.url(
-					"🙂 View on Meteora",
-					`https://app.meteora.ag/dlmm/${action.poolAddress}`,
-				)
+				.text("🔄", `notif:pnl:${pool}`)
+				.url("🙂 View on Meteora", `https://app.meteora.ag/dlmm/${pool}`)
 				.row()
 				.text("⬅️ Dashboard", "menu:main");
 			await ctx.editMessageText(text, { ...MD, reply_markup: kb });

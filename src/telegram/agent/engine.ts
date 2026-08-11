@@ -6,7 +6,6 @@ import {
 	resolveAgentConfigFrom,
 	resolveCreatePresetFrom,
 } from "../../services/Config.js";
-import { registerAction } from "../action-store.js";
 import {
 	api,
 	dlmm,
@@ -240,9 +239,6 @@ async function retryOpen(
 			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
 		});
 		saveState(rt.state);
-		const actionId = res.positions[0]
-			? registerAction(cand.pool, res.positions[0])
-			: undefined;
 		await notify(
 			bot,
 			chatId,
@@ -254,7 +250,7 @@ async function retryOpen(
 				amountSol,
 				txSignature: sig || null,
 			}),
-			{ keyboard: notifyKeyboard("open", actionId) },
+			{ keyboard: notifyKeyboard("open", cand.pool) },
 		);
 		return `OPEN ${cand.poolName} ${amountSol} SOL (retried)`;
 	} catch (e) {
@@ -313,7 +309,6 @@ async function retryClose(
 			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
 		});
 		saveState(rt.state);
-		const closeId = registerAction(cand.pool, plan.positionAddress);
 		await notify(
 			bot,
 			chatId,
@@ -324,7 +319,7 @@ async function retryClose(
 				poolName: cand.poolName,
 				txSignature: sig || null,
 			}),
-			{ keyboard: notifyKeyboard("close", closeId) },
+			{ keyboard: notifyKeyboard("close", cand.pool) },
 		);
 		return `${cand.action.toUpperCase()} ${cand.poolName} (retried)`;
 	} catch (e) {
@@ -680,7 +675,6 @@ async function evaluateTpSl(
 			logSuccess(
 				`${action.toUpperCase()} ${plan.poolName} done: sig=${shortSig(sig) || "?"}`,
 			);
-			const closeId = registerAction(plan.pool, plan.positionAddress!);
 			await notify(
 				bot,
 				chatId,
@@ -695,7 +689,7 @@ async function evaluateTpSl(
 						action === "tp" ? `TP ${cfg.tpPct}% hit` : `SL ${cfg.slPct}% hit`,
 					txSignature: sig || null,
 				}),
-				{ keyboard: notifyKeyboard(action, closeId) },
+				{ keyboard: notifyKeyboard(action, plan.pool) },
 			);
 		} catch (e) {
 			logError("tp/sl close failed:", e);
@@ -794,7 +788,6 @@ async function evaluateOor(
 			});
 			saveState(rt.state);
 			logSuccess(`OOR close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`);
-			const closeId = registerAction(pos.pool, plan.positionAddress!);
 			await notify(
 				bot,
 				chatId,
@@ -807,7 +800,7 @@ async function evaluateOor(
 					reason: `OOR close: ${d.rationale ?? ""}`,
 					txSignature: sig || null,
 				}),
-				{ keyboard: notifyKeyboard("close", closeId) },
+				{ keyboard: notifyKeyboard("close", pos.pool) },
 			);
 		} catch (e) {
 			logError("OOR close failed:", e);
@@ -1195,9 +1188,6 @@ async function evaluatePlans(
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${pool.name} ${amountSol} SOL ${sig || "?"}`;
 			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
-			const openActionId = res.positions[0]
-				? registerAction(pool.pool, res.positions[0])
-				: undefined;
 			await notify(
 				bot,
 				chatId,
@@ -1210,7 +1200,7 @@ async function evaluatePlans(
 					reason: d.rationale,
 					txSignature: sig || null,
 				}),
-				{ keyboard: notifyKeyboard("open", openActionId) },
+				{ keyboard: notifyKeyboard("open", pool.pool) },
 			);
 		} catch (e) {
 			logError("open failed:", pool.pool, e);

@@ -25,15 +25,15 @@ export type NotifKeyboardTag =
 
 export function notifyKeyboard(
 	tag: NotifKeyboardTag,
-	actionId?: string,
+	pool?: string,
 ): InlineKeyboard {
 	const kb = new InlineKeyboard();
-	if (actionId != null) {
+	if (pool != null) {
 		if (tag === "open" || tag === "close") {
-			kb.text("📊 PnL", `notif:pnl:${actionId}`);
+			kb.text("📊 PnL", `notif:pnl:${pool}`);
 		}
 		if (tag === "failed") {
-			kb.text("⚠️ Retry", `notif:retry:${actionId}`);
+			kb.text("⚠️ Retry", `notif:retry:${pool}`);
 		}
 	}
 	if (tag === "open" || tag === "tp" || tag === "sl" || tag === "close") {
