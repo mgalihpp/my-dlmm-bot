@@ -79,6 +79,23 @@ const EMPTY: SignalWeightsFile = {
 const num = (v: number | null | undefined): number | null =>
 	typeof v === "number" && Number.isFinite(v) ? v : null;
 
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+const count = (v: unknown): number =>
+	typeof v === "number" && Number.isFinite(v) ? v : 0;
+
+const perfOf = (v: unknown): PerfRecord | null => {
+	if (!isRecord(v) || typeof v.closedAt !== "string") return null;
+	return {
+		closedAt: v.closedAt,
+		pnlPct: count(v.pnlPct),
+		signals: isRecord(v.signals)
+			? (v.signals as PerfRecord["signals"])
+			: ({} as PerfRecord["signals"]),
+	};
+};
+
 export function signalSnapshot(pool: ScreenedPool): Record<SignalName, number> {
 	return {
 		organicScore: pool.organicScore,
@@ -109,7 +126,17 @@ export function loadSignalWeights(
 		return {
 			...EMPTY,
 			...raw,
-			weights: { ...emptyWeights(), ...(raw.weights ?? {}) },
+			weights: {
+				...emptyWeights(),
+				...(isRecord(raw.weights) ? raw.weights : {}),
+			},
+			lastRecalc: typeof raw.lastRecalc === "string" ? raw.lastRecalc : null,
+			recalcCount: count(raw.recalcCount),
+			closesSinceRecalc: count(raw.closesSinceRecalc),
+			history: Array.isArray(raw.history) ? raw.history : [],
+			perf: Array.isArray(raw.perf)
+				? raw.perf.map(perfOf).filter((p): p is PerfRecord => p !== null)
+				: [],
 		};
 	} catch {
 		return { ...EMPTY, weights: emptyWeights() };

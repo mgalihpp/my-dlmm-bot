@@ -1,10 +1,11 @@
-import { mkdtempSync, readFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
 	computeLift,
 	HIGHER_IS_BETTER,
+	loadSignalWeights,
 	recalculateWeights,
 	recordClosePerf,
 	signalSnapshot,
@@ -244,5 +245,43 @@ describe("weightsSummary", () => {
 		} as never);
 		expect(s).toContain("volume");
 		expect(s).toContain("organicScore");
+	});
+});
+
+describe("loadSignalWeights", () => {
+	it("falls back to defaults for a corrupt file", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-sw-"));
+		const file = join(dir, "corrupt.json");
+		writeFileSync(file, "{not json", "utf8");
+		const data = loadSignalWeights(file);
+		expect(data.weights.organicScore).toBe(1);
+		expect(data.perf).toEqual([]);
+		expect(data.history).toEqual([]);
+	});
+
+	it("coerces non-array perf/history and non-record weights", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-sw-"));
+		const file = join(dir, "shape.json");
+		writeFileSync(
+			file,
+			JSON.stringify({
+				weights: { organicScore: 2 },
+				lastRecalc: null,
+				recalcCount: "3",
+				closesSinceRecalc: 1,
+				history: "junk",
+				perf: [
+					{ closedAt: "2026-01-01T00:00:00Z", pnlPct: 5, signals: {} },
+					"junk",
+				],
+			}),
+			"utf8",
+		);
+		const data = loadSignalWeights(file);
+		expect(data.weights.organicScore).toBe(2);
+		expect(data.weights.volume).toBe(1);
+		expect(data.history).toEqual([]);
+		expect(data.perf).toHaveLength(1);
+		expect(data.recalcCount).toBe(0);
 	});
 });

@@ -52,11 +52,89 @@ const EMPTY: AgentState = {
 	cooldowns: [],
 };
 
+const LLM_STATUSES: readonly string[] = ["ok", "failed", "skipped"];
+
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+const str = (v: unknown): string | null => (typeof v === "string" ? v : null);
+
+const num = (v: unknown): number =>
+	typeof v === "number" && Number.isFinite(v) ? v : 0;
+
+const planOf = (v: unknown): AgentPlan | null => {
+	if (!isRecord(v) || typeof v.pool !== "string") return null;
+	return {
+		pool: v.pool,
+		poolName: typeof v.poolName === "string" ? v.poolName : "",
+		baseMint: str(v.baseMint),
+		amountSol: num(v.amountSol),
+		positionAddress: str(v.positionAddress),
+		openedAt: str(v.openedAt),
+		signals: isRecord(v.signals)
+			? (v.signals as Record<string, number>)
+			: undefined,
+	};
+};
+
+const executionOf = (v: unknown): AgentExecution | null => {
+	if (
+		!isRecord(v) ||
+		typeof v.at !== "string" ||
+		typeof v.action !== "string"
+	) {
+		return null;
+	}
+	return {
+		at: v.at,
+		action: v.action,
+		pool: typeof v.pool === "string" ? v.pool : "",
+		txSignature: str(v.txSignature),
+	};
+};
+
+const cooldownOf = (v: unknown): AgentCooldown | null => {
+	if (!isRecord(v) || typeof v.pool !== "string") return null;
+	return {
+		pool: v.pool,
+		poolName: typeof v.poolName === "string" ? v.poolName : "",
+		baseMint: str(v.baseMint),
+		until: typeof v.until === "string" ? v.until : "",
+		reason: typeof v.reason === "string" ? v.reason : "",
+	};
+};
+
+function sanitize(raw: unknown): AgentState {
+	if (!isRecord(raw)) return { ...EMPTY };
+	const llm = raw.llmStatus;
+	return {
+		enabled: typeof raw.enabled === "boolean" ? raw.enabled : false,
+		running: typeof raw.running === "boolean" ? raw.running : false,
+		lastCycleAt: str(raw.lastCycleAt),
+		llmStatus: LLM_STATUSES.includes(llm as string)
+			? (llm as LlmStatus)
+			: "skipped",
+		cycle: num(raw.cycle),
+		plans: Array.isArray(raw.plans)
+			? raw.plans.map(planOf).filter((p): p is AgentPlan => p !== null)
+			: [],
+		executions: Array.isArray(raw.executions)
+			? raw.executions
+					.map(executionOf)
+					.filter((e): e is AgentExecution => e !== null)
+			: [],
+		cooldowns: Array.isArray(raw.cooldowns)
+			? raw.cooldowns
+					.map(cooldownOf)
+					.filter((c): c is AgentCooldown => c !== null)
+			: [],
+	};
+}
+
 export function loadState(file = DEFAULT_FILE): AgentState {
 	if (!existsSync(file)) return { ...EMPTY };
 	try {
-		const raw = JSON.parse(readFileSync(file, "utf8")) as Partial<AgentState>;
-		return { ...EMPTY, ...raw };
+		return sanitize(JSON.parse(readFileSync(file, "utf8")));
 	} catch {
 		return { ...EMPTY };
 	}

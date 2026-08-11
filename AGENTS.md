@@ -38,4 +38,4 @@ Verify order: `npm run check && npm run typecheck && npm test`
 - `postinstall` runs `scripts/patch-cjs.cjs` — patches `@coral-xyz/anchor` and `@meteora-ag/*` CJS packages for ESM compat (strips `exports` field). If you add a CJS-only dependency in the same vein, add it to this script
 - `vexis.config.json` is gitignored (contains secrets). Example at `vexis.config.example.json` is tracked
 - Domain types use `Effect.Schema` — API responses decoded at runtime, not trusted
-- The README lists `RPC_URL` as an env var but the code does NOT read it — `rpcUrl` comes from config file only
+- There is no `RPC_URL` env var — `rpcUrl` comes from the config file only (README says so too)

@@ -342,7 +342,8 @@ Deploy directly from GitHub. Set these in your config file or via environment va
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `VEXIS_PRIVATE_KEY`
-- `RPC_URL`
+
+Note: `rpcUrl` is set in the config file only — there is no `RPC_URL` environment variable.
 
 Build command: `npm install && npm run build`
 

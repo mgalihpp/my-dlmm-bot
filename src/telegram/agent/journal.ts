@@ -1,4 +1,10 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
+import {
+	appendFileSync,
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	writeFileSync,
+} from "node:fs";
 import { dirname, join } from "node:path";
 import type { LlmStatus } from "./state.js";
 
@@ -25,13 +31,21 @@ export interface AgentJournalEntry {
 
 const DEFAULT_FILE = join(process.cwd(), ".vexis-agent-journal.jsonl");
 
+/** Maximum journal lines kept on disk — oldest entries are pruned past this. */
+export const JOURNAL_MAX_LINES = 5000;
+
 export function appendJournal(
 	entry: AgentJournalEntry,
 	file = DEFAULT_FILE,
+	maxLines = JOURNAL_MAX_LINES,
 ): void {
 	try {
 		mkdirSync(dirname(file), { recursive: true });
 		appendFileSync(file, `${JSON.stringify(entry)}\n`, "utf8");
+		const lines = readFileSync(file, "utf8").split("\n").filter(Boolean);
+		if (lines.length > maxLines) {
+			writeFileSync(file, `${lines.slice(-maxLines).join("\n")}\n`, "utf8");
+		}
 	} catch (e) {
 		console.warn("[agent] journal write failed:", e);
 	}
