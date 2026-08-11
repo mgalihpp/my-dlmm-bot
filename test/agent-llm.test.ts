@@ -1,10 +1,61 @@
-import { describe, expect, it } from "vitest";
+import { generateText } from "ai";
+import { describe, expect, it, vi } from "vitest";
+import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
 	buildOpenDecisionPrompt,
 	buildPositionPrompt,
+	describeLlmFailure,
+	isLlmTimeout,
 	parseOpenDecisionResponse,
 	parsePositionResponse,
+	requestOpenDecisions,
+	requestPositionDecisions,
 } from "../src/telegram/agent/llm.js";
+
+vi.mock("ai", () => ({ generateText: vi.fn() }));
+
+const llmCfg: ResolvedAgentConfig = {
+	enabled: true,
+	intervalMinutes: 15,
+	maxCandidates: 5,
+	minCandidate: 70,
+	maxSolPerPosition: 0.5,
+	maxTotalSol: 3,
+	maxOpenPositions: 4,
+	txCooldownMs: 300_000,
+	poolCooldownMs: 24 * 3_600_000,
+	tpPct: 25,
+	slPct: -10,
+	notifLevel: "normal",
+	llm: {
+		baseUrl: "http://localhost",
+		model: "m",
+		apiKey: "k",
+		timeoutMs: 1000,
+	},
+	risks: {
+		enabled: true,
+		minTokenFeesSol: 30,
+		maxBundlePct: 30,
+		maxBotHoldersPct: 30,
+		maxTop10Pct: 60,
+		maxPriceVsAthPct: 80,
+		blockWash: true,
+		blockRugpull: true,
+		blockDexScreenerPaid: true,
+		blockDevSoldAll: true,
+	},
+	darwin: {
+		enabled: true,
+		windowDays: 60,
+		recalcEvery: 5,
+		boostFactor: 1.05,
+		decayFactor: 0.95,
+		weightFloor: 0.3,
+		weightCeiling: 2.5,
+		minSamples: 10,
+	},
+};
 
 const candidates = [
 	{
@@ -142,6 +193,44 @@ describe("buildPositionPrompt", () => {
 	});
 });
 
+describe("isLlmTimeout", () => {
+	it("detects abort/timeout errors", () => {
+		expect(
+			isLlmTimeout(new Error("The operation was aborted due to timeout")),
+		).toBe(true);
+		expect(isLlmTimeout(new Error("Request timed out after 120000ms"))).toBe(
+			true,
+		);
+	});
+
+	it("does not flag other errors", () => {
+		expect(isLlmTimeout(new Error("401 Unauthorized"))).toBe(false);
+		expect(isLlmTimeout(new Error("ECONNREFUSED"))).toBe(false);
+	});
+});
+
+describe("describeLlmFailure", () => {
+	it("advises raising agent.llm.timeoutMs on timeout", () => {
+		const msg = describeLlmFailure(
+			new Error("The operation was aborted due to timeout"),
+			120_000,
+		);
+		expect(msg).toContain("120000");
+		expect(msg).toContain("agent.llm.timeoutMs");
+		expect(msg).toContain("vexis.config.json");
+	});
+
+	it("passes through non-timeout errors unchanged", () => {
+		const msg = describeLlmFailure(new Error("401 Unauthorized"), 120_000);
+		expect(msg).toBe("401 Unauthorized");
+		expect(msg).not.toContain("agent.llm.timeoutMs");
+	});
+
+	it("stringifies unknown failures", () => {
+		expect(describeLlmFailure("boom", 120_000)).toBe("boom");
+	});
+});
+
 describe("parsePositionResponse", () => {
 	it("parses valid close and hold decisions", () => {
 		const out = parsePositionResponse(
@@ -160,8 +249,94 @@ describe("parsePositionResponse", () => {
 		expect(out[0].action).toBe("hold");
 	});
 
-	it("ignores empty pool and malformed responses", () => {
+	it("ignores empty pool and returns null on malformed responses", () => {
 		expect(parsePositionResponse('[{"pool":"","action":"close"}]')).toEqual([]);
-		expect(parsePositionResponse("not json")).toEqual([]);
+		expect(parsePositionResponse("not json")).toBeNull();
+	});
+});
+
+describe("requestOpenDecisions failure messaging", () => {
+	it("reports a missing API key before any request", async () => {
+		const r = await requestOpenDecisions({
+			cfg: { ...llmCfg, llm: { ...llmCfg.llm, apiKey: "" } },
+			candidates,
+		});
+		expect(r.failed).toBe(true);
+		expect(r.errorMessage).toContain("apiKey");
+		expect(r.errorMessage).toContain("OPENAI_API_KEY");
+	});
+
+	it("reports an empty LLM response", async () => {
+		vi.mocked(generateText).mockResolvedValue({ text: "" } as never);
+		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
+		expect(r.failed).toBe(true);
+		expect(r.errorMessage).toContain("empty response");
+	});
+
+	it("reports an unparseable LLM response", async () => {
+		vi.mocked(generateText).mockResolvedValue({
+			text: "sure, here you go",
+		} as never);
+		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
+		expect(r.failed).toBe(true);
+		expect(r.errorMessage).toContain("unparseable");
+	});
+
+	it("returns decisions for a valid response", async () => {
+		vi.mocked(generateText).mockResolvedValue({
+			text: JSON.stringify([{ pool: "PoolA", action: "open", rationale: "r" }]),
+		});
+		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
+		expect(r.failed).toBe(false);
+		expect(r.decisions).toEqual([
+			{ pool: "PoolA", action: "open", rationale: "r" },
+		]);
+	});
+});
+
+describe("requestPositionDecisions failure messaging", () => {
+	const positions = [
+		{
+			pool: "P1",
+			poolName: "AAA/SOL",
+			pnlPct: -1.2,
+			minPrice: "1",
+			maxPrice: "2",
+			poolActivePrice: "3",
+		},
+	];
+
+	it("reports a missing API key before any request", async () => {
+		const r = await requestPositionDecisions({
+			cfg: { ...llmCfg, llm: { ...llmCfg.llm, apiKey: "" } },
+			positions,
+		});
+		expect(r.degraded).toBe(true);
+		expect(r.errorMessage).toContain("apiKey");
+	});
+
+	it("reports an empty LLM response", async () => {
+		vi.mocked(generateText).mockResolvedValue({ text: "" } as never);
+		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
+		expect(r.degraded).toBe(true);
+		expect(r.errorMessage).toContain("empty response");
+	});
+
+	it("reports an unparseable LLM response", async () => {
+		vi.mocked(generateText).mockResolvedValue({ text: "ok" } as never);
+		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
+		expect(r.degraded).toBe(true);
+		expect(r.errorMessage).toContain("unparseable");
+	});
+
+	it("returns decisions for a valid response", async () => {
+		vi.mocked(generateText).mockResolvedValue({
+			text: JSON.stringify([{ pool: "P1", action: "hold", rationale: "wait" }]),
+		});
+		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
+		expect(r.degraded).toBe(false);
+		expect(r.decisions).toEqual([
+			{ pool: "P1", action: "hold", rationale: "wait" },
+		]);
 	});
 });

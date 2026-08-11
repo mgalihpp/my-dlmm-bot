@@ -43,6 +43,24 @@ export interface LlmOpenDecision {
 	rationale: string;
 }
 
+export function isLlmTimeout(e: unknown): boolean {
+	const msg = e instanceof Error ? e.message : String(e);
+	return /timeout|timed out|abort/i.test(msg);
+}
+
+export function describeLlmFailure(e: unknown, timeoutMs: number): string {
+	if (isLlmTimeout(e)) {
+		return `LLM request timed out after ${timeoutMs}ms. Increase agent.llm.timeoutMs in vexis.config.json (e.g. 300000).`;
+	}
+	return e instanceof Error ? e.message : String(e);
+}
+
+export const LLM_MISSING_KEY_MESSAGE =
+	"LLM API key is not configured — set agent.llm.apiKey in vexis.config.json or OPENAI_API_KEY";
+const LLM_EMPTY_RESPONSE_MESSAGE = "LLM returned an empty response";
+const LLM_UNPARSEABLE_RESPONSE_MESSAGE =
+	"LLM returned an unparseable response — expected a JSON array";
+
 export function buildOpenDecisionPrompt(
 	candidates: readonly LlmCandidate[],
 	weightsSummary?: string,
@@ -105,9 +123,18 @@ export async function requestOpenDecisions(opts: {
 	candidates: readonly LlmCandidate[];
 	weightsSummary?: string;
 	portfolioContext?: string;
-}): Promise<{ decisions: LlmOpenDecision[] | null; failed: boolean }> {
+}): Promise<{
+	decisions: LlmOpenDecision[] | null;
+	failed: boolean;
+	errorMessage?: string;
+}> {
 	const { cfg } = opts;
-	if (!cfg.llm.apiKey) return { decisions: null, failed: true };
+	if (!cfg.llm.apiKey)
+		return {
+			decisions: null,
+			failed: true,
+			errorMessage: LLM_MISSING_KEY_MESSAGE,
+		};
 	// no candidates is a normal state, not an LLM failure
 	if (opts.candidates.length === 0) return { decisions: [], failed: false };
 	const provider = createOpenAICompatible({
@@ -134,17 +161,25 @@ export async function requestOpenDecisions(opts: {
 			timeout: cfg.llm.timeoutMs,
 		});
 		logInfo("LLM open-decision raw response:", text);
-		if (!text) return { decisions: null, failed: true };
+		if (!text)
+			return {
+				decisions: null,
+				failed: true,
+				errorMessage: LLM_EMPTY_RESPONSE_MESSAGE,
+			};
 		const decisions = parseOpenDecisionResponse(text);
-		if (decisions === null) return { decisions: null, failed: true };
+		if (decisions === null)
+			return {
+				decisions: null,
+				failed: true,
+				errorMessage: LLM_UNPARSEABLE_RESPONSE_MESSAGE,
+			};
 		return { decisions, failed: false };
 	} catch (e) {
 		// timeout / network: skip cycle, no trades
-		console.error(
-			"[agent] LLM request failed:",
-			e instanceof Error ? e.message : String(e),
-		);
-		return { decisions: null, failed: true };
+		const message = describeLlmFailure(e, cfg.llm.timeoutMs);
+		console.error("[agent] LLM request failed:", message);
+		return { decisions: null, failed: true, errorMessage: message };
 	}
 }
 
@@ -165,7 +200,9 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	].join("\n");
 }
 
-export function parsePositionResponse(content: string): PositionDecision[] {
+export function parsePositionResponse(
+	content: string,
+): PositionDecision[] | null {
 	const cleaned = content
 		.trim()
 		.replace(/^```(?:json)?\s*/i, "")
@@ -174,12 +211,12 @@ export function parsePositionResponse(content: string): PositionDecision[] {
 	try {
 		parsed = JSON.parse(cleaned);
 	} catch {
-		return [];
+		return null;
 	}
 	const arr = Array.isArray(parsed)
 		? parsed
 		: (parsed as { decisions?: unknown }).decisions;
-	if (!Array.isArray(arr)) return [];
+	if (!Array.isArray(arr)) return null;
 	const out: PositionDecision[] = [];
 	for (const item of arr) {
 		const o = item as { pool?: unknown; action?: unknown; rationale?: unknown };
@@ -196,9 +233,18 @@ export function parsePositionResponse(content: string): PositionDecision[] {
 export async function requestPositionDecisions(opts: {
 	cfg: ResolvedAgentConfig;
 	positions: readonly OorPosition[];
-}): Promise<{ decisions: PositionDecision[]; degraded: boolean }> {
+}): Promise<{
+	decisions: PositionDecision[];
+	degraded: boolean;
+	errorMessage?: string;
+}> {
 	const { cfg } = opts;
-	if (!cfg.llm.apiKey) return { decisions: [], degraded: true };
+	if (!cfg.llm.apiKey)
+		return {
+			decisions: [],
+			degraded: true,
+			errorMessage: LLM_MISSING_KEY_MESSAGE,
+		};
 	if (opts.positions.length === 0) return { decisions: [], degraded: false };
 	const provider = createOpenAICompatible({
 		name: "vexis-llm",
@@ -220,13 +266,23 @@ export async function requestPositionDecisions(opts: {
 			timeout: cfg.llm.timeoutMs,
 		});
 		logInfo("LLM OOR position raw response:", text);
-		if (!text) return { decisions: [], degraded: true };
-		return { decisions: parsePositionResponse(text), degraded: false };
+		if (!text)
+			return {
+				decisions: [],
+				degraded: true,
+				errorMessage: LLM_EMPTY_RESPONSE_MESSAGE,
+			};
+		const decisions = parsePositionResponse(text);
+		if (decisions === null)
+			return {
+				decisions: [],
+				degraded: true,
+				errorMessage: LLM_UNPARSEABLE_RESPONSE_MESSAGE,
+			};
+		return { decisions, degraded: false };
 	} catch (e) {
-		console.error(
-			"[agent] OOR LLM request failed:",
-			e instanceof Error ? e.message : String(e),
-		);
-		return { decisions: [], degraded: true };
+		const message = describeLlmFailure(e, cfg.llm.timeoutMs);
+		console.error("[agent] OOR LLM request failed:", message);
+		return { decisions: [], degraded: true, errorMessage: message };
 	}
 }

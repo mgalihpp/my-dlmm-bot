@@ -773,12 +773,16 @@ async function evaluateOor(
 	myGen: number,
 ) {
 	logInfo(`OOR: ${positions.length} position(s) out of range → LLM`);
-	const { decisions, degraded } = await requestPositionDecisions({
+	const { decisions, degraded, errorMessage } = await requestPositionDecisions({
 		cfg,
 		positions,
 	});
 	if (degraded) {
-		logInfo(`OOR: LLM degraded — ${positions.length} held`);
+		if (errorMessage) {
+			logError(`OOR: LLM degraded — ${errorMessage}`);
+		} else {
+			logInfo(`OOR: LLM degraded — ${positions.length} held`);
+		}
 		return;
 	}
 	for (const d of decisions) {
@@ -993,7 +997,11 @@ async function evaluatePlans(
 	liveLines.push(`🧠 LLM: thinking...`);
 	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
-	const { decisions: rawDecisions, failed } = await requestOpenDecisions({
+	const {
+		decisions: rawDecisions,
+		failed,
+		errorMessage,
+	} = await requestOpenDecisions({
 		cfg,
 		candidates: llmCandidates,
 		weightsSummary: weightsSummary(weights),
@@ -1004,8 +1012,9 @@ async function evaluatePlans(
 	// `rawDecisions` is `LlmOpenDecision[] | null`; null only pairs with failed.
 	// Narrowing on `failed || rawDecisions === null` lets TS treat it as non-null below.
 	if (failed || rawDecisions === null) {
-		logError("LLM: request failed — cycle skipped");
-		liveLines[liveLines.length - 1] = "❌ LLM failed — cycle skipped";
+		const failure = errorMessage ?? "LLM request failed — cycle skipped";
+		logError(`LLM: ${failure}`);
+		liveLines[liveLines.length - 1] = `❌ LLM failed — ${failure}`;
 		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
 		rt.state.llmStatus = "failed";
 		appendJournal(journal);
@@ -1015,10 +1024,7 @@ async function evaluatePlans(
 			chatId,
 			cfg.notifLevel,
 			"error",
-			formatError(
-				"LLM decision",
-				new Error("LLM request failed — cycle skipped"),
-			),
+			formatError("LLM decision", new Error(failure)),
 		);
 		return;
 	}
