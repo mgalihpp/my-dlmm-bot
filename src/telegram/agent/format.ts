@@ -389,7 +389,8 @@ export interface PositionCard {
 	price: number | null;
 	minPrice: number | null;
 	maxPrice: number | null;
-	feeSol: number | null;
+	feeUsd: number | null;
+	claimedUsd: number | null;
 }
 
 export function formatPositionCard(o: PositionCard): string {
@@ -422,8 +423,11 @@ export function formatPositionCard(o: PositionCard): string {
 		lines.push(`${escapeMarkdown("▲ above range")}`);
 	} else if (rangeOk) {
 		lines.push(
-			`${escapeMarkdown(marker)} in range · fees ${tgUsd(o.feeSol ?? 0)} unclaimed`,
+			`${escapeMarkdown(marker)} in range · fees ${tgUsd(o.feeUsd ?? 0)} unclaimed`,
 		);
+	}
+	if (o.claimedUsd != null) {
+		lines.push(`Claimed fees: ${tgUsd(o.claimedUsd)}`);
 	}
 	return lines.join("\n");
 }

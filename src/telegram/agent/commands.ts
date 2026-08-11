@@ -1,5 +1,6 @@
 import type { Api, Context } from "grammy";
 import { type Bot, InlineKeyboard } from "grammy";
+import type { PositionPnLData } from "../../domain/index.js";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { escapeMarkdown } from "../format.js";
@@ -57,6 +58,24 @@ export async function replyOrIgnore(
 	} catch {
 		// no-op — best effort
 	}
+}
+
+/**
+ * Unclaimed (pending) and claimed swap fees in USD for a position, from the
+ * positionPnl API payload.
+ */
+export function positionFeeData(pos: PositionPnLData): {
+	feeUsd: number | null;
+	claimedUsd: number;
+} {
+	const u = pos.unrealizedPnl;
+	const feeUsd =
+		u == null
+			? null
+			: parseFloat(u.unclaimedFeeTokenX.usd) +
+				parseFloat(u.unclaimedFeeTokenY.usd);
+	const claimedUsd = parseFloat(pos.allTimeFees.total.usd) || 0;
+	return { feeUsd, claimedUsd };
 }
 
 export function planActionLabel(p: {
@@ -426,6 +445,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				(p) => p.positionAddress === action.positionPubkey,
 			);
 			if (!pos) throw new Error("position not found");
+			const fees = positionFeeData(pos);
 			const text = formatPositionCard({
 				tokenX: detail?.tokenX ?? "?",
 				tokenY: detail?.tokenY ?? "?",
@@ -437,7 +457,8 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
 				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
 				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
-				feeSol: null,
+				feeUsd: fees.feeUsd,
+				claimedUsd: fees.claimedUsd,
 			});
 			const kb = new InlineKeyboard()
 				.text("🔄", `agent:pos:${ctx.match[1]}`)
@@ -472,6 +493,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				(p) => p.positionAddress === plan.positionAddress,
 			);
 			if (!pos) throw new Error("position not found");
+			const fees = positionFeeData(pos);
 			const text = formatPositionCard({
 				tokenX: detail?.tokenX ?? "?",
 				tokenY: detail?.tokenY ?? "?",
@@ -483,7 +505,8 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
 				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
 				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
-				feeSol: null,
+				feeUsd: fees.feeUsd,
+				claimedUsd: fees.claimedUsd,
 			});
 			const kb = new InlineKeyboard()
 				.text("🔄", `notif:pnl:${pool}`)

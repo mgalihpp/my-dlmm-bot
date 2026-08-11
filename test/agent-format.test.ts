@@ -449,12 +449,16 @@ describe("formatPositionCard", () => {
 			price: 1.5,
 			minPrice: 0.5,
 			maxPrice: 2,
-			feeSol: 0.02,
+			feeUsd: 0.02,
+			claimedUsd: 0.55,
 		});
 		expect(out).toContain("SOL/JUP");
 		expect(out).toContain("12\\.40%");
 		expect(out).toContain("0\\.02");
+		expect(out).toContain("0\\.55");
 		expect(out).toContain("in\\-range");
+		expect(out).toContain("unclaimed");
+		expect(out).toContain("Claimed fees");
 		expect(out).toContain("meteora");
 	});
 	it("handles missing data", () => {
@@ -469,9 +473,29 @@ describe("formatPositionCard", () => {
 			price: null,
 			minPrice: null,
 			maxPrice: null,
-			feeSol: null,
+			feeUsd: null,
+			claimedUsd: null,
 		});
 		expect(out).toContain("n/a");
+	});
+	it("omits the claimed line when claimed fee data is missing", () => {
+		const out = formatPositionCard({
+			tokenX: "SOL",
+			tokenY: "JUP",
+			poolAddress: "ABC",
+			positionAddress: "POS1",
+			amountSol: null,
+			pnlPct: null,
+			isOutOfRange: null,
+			price: 1.5,
+			minPrice: 0.5,
+			maxPrice: 2,
+			feeUsd: null,
+			claimedUsd: null,
+		});
+		expect(out).toContain("in\\-range");
+		expect(out).toContain("unclaimed");
+		expect(out).not.toContain("Claimed fees");
 	});
 });
 
