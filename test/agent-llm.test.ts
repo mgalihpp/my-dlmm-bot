@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	buildOpenDecisionPrompt,
+	buildPositionPrompt,
 	parseOpenDecisionResponse,
 	parsePositionResponse,
 } from "../src/telegram/agent/llm.js";
@@ -108,6 +109,36 @@ describe("parseOpenDecisionResponse", () => {
 	it("returns null on garbage (malformed → skip cycle)", () => {
 		expect(parseOpenDecisionResponse("not json at all")).toBeNull();
 		expect(parseOpenDecisionResponse('{"foo":1}')).toBeNull();
+	});
+});
+
+describe("buildPositionPrompt", () => {
+	it("renders pnlPct with explicit percent suffix so the LLM does not misread it as a fraction", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolA",
+				poolName: "AAA/SOL",
+				pnlPct: 0.14,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "3",
+			},
+		]);
+		expect(prompt).toContain("pnlPct=0.14%");
+	});
+
+	it("renders negative pnlPct with percent suffix and sign intact", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolA",
+				poolName: "AAA/SOL",
+				pnlPct: -2.5,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "3",
+			},
+		]);
+		expect(prompt).toContain("pnlPct=-2.50%");
 	});
 });
 

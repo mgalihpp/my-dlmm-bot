@@ -152,7 +152,7 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	const table = positions
 		.map(
 			(p) =>
-				`- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct} minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}`,
+				`- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}`,
 		)
 		.join("\n");
 	return [
