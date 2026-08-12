@@ -60,8 +60,10 @@ const mkClosed = (over: Partial<ClosedPool> = {}): ClosedPool => ({
 describe("renderPortfolio", () => {
 	it("renders terminal stats and portfolio values", () => {
 		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
+		expect(html).toContain("PnL SOL");
 		expect(html).toContain("Realized PnL");
 		expect(html).toContain("$123.45");
+		expect(html).toContain('class="sol-icon"');
 		expect(html).toContain('class="stats-grid portfolio-stats"');
 		expect(html).toContain('class="grid-two"');
 	});
