@@ -206,7 +206,7 @@ export function tgClosedPools(pools: readonly ClosedPool[]): string {
 			`  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
 		);
 		if (p.lastClosedAt) {
-			const d = new Date(p.lastClosedAt);
+			const d = new Date(p.lastClosedAt * 1000);
 			const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 			lines.push(`  Closed: ${escapeMarkdown(date)}`);
 		}

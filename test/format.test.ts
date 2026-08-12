@@ -1,11 +1,12 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { OpenPool } from "../src/domain/portfolio.js";
+import { ClosedPool, OpenPool } from "../src/domain/portfolio.js";
 import { formatNum, pair, shortAddr, timeAgo } from "../src/format.js";
 import {
 	escapeMarkdown,
 	formatRangeBar,
 	tgBold,
+	tgClosedPools,
 	tgCode,
 	tgOpenPools,
 	tgUsd,
@@ -77,6 +78,39 @@ describe("formatRangeBar", () => {
 		expect(formatRangeBar(0.9, 0.5, 1.5)).toBe(
 			"▰▰▰▰▰▰▰▰▱▱▱▱▱▱▱▱▱▱▱▱ in\\-range",
 		);
+	});
+});
+
+describe("tgClosedPools", () => {
+	const makeClosedPool = (overrides: Partial<ClosedPool>): ClosedPool =>
+		Schema.decodeUnknownSync(ClosedPool)({
+			poolAddress: "Pool1",
+			binStep: 25,
+			baseFee: 0.25,
+			lastClosedAt: 1755000000,
+			tokenX: "MIM",
+			tokenY: "SOL",
+			tokenXMint: "MintX",
+			tokenYMint: "So11111111111111111111111111111111111111112",
+			totalDeposit: "7.61",
+			totalWithdrawal: "7.62",
+			totalFee: "0.02",
+			pnlUsd: "0.03",
+			pnlSol: "0.0003",
+			pnlSolPctChange: "0.35",
+			pnlPctChange: "0.35",
+			...overrides,
+		});
+
+	it("formats lastClosedAt as a real date from unix seconds", () => {
+		const out = tgClosedPools([makeClosedPool({})]);
+		expect(out).toContain("Closed: 2025\\-08\\-12");
+		expect(out).not.toContain("1970");
+	});
+
+	it("omits the closed line when lastClosedAt is null", () => {
+		const out = tgClosedPools([makeClosedPool({ lastClosedAt: null })]);
+		expect(out).not.toContain("Closed:");
 	});
 });
 
