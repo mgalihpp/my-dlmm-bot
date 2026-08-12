@@ -146,6 +146,29 @@ describe("renderPortfolio", () => {
 		expect(html).toContain('data-tip="');
 	});
 
+	it("defaults the PnL SOL change to 0% when baseline or value is near zero", () => {
+		const html = renderPortfolio(
+			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
+			[
+				{
+					ts: 1_754_000_000,
+					pnlUsd: 0,
+					pnlSol: 0.00000005,
+					balanceUsd: 100,
+					feesUsd: 5,
+				},
+				{
+					ts: 1_754_000_060,
+					pnlUsd: 0,
+					pnlSol: 0.000831236,
+					balanceUsd: 100,
+					feesUsd: 5,
+				},
+			],
+		);
+		expect(html).toContain("0.00%");
+	});
+
 	it("colors the PnL SOL curve red when last value is negative", () => {
 		const html = renderPortfolio(
 			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
