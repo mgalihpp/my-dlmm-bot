@@ -76,4 +76,16 @@ describe("charts", () => {
 		expect(html).toContain('stroke="var(--profit)"');
 		expect(html).toContain("linearGradient");
 	});
+
+	it("lineChart accepts custom stroke color", () => {
+		const html = lineChart(
+			[
+				{ label: "a", value: 1 },
+				{ label: "b", value: -2 },
+			],
+			{ stroke: "var(--loss)" },
+		);
+		expect(html).toContain('stroke="var(--loss)"');
+		expect(html).toContain('stop-color="var(--loss)"');
+	});
 });

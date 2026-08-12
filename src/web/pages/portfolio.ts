@@ -8,7 +8,7 @@ import { errorMessage } from "../../errors.js";
 import { AppConfig } from "../../services/Config.js";
 import { Dlmm } from "../../services/Dlmm.js";
 import { MeteoraApi } from "../../services/MeteoraApi.js";
-import { lineChart } from "../charts.js";
+import { CHART_COLORS, lineChart } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
 import {
 	type PortfolioSnapshot,
@@ -94,7 +94,7 @@ ${sectionHead(
 	`Automated DLMM positions · ${data.open.length} pools / ${openCount} positions`,
 )}
 ${statsGrid(cards, "portfolio-stats")}
-<div class="grid-two">${equityPanel(history, openBalance, openFees)}${allocationPanel(data.open, openBalance, openFees)}</div>
+<div class="grid-two">${equityPanel(history)}${allocationPanel(data.open, openBalance, openFees)}</div>
 ${renderOpen(data.open)}
 ${renderClosed(data.closed)}
 </section>`;
@@ -104,28 +104,24 @@ function sectionHead(kicker: string, sub: string): string {
 	return `<div class="section-head"><div><p class="kicker">${escapeHtml(kicker)}</p><p class="muted">${escapeHtml(sub)}</p></div></div>`;
 }
 
-function equityPanel(
-	history: readonly PortfolioSnapshot[],
-	balanceUsd: number,
-	feesUsd: number,
-): string {
-	const tip = `Balance ${fmtUsd(balanceUsd)} · Fees ${fmtUsd(feesUsd)}`;
+function equityPanel(history: readonly PortfolioSnapshot[]): string {
+	const tip = "Unrealized PnL in SOL";
 	const points = history
-		.filter((snap) => snap.balanceUsd !== null)
+		.filter((snap) => snap.pnlSol !== null)
 		.slice(-48)
 		.map((snap) => ({
 			label: tsLocal(snap.ts),
-			value: snap.balanceUsd as number,
+			value: snap.pnlSol as number,
 		}));
 	if (points.length < 2) {
-		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">TOTAL EQUITY</span><b>${fmtUsd(points.at(-1)?.value)}</b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No equity history yet</div></div>`;
+		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">PNL SOL</span><b>${fmtSol(points.at(-1)?.value)}</b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No PnL history yet</div></div>`;
 	}
 	const first = points[0];
 	const last = points[points.length - 1];
 	const changePct =
 		first.value !== 0 ? ((last.value - first.value) / first.value) * 100 : 0;
-	const tone = pnlClass(changePct);
-	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">TOTAL EQUITY</span><b>${fmtUsd(last.value)} <em class="${tone}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points)}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
+	const stroke = last.value >= 0 ? CHART_COLORS.profit : CHART_COLORS.loss;
+	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">PNL SOL</span><b>${fmtSol(last.value)} <em class="${pnlClass(changePct)}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points, { stroke })}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
 }
 
 function allocationPanel(

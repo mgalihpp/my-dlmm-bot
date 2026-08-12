@@ -18,6 +18,7 @@ export interface BarChartOptions {
 	readonly width?: number;
 	readonly height?: number;
 	readonly labelEvery?: number;
+	readonly stroke?: string;
 }
 
 export function barChart(
@@ -124,5 +125,6 @@ export function lineChart(
 				: "",
 		)
 		.join("");
-	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><defs><linearGradient id="pnl-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--profit)" stop-opacity="0.24"/><stop offset="1" stop-color="var(--profit)" stop-opacity="0"/></linearGradient></defs><path d="${areaPath} V${height} H0 Z" fill="url(#pnl-area)"/><polyline points="${line}" fill="none" stroke="var(--profit)" stroke-width="2"/>${dots}${labelsHtml}</svg></div>`;
+	const stroke = opts.stroke ?? "var(--profit)";
+	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><defs><linearGradient id="pnl-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${stroke}" stop-opacity="0.24"/><stop offset="1" stop-color="${stroke}" stop-opacity="0"/></linearGradient></defs><path d="${areaPath} V${height} H0 Z" fill="url(#pnl-area)"/><polyline points="${line}" fill="none" stroke="${stroke}" stroke-width="2"/>${dots}${labelsHtml}</svg></div>`;
 }

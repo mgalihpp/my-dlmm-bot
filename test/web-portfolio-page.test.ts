@@ -98,7 +98,7 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("No closed positions");
 	});
 
-	it("renders equity curve from total equity snapshots", () => {
+	it("renders PnL SOL curve from pnl snapshots", () => {
 		const html = renderPortfolio(
 			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
 			[
@@ -118,12 +118,38 @@ describe("renderPortfolio", () => {
 				},
 			],
 		);
-		expect(html).toContain("TOTAL EQUITY");
-		expect(html).toContain("$120.00");
-		expect(html).toContain("+20.00%");
+		expect(html).toContain("PNL SOL");
+		expect(html).toContain("2.000 ");
+		expect(html).toContain("+100.00%");
 		expect(html).toContain("<polyline");
+		expect(html).toContain('stroke="var(--profit)"');
 		expect(html).toContain('class="eyebrow tooltip"');
-		expect(html).toContain("Balance $100.00");
+		expect(html).toContain("Unrealized PnL in SOL");
+	});
+
+	it("colors the PnL SOL curve red when last value is negative", () => {
+		const html = renderPortfolio(
+			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
+			[
+				{
+					ts: 1_754_000_000,
+					pnlUsd: -1,
+					pnlSol: -1,
+					balanceUsd: 100,
+					feesUsd: 5,
+				},
+				{
+					ts: 1_754_000_060,
+					pnlUsd: -2,
+					pnlSol: -2,
+					balanceUsd: 100,
+					feesUsd: 5,
+				},
+			],
+		);
+		expect(html).toContain("PNL SOL");
+		expect(html).toContain("-2.000 ");
+		expect(html).toContain('stroke="var(--loss)"');
 	});
 
 	it("lists open positions with total pnl in SOL in allocation panel", () => {
