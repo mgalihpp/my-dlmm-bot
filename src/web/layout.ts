@@ -57,25 +57,40 @@ export function pageShell(params: PageShellParams): string {
 	--table-head: #f3f4f6;
 	--pos: #147a33;
 	--neg: #c0392b;
+	--on-acid: #101820;
 	--line: 1px solid var(--border);
 	--shadow: 0 1px 3px rgba(16, 24, 40, 0.1);
 	--sidebar: #17181c;
 	--sidebar-ink: #f4f5f7;
 }
+:root[data-theme="dark"] {
+	--bg: #0b0d10;
+	--bg-alt: #12151a;
+	--card: #13161b;
+	--ink: #e6e8ec;
+	--muted: #8b93a0;
+	--border: #232830;
+	--table-head: #1a1e25;
+	--pos: #34d399;
+	--neg: #f87171;
+	--shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+	--sidebar: #0d1014;
+	--sidebar-ink: #e6e8ec;
+}
 @media (prefers-color-scheme: dark) {
-	:root {
-		--bg: #0e1013;
-		--bg-alt: #15181d;
-		--card: #15181d;
-		--ink: #e7e9ee;
-		--muted: #9aa3af;
-		--border: #262b33;
-		--table-head: #1b1f26;
-		--pos: #2ecc71;
-		--neg: #ff6b5e;
+	:root:not([data-theme]) {
+		--bg: #0b0d10;
+		--bg-alt: #12151a;
+		--card: #13161b;
+		--ink: #e6e8ec;
+		--muted: #8b93a0;
+		--border: #232830;
+		--table-head: #1a1e25;
+		--pos: #34d399;
+		--neg: #f87171;
 		--shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
-		--sidebar: #101216;
-		--sidebar-ink: #e7e9ee;
+		--sidebar: #0d1014;
+		--sidebar-ink: #e6e8ec;
 	}
 }
 
@@ -153,8 +168,21 @@ button, select, input { font: inherit; }
 	letter-spacing: 0.04em;
 }
 .nav-link:hover { border-color: var(--border); background: rgba(255, 255, 255, 0.08); }
-.nav-link.active { border-color: var(--acid); background: var(--acid); color: var(--ink); }
+.nav-link.active { border-color: var(--acid); background: var(--acid); color: var(--on-acid); }
 .sidebar-footer { display: flex; flex-direction: column; gap: 8px; margin-top: auto; }
+.theme-toggle {
+	padding: 8px;
+	border: 1px solid var(--border);
+	border-radius: 4px;
+	background: transparent;
+	color: var(--sidebar-ink);
+	font-size: 0.68rem;
+	font-weight: 700;
+	letter-spacing: 0.05em;
+	text-transform: uppercase;
+	cursor: pointer;
+}
+.theme-toggle:hover { border-color: var(--acid); background: rgba(255, 255, 255, 0.08); }
 .read-only { padding: 6px 8px; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); font-size: 0.62rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; text-align: center; }
 .logout {
 	padding: 8px;
@@ -173,7 +201,7 @@ button, select, input { font: inherit; }
 
 main { width: min(1200px, calc(100% - 60px)); margin-left: 262px; padding: 34px 0 72px; }
 h1, h2, h3 { font-family: "Archivo Black", Impact, sans-serif; line-height: 1.1; letter-spacing: -0.04em; }
-h1 { display: inline-block; margin: 0 0 22px; padding: 9px 14px; border: 2px solid var(--ink); border-radius: 4px; background: var(--acid); font-size: clamp(1.6rem, 4vw, 2.6rem); text-transform: uppercase; }
+h1 { display: inline-block; margin: 0 0 22px; padding: 9px 14px; border: 2px solid var(--ink); border-radius: 4px; background: var(--acid); color: var(--on-acid); font-size: clamp(1.6rem, 4vw, 2.6rem); text-transform: uppercase; }
 h2 { margin: 30px 0 12px; font-size: 1.15rem; text-transform: uppercase; }
 .section-kicker { margin: -10px 0 18px; color: var(--muted); font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; }
 
@@ -199,9 +227,9 @@ td a { font-weight: 700; }
 .zero { color: var(--muted); font-weight: 700; }
 
 .badge { display: inline-block; padding: 3px 8px; border: 1px solid var(--border); border-radius: 4px; font-size: 0.64rem; font-weight: 700; line-height: 1.1; text-transform: uppercase; }
-.badge.ok { background: var(--acid); color: var(--ink); border-color: var(--ink); }
-.badge.warn { background: var(--yellow); color: var(--ink); border-color: var(--ink); }
-.badge.danger { background: var(--coral); color: var(--ink); border-color: var(--ink); }
+.badge.ok { background: var(--acid); color: var(--on-acid); border-color: var(--ink); }
+.badge.warn { background: var(--yellow); color: var(--on-acid); border-color: var(--ink); }
+.badge.danger { background: var(--coral); color: var(--on-acid); border-color: var(--ink); }
 .badge.neutral { background: var(--bg-alt); }
 .empty { margin: 16px 0 26px; padding: 22px; border: 1px solid var(--border); border-radius: 6px; background: var(--card); box-shadow: var(--shadow); font-weight: 700; }
 .error { margin: 0 0 22px; padding: 14px 16px; border: 1px solid var(--coral); border-radius: 6px; background: var(--coral); box-shadow: var(--shadow); font-weight: 700; }
@@ -267,6 +295,7 @@ svg { display: block; }
 		${links}
 	</nav>
 	<div class="sidebar-footer">
+		<button class="theme-toggle" type="button" onclick="toggleTheme()">☾ Theme</button>
 		<span class="read-only">READ ONLY</span>
 		<a class="logout" href="/logout">Exit</a>
 	</div>
@@ -274,6 +303,18 @@ svg { display: block; }
 <main>
 ${params.body}
 </main>
+<script>
+(function () {
+	var root = document.documentElement;
+	var saved = localStorage.getItem("vexis-theme");
+	if (saved === "light" || saved === "dark") root.setAttribute("data-theme", saved);
+	window.toggleTheme = function () {
+		var dark = (root.getAttribute("data-theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+		root.setAttribute("data-theme", dark ? "light" : "dark");
+		localStorage.setItem("vexis-theme", dark ? "light" : "dark");
+	};
+})();
+</script>
 </body>
 </html>`;
 }
@@ -310,12 +351,15 @@ export function loginPage(opts: { error?: string | null } = {}): string {
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-:root { --bg: #ffffff; --card: #ffffff; --ink: #17181c; --muted: #6b7280; --border: #e4e6eb; --acid: #c7f36b; --coral: #ff725e; --blue: #8ba7ff; --line: 1px solid var(--border); --shadow: 0 1px 3px rgba(16, 24, 40, 0.1); }
+:root { --bg: #ffffff; --card: #ffffff; --ink: #17181c; --muted: #6b7280; --border: #e4e6eb; --acid: #c7f36b; --coral: #ff725e; --blue: #8ba7ff; --on-acid: #101820; --line: 1px solid var(--border); --shadow: 0 1px 3px rgba(16, 24, 40, 0.1); }
+:root[data-theme="dark"] { --bg: #0b0d10; --card: #13161b; --ink: #e6e8ec; --muted: #8b93a0; --border: #232830; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 @media (prefers-color-scheme: dark) {
-	:root { --bg: #0e1013; --card: #15181d; --ink: #e7e9ee; --muted: #9aa3af; --border: #262b33; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
+	:root:not([data-theme]) { --bg: #0b0d10; --card: #13161b; --ink: #e6e8ec; --muted: #8b93a0; --border: #232830; --shadow: 0 1px 3px rgba(0, 0, 0, 0.5); }
 }
 * { box-sizing: border-box; }
 body { min-height: 100vh; display: grid; place-items: center; margin: 0; padding: 20px; background: var(--bg); color: var(--ink); font-family: "IBM Plex Mono", "Courier New", monospace; }
+.theme-toggle { position: fixed; top: 14px; right: 14px; z-index: 9; padding: 7px 10px; border: 1px solid var(--border); border-radius: 4px; background: var(--card); color: var(--ink); font-size: 0.66rem; font-weight: 700; text-transform: uppercase; cursor: pointer; }
+.theme-toggle:hover { border-color: var(--acid); }
 .login-card { width: min(100%, 820px); display: grid; grid-template-columns: 1.1fr 0.9fr; border: 1px solid var(--border); border-radius: 8px; background: var(--card); box-shadow: var(--shadow); overflow: hidden; }
 .login-copy { padding: clamp(24px, 6vw, 56px); background: var(--acid); color: var(--ink); border-right: 1px solid var(--border); }
 .login-copy .eyebrow { font-size: 0.7rem; font-weight: 700; letter-spacing: 0.14em; }
@@ -334,6 +378,7 @@ body { min-height: 100vh; display: grid; place-items: center; margin: 0; padding
 </style>
 </head>
 <body>
+<button class="theme-toggle" type="button" onclick="toggleTheme()">☾ Theme</button>
 <main class="login-card">
 	<section class="login-copy">
 		<div class="eyebrow">VEXIS / SOLANA LIQUIDITY OPS</div>
@@ -350,6 +395,18 @@ body { min-height: 100vh; display: grid; place-items: center; margin: 0; padding
 		</form>
 	</section>
 </main>
+<script>
+(function () {
+	var root = document.documentElement;
+	var saved = localStorage.getItem("vexis-theme");
+	if (saved === "light" || saved === "dark") root.setAttribute("data-theme", saved);
+	window.toggleTheme = function () {
+		var dark = (root.getAttribute("data-theme") || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")) === "dark";
+		root.setAttribute("data-theme", dark ? "light" : "dark");
+		localStorage.setItem("vexis-theme", dark ? "light" : "dark");
+	};
+})();
+</script>
 </body>
 </html>`;
 }
