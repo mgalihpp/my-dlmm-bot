@@ -46,7 +46,8 @@ describe("format helpers", () => {
 	});
 
 	it("fmtSol adds SOL icon", () => {
-		expect(fmtSol("1.2345")).toBe(`1.235 ${solIcon()}`);
+		expect(fmtSol("1.2345")).toBe(`1.2345 ${solIcon()}`);
+		expect(fmtSol("0.000831236")).toBe(`0.00083124 ${solIcon()}`);
 		expect(fmtSol(null)).toBe("-");
 	});
 

@@ -361,6 +361,8 @@ td small { margin-top: 5px; color: var(--muted); font: 10px monospace; }
 .pagination a.disabled { opacity: 0.35; pointer-events: none; }
 .chart { margin: 0 0 16px; padding: 12px; border: 1px solid var(--line); background: var(--panel); }
 .chart svg text { fill: var(--muted); font-family: monospace; }
+.chart-tip { position: fixed; z-index: 999; padding: 6px 9px; border: 1px solid var(--line); background: var(--panel); color: var(--foreground); font: 11px monospace; pointer-events: none; opacity: 0; transition: opacity 0.1s; white-space: nowrap; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35); }
+.chart-tip.show { opacity: 1; }
 .chart-legend-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; color: var(--muted); font-size: 10px; text-transform: uppercase; }
 .chart-legend i { display: inline-block; width: 13px; height: 13px; margin-right: 6px; border: 1px solid var(--line); vertical-align: middle; }
 .hbar { padding: 14px 16px; }

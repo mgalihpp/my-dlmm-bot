@@ -110,6 +110,26 @@ export function pageShell(params: PageShellParams): string {
 		else root.setAttribute('data-theme', 'light');
 		localStorage.setItem('vexis-theme', light ? 'dark' : 'light');
 	};
+	var tip = document.createElement('div');
+	tip.className = 'chart-tip';
+	document.body.appendChild(tip);
+	document.addEventListener('mouseover', function (e) {
+		var hit = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+		if (hit) {
+			tip.textContent = hit.getAttribute('data-tip');
+			tip.classList.add('show');
+		}
+	});
+	document.addEventListener('mousemove', function (e) {
+		if (tip.classList.contains('show')) {
+			tip.style.left = e.pageX + 14 + 'px';
+			tip.style.top = e.pageY + 14 + 'px';
+		}
+	});
+	document.addEventListener('mouseout', function (e) {
+		var hit = e.target && e.target.closest ? e.target.closest('[data-tip]') : null;
+		if (hit) tip.classList.remove('show');
+	});
 })();
 </script>
 </body>

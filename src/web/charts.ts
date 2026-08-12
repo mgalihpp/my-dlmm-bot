@@ -109,7 +109,7 @@ export function lineChart(
 	const dots = coords
 		.map(
 			(coord, i) =>
-				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="var(--muted)"><title>${escapeHtml(points[i].label)} · ${points[i].value}</title></circle>`,
+				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="var(--muted)"/><circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="14" fill="transparent" style="pointer-events:all" data-tip="${escapeHtml(points[i].label)} · ${points[i].value}"/>`,
 		)
 		.join("");
 	const areaPath = coords

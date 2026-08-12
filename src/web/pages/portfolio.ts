@@ -65,29 +65,17 @@ export function renderPortfolio(
 		(pool) => pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
 	).length;
 
-	const unrealizedUsd = data.open.reduce((sum, pool) => {
-		const n = parseFloat(pool.pnl);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-	const unrealizedSol = data.open.reduce((sum, pool) => {
-		if (pool.pnlSol == null) return sum;
-		const n = parseFloat(pool.pnlSol);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-
 	const cards = [
 		summaryCard(
 			"Total equity",
 			fmtUsd(openBalance),
 			`${data.open.length} open pools`,
 		),
-		summaryCard("Unrealized PnL", fmtUsd(unrealizedUsd), fmtSol(unrealizedSol)),
 		summaryCard(
 			"Realized PnL",
 			fmtUsd(data.total.totalPnlUsd),
 			fmtPct(data.total.totalPnlPctChange),
 		),
-		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong>${fmtSol(data.total.totalPnlSol)}</strong><span class="stat-sub">${escapeHtml(fmtPct(data.total.totalPnlSolPctChange))}</span></div>`,
 		summaryCard(
 			"Unclaimed fees",
 			fmtUsd(openFees),
@@ -116,7 +104,6 @@ function sectionHead(kicker: string, sub: string): string {
 }
 
 function equityPanel(history: readonly PortfolioSnapshot[]): string {
-	const tip = "Unrealized PnL in SOL";
 	const points = history
 		.filter((snap) => snap.pnlSol !== null)
 		.slice(-48)
@@ -125,14 +112,14 @@ function equityPanel(history: readonly PortfolioSnapshot[]): string {
 			value: snap.pnlSol as number,
 		}));
 	if (points.length < 2) {
-		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">PNL SOL</span><b>${fmtSol(points.at(-1)?.value)}</b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No PnL history yet</div></div>`;
+		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">PNL SOL</span><b>${fmtSol(points.at(-1)?.value)}</b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No PnL history yet</div></div>`;
 	}
 	const first = points[0];
 	const last = points[points.length - 1];
 	const changePct =
 		first.value !== 0 ? ((last.value - first.value) / first.value) * 100 : 0;
 	const stroke = last.value >= 0 ? CHART_COLORS.profit : CHART_COLORS.loss;
-	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">PNL SOL</span><b>${fmtSol(last.value)} <em class="${pnlClass(changePct)}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points, { stroke })}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
+	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">PNL SOL</span><b>${fmtSol(last.value)} <em class="${pnlClass(changePct)}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points, { stroke })}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
 }
 
 function allocationPanel(

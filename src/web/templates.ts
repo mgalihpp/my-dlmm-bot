@@ -20,7 +20,8 @@ export function fmtSol(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	return `${formatNum(n, 3)} ${solIcon()}`;
+	const decimals = Math.abs(n) >= 0.001 ? 4 : 8;
+	return `${formatNum(n, decimals)} ${solIcon()}`;
 }
 
 const SOL_LOGO_MARK =

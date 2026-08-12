@@ -60,24 +60,10 @@ const mkClosed = (over: Partial<ClosedPool> = {}): ClosedPool => ({
 describe("renderPortfolio", () => {
 	it("renders terminal stats and portfolio values", () => {
 		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
-		expect(html).toContain("Unrealized PnL");
 		expect(html).toContain("Realized PnL");
-		expect(html).toContain("PnL SOL");
 		expect(html).toContain("$123.45");
-		expect(html).toContain("1.235 ");
-		expect(html).toContain('class="sol-icon"');
 		expect(html).toContain('class="stats-grid portfolio-stats"');
 		expect(html).toContain('class="grid-two"');
-	});
-
-	it("sums unrealized PnL from open positions into its own card", () => {
-		const html = renderPortfolio({
-			total: mkTotal(),
-			open: [mkOpen({ pnl: "12.3", pnlSol: "0.15" })],
-			closed: [],
-		});
-		expect(html).toContain("$12.30");
-		expect(html).toContain("0.150 ");
 	});
 
 	it("renders open position rows with escaped pool name and badges", () => {
@@ -130,12 +116,12 @@ describe("renderPortfolio", () => {
 			],
 		);
 		expect(html).toContain("PNL SOL");
-		expect(html).toContain("2.000 ");
+		expect(html).toContain("2.0000 ");
 		expect(html).toContain("+100.00%");
 		expect(html).toContain("<polyline");
 		expect(html).toContain('stroke="var(--profit)"');
-		expect(html).toContain('class="eyebrow tooltip"');
-		expect(html).toContain("Unrealized PnL in SOL");
+		expect(html).toContain('class="eyebrow"');
+		expect(html).toContain('data-tip="');
 	});
 
 	it("colors the PnL SOL curve red when last value is negative", () => {
@@ -159,7 +145,7 @@ describe("renderPortfolio", () => {
 			],
 		);
 		expect(html).toContain("PNL SOL");
-		expect(html).toContain("-2.000 ");
+		expect(html).toContain("-2.0000 ");
 		expect(html).toContain('stroke="var(--loss)"');
 	});
 
@@ -174,10 +160,10 @@ describe("renderPortfolio", () => {
 		});
 		expect(html).toContain("OPEN POSITIONS");
 		expect(html).toContain("AAA/SOL");
-		expect(html).toContain("0.150 ");
-		expect(html).toContain("0.200 ");
+		expect(html).toContain("0.1500 ");
+		expect(html).toContain("0.2000 ");
 		expect(html).toContain("TOTAL PNL");
-		expect(html).toContain("0.350 ");
+		expect(html).toContain("0.3500 ");
 		expect(html).toContain('class="allocation-ring"');
 	});
 
