@@ -108,6 +108,22 @@ const isTransientJupiterError = (e: JupiterApiError): boolean =>
 	e.message.includes("fetch failed") ||
 	e.message.includes("failed to fetch");
 
+export const isSlippageError = (e: JupiterApiError): boolean =>
+	e.message.toLowerCase().includes("slippage");
+
+const MAX_SLIPPAGE_BPS = 500;
+
+export const slippageLadder = (base: number): number[] => {
+	const levels: number[] = [];
+	let cur = Math.max(10, Math.min(base, MAX_SLIPPAGE_BPS));
+	while (levels.length < 4) {
+		if (levels.at(-1) === cur) break;
+		levels.push(cur);
+		cur = Math.min(MAX_SLIPPAGE_BPS, cur * 2);
+	}
+	return levels;
+};
+
 const jupiterRetryPolicy = Schedule.spaced(Duration.millis(800)).pipe(
 	Schedule.compose(Schedule.recurs(3)),
 );
@@ -237,20 +253,27 @@ const jupiterUltraSwap = (
 	outputMint: PublicKey,
 	amount: BN,
 	slippageBps?: number,
-): Effect.Effect<string, JupiterApiError> =>
-	jupiterUltraSwapOnce(
-		client,
-		keypair,
-		mint,
-		outputMint,
-		amount,
-		slippageBps,
-	).pipe(
-		Effect.retry({
-			schedule: jupiterRetryPolicy,
-			while: isTransientJupiterError,
-		}),
-	);
+): Effect.Effect<string, JupiterApiError> => {
+	const levels = slippageLadder(slippageBps ?? 100);
+	const attempt = (i: number): Effect.Effect<string, JupiterApiError> =>
+		jupiterUltraSwapOnce(
+			client,
+			keypair,
+			mint,
+			outputMint,
+			amount,
+			levels[i],
+		).pipe(
+			Effect.retry({
+				schedule: jupiterRetryPolicy,
+				while: isTransientJupiterError,
+			}),
+			Effect.catchIf(isSlippageError, (e) =>
+				i + 1 < levels.length ? attempt(i + 1) : Effect.fail(e),
+			),
+		);
+	return attempt(0);
+};
 
 const swapTokensToOutput = (
 	client: HttpClient.HttpClient,
@@ -342,11 +365,12 @@ const make = Effect.gen(function* () {
 
 						const transactions: Transaction[] = [];
 						let claimSig = "";
-						const claimBlockhash = (await connection.getLatestBlockhash())
-							.blockhash;
 						for (const tx of claimTxs) {
 							tx.feePayer = keypair.publicKey;
-							tx.recentBlockhash = claimBlockhash;
+							const { blockhash, lastValidBlockHeight } =
+								await connection.getLatestBlockhash("confirmed");
+							tx.recentBlockhash = blockhash;
+							tx.lastValidBlockHeight = lastValidBlockHeight;
 							claimSig = await sendAndConfirmTransaction(connection, tx, [
 								keypair,
 							]);
@@ -422,11 +446,12 @@ const make = Effect.gen(function* () {
 
 						const transactions: Transaction[] = [];
 						let closeSig = "";
-						const closeBlockhash = (await connection.getLatestBlockhash())
-							.blockhash;
 						for (const tx of removeTxs) {
 							tx.feePayer = keypair.publicKey;
-							tx.recentBlockhash = closeBlockhash;
+							const { blockhash, lastValidBlockHeight } =
+								await connection.getLatestBlockhash("confirmed");
+							tx.recentBlockhash = blockhash;
+							tx.lastValidBlockHeight = lastValidBlockHeight;
 							closeSig = await sendAndConfirmTransaction(connection, tx, [
 								keypair,
 							]);
