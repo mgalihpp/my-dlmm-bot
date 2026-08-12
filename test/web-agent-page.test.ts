@@ -4,7 +4,13 @@ import type {
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
-import { agentStats, renderAgent } from "../src/web/pages/agent.js";
+import {
+	agentStats,
+	journalRows,
+	paginate,
+	parseJournalFilter,
+	renderAgent,
+} from "../src/web/pages/agent.js";
 
 const mkCandidate = (
 	over: Partial<JournalCandidate> = {},
@@ -65,7 +71,8 @@ describe("agentStats", () => {
 			opens: 3,
 			holds: 1,
 			blocked: 1,
-			tpSl: 2,
+			tp: 1,
+			sl: 1,
 			closes: 0,
 			failed: 1,
 			successRate: 75,
@@ -78,7 +85,8 @@ describe("agentStats", () => {
 			opens: 0,
 			holds: 0,
 			blocked: 0,
-			tpSl: 0,
+			tp: 0,
+			sl: 0,
 			closes: 0,
 			failed: 0,
 			successRate: 0,
@@ -86,9 +94,79 @@ describe("agentStats", () => {
 	});
 });
 
+describe("journalRows", () => {
+	it("filters by action and returns newest cycle first", () => {
+		const entries = [
+			mkEntry(1, [
+				mkCandidate({ action: "tp" }),
+				mkCandidate({ action: "open" }),
+			]),
+			mkEntry(2, [mkCandidate({ action: "sl" })]),
+			mkEntry(3, [mkCandidate({ action: "open" })]),
+		];
+		const rows = journalRows(entries, "tp");
+		expect(rows).toHaveLength(1);
+		expect(rows[0].cycle).toBe(1);
+		expect(rows[0].candidate?.action).toBe("tp");
+
+		const all = journalRows(entries, "all");
+		expect(all.map((row) => row.cycle)).toEqual([3, 2, 1, 1]);
+	});
+
+	it("filters by blocked guardrail", () => {
+		const entries = [
+			mkEntry(1, [
+				mkCandidate({
+					action: "open",
+					guardrail: "blocked",
+					blockedReason: "x",
+				}),
+				mkCandidate({ action: "open" }),
+			]),
+		];
+		const rows = journalRows(entries, "blocked");
+		expect(rows).toHaveLength(1);
+		expect(rows[0].candidate?.guardrail).toBe("blocked");
+	});
+
+	it("includes empty cycles only for all filter", () => {
+		const entries = [
+			mkEntry(1, []),
+			mkEntry(2, [mkCandidate({ action: "tp" })]),
+		];
+		expect(journalRows(entries, "all").map((row) => row.cycle)).toEqual([2, 1]);
+		expect(journalRows(entries, "tp")).toHaveLength(1);
+	});
+});
+
+describe("paginate", () => {
+	it("slices pages and clamps out-of-range pages", () => {
+		const rows = Array.from({ length: 45 }, (_, i) => i);
+		const first = paginate(rows, 1, 20);
+		expect(first.rows).toHaveLength(20);
+		expect(first.pages).toBe(3);
+		expect(first.total).toBe(45);
+		const last = paginate(rows, 99, 20);
+		expect(last.page).toBe(3);
+		expect(last.rows).toHaveLength(5);
+	});
+});
+
+describe("parseJournalFilter", () => {
+	it("defaults invalid or missing input to all", () => {
+		expect(parseJournalFilter(null)).toBe("all");
+		expect(parseJournalFilter("bogus")).toBe("all");
+		expect(parseJournalFilter("tp")).toBe("tp");
+		expect(parseJournalFilter("blocked")).toBe("blocked");
+	});
+});
+
 describe("renderAgent", () => {
 	it("renders stats cards and journal table", () => {
-		const html = renderAgent([mkEntry(1, [mkCandidate()])], mkState());
+		const html = renderAgent([mkEntry(1, [mkCandidate()])], mkState(), {
+			action: "all",
+			page: 1,
+		});
 		expect(html).toContain("Cycles");
 		expect(html).toContain(">1<");
 		expect(html).toContain("Token/SOL");
@@ -111,13 +189,14 @@ describe("renderAgent", () => {
 				]),
 			],
 			null,
+			{ action: "all", page: 1 },
 		);
 		expect(html).toContain("pool cooldown &lt;x&gt;");
 		expect(html).toContain(">blocked<");
 	});
 
 	it("empty journal shows empty state", () => {
-		const html = renderAgent([], null);
+		const html = renderAgent([], null, { action: "all", page: 1 });
 		expect(html).toContain("No journal entries");
 	});
 
@@ -128,6 +207,7 @@ describe("renderAgent", () => {
 				mkEntry(2, [mkCandidate({ action: "hold" })]),
 			],
 			null,
+			{ action: "all", page: 1 },
 		);
 		expect(html).toContain("<svg");
 	});
@@ -136,6 +216,7 @@ describe("renderAgent", () => {
 		const html = renderAgent(
 			[mkEntry(1, [mkCandidate({ poolName: "<b>x</b>" })])],
 			null,
+			{ action: "all", page: 1 },
 		);
 		expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
 	});

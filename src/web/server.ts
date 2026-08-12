@@ -130,12 +130,24 @@ export function buildRouter(password: string) {
 	const poolsPartial = poolsRoute.pipe(
 		Effect.map((inner) => partialResponse(inner, null)),
 	);
-	const agentPage = agentContent.pipe(
+	const agentRoute = Effect.gen(function* () {
+		const request = yield* HttpServerRequest.HttpServerRequest;
+		const url = new URL(request.url, "http://localhost");
+		const rawPage = url.searchParams.get("page");
+		const parsedPage = rawPage === null ? 1 : Number(rawPage);
+		const page =
+			Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+		return yield* agentContent({
+			action: url.searchParams.get("action"),
+			page,
+		});
+	});
+	const agentPage = agentRoute.pipe(
 		Effect.map((inner) =>
 			pageResponse("Agent Log", "agent", inner, "/partials/agent"),
 		),
 	);
-	const agentPartial = agentContent.pipe(
+	const agentPartial = agentRoute.pipe(
 		Effect.map((inner) => partialResponse(inner, "/partials/agent")),
 	);
 

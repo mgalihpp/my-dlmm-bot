@@ -54,11 +54,13 @@ describe("format helpers", () => {
 });
 
 describe("tsLocal", () => {
-	it("formats ISO string and unix seconds", () => {
-		expect(tsLocal("2026-08-12T10:00:00.000Z")).toMatch(
-			/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/,
+	it("formats ISO string and unix seconds human-readable", () => {
+		expect(tsLocal(new Date(Date.now() - 5 * 60 * 1000).toISOString())).toMatch(
+			/^(just now|\d+m ago|\d+h ago)$/,
 		);
-		expect(tsLocal(1_754_000_000)).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/);
+		expect(tsLocal(1_754_000_000)).toMatch(
+			/^\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2}$/,
+		);
 		expect(tsLocal(null)).toBe("-");
 	});
 });

@@ -7,6 +7,7 @@ import { AppConfig } from "../../services/Config.js";
 import type { Jupiter } from "../../services/Jupiter.js";
 import type { RugCheck } from "../../services/RugCheck.js";
 import { Screening } from "../../services/Screening.js";
+import { CHART_COLORS, hBarChart } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
 import {
 	badge,
@@ -27,7 +28,7 @@ export function renderPools(
 	const content =
 		result.pools.length === 0
 			? `${countLine}<div class="empty">No pools found</div>`
-			: `${countLine}${renderPoolTable(result.pools)}`;
+			: `${countLine}${tvlChart(result.pools)}${renderPoolTable(result.pools)}`;
 
 	return `<section>
 <div class="section-kicker">DISCOVERY API // SCREENED CANDIDATES</div>
@@ -35,6 +36,21 @@ export function renderPools(
 ${filterForm(opts.timeframe)}
 ${content}
 </section>`;
+}
+
+function tvlChart(pools: readonly ScreenedPool[]): string {
+	const top = [...pools]
+		.sort((a, b) => (b.tvl ?? 0) - (a.tvl ?? 0))
+		.slice(0, 10);
+	if (top.length === 0) return "";
+	return `<div class="sub">TVL DISTRIBUTION // TOP ${top.length}</div>${hBarChart(
+		top.map((pool) => ({
+			label: pool.name || pool.baseSymbol || pool.pool.slice(0, 8),
+			value: pool.tvl ?? 0,
+			display: fmtUsd(pool.tvl),
+			color: CHART_COLORS.blue,
+		})),
+	)}`;
 }
 
 function filterForm(timeframe: string): string {

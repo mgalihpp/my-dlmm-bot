@@ -8,7 +8,13 @@ import { errorMessage } from "../../errors.js";
 import { AppConfig } from "../../services/Config.js";
 import { Dlmm } from "../../services/Dlmm.js";
 import { MeteoraApi } from "../../services/MeteoraApi.js";
+import { lineChart } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
+import {
+	type PortfolioSnapshot,
+	readHistory,
+	recordSnapshot,
+} from "../portfolio-history.js";
 import {
 	badge,
 	fmtPct,
@@ -34,7 +40,10 @@ const EMPTY_TOTAL: PortfolioTotal = {
 	totalPnlSolPctChange: "-",
 };
 
-export function renderPortfolio(data: PortfolioData): string {
+export function renderPortfolio(
+	data: PortfolioData,
+	history: readonly PortfolioSnapshot[] = [],
+): string {
 	const openBalance = data.open.reduce(
 		(sum, pool) => sum + parseFloat(pool.balances || "0"),
 		0,
@@ -75,9 +84,19 @@ export function renderPortfolio(data: PortfolioData): string {
 <div class="section-kicker">WALLET SNAPSHOT // LIVE READOUT</div>
 <h1>Portfolio</h1>
 <div class="cards">${cards}</div>
+${pnlHistoryChart(history)}
 ${renderOpen(data.open)}
 ${renderClosed(data.closed)}
 </section>`;
+}
+
+function pnlHistoryChart(history: readonly PortfolioSnapshot[]): string {
+	const points = history
+		.filter((snap) => snap.pnlUsd !== null)
+		.slice(-48)
+		.map((snap) => ({ label: tsLocal(snap.ts), value: snap.pnlUsd as number }));
+	if (points.length < 2) return "";
+	return `<div class="sub">PNL USD HISTORY // ${points.length} SNAPSHOTS</div>${lineChart(points)}`;
 }
 
 function renderOpen(pools: readonly OpenPool[]): string {
@@ -166,7 +185,29 @@ export const portfolioContent: Effect.Effect<
 		.totalPnl(wallet)
 		.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
 
-	return renderPortfolio({ total, open, closed });
+	const toNum = (value: string): number | null => {
+		const parsed = parseFloat(value);
+		return Number.isNaN(parsed) ? null : parsed;
+	};
+	const openBalance = open.reduce(
+		(sum, pool) => sum + parseFloat(pool.balances || "0"),
+		0,
+	);
+	const openFees = open.reduce(
+		(sum, pool) => sum + parseFloat(pool.unclaimedFees || "0"),
+		0,
+	);
+	yield* Effect.sync(() =>
+		recordSnapshot({
+			ts: Math.floor(Date.now() / 1000),
+			pnlUsd: toNum(total.totalPnlUsd),
+			pnlSol: toNum(total.totalPnlSol),
+			balanceUsd: openBalance,
+			feesUsd: openFees,
+		}),
+	).pipe(Effect.catchAll(() => Effect.succeed(null)));
+
+	return renderPortfolio({ total, open, closed }, readHistory());
 }).pipe(
 	Effect.catchAll((error) => Effect.succeed(errorBanner(errorMessage(error)))),
 );

@@ -224,6 +224,20 @@ td a { font-weight: 700; }
 .filter button:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--coral); }
 .sparkline-card { display: inline-block; margin: 0 0 20px; padding: 10px; border: var(--line); background: var(--blue); box-shadow: var(--shadow); }
 svg { display: block; }
+.chart { margin: 0 0 24px; padding: 12px; border: var(--line); background: var(--white); box-shadow: var(--shadow); }
+.chart svg text { font-family: "IBM Plex Mono", monospace; }
+.chart-legend-row { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 8px; font-weight: 700; text-transform: uppercase; font-size: 0.75rem; }
+.chart-legend i { display: inline-block; width: 14px; height: 14px; margin-right: 6px; border: 2px solid var(--ink); vertical-align: middle; }
+.hbar { padding: 14px 16px; }
+.hbar-row { display: flex; align-items: center; gap: 10px; margin: 9px 0; }
+.hbar-label { flex: 0 0 130px; font-weight: 700; font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hbar-track { flex: 1; border: var(--line); height: 18px; background: var(--yellow); }
+.hbar-bar { display: block; height: 100%; }
+.hbar-value { flex: 0 0 90px; text-align: right; font-weight: 700; font-family: "IBM Plex Mono", monospace; }
+.pagination { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; margin: 14px 0 4px; font-weight: 700; }
+.pagination a { padding: 6px 12px; border: var(--line); background: var(--acid); color: var(--ink); text-decoration: none; }
+.pagination a:hover { transform: translate(-2px, -2px); box-shadow: 4px 4px 0 var(--ink); }
+.pagination a.disabled { opacity: 0.35; pointer-events: none; }
 
 @media (max-width: 860px) {
 	.topbar { flex-wrap: wrap; gap: 10px; padding: 10px 14px; }
