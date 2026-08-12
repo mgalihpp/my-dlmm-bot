@@ -121,6 +121,12 @@ export interface AgentConfig {
 	darwin?: AgentDarwinConfig;
 }
 
+export interface WebConfig {
+	enabled?: boolean;
+	port?: number;
+	password?: string;
+}
+
 export interface VexisConfig {
 	wallet?: string;
 	privateKey?: string;
@@ -135,6 +141,7 @@ export interface VexisConfig {
 	create?: CreateConfig;
 	pools?: PoolsConfig;
 	agent?: AgentConfig;
+	web?: WebConfig;
 }
 
 export interface CreatePreset {
