@@ -5,6 +5,8 @@ import {
 	escapeHtml,
 	loginPage,
 	pageShell,
+	rpcHost,
+	shortAddr,
 } from "../src/web/layout.js";
 import {
 	badge,
@@ -15,6 +17,7 @@ import {
 	pnlClass,
 	solscanUrl,
 	sparkline,
+	statsGrid,
 	summaryCard,
 	table,
 	tsLocal,
@@ -47,8 +50,8 @@ describe("format helpers", () => {
 	});
 
 	it("pnlClass maps sign to css class", () => {
-		expect(pnlClass(1)).toBe("pos");
-		expect(pnlClass(-1)).toBe("neg");
+		expect(pnlClass(1)).toBe("profit");
+		expect(pnlClass(-1)).toBe("loss");
 		expect(pnlClass(0)).toBe("zero");
 	});
 });
@@ -67,8 +70,8 @@ describe("tsLocal", () => {
 
 describe("badge / summaryCard / table", () => {
 	it("badge emits kind class", () => {
-		expect(badge("OOR", "danger")).toContain("badge");
-		expect(badge("OOR", "danger")).toContain("danger");
+		expect(badge("OOR", "blocked")).toContain("badge");
+		expect(badge("OOR", "blocked")).toContain("blocked");
 	});
 
 	it("summaryCard wraps value", () => {
@@ -76,12 +79,24 @@ describe("badge / summaryCard / table", () => {
 		expect(card).toContain("PnL USD");
 		expect(card).toContain("$12.34");
 		expect(card).toContain("+5%");
+		expect(card).toContain('class="stat"');
+	});
+
+	it("statsGrid groups stat components", () => {
+		expect(statsGrid([summaryCard("A", "1", "one")])).toBe(
+			'<div class="stats-grid"><div class="stat"><span class="eyebrow">A</span><strong>1</strong><span class="stat-sub">one</span></div></div>',
+		);
 	});
 
 	it("table builds headers and rows", () => {
-		const rendered = table(["A", "B"], ["<tr><td>1</td><td>2</td></tr>"]);
+		const rendered = table(
+			["A", "B"],
+			["<tr><td>1</td><td>2</td></tr>"],
+			"compact-table",
+		);
 		expect(rendered).toContain("<th>A</th>");
 		expect(rendered).toContain("<td>1</td>");
+		expect(rendered).toContain('class="compact-table"');
 	});
 });
 
@@ -129,18 +144,34 @@ describe("layout pieces", () => {
 		expect(rendered).toContain("Retry");
 	});
 
-	it("pageShell includes neo-brutalist nav, htmx script, and body", () => {
+	it("pageShell includes terminal shell, htmx script, and body", () => {
 		const rendered = pageShell({
 			title: "Portfolio",
 			active: "portfolio",
 			body: "<p>hi</p>",
+			rpc: "api.mainnet-beta.solana.com",
+			wallet: "So11111111111111111111111111111111111111112",
 		});
 		expect(rendered).toContain("htmx.org");
 		expect(rendered).toContain("<title>Portfolio // VEXIS</title>");
 		expect(rendered).toContain('href="/portfolio"');
 		expect(rendered).toContain("READ ONLY");
-		expect(rendered).toContain("--acid");
+		expect(rendered).toContain("terminal");
+		expect(rendered).toContain("--profit");
+		expect(rendered).toContain("api.mainnet-beta.solana.com");
+		expect(rendered).toContain("So11...1112");
+		expect(rendered).toContain("scrim");
 		expect(rendered).toContain("<p>hi</p>");
+	});
+
+	it("shortAddr and rpcHost normalize shell metadata", () => {
+		expect(shortAddr("So11111111111111111111111111111111111111112")).toBe(
+			"So11...1112",
+		);
+		expect(shortAddr("short")).toBe("short");
+		expect(rpcHost("https://api.mainnet-beta.solana.com/rpc")).toBe(
+			"api.mainnet-beta.solana.com",
+		);
 	});
 
 	it("loginPage has form and escaped error", () => {

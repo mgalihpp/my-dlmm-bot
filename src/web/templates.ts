@@ -23,28 +23,34 @@ export function fmtSol(value: string | number | null | undefined): string {
 	return `${formatNum(n, 3)} ◎`;
 }
 
-export function pnlClass(value: number): "pos" | "neg" | "zero" {
-	return value > 0 ? "pos" : value < 0 ? "neg" : "zero";
+export function pnlClass(value: number): "profit" | "loss" | "zero" {
+	return value > 0 ? "profit" : value < 0 ? "loss" : "zero";
 }
 
-export type BadgeKind = "ok" | "warn" | "danger" | "neutral";
+export type BadgeKind = "pass" | "review" | "blocked" | "hold" | "neutral";
 
 export function badge(text: string, kind: BadgeKind): string {
 	return `<span class="badge ${kind}">${escapeHtml(text)}</span>`;
 }
 
 export function summaryCard(label: string, value: string, sub: string): string {
-	return `<article class="card"><div class="label">${escapeHtml(label)}</div><div class="value">${escapeHtml(value)}</div><div class="sub">${escapeHtml(sub)}</div></article>`;
+	return `<div class="stat"><span class="eyebrow">${escapeHtml(label)}</span><strong>${escapeHtml(value)}</strong><span class="stat-sub">${escapeHtml(sub)}</span></div>`;
+}
+
+export function statsGrid(cards: readonly string[]): string {
+	return `<div class="stats-grid">${cards.join("\n")}</div>`;
 }
 
 export function table(
 	headers: readonly string[],
 	rows: readonly string[],
+	className = "",
 ): string {
 	const head = headers
 		.map((header) => `<th>${escapeHtml(header)}</th>`)
 		.join("");
-	return `<div class="table-shell"><table><thead><tr>${head}</tr></thead><tbody>\n${rows.join("\n")}\n</tbody></table></div>`;
+	const classAttr = className ? ` class="${escapeHtml(className)}"` : "";
+	return `<div class="table-scroll"><table${classAttr}><thead><tr>${head}</tr></thead><tbody>\n${rows.join("\n")}\n</tbody></table></div>`;
 }
 
 export function sparkline(

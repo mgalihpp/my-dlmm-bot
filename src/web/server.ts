@@ -15,7 +15,7 @@ import {
 	verifySessionCookie,
 } from "./auth.js";
 import { resolveWebConfig } from "./config.js";
-import { contentRegion, loginPage, pageShell } from "./layout.js";
+import { contentRegion, loginPage, pageShell, rpcHost } from "./layout.js";
 import { createWebServerProgram } from "./lifecycle.js";
 import { agentContent } from "./pages/agent.js";
 import { poolsContent } from "./pages/pools.js";
@@ -46,11 +46,17 @@ function requireAuth(password: string) {
 	);
 }
 
+interface ShellInfo {
+	readonly rpc: string;
+	readonly wallet: string;
+}
+
 function pageResponse(
 	title: string,
 	active: "portfolio" | "pools" | "agent",
 	inner: string,
 	refreshPath: string | null,
+	shell: ShellInfo,
 ): HttpServerResponse.HttpServerResponse {
 	return HttpServerResponse.html(
 		pageShell({
@@ -61,6 +67,8 @@ function pageResponse(
 				inner,
 				refreshPath,
 			}),
+			rpc: shell.rpc,
+			wallet: shell.wallet,
 		}),
 	);
 }
@@ -74,7 +82,7 @@ function partialResponse(
 	);
 }
 
-export function buildRouter(password: string) {
+export function buildRouter(password: string, shell: ShellInfo) {
 	const loginHandler = Effect.gen(function* () {
 		const form = yield* HttpServerRequest.schemaBodyUrlParams(
 			Schema.Record({
@@ -118,14 +126,22 @@ export function buildRouter(password: string) {
 
 	const portfolioPage = portfolioContent.pipe(
 		Effect.map((inner) =>
-			pageResponse("Portfolio", "portfolio", inner, "/partials/portfolio"),
+			pageResponse(
+				"Portfolio",
+				"portfolio",
+				inner,
+				"/partials/portfolio",
+				shell,
+			),
 		),
 	);
 	const portfolioPartial = portfolioContent.pipe(
 		Effect.map((inner) => partialResponse(inner, "/partials/portfolio")),
 	);
 	const poolsPage = poolsRoute.pipe(
-		Effect.map((inner) => pageResponse("Pool Radar", "pools", inner, null)),
+		Effect.map((inner) =>
+			pageResponse("Pool Radar", "pools", inner, null, shell),
+		),
 	);
 	const poolsPartial = poolsRoute.pipe(
 		Effect.map((inner) => partialResponse(inner, null)),
@@ -144,7 +160,7 @@ export function buildRouter(password: string) {
 	});
 	const agentPage = agentRoute.pipe(
 		Effect.map((inner) =>
-			pageResponse("Agent Log", "agent", inner, "/partials/agent"),
+			pageResponse("Agent Log", "agent", inner, "/partials/agent", shell),
 		),
 	);
 	const agentPartial = agentRoute.pipe(
@@ -185,6 +201,10 @@ export async function startWebServer(): Promise<void> {
 		const config = yield* AppConfig;
 		const current = yield* config.get;
 		const web = resolveWebConfig(current);
+		const shell: ShellInfo = {
+			rpc: rpcHost(current.rpcUrl ?? "rpc not configured"),
+			wallet: current.wallet ?? "no wallet configured",
+		};
 
 		if (!web.enabled) {
 			console.log(
@@ -201,7 +221,7 @@ export async function startWebServer(): Promise<void> {
 		}
 
 		console.log(`[web] dashboard listening on http://127.0.0.1:${web.port}`);
-		const router = buildRouter(web.password);
+		const router = buildRouter(web.password, shell);
 		yield* createWebServerProgram(router, web.port, requireAuth(web.password));
 	});
 

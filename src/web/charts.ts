@@ -1,11 +1,11 @@
 import { escapeHtml } from "./layout.js";
 
 export const CHART_COLORS = {
-	acid: "#c7f36b",
-	coral: "#ff725e",
-	blue: "#8ba7ff",
-	ink: "#171717",
-	gold: "#ffd166",
+	profit: "var(--profit)",
+	loss: "var(--loss)",
+	blue: "var(--blue)",
+	ink: "var(--foreground)",
+	gold: "var(--gold)",
 } as const;
 
 export interface BarSeries {
@@ -67,17 +67,13 @@ export interface HBarItem {
 	readonly color?: string;
 }
 
-export function hBarChart(
-	items: readonly HBarItem[],
-	opts: { readonly width?: number } = {},
-): string {
+export function hBarChart(items: readonly HBarItem[]): string {
 	if (items.length === 0) return "";
-	const width = opts.width ?? 720;
 	const max = Math.max(1, ...items.map((item) => item.value));
 	const rows = items
 		.map((item) => {
-			const rowWidth = ((item.value / max) * width).toFixed(1);
-			return `<div class="hbar-row"><span class="hbar-label">${escapeHtml(item.label)}</span><span class="hbar-track"><i class="hbar-bar" style="width:${rowWidth}px;background:${item.color ?? "var(--ink)"}"></i></span><span class="hbar-value">${escapeHtml(item.display)}</span></div>`;
+			const rowWidth = ((item.value / max) * 100).toFixed(1);
+			return `<div class="hbar-row"><span class="hbar-label">${escapeHtml(item.label)}</span><span class="hbar-track"><i class="hbar-bar" style="width:${rowWidth}%;background:${item.color ?? "var(--blue)"}"></i></span><span class="hbar-value">${escapeHtml(item.display)}</span></div>`;
 		})
 		.join("");
 	return `<div class="chart hbar">${rows}</div>`;
@@ -112,15 +108,21 @@ export function lineChart(
 	const dots = coords
 		.map(
 			(coord) =>
-				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="var(--ink)"/>`,
+				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="var(--muted)"/>`,
 		)
 		.join("");
+	const areaPath = coords
+		.map(
+			(coord, i) =>
+				`${i === 0 ? "M" : "L"}${coord.x.toFixed(1)} ${coord.y.toFixed(1)}`,
+		)
+		.join(" ");
 	const labelsHtml = points
 		.map((point, i) =>
 			i % labelEvery === 0 || i === points.length - 1
-				? `<text x="${coords[i].x.toFixed(1)}" y="${height - 6}" text-anchor="middle" font-size="10" fill="currentColor">${escapeHtml(point.label)}</text>`
+				? `<text x="${coords[i].x.toFixed(1)}" y="${height - 6}" text-anchor="middle" font-size="10" fill="var(--muted)">${escapeHtml(point.label)}</text>`
 				: "",
 		)
 		.join("");
-	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><polyline points="${line}" fill="none" stroke="var(--ink)" stroke-width="3"/>${dots}${labelsHtml}</svg></div>`;
+	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><defs><linearGradient id="pnl-area" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--profit)" stop-opacity="0.24"/><stop offset="1" stop-color="var(--profit)" stop-opacity="0"/></linearGradient></defs><path d="${areaPath} V${height} H0 Z" fill="url(#pnl-area)"/><polyline points="${line}" fill="none" stroke="var(--profit)" stroke-width="2"/>${dots}${labelsHtml}</svg></div>`;
 }

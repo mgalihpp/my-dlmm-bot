@@ -61,7 +61,7 @@ describe("charts", () => {
 		]);
 		expect(html).toContain("hbar-row");
 		expect(html).toContain(">$10<");
-		expect(html).toContain("width:720.0px");
+		expect(html).toContain("width:100.0%");
 	});
 
 	it("lineChart renders polyline and skips single points", () => {
@@ -73,5 +73,7 @@ describe("charts", () => {
 		]);
 		expect(html).toContain("<svg");
 		expect(html).toContain("<polyline");
+		expect(html).toContain('stroke="var(--profit)"');
+		expect(html).toContain("linearGradient");
 	});
 });
