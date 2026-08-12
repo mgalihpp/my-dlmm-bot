@@ -75,6 +75,8 @@ describe("charts", () => {
 		expect(html).toContain("<polyline");
 		expect(html).toContain('stroke="var(--profit)"');
 		expect(html).toContain("linearGradient");
+		expect(html).toContain("<title>a · 1</title>");
+		expect(html).toContain("<title>c · 3</title>");
 	});
 
 	it("lineChart accepts custom stroke color", () => {
