@@ -1,12 +1,9 @@
-import { createServer } from "node:http";
 import {
 	HttpMiddleware,
 	HttpRouter,
-	HttpServer,
 	HttpServerRequest,
 	HttpServerResponse,
 } from "@effect/platform";
-import { NodeHttpServer } from "@effect/platform-node";
 import { Effect, Schema } from "effect";
 import { AppLayer } from "../layers.js";
 import { AppConfig } from "../services/Config.js";
@@ -19,6 +16,7 @@ import {
 } from "./auth.js";
 import { resolveWebConfig } from "./config.js";
 import { contentRegion, loginPage, pageShell } from "./layout.js";
+import { createWebServerProgram } from "./lifecycle.js";
 import { agentContent } from "./pages/agent.js";
 import { poolsContent } from "./pages/pools.js";
 import { portfolioContent } from "./pages/portfolio.js";
@@ -192,19 +190,8 @@ export async function startWebServer(): Promise<void> {
 
 		console.log(`[web] dashboard listening on http://127.0.0.1:${web.port}`);
 		const router = buildRouter(web.password);
-		yield* HttpServer.serveEffect(router, requireAuth(web.password)).pipe(
-			Effect.provide(
-				NodeHttpServer.layer(() => createServer(), { port: web.port }),
-			),
-		);
+		yield* createWebServerProgram(router, web.port, requireAuth(web.password));
 	});
 
-	await Effect.runPromise(
-		Effect.scoped(program.pipe(Effect.provide(AppLayer))),
-	);
+	await Effect.runPromise(program.pipe(Effect.provide(AppLayer)));
 }
-
-startWebServer().catch((error: unknown) => {
-	console.error("[web] failed to start:", error);
-	process.exitCode = 1;
-});
