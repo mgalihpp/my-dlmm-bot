@@ -113,11 +113,7 @@ function equityPanel(history: readonly PortfolioSnapshot[]): string {
 	}
 	const first = points[0];
 	const last = points[points.length - 1];
-	const nearZero = (value: number): boolean => Math.abs(value) < 1e-6;
-	const changePct =
-		nearZero(first.value) || nearZero(last.value)
-			? 0
-			: ((last.value - first.value) / first.value) * 100;
+	const changePct = last.value * 100;
 	const stroke = last.value >= 0 ? CHART_COLORS.profit : CHART_COLORS.loss;
 	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">PNL SOL</span><b>${fmtSol(last.value)} <em class="${pnlClass(changePct)}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points, { stroke })}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
 }

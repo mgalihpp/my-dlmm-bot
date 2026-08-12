@@ -139,28 +139,28 @@ describe("renderPortfolio", () => {
 		);
 		expect(html).toContain("PNL SOL");
 		expect(html).toContain("2.0000 ");
-		expect(html).toContain("+100.00%");
+		expect(html).toContain("+200.00%");
 		expect(html).toContain("<polyline");
 		expect(html).toContain('stroke="var(--profit)"');
 		expect(html).toContain('class="eyebrow"');
 		expect(html).toContain('data-tip="');
 	});
 
-	it("defaults the PnL SOL change to 0% when baseline or value is near zero", () => {
+	it("uses 0 SOL as the baseline for the PnL SOL percent", () => {
 		const html = renderPortfolio(
 			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
 			[
 				{
 					ts: 1_754_000_000,
 					pnlUsd: 0,
-					pnlSol: 0.00000005,
+					pnlSol: 0.000831236,
 					balanceUsd: 100,
 					feesUsd: 5,
 				},
 				{
 					ts: 1_754_000_060,
 					pnlUsd: 0,
-					pnlSol: 0.000831236,
+					pnlSol: 0,
 					balanceUsd: 100,
 					feesUsd: 5,
 				},
