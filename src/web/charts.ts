@@ -77,7 +77,7 @@ export function hBarChart(
 	const rows = items
 		.map((item) => {
 			const rowWidth = ((item.value / max) * width).toFixed(1);
-			return `<div class="hbar-row"><span class="hbar-label">${escapeHtml(item.label)}</span><span class="hbar-track"><i class="hbar-bar" style="width:${rowWidth}px;background:${item.color ?? CHART_COLORS.ink}"></i></span><span class="hbar-value">${escapeHtml(item.display)}</span></div>`;
+			return `<div class="hbar-row"><span class="hbar-label">${escapeHtml(item.label)}</span><span class="hbar-track"><i class="hbar-bar" style="width:${rowWidth}px;background:${item.color ?? "var(--ink)"}"></i></span><span class="hbar-value">${escapeHtml(item.display)}</span></div>`;
 		})
 		.join("");
 	return `<div class="chart hbar">${rows}</div>`;
@@ -112,7 +112,7 @@ export function lineChart(
 	const dots = coords
 		.map(
 			(coord) =>
-				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="${CHART_COLORS.ink}"/>`,
+				`<circle cx="${coord.x.toFixed(1)}" cy="${coord.y.toFixed(1)}" r="2.5" fill="var(--ink)"/>`,
 		)
 		.join("");
 	const labelsHtml = points
@@ -122,5 +122,5 @@ export function lineChart(
 				: "",
 		)
 		.join("");
-	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><polyline points="${line}" fill="none" stroke="${CHART_COLORS.ink}" stroke-width="3"/>${dots}${labelsHtml}</svg></div>`;
+	return `<div class="chart"><svg viewBox="0 0 ${width} ${height}" width="100%" height="${height}" role="img" aria-label="line chart"><polyline points="${line}" fill="none" stroke="var(--ink)" stroke-width="3"/>${dots}${labelsHtml}</svg></div>`;
 }
