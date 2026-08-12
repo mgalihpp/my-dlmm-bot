@@ -108,6 +108,7 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("OLD/SOL");
 		expect(html).toContain("-8.00%");
 		expect(html).toContain("loss");
+		expect(html).toContain('class="loss">0.2000 ');
 	});
 
 	it("shows empty states when no positions", () => {

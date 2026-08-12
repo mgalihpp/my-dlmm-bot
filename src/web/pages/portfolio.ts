@@ -186,6 +186,7 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 	const rows = pools.map((pool) => {
 		const pair = `${pool.tokenX ?? "?"}/${pool.tokenY ?? "?"}`;
 		const pnlPct = parseFloat(pool.pnlPctChange);
+		const pnlSol = parseFloat(pool.pnlSol);
 		const link = `<a href="${escapeHtml(meteoraUrl(pool.poolAddress))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
 		return `<tr>
 <td>${link}</td>
@@ -193,7 +194,7 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 <td>${fmtUsd(pool.totalWithdrawal)}</td>
 <td>${fmtUsd(pool.totalFee)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pool.pnlUsd)}<div class="sub">${fmtPct(pnlPct)}</div></td>
-<td>${fmtSol(pool.pnlSol)}</td>
+<td class="${pnlClass(pnlSol)}">${fmtSol(pool.pnlSol)}</td>
 <td class="mono">${escapeHtml(tsLocal(pool.lastClosedAt))}</td>
 </tr>`;
 	});
