@@ -65,19 +65,13 @@ export function renderPortfolio(
 		(pool) => pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
 	).length;
 
-	const unrealizedSol = data.open.reduce((sum, pool) => {
-		if (pool.pnlSol == null) return sum;
-		const n = parseFloat(pool.pnlSol);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-
 	const cards = [
 		summaryCard(
 			"Total equity",
 			fmtUsd(openBalance),
 			`${data.open.length} open pools`,
 		),
-		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong>${fmtSol(unrealizedSol)}</strong><span class="stat-sub">${data.open.length} open pools</span></div>`,
+		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong>${fmtSol(data.total.totalPnlSol)}</strong><span class="stat-sub">${escapeHtml(fmtPct(data.total.totalPnlSolPctChange))}</span></div>`,
 		summaryCard(
 			"Realized PnL",
 			fmtUsd(data.total.totalPnlUsd),

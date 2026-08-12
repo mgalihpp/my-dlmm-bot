@@ -63,6 +63,8 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("PnL SOL");
 		expect(html).toContain("Realized PnL");
 		expect(html).toContain("$123.45");
+		expect(html).toContain("1.2345 ");
+		expect(html).toContain("+12.34%");
 		expect(html).toContain('class="sol-icon"');
 		expect(html).toContain('class="stats-grid portfolio-stats"');
 		expect(html).toContain('class="grid-two"');
