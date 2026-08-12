@@ -88,6 +88,8 @@ function renderOpen(pools: readonly OpenPool[]): string {
 	const rows = pools.map((pool) => {
 		const pair = `${pool.tokenX ?? "?"}/${pool.tokenY ?? "?"}`;
 		const pnlPct = parseFloat(pool.pnlPctChange);
+		const pnlSolPct =
+			pool.pnlSolPctChange != null ? parseFloat(pool.pnlSolPctChange) : NaN;
 		const range = pool.outOfRange
 			? badge("OOR", "danger")
 			: badge("IN RANGE", "ok");
@@ -98,12 +100,13 @@ function renderOpen(pools: readonly OpenPool[]): string {
 <td>${fmtUsd(pool.balances)}</td>
 <td>${fmtUsd(pool.unclaimedFees)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pool.pnl)}<div class="sub">${fmtPct(pnlPct)}</div></td>
+<td class="${pnlClass(pnlSolPct)}">${fmtSol(pool.pnlSol)}<div class="sub">${pool.pnlSolPctChange != null ? fmtPct(pnlSolPct) : "-"}</div></td>
 <td>${range}<div class="sub">${pool.openPositionCount} position${pool.openPositionCount === 1 ? "" : "s"}</div></td>
 </tr>`;
 	});
 
 	return `<h2>Open Positions <span class="sub">// ${pools.length} pools</span></h2>${table(
-		["Pool", "Bin", "Balance", "Fees", "PnL", "Range"],
+		["Pool", "Bin", "Balance", "Fees", "PnL", "PnL SOL", "Range"],
 		rows,
 	)}`;
 }
