@@ -65,9 +65,26 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("$123.45");
 		expect(html).toContain("1.2345 ");
 		expect(html).toContain("+12.34%");
+		expect(html).toContain('class="profit"');
+		expect(html).toContain('class="stat-sub loss"');
 		expect(html).toContain('class="sol-icon"');
 		expect(html).toContain('class="stats-grid portfolio-stats"');
 		expect(html).toContain('class="grid-two"');
+	});
+
+	it("colors PnL cards red when values are negative", () => {
+		const html = renderPortfolio({
+			total: mkTotal({
+				totalPnlSol: "-0.5",
+				totalPnlSolPctChange: "-2",
+				totalPnlUsd: "-50",
+				totalPnlPctChange: "-5",
+			}),
+			open: [],
+			closed: [],
+		});
+		expect(html).toContain('<strong class="loss">-0.5000');
+		expect(html).toContain('<strong class="loss">$-50.00');
 	});
 
 	it("renders open position rows with escaped pool name and badges", () => {

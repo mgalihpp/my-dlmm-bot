@@ -71,12 +71,8 @@ export function renderPortfolio(
 			fmtUsd(openBalance),
 			`${data.open.length} open pools`,
 		),
-		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong>${fmtSol(data.total.totalPnlSol)}</strong><span class="stat-sub">${escapeHtml(fmtPct(data.total.totalPnlSolPctChange))}</span></div>`,
-		summaryCard(
-			"Realized PnL",
-			fmtUsd(data.total.totalPnlUsd),
-			fmtPct(data.total.totalPnlPctChange),
-		),
+		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong class="${pnlClass(parseFloat(data.total.totalPnlSol))}">${fmtSol(data.total.totalPnlSol)}</strong><span class="stat-sub ${pnlClass(parseFloat(data.total.totalPnlSolPctChange))}">${escapeHtml(fmtPct(data.total.totalPnlSolPctChange))}</span></div>`,
+		`<div class="stat"><span class="eyebrow">Realized PnL</span><strong class="${pnlClass(parseFloat(data.total.totalPnlUsd))}">${fmtUsd(data.total.totalPnlUsd)}</strong><span class="stat-sub ${pnlClass(parseFloat(data.total.totalPnlPctChange))}">${escapeHtml(fmtPct(data.total.totalPnlPctChange))}</span></div>`,
 		summaryCard(
 			"Unclaimed fees",
 			fmtUsd(openFees),
