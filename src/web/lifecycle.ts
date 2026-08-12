@@ -19,7 +19,7 @@ export function createWebServerProgram<E, R>(
 	return Effect.scoped(
 		Effect.provide(
 			served.pipe(Effect.flatMap(() => Effect.never)),
-			NodeHttpServer.layer(() => createServer(), { port }),
+			NodeHttpServer.layer(() => createServer(), { port, host: "127.0.0.1" }),
 		),
 	) as Effect.Effect<never, unknown, R>;
 }
