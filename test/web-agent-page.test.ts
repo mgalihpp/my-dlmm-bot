@@ -169,7 +169,7 @@ describe("renderAgent", () => {
 		});
 		expect(html).toContain("Cycles");
 		expect(html).toContain('class="agent-banner"');
-		expect(html).toContain('class="stats-grid"');
+		expect(html).toContain('class="stats-grid agent-stats"');
 		expect(html).toContain("Decision context");
 		expect(html).toContain("DECISIONS / CYCLE");
 		expect(html).toContain(">1<");
@@ -204,7 +204,21 @@ describe("renderAgent", () => {
 		expect(html).toContain("No journal entries");
 	});
 
-	it("renders sparkline when 2+ cycles", () => {
+	it("renders tp and sl stat cards", () => {
+		const html = renderAgent(
+			[
+				mkEntry(1, [mkCandidate({ action: "tp" })]),
+				mkEntry(2, [mkCandidate({ action: "sl" })]),
+			],
+			null,
+			{ action: "all", page: 1 },
+		);
+		expect(html).toContain("Take profit");
+		expect(html).toContain("Stop loss");
+		expect(html).toContain("<strong>1</strong>");
+	});
+
+	it("does not render the successful-opens sparkline card", () => {
 		const html = renderAgent(
 			[
 				mkEntry(1, [mkCandidate({ action: "open" })]),
@@ -213,7 +227,7 @@ describe("renderAgent", () => {
 			null,
 			{ action: "all", page: 1 },
 		);
-		expect(html).toContain("<svg");
+		expect(html).not.toContain("SUCCESSFUL OPENS / CYCLE");
 	});
 
 	it("escapes journal pool names", () => {

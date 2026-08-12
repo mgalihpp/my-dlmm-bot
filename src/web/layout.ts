@@ -81,7 +81,7 @@ export function pageShell(params: PageShellParams): string {
 			<div class="top-actions">
 				<div class="live"><span class="dot green"></span>LIVE<small>Updated ${updated}</small></div>
 				<button class="icon-button" type="button" aria-label="Refresh dashboard" title="Refresh dashboard" onclick="window.location.reload()"><svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M20 11a8.1 8.1 0 0 0-15.5-2M4 5v4h4"/><path d="M4 13a8.1 8.1 0 0 0 15.5 2M20 19v-4h-4"/></svg></button>
-				<button class="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme" onclick="toggleTheme()">&#9790;</button>
+				<button class="theme-toggle" type="button" aria-label="Toggle color theme" title="Toggle color theme" onclick="toggleTheme()"><svg class="icon-sun" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg class="icon-moon" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
 				<span class="avatar" aria-label="Vexis account">VX</span>
 			</div>
 		</header>
@@ -147,7 +147,7 @@ export function loginPage(opts: { error?: string | null } = {}): string {
 <style>${themeCss}</style>
 </head>
 <body>
-<button class="login-theme" type="button" aria-label="Toggle color theme" onclick="toggleTheme()">&#9790; Theme</button>
+<button class="login-theme" type="button" aria-label="Toggle color theme" onclick="toggleTheme()"><svg class="icon-sun" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg><svg class="icon-moon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>Theme</button>
 <main class="login-layout">
 	<div class="login-card">
 		<section class="login-copy">

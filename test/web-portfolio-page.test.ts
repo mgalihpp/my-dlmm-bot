@@ -63,8 +63,9 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("Unrealized PnL");
 		expect(html).toContain("PnL SOL");
 		expect(html).toContain("$123.45");
-		expect(html).toContain("1.235 ◎");
-		expect(html).toContain('class="stats-grid"');
+		expect(html).toContain("1.235 ");
+		expect(html).toContain('class="sol-icon"');
+		expect(html).toContain('class="stats-grid portfolio-stats"');
 		expect(html).toContain('class="grid-two"');
 	});
 
@@ -95,6 +96,70 @@ describe("renderPortfolio", () => {
 		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
 		expect(html).toContain("No open positions");
 		expect(html).toContain("No closed positions");
+	});
+
+	it("renders equity curve from total equity snapshots", () => {
+		const html = renderPortfolio(
+			{ total: mkTotal(), open: [mkOpen({ balances: "100" })], closed: [] },
+			[
+				{
+					ts: 1_754_000_000,
+					pnlUsd: 10,
+					pnlSol: 1,
+					balanceUsd: 100,
+					feesUsd: 5,
+				},
+				{
+					ts: 1_754_000_060,
+					pnlUsd: 20,
+					pnlSol: 2,
+					balanceUsd: 120,
+					feesUsd: 5,
+				},
+			],
+		);
+		expect(html).toContain("TOTAL EQUITY");
+		expect(html).toContain("$120.00");
+		expect(html).toContain("+20.00%");
+		expect(html).toContain("<polyline");
+		expect(html).toContain('class="eyebrow tooltip"');
+		expect(html).toContain("Balance $100.00");
+	});
+
+	it("lists open positions with total pnl in SOL in allocation panel", () => {
+		const html = renderPortfolio({
+			total: mkTotal(),
+			open: [
+				mkOpen({ tokenX: "AAA", tokenY: "SOL", pnlSol: "0.15" }),
+				mkOpen({ tokenX: "BBB", tokenY: "SOL", pnlSol: "0.2" }),
+			],
+			closed: [],
+		});
+		expect(html).toContain("OPEN POSITIONS");
+		expect(html).toContain("AAA/SOL");
+		expect(html).toContain("0.150 ");
+		expect(html).toContain("0.200 ");
+		expect(html).toContain("TOTAL PNL");
+		expect(html).toContain("0.350 ");
+		expect(html).toContain('class="allocation-ring"');
+	});
+
+	it("shows out-of-range stat card", () => {
+		const html = renderPortfolio({
+			total: mkTotal(),
+			open: [
+				mkOpen({
+					openPositionCount: 2,
+					positionsOutOfRange: ["p1", "p2"],
+					outOfRange: true,
+				}),
+				mkOpen({ openPositionCount: 1 }),
+			],
+			closed: [],
+		});
+		expect(html).toContain("Out of range");
+		expect(html).toContain("<strong>2</strong>");
+		expect(html).toContain("1 of 2 pools");
 	});
 
 	it("computes totals from open pools", () => {

@@ -15,6 +15,7 @@ import {
 	fmtUsd,
 	meteoraUrl,
 	pnlClass,
+	solIcon,
 	solscanUrl,
 	sparkline,
 	statsGrid,
@@ -44,8 +45,8 @@ describe("format helpers", () => {
 		expect(fmtPct(null)).toBe("-");
 	});
 
-	it("fmtSol adds SOL symbol", () => {
-		expect(fmtSol("1.2345")).toBe("1.235 ◎");
+	it("fmtSol adds SOL icon", () => {
+		expect(fmtSol("1.2345")).toBe(`1.235 ${solIcon()}`);
 		expect(fmtSol(null)).toBe("-");
 	});
 

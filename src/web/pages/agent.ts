@@ -11,7 +11,6 @@ import {
 	type BadgeKind,
 	badge,
 	solscanUrl,
-	sparkline,
 	statsGrid,
 	summaryCard,
 	table,
@@ -194,19 +193,9 @@ export function renderAgent(
 		),
 		summaryCard("Blocked", String(stats.blocked), "guardrail prevented"),
 		summaryCard("Success rate", `${stats.successRate}%`, "open decision rate"),
+		summaryCard("Take profit", String(stats.tp), "target hit"),
+		summaryCard("Stop loss", String(stats.sl), "risk cut"),
 	];
-
-	const opensPerCycle = journal.map(
-		(entry) =>
-			entry.candidates.filter(
-				(candidate) =>
-					candidate.action === "open" && candidate.execution === "ok",
-			).length,
-	);
-	const trend =
-		sparkline(opensPerCycle) === ""
-			? ""
-			: `<div class="sparkline-card"><div class="sub">SUCCESSFUL OPENS / CYCLE</div>${sparkline(opensPerCycle)}</div>`;
 
 	const rows = journalRows(journal, opts.action);
 	const paged = paginate(rows, opts.page, JOURNAL_PAGE_SIZE);
@@ -217,8 +206,7 @@ ${sectionHead(
 	`${rows.length} entries / filter ${opts.action}`,
 )}
 <div class="agent-banner"><div class="agent-status"><span class="pulse ${state?.running ? "active" : ""}"></span><div><span class="eyebrow">AUTOMATION ENGINE</span><h2>${status}</h2><p class="muted">${lastActivity ? `Last cycle completed ${tsLocal(lastActivity)}` : "No cycles recorded yet"}</p></div></div><span class="badge ${state?.running ? "pass" : "neutral"}">${state?.running ? "LIVE" : "STOPPED"}</span></div>
-${statsGrid(cards)}
-${trend}
+${statsGrid(cards, "agent-stats")}
 <div class="grid-two">${briefingPanel(stats, journal)}${cycleChart(journal)}</div>
 <h2>Decision Journal <span class="sub">// ${rows.length} entries</span></h2>
 ${journalFilterForm(opts.action)}

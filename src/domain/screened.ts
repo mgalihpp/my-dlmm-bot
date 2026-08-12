@@ -26,6 +26,7 @@ export interface ScreenedPool {
 	fromAthPct: number | null;
 	tokenXAddress: string;
 	rugScore?: number | null;
+	priceSeries?: number[] | null;
 	bundlePct?: number | null;
 	top10Pct?: number | null;
 	botHoldersPct?: number | null;

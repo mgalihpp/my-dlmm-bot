@@ -75,4 +75,30 @@ describe("renderPools", () => {
 		expect(html).toContain('value="30m"');
 		expect(html).not.toContain('value="30m" selected');
 	});
+
+	it("badges low rug score as good and high as risky", () => {
+		const low = renderPools(mkResult([mkPool({ rugScore: 5 })]), {
+			timeframe: "5m",
+		});
+		expect(low).toContain('<span class="badge pass">5</span>');
+		const mid = renderPools(mkResult([mkPool({ rugScore: 600 })]), {
+			timeframe: "5m",
+		});
+		expect(mid).toContain('<span class="badge review">600</span>');
+		const high = renderPools(mkResult([mkPool({ rugScore: 2000 })]), {
+			timeframe: "5m",
+		});
+		expect(high).toContain('<span class="badge blocked">2000</span>');
+		expect(low).not.toContain(">blocked<");
+	});
+
+	it("renders trend as sparkline plus percentage", () => {
+		const html = renderPools(
+			mkResult([mkPool({ priceChangePct: 5.5, priceSeries: [1, 1.2, 1.1] })]),
+			{ timeframe: "5m" },
+		);
+		expect(html).toContain('class="trend-cell profit"');
+		expect(html).toContain("<polyline");
+		expect(html).toContain("+5.50%");
+	});
 });

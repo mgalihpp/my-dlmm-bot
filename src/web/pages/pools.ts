@@ -15,6 +15,7 @@ import {
 	fmtUsd,
 	meteoraUrl,
 	pnlClass,
+	sparkline,
 	table,
 } from "../templates.js";
 
@@ -85,13 +86,24 @@ function renderPoolTable(pools: readonly ScreenedPool[]): string {
 				? badge("N/A", "neutral")
 				: badge(
 						String(pool.rugScore),
-						pool.rugScore >= 70 ? "pass" : "blocked",
+						pool.rugScore <= 250
+							? "pass"
+							: pool.rugScore <= 1250
+								? "review"
+								: "blocked",
 					);
 		const fromAth =
 			pool.fromAthPct === null || pool.fromAthPct === undefined
 				? "-"
 				: `${(pool.fromAthPct * 100).toFixed(1)}%`;
 		const trendClass = pnlClass(pool.priceChangePct ?? 0);
+		const series =
+			pool.priceSeries?.filter((value) => Number.isFinite(value)) ?? [];
+		const trend = `<span class="trend-cell ${trendClass}">${sparkline(
+			series,
+			64,
+			22,
+		)}${fmtPct(pool.priceChangePct)}</span>`;
 		return `<tr>
 <td>${link}<div class="sub mono">${escapeHtml(pool.pool.slice(0, 8))}...</div></td>
 <td class="mono">${escapeHtml(formatNum(pool.price, 6))}</td>
@@ -103,7 +115,7 @@ function renderPoolTable(pools: readonly ScreenedPool[]): string {
 <td>${badge(String(pool.organicScore), organicKind)}</td>
 <td>${rug}</td>
 <td>${escapeHtml(fromAth)}</td>
-<td class="${trendClass}">${fmtPct(pool.priceChangePct)}</td>
+<td>${trend}</td>
 </tr>`;
 	});
 

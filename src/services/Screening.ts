@@ -74,6 +74,8 @@ const make = Effect.gen(function* () {
 									(pool as { priceVsAthPct: number }).priceVsAthPct =
 										(pool.price / high) * 100;
 								}
+								(pool as { priceSeries: number[] | null }).priceSeries =
+									res.data.map((c) => c.close).slice(-48);
 							}),
 							Effect.catchAll(() => Effect.succeed(void 0)),
 						),

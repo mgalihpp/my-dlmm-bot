@@ -57,6 +57,13 @@ export function renderPortfolio(
 		(sum, pool) => sum + pool.openPositionCount,
 		0,
 	);
+	const oorPositions = data.open.reduce(
+		(sum, pool) => sum + pool.positionsOutOfRange.length,
+		0,
+	);
+	const oorPools = data.open.filter(
+		(pool) => pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
+	).length;
 
 	const cards = [
 		summaryCard(
@@ -69,27 +76,25 @@ export function renderPortfolio(
 			fmtUsd(data.total.totalPnlUsd),
 			fmtPct(data.total.totalPnlPctChange),
 		),
-		summaryCard(
-			"PnL SOL",
-			fmtSol(data.total.totalPnlSol),
-			fmtPct(data.total.totalPnlSolPctChange),
-		),
+		`<div class="stat"><span class="eyebrow">PnL SOL</span><strong>${fmtSol(data.total.totalPnlSol)}</strong><span class="stat-sub">${escapeHtml(fmtPct(data.total.totalPnlSolPctChange))}</span></div>`,
 		summaryCard(
 			"Unclaimed fees",
 			fmtUsd(openFees),
 			`${openCount} active positions`,
 		),
+		summaryCard(
+			"Out of range",
+			String(oorPositions),
+			`${oorPools} of ${data.open.length} pools`,
+		),
 	];
-	const totalPnl = parseFloat(data.total.totalPnlUsd);
-	const pnlPct = parseFloat(data.total.totalPnlPctChange);
-
 	return `<section>
 ${sectionHead(
 	"ACCOUNT EQUITY",
 	`Automated DLMM positions · ${data.open.length} pools / ${openCount} positions`,
 )}
-${statsGrid(cards)}
-<div class="grid-two">${equityPanel(history, totalPnl, pnlPct)}${allocationPanel(openBalance, openFees)}</div>
+${statsGrid(cards, "portfolio-stats")}
+<div class="grid-two">${equityPanel(history, openBalance, openFees)}${allocationPanel(data.open, openBalance, openFees)}</div>
 ${renderOpen(data.open)}
 ${renderClosed(data.closed)}
 </section>`;
@@ -101,23 +106,33 @@ function sectionHead(kicker: string, sub: string): string {
 
 function equityPanel(
 	history: readonly PortfolioSnapshot[],
-	totalPnl: number,
-	pnlPct: number,
+	balanceUsd: number,
+	feesUsd: number,
 ): string {
+	const tip = `Balance ${fmtUsd(balanceUsd)} · Fees ${fmtUsd(feesUsd)}`;
 	const points = history
-		.filter((snap) => snap.pnlUsd !== null)
+		.filter((snap) => snap.balanceUsd !== null)
 		.slice(-48)
-		.map((snap) => ({ label: tsLocal(snap.ts), value: snap.pnlUsd as number }));
-	const tone = pnlClass(pnlPct);
+		.map((snap) => ({
+			label: tsLocal(snap.ts),
+			value: snap.balanceUsd as number,
+		}));
 	if (points.length < 2) {
-		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">EQUITY CURVE</span><b>${fmtUsd(totalPnl)} <em class="${tone}">${fmtPct(pnlPct)}</em></b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No equity history yet</div></div>`;
+		return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">TOTAL EQUITY</span><b>${fmtUsd(points.at(-1)?.value)}</b></div><span class="muted small">${points.length} snapshot${points.length === 1 ? "" : "s"}</span></div><div class="empty">No equity history yet</div></div>`;
 	}
 	const first = points[0];
 	const last = points[points.length - 1];
-	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow">EQUITY CURVE</span><b>${fmtUsd(last.value)} <em class="${tone}">${fmtPct(pnlPct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points)}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
+	const changePct =
+		first.value !== 0 ? ((last.value - first.value) / first.value) * 100 : 0;
+	const tone = pnlClass(changePct);
+	return `<div class="panel chart-panel"><div class="panel-head"><div><span class="eyebrow tooltip" data-tip="${tip}">TOTAL EQUITY</span><b>${fmtUsd(last.value)} <em class="${tone}">${fmtPct(changePct)}</em></b></div><span class="muted small">Updated ${escapeHtml(last.label)}</span></div>${lineChart(points)}<div class="chart-labels"><span>${escapeHtml(first.label)}</span><span>${escapeHtml(last.label)}</span></div></div>`;
 }
 
-function allocationPanel(balanceUsd: number, feesUsd: number): string {
+function allocationPanel(
+	open: readonly OpenPool[],
+	balanceUsd: number,
+	feesUsd: number,
+): string {
 	const total = balanceUsd + feesUsd;
 	const balancePct = total > 0 ? (balanceUsd / total) * 100 : 0;
 	const feesPct = total > 0 ? (feesUsd / total) * 100 : 0;
@@ -125,7 +140,20 @@ function allocationPanel(balanceUsd: number, feesUsd: number): string {
 		total > 0
 			? `background: conic-gradient(var(--profit) 0 ${balancePct.toFixed(1)}%, var(--gold) ${balancePct.toFixed(1)}% ${(balancePct + feesPct).toFixed(1)}%, var(--legend-muted) ${(balancePct + feesPct).toFixed(1)}% 100%)`
 			: "background: var(--legend-muted)";
-	return `<div class="panel allocation"><div class="panel-head"><span class="eyebrow">ALLOCATION</span><span class="muted small">Position value</span></div><div class="allocation-ring" style="${ring}"><div><b>${fmtUsd(total)}</b><small>POSITION VALUE</small></div></div><div class="legend"><span><i class="legend-green"></i>Balance<b>${fmtUsd(balanceUsd)}</b></span><span><i class="legend-gold"></i>Unclaimed fees<b>${fmtUsd(feesUsd)}</b></span></div></div>`;
+	const rows = open.map((pool) => {
+		const sol = pool.pnlSol != null ? parseFloat(pool.pnlSol) : NaN;
+		const value = Number.isNaN(sol) ? null : sol;
+		return `<span><b class="pair">${escapeHtml(pool.tokenX ?? "?")}/${escapeHtml(pool.tokenY ?? "?")}</b><em class="${value !== null ? pnlClass(value) : ""}">${value !== null ? fmtSol(value) : "-"}</em></span>`;
+	});
+	const totalSol = open.reduce((sum, pool) => {
+		if (pool.pnlSol == null) return sum;
+		const n = parseFloat(pool.pnlSol);
+		return Number.isNaN(n) ? sum : sum + n;
+	}, 0);
+	if (open.length === 0) {
+		return `<div class="panel allocation"><div class="panel-head"><span class="eyebrow">OPEN POSITIONS</span><span class="muted small">0 pools</span></div><div class="allocation-ring" style="${ring}"><div><b>${fmtUsd(total)}</b><small>POSITION VALUE</small></div></div><div class="empty">No open positions</div></div>`;
+	}
+	return `<div class="panel allocation"><div class="panel-head"><span class="eyebrow">OPEN POSITIONS</span><span class="muted small">${open.length} pools</span></div><div class="allocation-ring" style="${ring}"><div><b>${fmtUsd(total)}</b><small>POSITION VALUE</small></div></div><div class="legend"><span><i class="legend-green"></i>Balance<b>${fmtUsd(balanceUsd)}</b></span><span><i class="legend-gold"></i>Unclaimed fees<b>${fmtUsd(feesUsd)}</b></span></div><div class="allocation-list">${rows.join("\n")}</div><div class="allocation-total"><span>TOTAL PNL</span><b class="${pnlClass(totalSol)}">${fmtSol(totalSol)}</b></div></div>`;
 }
 
 function renderOpen(pools: readonly OpenPool[]): string {
