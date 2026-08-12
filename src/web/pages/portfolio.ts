@@ -65,14 +65,25 @@ export function renderPortfolio(
 		(pool) => pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
 	).length;
 
+	const unrealizedUsd = data.open.reduce((sum, pool) => {
+		const n = parseFloat(pool.pnl);
+		return Number.isNaN(n) ? sum : sum + n;
+	}, 0);
+	const unrealizedSol = data.open.reduce((sum, pool) => {
+		if (pool.pnlSol == null) return sum;
+		const n = parseFloat(pool.pnlSol);
+		return Number.isNaN(n) ? sum : sum + n;
+	}, 0);
+
 	const cards = [
 		summaryCard(
 			"Total equity",
 			fmtUsd(openBalance),
 			`${data.open.length} open pools`,
 		),
+		summaryCard("Unrealized PnL", fmtUsd(unrealizedUsd), fmtSol(unrealizedSol)),
 		summaryCard(
-			"Unrealized PnL",
+			"Realized PnL",
 			fmtUsd(data.total.totalPnlUsd),
 			fmtPct(data.total.totalPnlPctChange),
 		),
@@ -238,10 +249,6 @@ export const portfolioContent: Effect.Effect<
 		.totalPnl(wallet)
 		.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
 
-	const toNum = (value: string): number | null => {
-		const parsed = parseFloat(value);
-		return Number.isNaN(parsed) ? null : parsed;
-	};
 	const openBalance = open.reduce(
 		(sum, pool) => sum + parseFloat(pool.balances || "0"),
 		0,
@@ -250,11 +257,20 @@ export const portfolioContent: Effect.Effect<
 		(sum, pool) => sum + parseFloat(pool.unclaimedFees || "0"),
 		0,
 	);
+	const unrealizedUsd = open.reduce((sum, pool) => {
+		const n = parseFloat(pool.pnl);
+		return Number.isNaN(n) ? sum : sum + n;
+	}, 0);
+	const unrealizedSol = open.reduce((sum, pool) => {
+		if (pool.pnlSol == null) return sum;
+		const n = parseFloat(pool.pnlSol);
+		return Number.isNaN(n) ? sum : sum + n;
+	}, 0);
 	yield* Effect.sync(() =>
 		recordSnapshot({
 			ts: Math.floor(Date.now() / 1000),
-			pnlUsd: toNum(total.totalPnlUsd),
-			pnlSol: toNum(total.totalPnlSol),
+			pnlUsd: unrealizedUsd,
+			pnlSol: unrealizedSol,
 			balanceUsd: openBalance,
 			feesUsd: openFees,
 		}),
