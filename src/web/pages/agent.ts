@@ -12,6 +12,7 @@ import {
 	badge,
 	solscanUrl,
 	sparkline,
+	statsGrid,
 	summaryCard,
 	table,
 	tsLocal,
@@ -148,21 +149,22 @@ export function paginate<T>(
 
 function actionBadge(candidate: JournalCandidate): string {
 	let kind: BadgeKind = "neutral";
-	if (candidate.action === "open") kind = "ok";
-	if (candidate.action === "hold") kind = "warn";
-	if (candidate.action === "tp") kind = "neutral";
-	if (candidate.action === "sl") kind = "danger";
+	if (candidate.action === "open") kind = "pass";
+	if (candidate.action === "hold") kind = "hold";
+	if (candidate.action === "tp") kind = "pass";
+	if (candidate.action === "sl") kind = "blocked";
+	if (candidate.action === "close") kind = "blocked";
 	return badge(candidate.action, kind);
 }
 
 function guardrailBadge(candidate: JournalCandidate): string {
 	return candidate.guardrail === "blocked"
-		? badge("blocked", "danger")
-		: badge("pass", "ok");
+		? badge("blocked", "blocked")
+		: badge("pass", "pass");
 }
 
 function executionText(candidate: JournalCandidate): string {
-	if (candidate.execution === "failed") return badge("failed", "danger");
+	if (candidate.execution === "failed") return badge("failed", "blocked");
 	if (candidate.execution === "ok" && candidate.txSignature) {
 		const signature = candidate.txSignature;
 		return `<a href="${escapeHtml(solscanUrl(signature))}" target="_blank" rel="noopener" class="mono">${escapeHtml(signature.slice(0, 12))}...</a>`;
@@ -181,24 +183,18 @@ export function renderAgent(
 	opts: AgentViewOptions,
 ): string {
 	const stats = agentStats(journal);
-	const status = state?.running
-		? badge("running", "ok")
-		: badge("stopped", "neutral");
+	const lastActivity = state?.lastCycleAt ?? journal.at(-1)?.ts ?? null;
+	const status = state?.running ? "Agent is running" : "Agent is stopped";
 	const cards = [
 		summaryCard("Cycles", String(stats.cycles), `cycle ${state?.cycle ?? 0}`),
 		summaryCard(
 			"Opens",
 			String(stats.opens),
-			`${stats.successRate}% decision rate`,
+			`${stats.successRate}% of decisions`,
 		),
-		summaryCard(
-			"Holds",
-			String(stats.holds),
-			`${stats.blocked} guardrail blocks`,
-		),
-		summaryCard("TP", String(stats.tp), `${stats.failed} failed executions`),
-		summaryCard("SL", String(stats.sl), "stop-loss hits"),
-	].join("\n");
+		summaryCard("Blocked", String(stats.blocked), "guardrail prevented"),
+		summaryCard("Success rate", `${stats.successRate}%`, "open decision rate"),
+	];
 
 	const opensPerCycle = journal.map(
 		(entry) =>
@@ -216,16 +212,34 @@ export function renderAgent(
 	const paged = paginate(rows, opts.page, JOURNAL_PAGE_SIZE);
 
 	return `<section>
-<div class="section-kicker">AUTOMATION JOURNAL // CYCLE ${state?.cycle ?? 0}</div>
-<h1>Agent Log ${status}</h1>
-<div class="cards">${cards}</div>
+${sectionHead(
+	`AUTOMATION JOURNAL / CYCLE ${state?.cycle ?? 0}`,
+	`${rows.length} entries / filter ${opts.action}`,
+)}
+<div class="agent-banner"><div class="agent-status"><span class="pulse ${state?.running ? "active" : ""}"></span><div><span class="eyebrow">AUTOMATION ENGINE</span><h2>${status}</h2><p class="muted">${lastActivity ? `Last cycle completed ${tsLocal(lastActivity)}` : "No cycles recorded yet"}</p></div></div><span class="badge ${state?.running ? "pass" : "neutral"}">${state?.running ? "LIVE" : "STOPPED"}</span></div>
+${statsGrid(cards)}
 ${trend}
-${cycleChart(journal)}
+<div class="grid-two">${briefingPanel(stats, journal)}${cycleChart(journal)}</div>
 <h2>Decision Journal <span class="sub">// ${rows.length} entries</span></h2>
 ${journalFilterForm(opts.action)}
 ${journal.length === 0 ? `<div class="empty">No journal entries</div>` : renderJournalTable(paged.rows)}
 ${paginationLinks(opts.action, paged)}
 </section>`;
+}
+
+function sectionHead(kicker: string, sub: string): string {
+	return `<div class="section-head"><div><p class="kicker">${escapeHtml(kicker)}</p><p class="muted">${escapeHtml(sub)}</p></div></div>`;
+}
+
+function briefingPanel(
+	stats: AgentStats,
+	journal: readonly AgentJournalEntry[],
+): string {
+	const copy =
+		journal.length === 0
+			? "No decision cycles have been recorded yet."
+			: `${stats.opens} open decisions across ${stats.cycles} cycles. ${stats.blocked} candidates were stopped by guardrails before execution.`;
+	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">LATEST RUN</span><b>Decision context</b></div>${badge(journal.length > 0 ? "DATA READY" : "NO DATA", journal.length > 0 ? "pass" : "neutral")}</div><p class="briefing">${escapeHtml(copy)}</p><div class="briefing-tags">${badge(`${stats.blocked} BLOCKED`, stats.blocked > 0 ? "review" : "neutral")}<span class="muted small">Read-only journal analysis</span></div></div>`;
 }
 
 function cycleChart(journal: readonly AgentJournalEntry[]): string {
@@ -239,15 +253,15 @@ function cycleChart(journal: readonly AgentJournalEntry[]): string {
 						candidate.action === action && candidate.execution === "ok",
 				).length,
 		);
-	return `<div class="sub">DECISIONS / CYCLE // LAST ${recent.length}</div>${barChart(
+	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">DECISIONS / CYCLE</span><b>Last ${recent.length} cycles</b></div><span class="muted small">Successful executions</span></div>${barChart(
 		recent.map((entry) => `#${entry.cycle}`),
 		[
-			{ name: "open", color: CHART_COLORS.acid, values: count("open") },
+			{ name: "open", color: CHART_COLORS.profit, values: count("open") },
 			{ name: "tp", color: CHART_COLORS.gold, values: count("tp") },
-			{ name: "sl", color: CHART_COLORS.coral, values: count("sl") },
+			{ name: "sl", color: CHART_COLORS.loss, values: count("sl") },
 			{ name: "close", color: CHART_COLORS.blue, values: count("close") },
 		],
-	)}`;
+	)}</div>`;
 }
 
 function journalFilterForm(action: JournalFilter): string {
@@ -308,6 +322,7 @@ function renderJournalTable(rows: readonly JournalRow[]): string {
 	return table(
 		["Cycle", "Time", "Pool", "Action", "Guardrail", "Execution"],
 		[body],
+		"journal-table",
 	);
 }
 

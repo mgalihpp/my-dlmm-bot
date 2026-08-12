@@ -24,18 +24,23 @@ export function renderPools(
 	result: ScreenResult,
 	opts: { timeframe: string },
 ): string {
-	const countLine = `<div class="section-kicker">${result.pools.length} shown / ${result.total} total / ${result.filtered} filtered</div>`;
 	const content =
 		result.pools.length === 0
-			? `${countLine}<div class="empty">No pools found</div>`
-			: `${countLine}${tvlChart(result.pools)}${renderPoolTable(result.pools)}`;
+			? `<div class="empty">No pools found</div>`
+			: `${tvlChart(result.pools)}${renderPoolTable(result.pools)}`;
 
 	return `<section>
-<div class="section-kicker">DISCOVERY API // SCREENED CANDIDATES</div>
-<h1>Pool Radar</h1>
+${sectionHead(
+	`MARKET SCANNER / ${result.total} POOLS`,
+	`${result.pools.length} shown / ${result.filtered} filtered / ${opts.timeframe} timeframe`,
+)}
 ${filterForm(opts.timeframe)}
 ${content}
 </section>`;
+}
+
+function sectionHead(kicker: string, sub: string): string {
+	return `<div class="section-head"><div><p class="kicker">${escapeHtml(kicker)}</p><p class="muted">${escapeHtml(sub)}</p></div></div>`;
 }
 
 function tvlChart(pools: readonly ScreenedPool[]): string {
@@ -43,14 +48,14 @@ function tvlChart(pools: readonly ScreenedPool[]): string {
 		.sort((a, b) => (b.tvl ?? 0) - (a.tvl ?? 0))
 		.slice(0, 10);
 	if (top.length === 0) return "";
-	return `<div class="sub">TVL DISTRIBUTION // TOP ${top.length}</div>${hBarChart(
+	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">TVL DISTRIBUTION</span><b>Top ${top.length} screened pools</b></div><span class="muted small">USD</span></div>${hBarChart(
 		top.map((pool) => ({
 			label: pool.name || pool.baseSymbol || pool.pool.slice(0, 8),
 			value: pool.tvl ?? 0,
 			display: fmtUsd(pool.tvl),
 			color: CHART_COLORS.blue,
 		})),
-	)}`;
+	)}</div>`;
 }
 
 function filterForm(timeframe: string): string {
@@ -71,14 +76,17 @@ function renderPoolTable(pools: readonly ScreenedPool[]): string {
 		const link = `<a href="${escapeHtml(meteoraUrl(pool.pool))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
 		const organicKind =
 			pool.organicScore >= 80
-				? "ok"
+				? "pass"
 				: pool.organicScore >= 60
-					? "warn"
-					: "danger";
+					? "review"
+					: "blocked";
 		const rug =
 			pool.rugScore === null || pool.rugScore === undefined
 				? badge("N/A", "neutral")
-				: badge(String(pool.rugScore), pool.rugScore >= 70 ? "ok" : "danger");
+				: badge(
+						String(pool.rugScore),
+						pool.rugScore >= 70 ? "pass" : "blocked",
+					);
 		const fromAth =
 			pool.fromAthPct === null || pool.fromAthPct === undefined
 				? "-"
@@ -114,6 +122,7 @@ function renderPoolTable(pools: readonly ScreenedPool[]): string {
 			"Trend",
 		],
 		rows,
+		"radar-table",
 	);
 }
 

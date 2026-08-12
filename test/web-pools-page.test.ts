@@ -46,7 +46,8 @@ describe("renderPools", () => {
 	it("renders counts and timeframe selection", () => {
 		const html = renderPools(mkResult([mkPool()]), { timeframe: "30m" });
 		expect(html).toContain("1 shown");
-		expect(html).toContain("120 total");
+		expect(html).toContain("120 POOLS");
+		expect(html).toContain("3 filtered");
 		for (const timeframe of TIMEFRAMES) {
 			expect(html).toContain(`value="${timeframe}"`);
 		}

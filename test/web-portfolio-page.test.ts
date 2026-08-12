@@ -58,12 +58,14 @@ const mkClosed = (over: Partial<ClosedPool> = {}): ClosedPool => ({
 });
 
 describe("renderPortfolio", () => {
-	it("renders summary cards with PnL", () => {
+	it("renders terminal stats and portfolio values", () => {
 		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
-		expect(html).toContain("PnL USD");
+		expect(html).toContain("Unrealized PnL");
 		expect(html).toContain("PnL SOL");
 		expect(html).toContain("$123.45");
 		expect(html).toContain("1.235 ◎");
+		expect(html).toContain('class="stats-grid"');
+		expect(html).toContain('class="grid-two"');
 	});
 
 	it("renders open position rows with escaped pool name and badges", () => {
@@ -86,7 +88,7 @@ describe("renderPortfolio", () => {
 		});
 		expect(html).toContain("OLD/SOL");
 		expect(html).toContain("-8.00%");
-		expect(html).toContain("neg");
+		expect(html).toContain("loss");
 	});
 
 	it("shows empty states when no positions", () => {

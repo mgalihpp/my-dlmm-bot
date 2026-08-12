@@ -168,6 +168,10 @@ describe("renderAgent", () => {
 			page: 1,
 		});
 		expect(html).toContain("Cycles");
+		expect(html).toContain('class="agent-banner"');
+		expect(html).toContain('class="stats-grid"');
+		expect(html).toContain("Decision context");
+		expect(html).toContain("DECISIONS / CYCLE");
 		expect(html).toContain(">1<");
 		expect(html).toContain("Token/SOL");
 		expect(html).toContain(">open<");
