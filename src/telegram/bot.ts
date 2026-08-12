@@ -99,17 +99,17 @@ async function main() {
 	bot.command("start", (ctx) => ctx.reply(HELP, MD));
 	bot.command("help", (ctx) => ctx.reply(HELP, MD));
 
+	let rtAgent: RuntimeAgent | null = null;
 	registerPortfolio(bot);
 	registerPool(bot);
 	registerCreate(bot);
-	registerOnchain(bot);
-	registerManage(bot);
+	registerOnchain(bot, () => rtAgent);
+	registerManage(bot, () => rtAgent);
 	registerWatchlist(bot);
 	registerBalance(bot);
 	registerMenu(bot);
 
 	// Alerts need a destination chat. Only enable if one is configured.
-	let rtAgent: RuntimeAgent | null = null;
 	if (chatId) {
 		const rt = createAlerts(bot, chatId);
 		registerAlertCommands(bot, chatId, rt);

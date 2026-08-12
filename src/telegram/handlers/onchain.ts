@@ -1,6 +1,8 @@
 import { type Bot, type Context, InlineKeyboard } from "grammy";
 import type { PositionCostQuote, StrategyType } from "../../domain/index.js";
 import { registerAction, resolveAction } from "../action-store.js";
+import type { RuntimeAgent } from "../agent/engine.js";
+import { recordManualClose } from "../agent/manual-close.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
 import { dlmm, resolveKeypair, zap } from "../fx.js";
 import { setInputSession } from "../input-store.js";
@@ -39,7 +41,7 @@ interface RemoveLiqSession {
 }
 const removeLiqSessions = new Map<string, RemoveLiqSession>();
 
-export function registerOnchain(bot: Bot) {
+export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 	const requireKeypair = () => resolveKeypair();
 
 	const makeDlmmRunner =
@@ -176,9 +178,13 @@ export function registerOnchain(bot: Bot) {
 			if (poolAddress && positionPubkey) {
 				// Has args — fetch pool detail for token pair name
 				let pairName = "";
+				let baseMint: string | null = null;
 				try {
 					const detail = await resolvePoolDetail(poolAddress);
-					if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+					if (detail) {
+						pairName = `${detail.tokenX}/${detail.tokenY}`;
+						baseMint = detail.tokenXMint;
+					}
 				} catch {}
 				const summary = [
 					tgBold("Close & Zap Out?"),
@@ -201,6 +207,7 @@ export function registerOnchain(bot: Bot) {
 						const sig = result.zapSig || result.closeSig;
 						if (!sig)
 							throw new Error("Close produced no transaction signature");
+						await recordManualClose(getRt, poolAddress, pairName, baseMint);
 						return sig;
 					}),
 				);
@@ -266,9 +273,13 @@ export function registerOnchain(bot: Bot) {
 		const { poolAddress, positionPubkey } = pair;
 		// Fetch pool detail for token pair name
 		let pairName = "";
+		let baseMint: string | null = null;
 		try {
 			const detail = await resolvePoolDetail(poolAddress);
-			if (detail) pairName = `${detail.tokenX}/${detail.tokenY}`;
+			if (detail) {
+				pairName = `${detail.tokenX}/${detail.tokenY}`;
+				baseMint = detail.tokenXMint;
+			}
 		} catch {}
 		const summary = [
 			tgBold("Close & Zap Out?"),
@@ -287,6 +298,7 @@ export function registerOnchain(bot: Bot) {
 				const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
 				const sig = result.zapSig || result.closeSig;
 				if (!sig) throw new Error("Close produced no transaction signature");
+				await recordManualClose(getRt, poolAddress, pairName, baseMint);
 				return sig;
 			}),
 			`close:pool:${poolAddress}`,
