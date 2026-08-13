@@ -187,22 +187,55 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 		const pair = `${pool.tokenX ?? "?"}/${pool.tokenY ?? "?"}`;
 		const pnlPct = parseFloat(pool.pnlPctChange);
 		const pnlSol = parseFloat(pool.pnlSol);
+		const detailUrl = `/partials/closed-positions?pool=${encodeURIComponent(pool.poolAddress)}&pair=${encodeURIComponent(pair)}`;
+		const chevron = `<button type="button" class="chevron" data-closed-detail="${escapeHtml(detailUrl)}" aria-label="Show closed positions for ${escapeHtml(pair)}">&#9656;</button>`;
 		const link = `<a href="${escapeHtml(meteoraUrl(pool.poolAddress))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
-		return `<tr>
-<td>${link}</td>
+		return `<tr class="closed-row">
+<td>${chevron}${link}</td>
 <td>${fmtUsd(pool.totalDeposit)}</td>
 <td>${fmtUsd(pool.totalWithdrawal)}</td>
 <td>${fmtUsd(pool.totalFee)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pool.pnlUsd)}<div class="sub">${fmtPct(pnlPct)}</div></td>
 <td class="${pnlClass(pnlSol)}">${fmtSol(pool.pnlSol)}</td>
 <td class="mono">${escapeHtml(tsLocal(pool.lastClosedAt))}</td>
-</tr>`;
+</tr>
+<tr class="detail-row" hidden><td colspan="7"><div class="detail-inner"></div></td></tr>`;
 	});
 
 	return `<h2>Closed Positions <span class="sub">// ${pools.length} pools</span></h2>${table(
 		["Pool", "Deposit", "Withdraw", "Fees", "PnL USD", "PnL SOL", "Closed"],
 		rows,
-	)}`;
+	)}${closedDetailScript()}`;
+}
+
+function closedDetailScript(): string {
+	return `<script>
+(function () {
+	if (window.__vexisClosedBound) return;
+	window.__vexisClosedBound = true;
+	document.addEventListener("click", function (e) {
+		var btn = e.target && e.target.closest ? e.target.closest(".chevron") : null;
+		if (!btn) return;
+		var row = btn.closest("tr");
+		var detail = row ? row.nextElementSibling : null;
+		if (!detail || !detail.classList.contains("detail-row")) return;
+		var inner = detail.querySelector(".detail-inner");
+		if (detail.classList.contains("loaded")) {
+			detail.hidden = !detail.hidden;
+			btn.classList.toggle("open");
+			return;
+		}
+		fetch(btn.getAttribute("data-closed-detail"))
+			.then(function (res) { return res.text(); })
+			.then(function (html) {
+				inner.innerHTML = html;
+				detail.hidden = false;
+				btn.classList.add("open");
+				detail.classList.add("loaded");
+			});
+	});
+})();
+</script>`;
 }
 
 export function renderClosedDetail(

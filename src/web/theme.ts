@@ -312,6 +312,15 @@ td strong, td small { display: block; }
 td strong { font-size: 11px; font-weight: 500; }
 td small { margin-top: 5px; color: var(--muted); font: 10px monospace; }
 .mono { font-family: monospace; }
+.chevron { padding: 0 6px 0 0; border: 0; background: transparent; color: var(--muted); font: 700 12px monospace; cursor: pointer; transition: transform 150ms ease; vertical-align: middle; }
+.chevron.open { transform: rotate(90deg); }
+.detail-row td { padding: 0 18px 16px; background: color-mix(in srgb, var(--panel-2) 45%, var(--panel)); }
+.detail-row:hover { background: transparent; }
+.detail-row[hidden] { display: none; }
+.detail-inner { padding: 14px 0 0; }
+.detail-head { display: block; margin-bottom: 10px; color: var(--muted); font: 9px monospace; letter-spacing: 0.1em; }
+.table-scroll .detail-table { min-width: 0 !important; }
+.detail-error { padding: 14px 18px; border: 1px solid var(--loss); color: var(--loss); font-size: 11px; }
 .spark { display: block; width: 126px; height: 42px; }
 
 .toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 14px 18px; border-bottom: 1px solid var(--line); }

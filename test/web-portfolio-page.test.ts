@@ -188,6 +188,24 @@ describe("renderPortfolio", () => {
 		expect(html).toContain('class="profit">0.2000 ');
 	});
 
+	it("adds chevron and detail row for each closed pool", () => {
+		const html = renderPortfolio({
+			total: mkTotal(),
+			open: [],
+			closed: [mkClosed()],
+		});
+		expect(html).toContain('class="chevron"');
+		expect(html).toContain('class="detail-row"');
+		expect(html).toContain("/partials/closed-positions?pool=pool2");
+		expect(html).toContain("__vexisClosedBound");
+	});
+
+	it("does not emit chevron script when there are no closed pools", () => {
+		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
+		expect(html).not.toContain('class="chevron"');
+		expect(html).not.toContain("__vexisClosedBound");
+	});
+
 	it("shows empty states when no positions", () => {
 		const html = renderPortfolio({ total: mkTotal(), open: [], closed: [] });
 		expect(html).toContain("No open positions");
