@@ -1,13 +1,17 @@
 import { Effect } from "effect";
 import { AppConfig, resolveAgentConfigFrom } from "../../services/Config.js";
-import type { NarrativeResult } from "../agent-narrative.js";
-import { narrativeFor } from "../agent-narrative.js";
 import {
 	type AgentJournalEntry,
 	type JournalCandidate,
 	readJournalAll,
 } from "../../telegram/agent/journal.js";
-import { type AgentState, type LlmStatus, loadState } from "../../telegram/agent/state.js";
+import {
+	type AgentState,
+	type LlmStatus,
+	loadState,
+} from "../../telegram/agent/state.js";
+import type { NarrativeResult } from "../agent-narrative.js";
+import { narrativeFor } from "../agent-narrative.js";
 import { barChart, CHART_COLORS } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
 import {
@@ -345,9 +349,7 @@ function renderJournalTimeline(groups: readonly TimelineGroup[]): string {
 	return `<div class="timeline">${groups
 		.map((group) => {
 			const llmMarker =
-				group.llmStatus === "failed"
-					? badge("LLM FAILED", "blocked")
-					: "";
+				group.llmStatus === "failed" ? badge("LLM FAILED", "blocked") : "";
 			const body = group.rows
 				.map((row) =>
 					row.candidate === null
@@ -386,10 +388,15 @@ export const agentContent = (opts?: {
 			const narrative = yield* Effect.promise(() =>
 				narrativeFor(journal, state, llm),
 			);
-			return renderAgent(journal, state, {
-				action: parseJournalFilter(opts?.action),
-				page: opts?.page ?? 1,
-			}, narrative);
+			return renderAgent(
+				journal,
+				state,
+				{
+					action: parseJournalFilter(opts?.action),
+					page: opts?.page ?? 1,
+				},
+				narrative,
+			);
 		} catch (error) {
 			return errorBanner(
 				error instanceof Error ? error.message : String(error),

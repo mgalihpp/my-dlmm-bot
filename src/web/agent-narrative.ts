@@ -32,8 +32,7 @@ export function buildNarrativePrompt(
 					candidate.guardrail === "blocked"
 						? ` blocked="${candidate.blockedReason ?? ""}"`
 						: "";
-				const failed =
-					candidate.execution === "failed" ? " exec=failed" : "";
+				const failed = candidate.execution === "failed" ? " exec=failed" : "";
 				const rationale =
 					candidate.rationale === null
 						? ""
@@ -48,7 +47,9 @@ export function buildNarrativePrompt(
 	const cooldowns =
 		state.cooldowns.length > 0
 			? state.cooldowns
-					.map((c) => `- ${c.poolName || c.pool} until ${c.until} (${c.reason})`)
+					.map(
+						(c) => `- ${c.poolName || c.pool} until ${c.until} (${c.reason})`,
+					)
 					.join("\n")
 			: "- none";
 	const executions =
@@ -75,9 +76,7 @@ export function buildNarrativePrompt(
 	].join("\n");
 }
 
-export function buildRunSummary(
-	entries: readonly AgentJournalEntry[],
-): string {
+export function buildRunSummary(entries: readonly AgentJournalEntry[]): string {
 	if (entries.length === 0) return "Belum ada aktivitas dalam 24 jam terakhir.";
 	let opens = 0;
 	let tp = 0;
@@ -124,7 +123,9 @@ export function buildRunSummary(
 		first === last ? `Siklus ${last}` : `Siklus ${first}–${last}`;
 	const bits: string[] = [];
 	if (opens > 0)
-		bits.push(`${opens} open${openNames.length > 0 ? ` (${openNames.join(", ")})` : ""}`);
+		bits.push(
+			`${opens} open${openNames.length > 0 ? ` (${openNames.join(", ")})` : ""}`,
+		);
 	if (tp > 0) bits.push(`${tp} TP`);
 	if (sl > 0) bits.push(`${sl} SL`);
 	if (closes > 0) bits.push(`${closes} close`);
@@ -134,7 +135,9 @@ export function buildRunSummary(
 			`${cycleRange}: ${bits.join(", ")}, ${blocked} blocked${blockedReasons.length > 0 ? ` (${blockedReasons.join("; ")})` : ""}.`,
 		);
 	} else {
-		parts.push(`${cycleRange}: ${bits.join(", ") || "tidak ada keputusan eksekusi"}.`);
+		parts.push(
+			`${cycleRange}: ${bits.join(", ") || "tidak ada keputusan eksekusi"}.`,
+		);
 	}
 	if (failed > 0) parts.push(`${failed} eksekusi gagal.`);
 	if (llmFailedCycles.length > 0) {
@@ -197,7 +200,12 @@ export function readNarrativeCache(
 			return null;
 		}
 		const source = record.source === "llm" ? "llm" : "fallback";
-		return { at: record.at, coveringTs: record.coveringTs, text: record.text, source };
+		return {
+			at: record.at,
+			coveringTs: record.coveringTs,
+			text: record.text,
+			source,
+		};
 	} catch {
 		return null;
 	}

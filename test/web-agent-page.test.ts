@@ -247,7 +247,10 @@ describe("renderAgent", () => {
 describe("timelineGroups", () => {
 	it("groups consecutive rows by cycle in order", () => {
 		const entries = [
-			mkEntry(1, [mkCandidate({ action: "tp" }), mkCandidate({ action: "open" })]),
+			mkEntry(1, [
+				mkCandidate({ action: "tp" }),
+				mkCandidate({ action: "open" }),
+			]),
 			mkEntry(2, [mkCandidate({ action: "sl" })]),
 			mkEntry(3, []),
 		];
@@ -258,7 +261,12 @@ describe("timelineGroups", () => {
 	});
 	it("preserves llmStatus per group", () => {
 		const entries = [
-			{ ts: "2026-08-12T10:00:00.000Z", cycle: 1, llmStatus: "failed" as const, candidates: [mkCandidate({ action: "open" })] },
+			{
+				ts: "2026-08-12T10:00:00.000Z",
+				cycle: 1,
+				llmStatus: "failed" as const,
+				candidates: [mkCandidate({ action: "open" })],
+			},
 		];
 		const groups = timelineGroups(journalRows(entries, "all"));
 		expect(groups[0].llmStatus).toBe("failed");
@@ -270,22 +278,47 @@ describe("timelineGroups", () => {
 
 describe("renderAgent narrative + timeline", () => {
 	it("renders narrative prose and source badge", () => {
-		const html = renderAgent([mkEntry(1, [mkCandidate()])], mkState(), { action: "all", page: 1 }, NARRATIVE);
+		const html = renderAgent(
+			[mkEntry(1, [mkCandidate()])],
+			mkState(),
+			{ action: "all", page: 1 },
+			NARRATIVE,
+		);
 		expect(html).toContain("Ringkasan prosa.");
 		expect(html).toContain(">GENERATED<");
 	});
 	it("renders fallback badge for fallback source", () => {
-		const html = renderAgent([mkEntry(1, [])], mkState(), { action: "all", page: 1 }, { text: "x", source: "fallback" });
+		const html = renderAgent(
+			[mkEntry(1, [])],
+			mkState(),
+			{ action: "all", page: 1 },
+			{ text: "x", source: "fallback" },
+		);
 		expect(html).toContain(">FALLBACK<");
 	});
 	it("renders rationale, blocked reason and tx link in timeline entries", () => {
 		const entries = [
 			mkEntry(1, [
-				mkCandidate({ poolName: "WIF/SOL", rationale: "volume naik", txSignature: "sig9" }),
-				mkCandidate({ action: "open", guardrail: "blocked", blockedReason: "cooldown", execution: null, txSignature: null }),
+				mkCandidate({
+					poolName: "WIF/SOL",
+					rationale: "volume naik",
+					txSignature: "sig9",
+				}),
+				mkCandidate({
+					action: "open",
+					guardrail: "blocked",
+					blockedReason: "cooldown",
+					execution: null,
+					txSignature: null,
+				}),
 			]),
 		];
-		const html = renderAgent(entries, mkState(), { action: "all", page: 1 }, NARRATIVE);
+		const html = renderAgent(
+			entries,
+			mkState(),
+			{ action: "all", page: 1 },
+			NARRATIVE,
+		);
 		expect(html).toContain('class="timeline-cycle"');
 		expect(html).toContain("volume naik");
 		expect(html).toContain("cooldown");
@@ -294,13 +327,27 @@ describe("renderAgent narrative + timeline", () => {
 	});
 	it("marks llm-failed cycles", () => {
 		const entries = [
-			{ ts: "2026-08-12T10:00:00.000Z", cycle: 9, llmStatus: "failed" as const, candidates: [mkCandidate({ action: "hold" })] },
+			{
+				ts: "2026-08-12T10:00:00.000Z",
+				cycle: 9,
+				llmStatus: "failed" as const,
+				candidates: [mkCandidate({ action: "hold" })],
+			},
 		];
-		const html = renderAgent(entries, mkState(), { action: "all", page: 1 }, NARRATIVE);
+		const html = renderAgent(
+			entries,
+			mkState(),
+			{ action: "all", page: 1 },
+			NARRATIVE,
+		);
 		expect(html).toContain("LLM FAILED");
 	});
 	it("falls back to the old copy when narrative is null", () => {
-		const html = renderAgent([mkEntry(1, [mkCandidate({ action: "open" })])], mkState(), { action: "all", page: 1 });
+		const html = renderAgent(
+			[mkEntry(1, [mkCandidate({ action: "open" })])],
+			mkState(),
+			{ action: "all", page: 1 },
+		);
 		expect(html).toContain("1 open decisions across 1 cycles.");
 	});
 });

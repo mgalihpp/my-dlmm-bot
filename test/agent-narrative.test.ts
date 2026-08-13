@@ -7,18 +7,18 @@ import type {
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
+import type { NarrativeCache } from "../src/web/agent-narrative.js";
 import {
-	NARRATIVE_TTL_MS,
 	buildNarrativePrompt,
 	buildRunSummary,
 	isNarrativeStale,
+	NARRATIVE_TTL_MS,
 	narrativeFor,
 	newestEntryTs,
 	readNarrativeCache,
 	windowEntries,
 	writeNarrativeCache,
 } from "../src/web/agent-narrative.js";
-import type { NarrativeCache } from "../src/web/agent-narrative.js";
 
 const LLM = {
 	baseUrl: "http://localhost",
@@ -46,7 +46,7 @@ describe("narrativeFor", () => {
 			file,
 		);
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
-		const spy = vi.fn(async (prompt: string) => "generated");
+		const spy = vi.fn(async () => "generated");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan.", source: "llm" });
 		expect(spy).not.toHaveBeenCalled();
@@ -55,7 +55,7 @@ describe("narrativeFor", () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
 		const file = cacheFile();
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
-		const spy = vi.fn(async (prompt: string) => "Ringkasan baru.");
+		const spy = vi.fn(async () => "Ringkasan baru.");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan baru.", source: "llm" });
 		expect(spy).toHaveBeenCalledOnce();
@@ -96,7 +96,9 @@ describe("narrativeFor", () => {
 	});
 });
 
-const mkCandidate = (over: Partial<JournalCandidate> = {}): JournalCandidate => ({
+const mkCandidate = (
+	over: Partial<JournalCandidate> = {},
+): JournalCandidate => ({
 	pool: "poolA",
 	poolName: "Token/SOL",
 	heuristicScore: 80,
@@ -158,7 +160,7 @@ describe("buildNarrativePrompt", () => {
 		expect(prompt).toContain("#7");
 		expect(prompt).toContain("Token/SOL");
 		expect(prompt).toContain("action=open");
-		expect(prompt).toContain("blocked=\"cooldown\"");
+		expect(prompt).toContain('blocked="cooldown"');
 		expect(prompt).toContain("exec=failed");
 		expect(prompt).toContain("llm=ok");
 		expect(prompt).toContain("...");
@@ -171,7 +173,12 @@ describe("buildNarrativePrompt", () => {
 	});
 	it("marks llm-failed cycles", () => {
 		const entries = [
-			{ ts: "2026-08-12T10:00:00.000Z", cycle: 3, llmStatus: "failed" as const, candidates: [] },
+			{
+				ts: "2026-08-12T10:00:00.000Z",
+				cycle: 3,
+				llmStatus: "failed" as const,
+				candidates: [],
+			},
 		];
 		expect(buildNarrativePrompt(entries, mkState())).toContain("llm=failed");
 	});
@@ -204,8 +211,18 @@ describe("buildRunSummary", () => {
 	});
 	it("mentions llm-failed cycles", () => {
 		const entries = [
-			{ ts: "2026-08-12T09:00:00.000Z", cycle: 9, llmStatus: "failed" as const, candidates: [] },
-			{ ts: "2026-08-12T10:00:00.000Z", cycle: 10, llmStatus: "ok" as const, candidates: [] },
+			{
+				ts: "2026-08-12T09:00:00.000Z",
+				cycle: 9,
+				llmStatus: "failed" as const,
+				candidates: [],
+			},
+			{
+				ts: "2026-08-12T10:00:00.000Z",
+				cycle: 10,
+				llmStatus: "ok" as const,
+				candidates: [],
+			},
 		];
 		expect(buildRunSummary(entries)).toContain("LLM gagal di siklus 9");
 	});
@@ -224,9 +241,7 @@ describe("buildRunSummary", () => {
 	});
 	it("handles entries with no decisions", () => {
 		const entries = [mkEntry("2026-08-12T10:00:00.000Z", 3, [])];
-		expect(buildRunSummary(entries)).toContain(
-			"tidak ada keputusan eksekusi",
-		);
+		expect(buildRunSummary(entries)).toContain("tidak ada keputusan eksekusi");
 	});
 });
 
