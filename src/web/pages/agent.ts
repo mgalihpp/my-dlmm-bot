@@ -1,5 +1,7 @@
 import { Effect } from "effect";
+import { AppConfig, resolveAgentConfigFrom } from "../../services/Config.js";
 import type { NarrativeResult } from "../agent-narrative.js";
+import { narrativeFor } from "../agent-narrative.js";
 import {
 	type AgentJournalEntry,
 	type JournalCandidate,
@@ -373,13 +375,21 @@ function renderTimelineEntry(row: JournalRow): string {
 export const agentContent = (opts?: {
 	readonly action?: string | null;
 	readonly page?: number;
-}): Effect.Effect<string, never> =>
-	Effect.sync(() => {
+}): Effect.Effect<string, never, AppConfig> =>
+	Effect.gen(function* () {
 		try {
-			return renderAgent(readJournalAll(), loadState(), {
+			const configService = yield* AppConfig;
+			const current = yield* configService.get;
+			const llm = resolveAgentConfigFrom(current).llm;
+			const journal = readJournalAll();
+			const state = loadState();
+			const narrative = yield* Effect.promise(() =>
+				narrativeFor(journal, state, llm),
+			);
+			return renderAgent(journal, state, {
 				action: parseJournalFilter(opts?.action),
 				page: opts?.page ?? 1,
-			});
+			}, narrative);
 		} catch (error) {
 			return errorBanner(
 				error instanceof Error ? error.message : String(error),
