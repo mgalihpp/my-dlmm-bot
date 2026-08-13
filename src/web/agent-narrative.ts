@@ -69,3 +69,73 @@ export function buildNarrativePrompt(
 		`Total cycle sejauh ini: ${state.cycle}.`,
 	].join("\n");
 }
+
+export function buildRunSummary(
+	entries: readonly AgentJournalEntry[],
+): string {
+	if (entries.length === 0) return "Belum ada aktivitas dalam 24 jam terakhir.";
+	let opens = 0;
+	let tp = 0;
+	let sl = 0;
+	let closes = 0;
+	let blocked = 0;
+	let failed = 0;
+	const openNames: string[] = [];
+	const blockedReasons: string[] = [];
+	const llmFailedCycles: number[] = [];
+	for (const entry of entries) {
+		if (entry.llmStatus === "failed") llmFailedCycles.push(entry.cycle);
+		for (const candidate of entry.candidates) {
+			switch (candidate.action) {
+				case "open":
+					opens += 1;
+					if (openNames.length < 3)
+						openNames.push(candidate.poolName || candidate.pool);
+					break;
+				case "tp":
+					tp += 1;
+					break;
+				case "sl":
+					sl += 1;
+					break;
+				case "close":
+					closes += 1;
+					break;
+				case "hold":
+					break;
+			}
+			if (candidate.guardrail === "blocked") {
+				blocked += 1;
+				if (blockedReasons.length < 2 && candidate.blockedReason) {
+					blockedReasons.push(candidate.blockedReason);
+				}
+			}
+			if (candidate.execution === "failed") failed += 1;
+		}
+	}
+	const first = entries[0].cycle;
+	const last = entries[entries.length - 1].cycle;
+	const cycleRange =
+		first === last ? `Siklus ${last}` : `Siklus ${first}–${last}`;
+	const bits: string[] = [];
+	if (opens > 0)
+		bits.push(`${opens} open${openNames.length > 0 ? ` (${openNames.join(", ")})` : ""}`);
+	if (tp > 0) bits.push(`${tp} TP`);
+	if (sl > 0) bits.push(`${sl} SL`);
+	if (closes > 0) bits.push(`${closes} close`);
+	const parts: string[] = [];
+	if (blocked > 0) {
+		parts.push(
+			`${cycleRange}: ${bits.join(", ")}, ${blocked} blocked${blockedReasons.length > 0 ? ` (${blockedReasons.join("; ")})` : ""}.`,
+		);
+	} else {
+		parts.push(`${cycleRange}: ${bits.join(", ") || "tidak ada keputusan eksekusi"}.`);
+	}
+	if (failed > 0) parts.push(`${failed} eksekusi gagal.`);
+	if (llmFailedCycles.length > 0) {
+		parts.push(
+			`LLM gagal di siklus ${llmFailedCycles.join(", ")} — keputusan saat itu berbasis heuristik.`,
+		);
+	}
+	return parts.join(" ");
+}

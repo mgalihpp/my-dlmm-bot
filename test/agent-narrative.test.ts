@@ -4,7 +4,7 @@ import type {
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
-import { buildNarrativePrompt, windowEntries } from "../src/web/agent-narrative.js";
+import { buildNarrativePrompt, buildRunSummary, windowEntries } from "../src/web/agent-narrative.js";
 
 const mkCandidate = (over: Partial<JournalCandidate> = {}): JournalCandidate => ({
 	pool: "poolA",
@@ -84,5 +84,58 @@ describe("buildNarrativePrompt", () => {
 			{ ts: "2026-08-12T10:00:00.000Z", cycle: 3, llmStatus: "failed" as const, candidates: [] },
 		];
 		expect(buildNarrativePrompt(entries, mkState())).toContain("llm=failed");
+	});
+});
+
+describe("buildRunSummary", () => {
+	it("renders cycle range, action counts and blocked reasons", () => {
+		const entries = [
+			mkEntry("2026-08-12T09:00:00.000Z", 40, [
+				mkCandidate({ poolName: "SOL/USDC", action: "open" }),
+				mkCandidate({
+					poolName: "JUP/SOL",
+					action: "open",
+					guardrail: "blocked",
+					blockedReason: "max positions",
+				}),
+			]),
+			mkEntry("2026-08-12T10:00:00.000Z", 41, [
+				mkCandidate({ poolName: "WIF/SOL", action: "tp" }),
+				mkCandidate({ poolName: "BONK/SOL", action: "sl" }),
+			]),
+		];
+		const out = buildRunSummary(entries);
+		expect(out).toContain("Siklus 40–41");
+		expect(out).toContain("2 open (SOL/USDC, JUP/SOL)");
+		expect(out).toContain("1 TP");
+		expect(out).toContain("1 SL");
+		expect(out).toContain("1 blocked");
+		expect(out).toContain("max positions");
+	});
+	it("mentions llm-failed cycles", () => {
+		const entries = [
+			{ ts: "2026-08-12T09:00:00.000Z", cycle: 9, llmStatus: "failed" as const, candidates: [] },
+			{ ts: "2026-08-12T10:00:00.000Z", cycle: 10, llmStatus: "ok" as const, candidates: [] },
+		];
+		expect(buildRunSummary(entries)).toContain("LLM gagal di siklus 9");
+	});
+	it("reports failed executions", () => {
+		const entries = [
+			mkEntry("2026-08-12T10:00:00.000Z", 5, [
+				mkCandidate({ action: "close", execution: "failed" }),
+			]),
+		];
+		expect(buildRunSummary(entries)).toContain("1 eksekusi gagal");
+	});
+	it("handles empty journal", () => {
+		expect(buildRunSummary([])).toBe(
+			"Belum ada aktivitas dalam 24 jam terakhir.",
+		);
+	});
+	it("handles entries with no decisions", () => {
+		const entries = [mkEntry("2026-08-12T10:00:00.000Z", 3, [])];
+		expect(buildRunSummary(entries)).toContain(
+			"tidak ada keputusan eksekusi",
+		);
 	});
 });
