@@ -6,7 +6,6 @@ import bs58 from "bs58";
 import { Context, Effect, Layer, Ref } from "effect";
 import type {
 	CreatePreset,
-	NotifLevel,
 	VexisConfig,
 } from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
@@ -130,7 +129,6 @@ export interface ResolvedAgentConfig {
 	poolCooldownMs: number;
 	tpPct: number;
 	slPct: number;
-	notifLevel: NotifLevel;
 	llm: ResolvedAgentLlm;
 	risks: ResolvedAgentRisks;
 	darwin: ResolvedAgentDarwin;
@@ -156,7 +154,6 @@ export const resolveAgentConfigFrom = (
 		poolCooldownMs: a.poolCooldownMs ?? 24 * 3_600_000,
 		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
 		slPct: a.slPct ?? c.stopLossPct ?? -10,
-		notifLevel: a.notifLevel ?? "normal",
 		llm: {
 			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(
 				/\/$/,

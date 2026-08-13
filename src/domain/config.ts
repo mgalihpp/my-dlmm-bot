@@ -115,6 +115,7 @@ export interface AgentConfig {
 	poolCooldownMs?: number;
 	tpPct?: number;
 	slPct?: number;
+	/** @deprecated Notifications are always sent; kept for config-file compatibility. */
 	notifLevel?: NotifLevel;
 	llm?: AgentLlmConfig;
 	risks?: AgentRiskConfig;
