@@ -70,6 +70,16 @@ const EDITABLE_FIELDS = [
 	{ key: "pools.maxHolders", label: "Max Holders", type: "number" as const },
 	{ key: "pools.minVolume", label: "Min Volume", type: "number" as const },
 	{ key: "pools.maxVolume", label: "Max Volume", type: "number" as const },
+	{
+		key: "pools.minVolume24h",
+		label: "Min Vol 24h",
+		type: "number" as const,
+	},
+	{
+		key: "pools.maxVolume24h",
+		label: "Max Vol 24h",
+		type: "number" as const,
+	},
 	{ key: "pools.minTvl", label: "Min TVL", type: "number" as const },
 	{ key: "pools.maxTvl", label: "Max TVL", type: "number" as const },
 	{
@@ -590,6 +600,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Min Vol", "cfg:set:pools.minVolume")
 			.text("✏️ Max Vol", "cfg:set:pools.maxVolume")
 			.row()
+			.text("✏️ Min Vol 24h", "cfg:set:pools.minVolume24h")
+			.text("✏️ Max Vol 24h", "cfg:set:pools.maxVolume24h")
+			.row()
 			.text("✏️ Min Fee", "cfg:set:pools.minFee")
 			.text("✏️ Max Fee", "cfg:set:pools.maxFee")
 			.row()
@@ -668,6 +681,8 @@ function pageForKey(key: string): number {
 		"pools.maxTvl",
 		"pools.minVolume",
 		"pools.maxVolume",
+		"pools.minVolume24h",
+		"pools.maxVolume24h",
 		"pools.minFee",
 		"pools.maxFee",
 		"pools.minFeeActiveTvlRatio",
