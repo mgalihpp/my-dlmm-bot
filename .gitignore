@@ -19,3 +19,4 @@ vexis.config.json
 .vexis-agent.json
 .vexis-agent-journal.jsonl
 .vexis-agent-signals.json
+.vexis-portfolio-history.json

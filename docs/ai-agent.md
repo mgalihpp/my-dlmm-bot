@@ -108,7 +108,7 @@ Semua job dijalankan via `Effect.repeat(alignedSchedule(interval))` — menembak
 - Job `briefing` — tiap hari 09:00 lokal (`delayToDaily(9)` + `Schedule.spaced(24h)`). Fire pertama di 09:00 berikutnya (bukan saat startup) via dynamic delay per-run.
 - Kirim narasi LLM: portfolio health (posisi + PnL + win rate + deployed), aktivitas 24 jam terakhir (dari journal), market snapshot (top 5 pool screening).
 - LLM gagal → fallback data mentah (`formatBriefingFallback`).
-- Selalu terkirim — tidak terikat `notifLevel`.
+- Selalu terkirim (semua notifikasi agent selalu terkirim).
 - Manual: `/briefing`.
 - Read-only: tidak menulis state/plans/cooldowns/journal.
 - File: `src/telegram/agent/briefing.ts`, `delayToDaily` di `schedule.ts`.
@@ -279,14 +279,7 @@ Catatan: `favorability` dan `score` **sudah dihapus** dari journal (fitur full-L
 
 ## Notifikasi (`notify.ts`)
 
-Level (`notifLevel`): `verbose` > `normal` > `errors-only`.
-
-| Tag | Level yang terima |
-|---|---|
-| `live` | `verbose` |
-| `action` (open/tp/sl/close/failed) | semua |
-| `summary` | `verbose`, `normal` |
-| `error` | semua |
+Semua notifikasi selalu terkirim (live, action, summary, error).
 
 Keyboard aksi:
 - `open`/`close` → tombol `📊 PnL` (detail posisi)
@@ -342,7 +335,6 @@ File: `src/domain/config.ts` (schema) + `src/services/Config.ts` (resolver).
 | `poolCooldownMs` | `86400000` (24h) | Cooldown per pool setelah close/block |
 | `tpPct` | `25` (atau `takeProfitPct`) | Take-profit % |
 | `slPct` | `-10` (atau `stopLossPct`) | Stop-loss % |
-| `notifLevel` | `"normal"` | `verbose`/`normal`/`errors-only` |
 | `llm.baseUrl` | `https://api.openai.com/v1` | Base URL OpenAI-compatible |
 | `llm.model` | `gpt-4o-mini` | Model |
 | `llm.apiKey` | env `OPENAI_API_KEY` | Api key |

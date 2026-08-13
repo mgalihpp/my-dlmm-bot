@@ -278,6 +278,37 @@ npm run bot
 
 With `alertInterval > 0`, the bot polls on a cron schedule and notifies you on: PnL changes past thresholds, positions going out of range, new/closed positions, balance changes, and fee accrual. TP/SL rules evaluate per-position PnL% and fire once when the threshold is crossed. State survives restarts via `.vexis-alerts.json` and `.vexis-tpsl.json`.
 
+## Web UI
+
+Vexis includes a read-only neo-brutalist dashboard for portfolio monitoring, pool screening, and AI agent history. It runs as a separate process and never exposes on-chain controls or private keys.
+
+Enable it in `vexis.config.json`:
+
+```json
+{
+  "web": {
+    "enabled": true,
+    "port": 8080,
+    "password": "your-dashboard-password"
+  }
+}
+```
+
+`VEXIS_WEB_PASSWORD` overrides the config password. The dashboard is disabled by default.
+
+```bash
+npm run web        # dev mode (tsx)
+npm run web:start  # compiled mode (after npm run build)
+```
+
+Portfolio and agent pages refresh every 30 seconds through htmx. Pool screening refreshes when a timeframe is submitted. For pm2:
+
+```bash
+npm run build
+pm2 start "npm run web:start" --name vexis-web
+pm2 save
+```
+
 ## CLI
 
 ```bash

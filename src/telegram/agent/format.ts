@@ -29,7 +29,7 @@ export function formatStatus(
 	const lines: string[] = [
 		formatDashboardHeader(state, cfg, deployed, stats),
 		`Open     ${formatBudgetBar(opened, cfg.maxOpenPositions)}`,
-		`TP ${escapeMarkdown(String(cfg.tpPct))}% \\| SL ${escapeMarkdown(String(cfg.slPct))}% \\| notif ${escapeMarkdown(cfg.notifLevel)}`,
+		`TP ${escapeMarkdown(String(cfg.tpPct))}% \\| SL ${escapeMarkdown(String(cfg.slPct))}%`,
 		...(state.llmStatus === "ok"
 			? []
 			: [`LLM: ${escapeMarkdown(state.llmStatus)}`]),
@@ -426,7 +426,6 @@ export function formatConfigQuick(cfg: ResolvedAgentConfig): string {
 		`Budget max ${escapeMarkdown(`${cfg.maxTotalSol} ◎`)} \\| slot ${escapeMarkdown(`${cfg.maxSolPerPosition} ◎`)}`,
 		`TP ${escapeMarkdown(`${cfg.tpPct}%`)} \\| SL ${escapeMarkdown(`${cfg.slPct}%`)}`,
 		`Max open ${escapeMarkdown(String(cfg.maxOpenPositions))} \\| candidates ${escapeMarkdown(String(cfg.maxCandidates))}`,
-		`Notif level ${escapeMarkdown(cfg.notifLevel)}`,
 		`Guardrails ${escapeMarkdown(cfg.risks.enabled === false ? "off" : "on")}`,
 	].join("\n");
 }

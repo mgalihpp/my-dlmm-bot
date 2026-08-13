@@ -34,7 +34,6 @@ const cfg: ResolvedAgentConfig = {
 	tpPct: 25,
 	slPct: -10,
 	poolCooldownMs: 24 * 3_600_000,
-	notifLevel: "normal",
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
 	risks: {
 		enabled: true,
@@ -198,7 +197,7 @@ describe("formatError", () => {
 });
 
 describe("formatStatus stats", () => {
-	it("adds notif level and trade stats when provided", () => {
+	it("adds trade stats when provided", () => {
 		const s: AgentState = {
 			enabled: true,
 			running: false,
@@ -224,8 +223,7 @@ describe("formatStatus stats", () => {
 				signals: {} as PerfRecord["signals"],
 			},
 		]);
-		const out = formatStatus(s, { ...cfg, notifLevel: "verbose" }, stats);
-		expect(out).toContain("verbose");
+		const out = formatStatus(s, cfg, stats);
 		expect(out).toContain("Cooldowns: 1");
 		expect(out).toContain("reset in");
 		expect(out).toContain("win 100%");
@@ -500,11 +498,10 @@ describe("formatPositionCard", () => {
 });
 
 describe("formatConfigQuick", () => {
-	it("renders budget, TP/SL and notif level", () => {
+	it("renders budget and TP/SL", () => {
 		const out = formatConfigQuick(cfg);
 		expect(out).toContain("3 ◎");
 		expect(out).toContain("25%");
-		expect(out).toContain("normal");
 	});
 });
 

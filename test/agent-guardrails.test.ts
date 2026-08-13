@@ -3,12 +3,14 @@ import type { ScreenedPool } from "../src/domain/screened.js";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
 	adoptOnchainPlans,
+	checkCloseGate,
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
 	checkPoolCooldown,
 	checkRent,
 	checkRisks,
+	claimClose,
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
@@ -29,7 +31,6 @@ const cfg: ResolvedAgentConfig = {
 	poolCooldownMs: 24 * 3_600_000,
 	tpPct: 25,
 	slPct: -10,
-	notifLevel: "normal",
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
 	risks: {
 		enabled: true,
@@ -562,5 +563,86 @@ describe("adoptOnchainPlans", () => {
 		];
 		const out = adoptOnchainPlans(plans, [], { complete: false });
 		expect(out).toHaveLength(1);
+	});
+
+	it("does not adopt pools with an active cooldown", () => {
+		const out = adoptOnchainPlans([], [openPool()], {
+			cooldowns: [cd()],
+			nowMs: NOW,
+		});
+		expect(out).toHaveLength(0);
+	});
+
+	it("adopts pools once the cooldown has expired", () => {
+		const out = adoptOnchainPlans([], [openPool()], {
+			cooldowns: [cd({ until: new Date(NOW - 1).toISOString() })],
+			nowMs: NOW,
+		});
+		expect(out).toHaveLength(1);
+	});
+});
+
+describe("checkCloseGate", () => {
+	it("allows close when plan is tracked and no cooldown", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[],
+			NOW,
+		);
+		expect(out.ok).toBe(true);
+	});
+
+	it("blocks close when the plan is no longer tracked", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P2" }],
+			[],
+			NOW,
+		);
+		expect(out.ok).toBe(false);
+	});
+
+	it("blocks close when the pool has an active cooldown", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[cd()],
+			NOW,
+		);
+		expect(out.ok).toBe(false);
+	});
+
+	it("ignores expired cooldowns", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[cd({ until: new Date(NOW - 1).toISOString() })],
+			NOW,
+		);
+		expect(out.ok).toBe(true);
+	});
+});
+
+describe("claimClose", () => {
+	it("allows the first close for a position", () => {
+		expect(claimClose("pos1", new Set()).ok).toBe(true);
+	});
+
+	it("blocks a second close while one is in flight", () => {
+		expect(claimClose("pos1", new Set(["pos1"])).ok).toBe(false);
+	});
+
+	it("allows other positions while one is in flight", () => {
+		expect(claimClose("pos2", new Set(["pos1"])).ok).toBe(true);
+	});
+
+	it("allows retry after the in-flight close was released", () => {
+		const inFlight = new Set<string>();
+		expect(claimClose("pos1", inFlight).ok).toBe(true);
+		inFlight.add("pos1");
+		expect(claimClose("pos1", inFlight).ok).toBe(false);
+		inFlight.delete("pos1");
+		expect(claimClose("pos1", inFlight).ok).toBe(true);
 	});
 });

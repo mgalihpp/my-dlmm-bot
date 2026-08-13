@@ -78,6 +78,7 @@ export function buildOpenDecisionPrompt(
 		"- OPEN = strong fee potential, acceptable risk, fits portfolio context",
 		"- HOLD = wait or avoid",
 		"Use the heuristic score as context, not the only factor. Weigh risk fields.",
+		"Risk field notes: rugScore is RugCheck's 0-2500 score, lower = lower rug-pull risk, but no score (not even 1) means zero risk — meme tokens can still go to zero. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better.",
 		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"open|hold","rationale":"..."}]',
 		"",
 		"Candidates:",

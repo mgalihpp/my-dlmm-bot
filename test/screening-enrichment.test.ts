@@ -150,4 +150,13 @@ describe("Screening enrichment", () => {
 		expect(pool.fromAthPct).toBe(0.6);
 		expect(pool.priceVsAthPct).toBe(40);
 	});
+
+	it("captures close-price series from OHLCV for the trend chart", async () => {
+		const result = await screen([
+			{ timestamp: 0, high: 2.5, low: 1, open: 1, close: 1, volume: 100 },
+			{ timestamp: 1, high: 2.5, low: 1, open: 1, close: 1.5, volume: 100 },
+		]);
+		const pool = result.pools[0];
+		expect(pool.priceSeries).toEqual([1, 1.5]);
+	});
 });

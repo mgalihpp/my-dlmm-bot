@@ -27,12 +27,14 @@ import {
 } from "./format.js";
 import {
 	adoptOnchainPlans,
+	checkCloseGate,
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
 	checkPoolCooldown,
 	checkRent,
 	checkRisks,
+	claimClose,
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
@@ -54,7 +56,7 @@ import {
 	requestPositionDecisions,
 } from "./llm.js";
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
-import { allowed, notify, notifyKeyboard } from "./notify.js";
+import { notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import { alignedSchedule, delayToDaily } from "./schedule.js";
 import {
@@ -67,6 +69,9 @@ import { type AgentState, loadState, saveState } from "./state.js";
 import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
+
+/** Positions with a close transaction currently in flight (one per position). */
+const closeInFlight = new Set<string>();
 
 /** Newest journal candidate with a failed execution for the pool, or null. */
 export function findFailedCandidate(
@@ -130,13 +135,10 @@ async function liveSend(
 async function liveStep(
 	bot: Bot,
 	chatId: string,
-	cfg: AgentCfg,
 	live: LiveMsg,
 	msg: string,
 ): Promise<void> {
-	if (allowed(cfg.notifLevel, "live")) {
-		await liveSend(bot, chatId, live, msg);
-	}
+	await liveSend(bot, chatId, live, msg);
 }
 
 /** Reconciles tracked plans against the on-chain open portfolio: adopts positions opened manually/elsewhere and prunes plans whose position is no longer on-chain. */
@@ -150,6 +152,8 @@ async function syncOnchainPlans(
 	rt.state.plans = [
 		...adoptOnchainPlans(rt.state.plans, res.pools ?? [], {
 			complete: !res.hasNext,
+			cooldowns: rt.state.cooldowns,
+			nowMs: Date.now(),
 		}),
 	];
 	if (rt.state.plans.length !== before) {
@@ -266,8 +270,6 @@ async function retryOpen(
 		await notify(
 			bot,
 			chatId,
-			cfg.notifLevel,
-			"action",
 			formatAction({
 				action: "open",
 				poolName: cand.poolName,
@@ -336,8 +338,6 @@ async function retryClose(
 		await notify(
 			bot,
 			chatId,
-			cfg.notifLevel,
-			"action",
 			formatAction({
 				action: cand.action,
 				poolName: cand.poolName,
@@ -471,14 +471,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("fast cycle error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						cfg.notifLevel,
-						"error",
-						formatError("fast cycle", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("fast cycle", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.fast === myGen) {
@@ -520,14 +515,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("cycle error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						cfg.notifLevel,
-						"error",
-						formatError("cycle", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("cycle", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.cycle === myGen) {
@@ -554,14 +544,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("oor error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						cfg.notifLevel,
-						"error",
-						formatError("OOR check", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("OOR check", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.oor === myGen) {
@@ -640,6 +625,25 @@ async function evaluateTpSl(
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		if (action === "hold") continue;
 		if (opts.myGen !== rt.gen) return; // aborted before the close tx
+		const gate = checkCloseGate(
+			plan,
+			rt.state.plans,
+			rt.state.cooldowns,
+			Date.now(),
+		);
+		if (!gate.ok) {
+			logInfo(
+				`position check: ${plan.poolName} → ${action} skipped (${gate.reason})`,
+			);
+			continue;
+		}
+		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+			logInfo(
+				`position check: ${plan.poolName} → ${action} skipped (close already in flight)`,
+			);
+			continue;
+		}
+		closeInFlight.add(plan.positionAddress!);
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
@@ -712,8 +716,6 @@ async function evaluateTpSl(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action,
 					poolName: plan.poolName,
@@ -748,8 +750,6 @@ async function evaluateTpSl(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action,
 					poolName: plan.poolName,
@@ -757,6 +757,8 @@ async function evaluateTpSl(
 				}),
 				{ keyboard: notifyKeyboard("failed", plan.pool) },
 			);
+		} finally {
+			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
 	if (opts.includeOor && oorPositions.length > 0) {
@@ -793,6 +795,16 @@ async function evaluateOor(
 			(p) => p.pool === pos.pool && p.positionAddress != null,
 		);
 		if (!plan) continue; // closed this cycle by tp/sl
+		const gate = checkCloseGate(
+			plan,
+			rt.state.plans,
+			rt.state.cooldowns,
+			Date.now(),
+		);
+		if (!gate.ok) {
+			logInfo(`OOR decide: ${pos.poolName} → close skipped (${gate.reason})`);
+			continue;
+		}
 		const base: JournalCandidate = {
 			pool: pos.pool,
 			poolName: pos.poolName,
@@ -814,6 +826,13 @@ async function evaluateOor(
 			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
 			continue;
 		}
+		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+			logInfo(
+				`OOR decide: ${pos.poolName} → close skipped (close already in flight)`,
+			);
+			continue;
+		}
+		closeInFlight.add(plan.positionAddress!);
 		try {
 			const out = await zap.closeAndZapOut(
 				pos.pool,
@@ -865,8 +884,6 @@ async function evaluateOor(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "close",
 					poolName: pos.poolName,
@@ -881,8 +898,6 @@ async function evaluateOor(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "close",
 					poolName: pos.poolName,
@@ -896,6 +911,8 @@ async function evaluateOor(
 				llmStatus: "ok",
 				candidates: [{ ...base, execution: "failed" }],
 			});
+		} finally {
+			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
 }
@@ -918,23 +935,21 @@ async function evaluatePlans(
 	const live: LiveMsg = { msgId: null };
 	const cycle = rt.state.cycle + 1;
 	const liveLines = [`🔎 screening pools...`];
-	if (allowed(cfg.notifLevel, "live")) {
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
-	}
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	let screen;
 	try {
 		screen = await screenPools();
 	} catch (e) {
 		logError("screening failed:", e);
 		liveLines.push("❌ screening failed");
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		return;
 	}
 	logInfo(
 		`screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,
 		rt.state.cooldowns,
@@ -944,7 +959,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`⏳ ${cooldownSkipped} pool${cooldownSkipped === 1 ? "" : "s"} in cooldown, skipped`,
 		);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
 	const { pools: candidatePools, skipped: dupSkipped } = filterDuplicates(
 		noCooldownPools,
@@ -954,7 +969,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`🔁 ${dupSkipped} pool${dupSkipped === 1 ? "" : "s"} already open, skipped`,
 		);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
 	const mintByPool = new Map(
 		candidatePools.map((p) => [p.pool, p.baseMint] as const),
@@ -995,7 +1010,7 @@ async function evaluatePlans(
 		activePositions: p.activePositions,
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
 	const {
 		decisions: rawDecisions,
@@ -1015,17 +1030,11 @@ async function evaluatePlans(
 		const failure = errorMessage ?? "LLM request failed — cycle skipped";
 		logError(`LLM: ${failure}`);
 		liveLines[liveLines.length - 1] = `❌ LLM failed — ${failure}`;
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		rt.state.llmStatus = "failed";
 		appendJournal(journal);
 		saveState(rt.state);
-		await notify(
-			bot,
-			chatId,
-			cfg.notifLevel,
-			"error",
-			formatError("LLM decision", new Error(failure)),
-		);
+		await notify(bot, chatId, formatError("LLM decision", new Error(failure)));
 		return;
 	}
 	logInfo(
@@ -1036,7 +1045,7 @@ async function evaluatePlans(
 	}
 	liveLines[liveLines.length - 1] =
 		`🧠 LLM: ${llmCandidates.length} candidates → ${rawDecisions.length} decisions`;
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 
 	const { decisions: validated, dropped } = validateOpenDecisions(
 		ranked,
@@ -1053,7 +1062,7 @@ async function evaluatePlans(
 
 	const liveDecision = async (line: string) => {
 		liveLines.push(line);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	};
 
 	for (const d of validated) {
@@ -1205,7 +1214,7 @@ async function evaluatePlans(
 			`decide: ${pool.name} heuristic ${h} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
 		liveLines.push(`🚀 OPEN ${pool.name} ${amountSol} SOL (sending tx...)`);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		const preset = resolveCreatePresetFrom(getConfigSync());
 		const params = buildCreateParams({
 			poolAddress: pool.pool,
@@ -1270,12 +1279,10 @@ async function evaluatePlans(
 			);
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${pool.name} ${amountSol} SOL ${sig || "?"}`;
-			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "open",
 					poolName: pool.name,
@@ -1289,12 +1296,10 @@ async function evaluatePlans(
 			logError("open failed:", pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
 			liveLines[liveLines.length - 1] = `❌ OPEN ${pool.name} failed`;
-			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "open",
 					poolName: pool.name,
@@ -1313,9 +1318,5 @@ async function evaluatePlans(
 		journal.llmStatus,
 		rt.state.cooldowns,
 	);
-	if (cfg.notifLevel === "verbose") {
-		await liveSend(bot, chatId, live, summary);
-	} else {
-		await notify(bot, chatId, cfg.notifLevel, "summary", summary);
-	}
+	await liveSend(bot, chatId, live, summary);
 }
