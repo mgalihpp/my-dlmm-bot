@@ -377,6 +377,51 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("$150.00");
 		expect(html).toContain("$2.00");
 	});
+
+	it("renders closed pagination with prev/next links", () => {
+		const html = renderPortfolio(
+			{
+				total: mkTotal(),
+				open: [],
+				closed: [
+					mkClosed({ poolAddress: "pA" }),
+					mkClosed({ poolAddress: "pB" }),
+				],
+			},
+			[],
+			{ page: 2, pageSize: 10, total: 87 },
+		);
+		expect(html).toContain('class="pagination"');
+		expect(html).toContain("showing 11–12 of 87");
+		expect(html).toContain('href="/portfolio?closedPage=1"');
+		expect(html).toContain('href="/portfolio?closedPage=3"');
+	});
+
+	it("disables prev on the first page and next on the last page", () => {
+		const first = renderPortfolio(
+			{ total: mkTotal(), open: [], closed: [mkClosed()] },
+			[],
+			{ page: 1, pageSize: 10, total: 87 },
+		);
+		expect(first).toContain('<a class="disabled">‹ prev</a>');
+		expect(first).toContain('href="/portfolio?closedPage=2"');
+		const last = renderPortfolio(
+			{ total: mkTotal(), open: [], closed: [mkClosed()] },
+			[],
+			{ page: 9, pageSize: 10, total: 87 },
+		);
+		expect(last).toContain('<a class="disabled">next ›</a>');
+		expect(last).not.toContain('href="/portfolio?closedPage=10"');
+	});
+
+	it("renders no pagination links when closed total is zero", () => {
+		const html = renderPortfolio(
+			{ total: mkTotal(), open: [], closed: [mkClosed()] },
+			[],
+			{ page: 1, pageSize: 10, total: 0 },
+		);
+		expect(html).not.toContain('class="pagination"');
+	});
 });
 
 const closedPnlBody = {

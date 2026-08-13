@@ -42,9 +42,16 @@ const EMPTY_TOTAL: PortfolioTotal = {
 	totalPnlSolPctChange: "-",
 };
 
+export interface ClosedPagination {
+	readonly page: number;
+	readonly pageSize: number;
+	readonly total: number;
+}
+
 export function renderPortfolio(
 	data: PortfolioData,
 	history: readonly PortfolioSnapshot[] = [],
+	closedPagination: ClosedPagination | null = null,
 ): string {
 	const openBalance = data.open.reduce(
 		(sum, pool) => sum + (parseFloat(pool.balances || "0") || 0),
@@ -93,7 +100,7 @@ ${sectionHead(
 ${statsGrid(cards, "portfolio-stats")}
 <div class="grid-two">${equityPanel(history)}${allocationPanel(data.open, openBalance, openFees)}</div>
 ${renderOpen(data.open)}
-${renderClosed(data.closed)}
+${renderClosed(data.closed, closedPagination)}
 </section>`;
 }
 
@@ -241,7 +248,10 @@ function positionRangeChart(pool: OpenPool): string {
 	return `<div class="position-range-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Position price range chart"><line class="range-axis" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><g class="range-bars">${bars}</g><line class="range-price-line" x1="${currentX.toFixed(1)}" y1="7" x2="${currentX.toFixed(1)}" y2="${baseline + 3}"/><rect class="range-price-label" x="${(labelX - 39).toFixed(1)}" y="2" width="78" height="22" rx="5"/><text class="range-price-title" x="${labelX.toFixed(1)}" y="11" text-anchor="middle">Pool Price</text><text class="range-price-value" x="${labelX.toFixed(1)}" y="20" text-anchor="middle">${escapeHtml(formatPrice(current))}</text><text class="range-label" x="0" y="78">${escapeHtml(formatPrice(min))}</text><text class="range-label" x="${(width / 2).toFixed(1)}" y="78" text-anchor="middle">${escapeHtml(formatPrice((min + max) / 2))}</text><text class="range-label" x="${width}" y="78" text-anchor="end">${escapeHtml(formatPrice(max))}</text></svg></div>`;
 }
 
-function renderClosed(pools: readonly ClosedPool[]): string {
+function renderClosed(
+	pools: readonly ClosedPool[],
+	pagination: ClosedPagination | null,
+): string {
 	if (pools.length === 0) {
 		return `<h2>Closed Positions <span class="sub">// 0</span></h2><div class="empty">No closed positions</div>`;
 	}
@@ -266,10 +276,35 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 <tr class="detail-row" hidden><td colspan="7"><div class="detail-inner"></div></td></tr>`;
 	});
 
+	const links =
+		pagination !== null ? closedPaginationLinks(pools.length, pagination) : "";
 	return `<h2>Closed Positions <span class="sub">// ${pools.length} pools</span></h2>${table(
 		["Pool", "Deposit", "Withdraw", "Fees", "PnL USD", "PnL SOL", "Closed"],
 		rows,
-	)}${closedDetailScript()}`;
+	)}${links}${closedDetailScript()}`;
+}
+
+function closedPaginationLinks(
+	rowsOnPage: number,
+	pagination: ClosedPagination,
+): string {
+	if (pagination.total === 0) return "";
+	const lastPage = Math.max(
+		1,
+		Math.ceil(pagination.total / pagination.pageSize),
+	);
+	const page = Math.min(Math.max(1, pagination.page), lastPage);
+	const from = (page - 1) * pagination.pageSize + 1;
+	const to = from + rowsOnPage - 1;
+	const prev =
+		page > 1
+			? `<a href="/portfolio?closedPage=${page - 1}">‹ prev</a>`
+			: `<a class="disabled">‹ prev</a>`;
+	const next =
+		page < lastPage
+			? `<a href="/portfolio?closedPage=${page + 1}">next ›</a>`
+			: `<a class="disabled">next ›</a>`;
+	return `<div class="pagination">${prev}<span>showing ${from}–${to} of ${pagination.total}</span>${next}</div>`;
 }
 
 function closedDetailScript(): string {
