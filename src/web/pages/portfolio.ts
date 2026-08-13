@@ -249,7 +249,8 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 	const rows = pools.map((pool) => {
 		const pair = `${pool.tokenX ?? "?"}/${pool.tokenY ?? "?"}`;
 		const pnlPct = parseFloat(pool.pnlPctChange);
-		const pnlSol = parseFloat(pool.pnlSol);
+		const pnlSolPct =
+			pool.pnlSolPctChange != null ? parseFloat(pool.pnlSolPctChange) : NaN;
 		const detailUrl = `/partials/closed-positions?pool=${encodeURIComponent(pool.poolAddress)}&pair=${encodeURIComponent(pair)}`;
 		const chevron = `<button type="button" class="chevron" data-closed-detail="${escapeHtml(detailUrl)}" aria-label="Show closed positions for ${escapeHtml(pair)}">&#9656;</button>`;
 		const link = `<a href="${escapeHtml(meteoraUrl(pool.poolAddress))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
@@ -259,7 +260,7 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 <td>${fmtUsd(pool.totalWithdrawal)}</td>
 <td>${fmtUsd(pool.totalFee)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pool.pnlUsd)}<div class="sub">${fmtPct(pnlPct)}</div></td>
-<td class="${pnlClass(pnlSol)}">${fmtSol(pool.pnlSol)}</td>
+<td class="${pnlClass(pnlSolPct)}">${fmtSol(pool.pnlSol)}<div class="sub">${fmtPct(pnlSolPct)}</div></td>
 <td class="mono">${escapeHtml(tsLocal(pool.lastClosedAt))}</td>
 </tr>
 <tr class="detail-row" hidden><td colspan="7"><div class="detail-inner"></div></td></tr>`;
@@ -312,7 +313,10 @@ export function renderClosedDetail(
 	}
 	const rows = closed.map((pos) => {
 		const pnlPct = parseFloat(pos.pnlPctChange);
-		const pnlSol = pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : NaN;
+		const pnlSolPct =
+			pos.pnlSolPctChange != null
+				? parseFloat(String(pos.pnlSolPctChange))
+				: NaN;
 		const addrLink = `<a href="${escapeHtml(`https://solscan.io/account/${pos.positionAddress}`)}" target="_blank" rel="noopener" class="mono">${escapeHtml(shortAddr(pos.positionAddress))}</a>`;
 		return `<tr>
 <td>${addrLink}</td>
@@ -320,7 +324,7 @@ export function renderClosedDetail(
 <td>${fmtUsd(pos.allTimeWithdrawals.total.usd)}</td>
 <td>${fmtUsd(pos.allTimeFees.total.usd)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pos.pnlUsd)}<div class="sub">${fmtPct(pnlPct)}</div></td>
-<td class="${pnlClass(pnlSol)}">${fmtSol(pos.pnlSol)}</td>
+<td class="${pnlClass(pnlSolPct)}">${fmtSol(pos.pnlSol)}<div class="sub">${fmtPct(pnlSolPct)}</div></td>
 <td class="mono">${escapeHtml(tsLocal(pos.closedAt))}</td>
 </tr>`;
 	});

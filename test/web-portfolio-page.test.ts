@@ -141,6 +141,15 @@ describe("renderClosedDetail", () => {
 		]);
 		expect(html).toContain(">posA</a>");
 	});
+
+	it("shows PnL SOL percentage under the SOL amount", () => {
+		const html = renderClosedDetail("OLD/SOL", [
+			mkPos(),
+			mkPos({ positionAddress: "posB", pnlSol: "-0.05", pnlSolPctChange: null }),
+		]);
+		expect(html).toContain('<div class="sub">+5.10%</div>');
+		expect(html).toContain('<div class="sub">-</div>');
+	});
 });
 
 describe("renderPortfolio", () => {
@@ -209,6 +218,26 @@ describe("renderPortfolio", () => {
 		expect(html).toContain("__vexisClosedBound");
 		expect(html).toContain('closest("tr.closed-row")');
 		expect(html).toContain('closest("a")');
+	});
+
+	it("shows PnL SOL percentage under closed pool rows", () => {
+		const html = renderPortfolio({
+			total: mkTotal(),
+			open: [],
+			closed: [mkClosed()],
+		});
+		expect(html).toContain('class="profit">0.2000 ');
+		expect(html).toContain('<div class="sub">+10.00%</div>');
+	});
+
+	it("colors closed PnL SOL percentage red when negative", () => {
+		const html = renderPortfolio({
+			total: mkTotal(),
+			open: [],
+			closed: [mkClosed({ pnlSol: "-0.05", pnlSolPctChange: "-4.5" })],
+		});
+		expect(html).toContain('<td class="loss">');
+		expect(html).toContain('<div class="sub">-4.50%</div>');
 	});
 
 	it("does not emit chevron script when there are no closed pools", () => {
