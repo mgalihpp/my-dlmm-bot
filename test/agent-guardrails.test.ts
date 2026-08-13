@@ -10,6 +10,7 @@ import {
 	checkPoolCooldown,
 	checkRent,
 	checkRisks,
+	claimClose,
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
@@ -621,5 +622,28 @@ describe("checkCloseGate", () => {
 			NOW,
 		);
 		expect(out.ok).toBe(true);
+	});
+});
+
+describe("claimClose", () => {
+	it("allows the first close for a position", () => {
+		expect(claimClose("pos1", new Set()).ok).toBe(true);
+	});
+
+	it("blocks a second close while one is in flight", () => {
+		expect(claimClose("pos1", new Set(["pos1"])).ok).toBe(false);
+	});
+
+	it("allows other positions while one is in flight", () => {
+		expect(claimClose("pos2", new Set(["pos1"])).ok).toBe(true);
+	});
+
+	it("allows retry after the in-flight close was released", () => {
+		const inFlight = new Set<string>();
+		expect(claimClose("pos1", inFlight).ok).toBe(true);
+		inFlight.add("pos1");
+		expect(claimClose("pos1", inFlight).ok).toBe(false);
+		inFlight.delete("pos1");
+		expect(claimClose("pos1", inFlight).ok).toBe(true);
 	});
 });

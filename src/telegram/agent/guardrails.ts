@@ -250,6 +250,24 @@ export function checkCloseGate(
 	return checkPoolCooldown(plan.pool, plan.baseMint ?? null, cooldowns, nowMs);
 }
 
+/**
+ * In-flight close lock: only one close may be in progress per position at a
+ * time. Concurrent loops (fast check, OOR check, cycle) can both decide to
+ * close the same position within the same second — the cooldown gate alone
+ * cannot stop that because cooldown is recorded only after a close completes.
+ * Callers must add the position to the set after a successful claim and remove
+ * it when the close finishes (finally).
+ */
+export function claimClose(
+	positionAddress: string,
+	inFlight: ReadonlySet<string>,
+): GuardOk {
+	if (inFlight.has(positionAddress)) {
+		return { ok: false, reason: "close already in flight" };
+	}
+	return { ok: true, reason: null };
+}
+
 /** Returns a new list with the entry added and expired entries pruned. */
 export function recordCooldown(
 	cooldowns: readonly AgentCooldown[],

@@ -34,6 +34,7 @@ import {
 	checkPoolCooldown,
 	checkRent,
 	checkRisks,
+	claimClose,
 	deriveOpenAmount,
 	filterCooldown,
 	filterDuplicates,
@@ -68,6 +69,9 @@ import { type AgentState, loadState, saveState } from "./state.js";
 import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
+
+/** Positions with a close transaction currently in flight (one per position). */
+const closeInFlight = new Set<string>();
 
 /** Newest journal candidate with a failed execution for the pool, or null. */
 export function findFailedCandidate(
@@ -655,6 +659,13 @@ async function evaluateTpSl(
 			);
 			continue;
 		}
+		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+			logInfo(
+				`position check: ${plan.poolName} → ${action} skipped (close already in flight)`,
+			);
+			continue;
+		}
+		closeInFlight.add(plan.positionAddress!);
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
@@ -772,6 +783,8 @@ async function evaluateTpSl(
 				}),
 				{ keyboard: notifyKeyboard("failed", plan.pool) },
 			);
+		} finally {
+			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
 	if (opts.includeOor && oorPositions.length > 0) {
@@ -839,6 +852,13 @@ async function evaluateOor(
 			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
 			continue;
 		}
+		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+			logInfo(
+				`OOR decide: ${pos.poolName} → close skipped (close already in flight)`,
+			);
+			continue;
+		}
+		closeInFlight.add(plan.positionAddress!);
 		try {
 			const out = await zap.closeAndZapOut(
 				pos.pool,
@@ -921,6 +941,8 @@ async function evaluateOor(
 				llmStatus: "ok",
 				candidates: [{ ...base, execution: "failed" }],
 			});
+		} finally {
+			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
 }
