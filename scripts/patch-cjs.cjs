@@ -10,7 +10,7 @@ function patchPkg(pkgDir) {
 	let changed = false;
 
 	// Strip "exports" from @coral-xyz/anchor (CJS only, no ESM re-export of BN)
-	if (pkgDir.includes("@coral-xyz/anchor")) {
+	if (pkg.name === "@coral-xyz/anchor") {
 		if (pkg.exports) {
 			delete pkg.exports;
 			changed = true;
@@ -18,7 +18,7 @@ function patchPkg(pkgDir) {
 	}
 
 	// For meteora packages: strip exports so Node uses main field (CJS)
-	if (pkgDir.includes("@meteora-ag/")) {
+	if (pkg.name?.startsWith("@meteora-ag/")) {
 		if (pkg.exports) {
 			delete pkg.exports;
 			changed = true;
