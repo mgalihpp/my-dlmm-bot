@@ -10,6 +10,7 @@ import {
 	paginate,
 	parseJournalFilter,
 	renderAgent,
+	timelineGroups,
 } from "../src/web/pages/agent.js";
 
 const mkCandidate = (
@@ -237,5 +238,29 @@ describe("renderAgent", () => {
 			{ action: "all", page: 1 },
 		);
 		expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+	});
+});
+
+describe("timelineGroups", () => {
+	it("groups consecutive rows by cycle in order", () => {
+		const entries = [
+			mkEntry(1, [mkCandidate({ action: "tp" }), mkCandidate({ action: "open" })]),
+			mkEntry(2, [mkCandidate({ action: "sl" })]),
+			mkEntry(3, []),
+		];
+		const groups = timelineGroups(journalRows(entries, "all"));
+		expect(groups.map((g) => g.cycle)).toEqual([3, 2, 1]);
+		expect(groups[2].rows).toHaveLength(2);
+		expect(groups[0].rows[0].candidate).toBeNull();
+	});
+	it("preserves llmStatus per group", () => {
+		const entries = [
+			{ ts: "2026-08-12T10:00:00.000Z", cycle: 1, llmStatus: "failed" as const, candidates: [mkCandidate({ action: "open" })] },
+		];
+		const groups = timelineGroups(journalRows(entries, "all"));
+		expect(groups[0].llmStatus).toBe("failed");
+	});
+	it("returns empty for empty rows", () => {
+		expect(timelineGroups([])).toEqual([]);
 	});
 });

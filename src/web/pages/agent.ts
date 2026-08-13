@@ -4,7 +4,7 @@ import {
 	type JournalCandidate,
 	readJournalAll,
 } from "../../telegram/agent/journal.js";
-import { type AgentState, loadState } from "../../telegram/agent/state.js";
+import { type AgentState, type LlmStatus, loadState } from "../../telegram/agent/state.js";
 import { barChart, CHART_COLORS } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
 import {
@@ -103,6 +103,7 @@ export const JOURNAL_PAGE_SIZE = 20;
 export interface JournalRow {
 	readonly cycle: number;
 	readonly ts: string;
+	readonly llmStatus: LlmStatus;
 	readonly candidate: JournalCandidate | null;
 }
 
@@ -114,7 +115,12 @@ export function journalRows(
 	for (const entry of journal) {
 		if (entry.candidates.length === 0) {
 			if (filter === "all")
-				rows.push({ cycle: entry.cycle, ts: entry.ts, candidate: null });
+				rows.push({
+					cycle: entry.cycle,
+					ts: entry.ts,
+					llmStatus: entry.llmStatus,
+					candidate: null,
+				});
 			continue;
 		}
 		for (const candidate of entry.candidates) {
@@ -123,11 +129,45 @@ export function journalRows(
 				(filter === "blocked"
 					? candidate.guardrail === "blocked"
 					: candidate.action === filter);
-			if (matches) rows.push({ cycle: entry.cycle, ts: entry.ts, candidate });
+			if (matches)
+				rows.push({
+					cycle: entry.cycle,
+					ts: entry.ts,
+					llmStatus: entry.llmStatus,
+					candidate,
+				});
 		}
 	}
 	rows.reverse();
 	return rows;
+}
+
+export interface TimelineGroup {
+	readonly cycle: number;
+	readonly ts: string;
+	readonly llmStatus: LlmStatus;
+	readonly rows: readonly JournalRow[];
+}
+
+export function timelineGroups(rows: readonly JournalRow[]): TimelineGroup[] {
+	const groups: TimelineGroup[] = [];
+	for (const row of rows) {
+		const last = groups[groups.length - 1];
+		if (last !== undefined && last.cycle === row.cycle) {
+			groups[groups.length - 1] = {
+				...last,
+				rows: [...last.rows, row],
+			};
+		} else {
+			groups.push({
+				cycle: row.cycle,
+				ts: row.ts,
+				llmStatus: row.llmStatus,
+				rows: [row],
+			});
+		}
+	}
+	return groups;
 }
 
 export function paginate<T>(
