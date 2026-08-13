@@ -233,6 +233,23 @@ export function checkPoolCooldown(
 	return { ok: true, reason: null };
 }
 
+/**
+ * Close gate: blocks a close when the plan is no longer tracked (already
+ * closed this cycle by another path, e.g. the OOR flow) or the pool is still
+ * in cooldown (e.g. re-adopted from a stale on-chain API right after a close).
+ */
+export function checkCloseGate(
+	plan: { pool: string; baseMint?: string | null },
+	plans: ReadonlyArray<{ pool: string }>,
+	cooldowns: readonly AgentCooldown[],
+	nowMs: number,
+): GuardOk {
+	if (!plans.some((p) => p.pool === plan.pool)) {
+		return { ok: false, reason: "plan no longer tracked" };
+	}
+	return checkPoolCooldown(plan.pool, plan.baseMint ?? null, cooldowns, nowMs);
+}
+
 /** Returns a new list with the entry added and expired entries pruned. */
 export function recordCooldown(
 	cooldowns: readonly AgentCooldown[],
@@ -263,7 +280,10 @@ export function recordCooldown(
  * agent does not track yet (opened manually or before a fresh start) and, when
  * the portfolio response is complete, prunes tracked positions that are no
  * longer on-chain (e.g. closed manually). Only plans with a confirmed
- * positionAddress are pruned — pending opens are kept until confirmed.
+ * positionAddress are pruned — pending opens are kept until confirmed. Pools
+ * with an active cooldown are never adopted: the on-chain API may still list a
+ * position for a few seconds after a close, which would otherwise re-track it
+ * right after the agent closed it.
  */
 export function adoptOnchainPlans(
 	plans: readonly AgentPlan[],
@@ -276,9 +296,13 @@ export function adoptOnchainPlans(
 		| "openPositionCount"
 		| "listPositions"
 	>[],
-	opts: { complete?: boolean } = {},
+	opts: {
+		complete?: boolean;
+		cooldowns?: readonly AgentCooldown[];
+		nowMs?: number;
+	} = {},
 ): readonly AgentPlan[] {
-	const { complete = true } = opts;
+	const { complete = true, cooldowns = [], nowMs = Date.now() } = opts;
 	const openPoolSet = new Set(openPools.map((p) => p.poolAddress));
 	// Skip pruning when the response may be truncated (pagination) — a missing
 	// pool could simply be on a later page, and pruning would wrongly drop it.
@@ -292,6 +316,11 @@ export function adoptOnchainPlans(
 	const adopted: AgentPlan[] = [];
 	for (const pool of openPools) {
 		if (pool.openPositionCount <= 0 || known.has(pool.poolAddress)) continue;
+		if (
+			!checkPoolCooldown(pool.poolAddress, pool.tokenXMint, cooldowns, nowMs).ok
+		) {
+			continue;
+		}
 		adopted.push({
 			pool: pool.poolAddress,
 			poolName: `${pool.tokenX}/${pool.tokenY}`,

@@ -27,6 +27,7 @@ import {
 } from "./format.js";
 import {
 	adoptOnchainPlans,
+	checkCloseGate,
 	checkCooldown,
 	checkDuplicate,
 	checkOpenGuardrail,
@@ -150,6 +151,8 @@ async function syncOnchainPlans(
 	rt.state.plans = [
 		...adoptOnchainPlans(rt.state.plans, res.pools ?? [], {
 			complete: !res.hasNext,
+			cooldowns: rt.state.cooldowns,
+			nowMs: Date.now(),
 		}),
 	];
 	if (rt.state.plans.length !== before) {
@@ -640,6 +643,18 @@ async function evaluateTpSl(
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		if (action === "hold") continue;
 		if (opts.myGen !== rt.gen) return; // aborted before the close tx
+		const gate = checkCloseGate(
+			plan,
+			rt.state.plans,
+			rt.state.cooldowns,
+			Date.now(),
+		);
+		if (!gate.ok) {
+			logInfo(
+				`position check: ${plan.poolName} → ${action} skipped (${gate.reason})`,
+			);
+			continue;
+		}
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
@@ -793,6 +808,16 @@ async function evaluateOor(
 			(p) => p.pool === pos.pool && p.positionAddress != null,
 		);
 		if (!plan) continue; // closed this cycle by tp/sl
+		const gate = checkCloseGate(
+			plan,
+			rt.state.plans,
+			rt.state.cooldowns,
+			Date.now(),
+		);
+		if (!gate.ok) {
+			logInfo(`OOR decide: ${pos.poolName} → close skipped (${gate.reason})`);
+			continue;
+		}
 		const base: JournalCandidate = {
 			pool: pos.pool,
 			poolName: pos.poolName,
