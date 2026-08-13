@@ -1,92 +1,85 @@
 # Prompt untuk AI Coding Agent
 
-File ini berisi prompt siap copy-paste untuk AI coding agent (Claude Code, Codex, Gemini CLI, Copilot, dll.) agar bisa membantu kamu setup, konfigurasi, dan debugging project Vexis — bot manajemen posisi DLMM Meteora di Solana.
+File ini berisi prompt siap copy-paste untuk AI coding agent (Claude Code, Codex, Gemini CLI, Copilot, dll.).
 
-**Cara pakai:** copy prompt ke agent, lalu tempel tambahan (output error / isi journal / deskripsi masalah) jika diminta. Jawaban agent akan berbahasa Indonesia.
+**Kamu adalah end user — kamu tidak perlu setup apa-apa.** Cukup:
 
-> **Keamanan:** JANGAN pernah menempelkan nilai secret ke prompt — private key, bot token, API key LLM, atau password web. Agent akan minta kamu mengisinya sendiri ke config file / env.
+1. Clone repo ini, buka foldernya di Claude Code / Codex (atau coding agent lain).
+2. Copy-paste prompt di bawah ini **satu kali**.
+3. Jawab pertanyaan preferensi yang diajukan agent (modal, risiko, TP/SL, dll.) — satu per satu, tinggal tekan Enter untuk pakai default.
+4. Agent yang mengerjakan sisanya: install, build, buat config sesuai preferensimu, verifikasi, dan jelaskan cara menjalankan.
+
+Yang perlu kamu siapkan sebelum mulai (secret — **jangan pernah di-paste ke chat**, kamu isi sendiri di file config saat diminta agent):
+
+- Private key wallet Solana (base64 atau base58)
+- Bot token dari @BotFather
+- Chat ID dari @userinfobot
+- API key LLM (kalau tidak pakai default OpenAI)
 
 ---
 
-## 1. Prompt Universal
-
-Prompt utama untuk semua task. Copy-paste ini dulu, lalu tambahkan pertanyaan/masalahmu di bawahnya.
+## Prompt Setup Sekali Paste
 
 ````markdown
-Kamu membantu saya dengan project **Vexis** — bot manajemen posisi DLMM Meteora di Solana (TypeScript + Effect + grammY).
+Kamu adalah asisten setup untuk project **Vexis** — bot otomatis manajemen posisi DLMM Meteora di Solana. Saya end user yang tidak paham teknis. Tugasmu: setup SEMUANYA untuk saya.
 
-SEBELUM bertindak, baca dokumen ini secara berurutan:
-1. `README.md` — ringkasan project
-2. `docs/ai-agent.md` — panduan AI agent (bahasa Indonesia)
-3. `docs/config-reference.md` — referensi konfigurasi (bahasa Indonesia)
-4. `docs/troubleshooting.md` — troubleshooting (bahasa Indonesia)
-5. `AGENTS.md` — konvensi kode dan arsitektur
+LANGKAH PERTAMA — Pelajari project:
+1. Baca `README.md`
+2. Baca `docs/ai-agent.md`
+3. Baca `docs/config-reference.md`
+4. Baca `docs/troubleshooting.md`
+5. Baca `AGENTS.md`
+
+KEMUDIAN — Tanya preferensi saya SATU PER SATU (bahasa Indonesia, bahasa sehari-hari, tanpa jargon). Untuk tiap pertanyaan, beri default aman dan bilang saya bisa tekan Enter untuk memakainya. Yang wajib ditanyakan:
+1. Total modal yang mau dipakai (SOL) — default 3 SOL
+2. Maksimal SOL per posisi — default 0.5 SOL
+3. Maksimal posisi terbuka sekaligus — default 4
+4. Take profit (%) — default 25
+5. Stop loss (%) — default -10
+6. Level risiko: Konservatif / Seimbang / Agresif — default Seimbang (ini menentukan filter risiko: rugpull, wash trading, bundle holders, bot holders, dll.)
+7. Model AI: pakai default (`gpt-4o-mini`) atau punya API sendiri? Kalau punya, minta base URL + nama model (jangan minta API key di chat)
+8. RPC Solana: pakai default publik, atau punya RPC sendiri?
+
+JANGAN PERNAH minta saya paste private key, bot token, atau API key di chat — itu rahasia.
+
+SETELAH tahu preferensi saya:
+1. Jalankan `npm install && npm run build` — kalau gagal, perbaiki sendiri dan coba lagi.
+2. Buat `vexis.config.json` dari `vexis.config.example.json` (JANGAN commit — file ini gitignored karena berisi secret).
+3. Isi config sesuai preferensi saya: blok `agent` (budget, TP/SL, risks sesuai level risiko, llm), `pools` (pakai default aman dari example), dan lainnya. Semua yang tidak saya tentukan, pakai default aman.
+4. Berhenti di sini dan minta saya membuka `vexis.config.json` sendiri untuk mengisi 3-4 nilai rahasia: `privateKey`, `telegramBotToken`, `telegramChatId`, dan `agent.llm.apiKey` (hanya jika saya punya API sendiri). Tunggu konfirmasi saya bahwa sudah diisi — lalu lanjut verifikasi.
+5. Verifikasi: `npm run check && npm run typecheck && npm test` — semua harus pass.
+6. Jelaskan cara menjalankan dengan bahasa sederhana: `npm run bot`, lalu kirim `/agent start` di Telegram. Jelaskan apa yang akan saya lihat (pesan live `🔎 screening... 🧠 LLM... 🚀/➖/⛔`) dan cara cek status (`/agent status`).
 
 Aturan:
-- Jangan pernah menampilkan, menulis, atau meng-commit secret: private key, bot token, API key LLM, password web.
-- Jangan memodifikasi `vexis.config.json` (gitignored) tanpa izin saya; contoh config ada di `vexis.config.example.json`.
-- Perintah verifikasi yang benar: `npm run check && npm run typecheck && npm test`.
-- Bot jalan dengan `npm run bot` (dev) / `npm run bot:start` (compiled). Web: `npm run web` / `npm run web:start`.
-- Jika ada informasi yang tidak saya berikan (mis. private key, token, RPC), tanyakan dulu — jangan mengarang.
-- Jawab dalam bahasa Indonesia.
+- Bahasa Indonesia, ramah, sesederhana mungkin. Kalau harus pakai istilah teknis, jelaskan singkat.
+- Satu pertanyaan per pesan — jangan tanya banyak sekaligus.
+- Jangan pernah menampilkan nilai secret saya.
+- Kalau saya jawab "terserah"/"default" atau tidak tahu, pakai default aman dan beri tahu keputusannya.
+- Kerjakan semuanya sendiri — jangan meminta saya menjalankan perintah teknis di terminal.
 ````
 
 ---
 
-## 2. Prompt Setup
+## Prompt Troubleshooting (kalau ada masalah setelah jalan)
 
-Untuk setup AI agent dari awal.
-
-````markdown
-Bantu saya setup AI agent Vexis dari awal. Ikuti langkah:
-1. Pastikan `node_modules` terinstall dan build sukses (`npm install && npm run build`).
-2. Buat `vexis.config.json` dari `vexis.config.example.json` (jangan commit).
-3. Pandu saya mengisi: `wallet`, `privateKey`, `rpcUrl`, `telegramBotToken`, `telegramChatId`, dan blok `agent` + `agent.llm` (referensi: `docs/config-reference.md`).
-4. Jelaskan cara mulai: `npm run bot`, lalu `/agent start` di Telegram.
-5. Verifikasi dengan `npm run check && npm run typecheck && npm test`.
-Jangan menampilkan nilai secret di jawaban.
-````
-
----
-
-## 3. Prompt Troubleshooting
-
-Untuk diagnosis masalah. Tempel output error / isi journal di bagian yang disediakan.
+Paste ini saat agent sudah jalan tapi bermasalah. Tempel output error / isi journal di bagian yang disediakan.
 
 ````markdown
-AI agent Vexis saya bermasalah. Bantu diagnosis berdasarkan info ini:
+Bot Vexis saya bermasalah. Saya end user, jelaskan dengan bahasa sederhana. Ini informasinya:
 
-[Tempel di sini: output error, log konsol, isi `.vexis-agent-journal.jsonl`, atau isi `.vexis-agent.json`]
+[Tempel di sini: output error dari terminal, atau isi `.vexis-agent-journal.jsonl`]
 
-- Baca `docs/troubleshooting.md` dulu.
-- Identifikasi gejala → kemungkinan penyebab → solusi.
-- Jika solusi melibatkan perubahan config, tunjukkan nilai yang disarankan + alasannya.
-- Jika menyangkut secret, minta saya mengisinya sendiri.
-- Jangan langsung menyarankan transaksi on-chain tanpa konfirmasi.
-````
-
----
-
-## 4. Prompt Perubahan Kode / Fitur Baru
-
-Jika kamu minta agent mengubah kode (bukan sekadar setup/debug).
-
-````markdown
-Bantu saya mengubah kode Vexis. Task: [jelaskan perubahan/feature yang diminta]
-
-- Baca `AGENTS.md` dulu — ikuti konvensi project (Effect, ESM, TypeScript strict, Biome).
-- Ikuti arsitektur existing; jangan buat abstraksi baru jika sudah ada yang menyelesaikan masalah.
-- Tambah/update test unit di `test/` (vitest) untuk perubahan logic.
-- Verifikasi: `npm run check && npm run typecheck && npm test`.
-- Jangan mengubah perilaku publik (CLI, config, perintah Telegram) tanpa menanyakannya dulu.
-- Jangan pernah menampilkan atau meng-commit secret.
+- Baca `docs/troubleshooting.md` dulu, lalu `docs/ai-agent.md` jika perlu.
+- Cari tahu penyebabnya, perbaiki sendiri kalau bisa (termasuk config), jangan minta saya menjalankan perintah teknis kecuali benar-benar perlu.
+- Jelaskan apa yang salah dan apa yang kamu perbaiki — bahasa sederhana, tanpa jargon berlebihan.
+- Kalau masalahnya menyangkut secret (token, key), minta saya mengisinya sendiri — jangan menampilkannya.
+- Verifikasi dengan `npm run check && npm run typecheck && npm test`.
 ````
 
 ---
 
 ## Catatan
 
-- Prompt bebas dimodifikasi — tambahkan detail project atau preferensimu.
-- Jika task menyangkut on-chain (transaksi, wallet), agent wajib minta konfirmasi sebelum menyarankan eksekusi.
-- Untuk task yang melibatkan banyak perubahan, minta agent membuat rencana dulu sebelum implementasi.
-- Secret tidak pernah boleh di-paste ke prompt — isi langsung ke config file / env variable.
+- Prompt bebas dimodifikasi — misalnya tambahkan "lebih agresif" atau "konservatif banget" pada bagian level risiko.
+- Secret tidak pernah boleh di-paste ke chat agent — isi langsung di `vexis.config.json` saat agent minta.
+- Jika kamu tidak punya repo ini, minta agent meng-clone-nya dulu dari URL yang kamu berikan.
