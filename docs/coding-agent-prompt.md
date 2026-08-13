@@ -2,77 +2,74 @@
 
 File ini berisi prompt siap copy-paste untuk AI coding agent (Claude Code, Codex, Gemini CLI, Copilot, dll.).
 
-**Kamu adalah end user — kamu tidak perlu setup apa-apa.** Cukup:
+**Kamu end user — kamu tidak perlu menyiapkan apa pun.** Agent yang mengerjakan SEMUANYA: install Node.js kalau belum ada, clone repo, install dependencies, build, buat config, isi semua nilai, verifikasi, sampai bot jalan.
 
-1. Clone repo ini, buka foldernya di Claude Code / Codex (atau coding agent lain).
-2. Copy-paste prompt di bawah ini **satu kali**.
-3. Jawab pertanyaan preferensi yang diajukan agent (modal, risiko, TP/SL, dll.) — satu per satu, tinggal tekan Enter untuk pakai default.
-4. Agent yang mengerjakan sisanya: install, build, buat config sesuai preferensimu, verifikasi, dan jelaskan cara menjalankan.
+Cara pakai:
 
-Yang perlu kamu siapkan sebelum mulai (secret — **jangan pernah di-paste ke chat**, kamu isi sendiri di file config saat diminta agent):
-
-- Private key wallet Solana (base64 atau base58)
-- Bot token dari @BotFather
-- Chat ID dari @userinfobot
-- API key LLM (kalau tidak pakai default OpenAI)
+1. Buka Claude Code / Codex di folder **kosong** mana pun (atau folder project kalau sudah ada).
+2. Paste prompt di bawah ini **satu kali**.
+3. Jawab pertanyaan preferensi yang diajukan agent — satu per satu, tekan Enter untuk pakai default.
+4. Kalau agent minta secret (private key, bot token, dll.), paste nilainya di chat — agent yang menuliskannya ke file config. **Jangan dipakai di project orang lain / bot publik.**
 
 ---
 
-## Prompt Setup Sekali Paste
+## Prompt Setup Sekali Paste (Semua Dikerjakan Agent)
 
 ````markdown
-Kamu adalah asisten setup untuk project **Vexis** — bot otomatis manajemen posisi DLMM Meteora di Solana. Saya end user yang tidak paham teknis. Tugasmu: setup SEMUANYA untuk saya.
+Kamu adalah asisten setup untuk project **Vexis** — bot otomatis manajemen posisi DLMM Meteora di Solana. Saya end user yang tidak paham teknis dan TIDAK MAU melakukan setup apa pun. Kamu yang mengerjakan SEMUANYA, dari nol.
 
-LANGKAH PERTAMA — Pelajari project:
-1. Baca `README.md`
-2. Baca `docs/ai-agent.md`
-3. Baca `docs/config-reference.md`
-4. Baca `docs/troubleshooting.md`
-5. Baca `AGENTS.md`
+LANGKAH 0 — Siapkan lingkungan (jangan tanya saya dulu, kerjakan sendiri):
+1. Cek apakah folder ini sudah berisi project Vexis (ada `README.md` dengan judul "My DLMM Bot"). Kalau tidak ada, clone repo dari URL: [ISI URL REPO ATAU TANYA SAYA].
+2. Cek apakah Node.js 20+ terinstall (`node --version`). Kalau belum, install sendiri: Windows pakai `winget install OpenJS.NodeJS.LTS`, macOS pakai `brew install node`, Linux pakai package manager yang sesuai.
+3. Kalau sudah di folder project: `npm install && npm run build` — kalau gagal, perbaiki sendiri dan coba lagi sampai sukses.
 
-KEMUDIAN — Tanya preferensi saya SATU PER SATU (bahasa Indonesia, bahasa sehari-hari, tanpa jargon). Untuk tiap pertanyaan, beri default aman dan bilang saya bisa tekan Enter untuk memakainya. Yang wajib ditanyakan:
+LANGKAH 1 — Pelajari project: baca `README.md`, `docs/ai-agent.md`, `docs/config-reference.md`, `docs/troubleshooting.md`, dan `AGENTS.md`.
+
+LANGKAH 2 — Tanya preferensi saya SATU PER SATU (bahasa Indonesia, bahasa sehari-hari, tanpa jargon). Untuk tiap pertanyaan beri default aman dan bilang tekan Enter untuk pakai default:
 1. Total modal yang mau dipakai (SOL) — default 3 SOL
 2. Maksimal SOL per posisi — default 0.5 SOL
 3. Maksimal posisi terbuka sekaligus — default 4
 4. Take profit (%) — default 25
 5. Stop loss (%) — default -10
-6. Level risiko: Konservatif / Seimbang / Agresif — default Seimbang (ini menentukan filter risiko: rugpull, wash trading, bundle holders, bot holders, dll.)
-7. Model AI: pakai default (`gpt-4o-mini`) atau punya API sendiri? Kalau punya, minta base URL + nama model (jangan minta API key di chat)
+6. Level risiko: Konservatif / Seimbang / Agresif — default Seimbang (menentukan filter risiko: rugpull, wash trading, bundle holders, bot holders, dll.)
+7. Model AI: pakai default (`gpt-4o-mini`) atau punya API sendiri? Kalau punya, minta base URL + nama model
 8. RPC Solana: pakai default publik, atau punya RPC sendiri?
 
-JANGAN PERNAH minta saya paste private key, bot token, atau API key di chat — itu rahasia.
+LANGKAH 3 — Minta secret saya (jelaskan apa fungsi masing-masing, minta satu per satu):
+- Private key wallet Solana (base64 atau base58)
+- Bot token Telegram dari @BotFather
+- Chat ID dari @userinfobot
+- API key LLM (hanya jika dia punya API sendiri di langkah 2.7)
+Saat saya paste, langsung tulis ke `vexis.config.json` di key yang tepat, lalu JANGAN pernah menampilkan nilainya lagi di chat.
 
-SETELAH tahu preferensi saya:
-1. Jalankan `npm install && npm run build` — kalau gagal, perbaiki sendiri dan coba lagi.
-2. Buat `vexis.config.json` dari `vexis.config.example.json` (JANGAN commit — file ini gitignored karena berisi secret).
-3. Isi config sesuai preferensi saya: blok `agent` (budget, TP/SL, risks sesuai level risiko, llm), `pools` (pakai default aman dari example), dan lainnya. Semua yang tidak saya tentukan, pakai default aman.
-4. Berhenti di sini dan minta saya membuka `vexis.config.json` sendiri untuk mengisi 3-4 nilai rahasia: `privateKey`, `telegramBotToken`, `telegramChatId`, dan `agent.llm.apiKey` (hanya jika saya punya API sendiri). Tunggu konfirmasi saya bahwa sudah diisi — lalu lanjut verifikasi.
-5. Verifikasi: `npm run check && npm run typecheck && npm test` — semua harus pass.
-6. Jelaskan cara menjalankan dengan bahasa sederhana: `npm run bot`, lalu kirim `/agent start` di Telegram. Jelaskan apa yang akan saya lihat (pesan live `🔎 screening... 🧠 LLM... 🚀/➖/⛔`) dan cara cek status (`/agent status`).
+LANGKAH 4 — Setelah semua data lengkap:
+1. Buat `vexis.config.json` dari `vexis.config.example.json` (JANGAN commit — gitignored karena berisi secret).
+2. Isi sesuai preferensi + secret saya: blok `agent` (budget, TP/SL, risks sesuai level risiko, llm), `pools` (default aman dari example), dan lainnya.
+3. Verifikasi: `npm run check && npm run typecheck && npm test` — semua harus pass.
+4. Jelaskan cara menjalankan dengan bahasa sederhana: `npm run bot`, lalu kirim `/agent start` di Telegram. Jelaskan apa yang akan saya lihat (pesan live `🔎 screening... 🧠 LLM... 🚀/➖/⛔`) dan cara cek status (`/agent status`).
 
 Aturan:
 - Bahasa Indonesia, ramah, sesederhana mungkin. Kalau harus pakai istilah teknis, jelaskan singkat.
-- Satu pertanyaan per pesan — jangan tanya banyak sekaligus.
-- Jangan pernah menampilkan nilai secret saya.
-- Kalau saya jawab "terserah"/"default" atau tidak tahu, pakai default aman dan beri tahu keputusannya.
-- Kerjakan semuanya sendiri — jangan meminta saya menjalankan perintah teknis di terminal.
+- Satu pertanyaan per pesan.
+- Kerjakan semuanya sendiri — jangan pernah meminta saya menjalankan perintah di terminal, kecuali benar-benar tidak bisa dihindari.
+- Jangan pernah menampilkan ulang secret saya di chat setelah ditulis ke config.
+- Kalau saya jawab "terserah"/"default"/tidak tahu, pakai default aman dan beri tahu keputusannya.
 ````
 
 ---
 
 ## Prompt Troubleshooting (kalau ada masalah setelah jalan)
 
-Paste ini saat agent sudah jalan tapi bermasalah. Tempel output error / isi journal di bagian yang disediakan.
+Paste ini saat bot sudah jalan tapi bermasalah. Tempel output error / isi journal di bagian yang disediakan.
 
 ````markdown
-Bot Vexis saya bermasalah. Saya end user, jelaskan dengan bahasa sederhana. Ini informasinya:
+Bot Vexis saya bermasalah. Saya end user — jelaskan dengan bahasa sederhana, dan perbaiki sendiri kalau bisa. Informasinya:
 
 [Tempel di sini: output error dari terminal, atau isi `.vexis-agent-journal.jsonl`]
 
 - Baca `docs/troubleshooting.md` dulu, lalu `docs/ai-agent.md` jika perlu.
-- Cari tahu penyebabnya, perbaiki sendiri kalau bisa (termasuk config), jangan minta saya menjalankan perintah teknis kecuali benar-benar perlu.
-- Jelaskan apa yang salah dan apa yang kamu perbaiki — bahasa sederhana, tanpa jargon berlebihan.
-- Kalau masalahnya menyangkut secret (token, key), minta saya mengisinya sendiri — jangan menampilkannya.
+- Cari penyebabnya, perbaiki sendiri (termasuk config). Jangan minta saya menjalankan perintah teknis kecuali benar-benar perlu.
+- Kalau butuh secret (token, key), minta saya paste, lalu tulis sendiri ke config — jangan pernah menampilkannya di chat.
 - Verifikasi dengan `npm run check && npm run typecheck && npm test`.
 ````
 
@@ -80,6 +77,6 @@ Bot Vexis saya bermasalah. Saya end user, jelaskan dengan bahasa sederhana. Ini 
 
 ## Catatan
 
-- Prompt bebas dimodifikasi — misalnya tambahkan "lebih agresif" atau "konservatif banget" pada bagian level risiko.
-- Secret tidak pernah boleh di-paste ke chat agent — isi langsung di `vexis.config.json` saat agent minta.
-- Jika kamu tidak punya repo ini, minta agent meng-clone-nya dulu dari URL yang kamu berikan.
+- Prompt bebas dimodifikasi — misalnya tambahkan "konservatif banget" atau "saya punya RPC dari Helius" pada bagian preferensi.
+- Secret yang di-paste ke chat adalah milik kamu sendiri dan hanya ditulis ke `vexis.config.json` lokal (gitignored) — jangan pakai prompt ini di project publik atau dengan agent yang tidak kamu percaya.
+- Kalau kamu belum punya Claude Code / Codex, install dulu (Claude Code: `npm install -g @anthropic-ai/claude-code` — atau minta AI lain bantu). Hanya ini yang tidak bisa dilakukan oleh prompt.
