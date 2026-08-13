@@ -39,7 +39,7 @@
 		"grammy": "^1.44.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.5.7",
+		"@biomejs/biome": "^2.5.8",
 		"@effect/vitest": "^0.30.0",
 		"@types/bn.js": "^5.2.0",
 		"@types/bs58": "^4.0.4",
