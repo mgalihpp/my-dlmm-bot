@@ -1,10 +1,23 @@
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import type {
 	AgentJournalEntry,
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
-import { buildNarrativePrompt, buildRunSummary, windowEntries } from "../src/web/agent-narrative.js";
+import {
+	NARRATIVE_TTL_MS,
+	buildNarrativePrompt,
+	buildRunSummary,
+	isNarrativeStale,
+	newestEntryTs,
+	readNarrativeCache,
+	windowEntries,
+	writeNarrativeCache,
+} from "../src/web/agent-narrative.js";
+import type { NarrativeCache } from "../src/web/agent-narrative.js";
 
 const mkCandidate = (over: Partial<JournalCandidate> = {}): JournalCandidate => ({
 	pool: "poolA",
@@ -137,5 +150,70 @@ describe("buildRunSummary", () => {
 		expect(buildRunSummary(entries)).toContain(
 			"tidak ada keputusan eksekusi",
 		);
+	});
+});
+
+const CACHE: NarrativeCache = {
+	at: "2026-08-12T10:00:00.000Z",
+	coveringTs: "2026-08-12T09:00:00.000Z",
+	text: "Ringkasan.",
+	source: "llm",
+};
+
+describe("newestEntryTs", () => {
+	it("returns the newest entry ts as ISO", () => {
+		const entries = [
+			mkEntry("2026-08-12T08:00:00.000Z", 1, []),
+			mkEntry("2026-08-12T10:00:00.000Z", 2, []),
+		];
+		expect(newestEntryTs(entries)).toBe("2026-08-12T10:00:00.000Z");
+	});
+	it("returns empty string for empty journal", () => {
+		expect(newestEntryTs([])).toBe("");
+	});
+});
+
+describe("isNarrativeStale", () => {
+	it("true when no cache exists", () => {
+		expect(isNarrativeStale(null, [], Date.now())).toBe(true);
+	});
+	it("false when fresh and covering latest entry", () => {
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		expect(
+			isNarrativeStale(CACHE, entries, Date.parse("2026-08-12T10:05:00.000Z")),
+		).toBe(false);
+	});
+	it("true when a newer journal entry exists", () => {
+		const entries = [mkEntry("2026-08-12T09:30:00.000Z", 1, [])];
+		expect(
+			isNarrativeStale(CACHE, entries, Date.parse("2026-08-12T10:05:00.000Z")),
+		).toBe(true);
+	});
+	it("true when cache is older than the TTL", () => {
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		expect(
+			isNarrativeStale(
+				CACHE,
+				entries,
+				Date.parse(CACHE.at) + NARRATIVE_TTL_MS + 1,
+			),
+		).toBe(true);
+	});
+});
+
+describe("narrative cache file", () => {
+	it("round-trips a cache entry", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-narrative-"));
+		const file = join(dir, "cache.json");
+		writeNarrativeCache(CACHE, file);
+		expect(readNarrativeCache(file)).toEqual(CACHE);
+	});
+	it("returns null for missing or corrupt files", () => {
+		const dir = mkdtempSync(join(tmpdir(), "vexis-narrative-"));
+		const missing = join(dir, "missing.json");
+		expect(readNarrativeCache(missing)).toBeNull();
+		const corrupt = join(dir, "corrupt.json");
+		writeFileSync(corrupt, "{not json", "utf8");
+		expect(readNarrativeCache(corrupt)).toBeNull();
 	});
 });

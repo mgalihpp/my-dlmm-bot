@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
 import type { AgentState } from "../telegram/agent/state.js";
 
@@ -138,4 +140,73 @@ export function buildRunSummary(
 		);
 	}
 	return parts.join(" ");
+}
+
+export interface NarrativeCache {
+	at: string;
+	coveringTs: string;
+	text: string;
+	source: "llm" | "fallback";
+}
+
+export interface NarrativeResult {
+	text: string;
+	source: "llm" | "fallback";
+}
+
+export const NARRATIVE_TTL_MS = 10 * 60_000;
+
+const DEFAULT_CACHE_FILE = join(process.cwd(), ".vexis-agent-narrative.json");
+
+export function newestEntryTs(entries: readonly AgentJournalEntry[]): string {
+	let best = 0;
+	for (const entry of entries) {
+		const parsed = Date.parse(entry.ts);
+		if (!Number.isNaN(parsed) && parsed > best) best = parsed;
+	}
+	return best > 0 ? new Date(best).toISOString() : "";
+}
+
+export function isNarrativeStale(
+	cache: NarrativeCache | null,
+	journal: readonly AgentJournalEntry[],
+	nowMs: number,
+): boolean {
+	if (cache === null) return true;
+	const newest = newestEntryTs(journal);
+	if (newest.length > 0 && newest > cache.coveringTs) return true;
+	return nowMs - Date.parse(cache.at) > NARRATIVE_TTL_MS;
+}
+
+export function readNarrativeCache(
+	file: string = DEFAULT_CACHE_FILE,
+): NarrativeCache | null {
+	if (!existsSync(file)) return null;
+	try {
+		const raw = JSON.parse(readFileSync(file, "utf8")) as unknown;
+		if (typeof raw !== "object" || raw === null) return null;
+		const record = raw as Record<string, unknown>;
+		if (
+			typeof record.at !== "string" ||
+			typeof record.coveringTs !== "string" ||
+			typeof record.text !== "string"
+		) {
+			return null;
+		}
+		const source = record.source === "llm" ? "llm" : "fallback";
+		return { at: record.at, coveringTs: record.coveringTs, text: record.text, source };
+	} catch {
+		return null;
+	}
+}
+
+export function writeNarrativeCache(
+	cache: NarrativeCache,
+	file: string = DEFAULT_CACHE_FILE,
+): void {
+	try {
+		writeFileSync(file, JSON.stringify(cache, null, 2), "utf8");
+	} catch (e) {
+		console.warn("[agent] narrative cache write failed:", e);
+	}
 }
