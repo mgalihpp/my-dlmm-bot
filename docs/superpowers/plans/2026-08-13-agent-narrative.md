@@ -600,7 +600,7 @@ git commit -m "feat(web): persisted TTL cache for agent narrative"
 
 **Interfaces:**
 - Consumes: `windowEntries`, `buildNarrativePrompt`, `buildRunSummary`, `newestEntryTs`, `isNarrativeStale`, `readNarrativeCache`, `writeNarrativeCache`, `NarrativeCache`, `NarrativeResult` (all from this module); `ResolvedAgentLlm` from `../src/services/Config.js`.
-- Produces: `requestNarrative(llm: ResolvedAgentLlm, prompt: string): Promise<string | null>`; `narrativeFor(entries: readonly AgentJournalEntry[], state: AgentState, llm: ResolvedAgentLlm | null, nowMs?: number, callLlm?: (prompt: string) => Promise<string | null>): Promise<NarrativeResult>`. `callLlm` is dependency-injected so tests never touch the network; default calls `requestNarrative`.
+- Produces: `requestNarrative(llm: ResolvedAgentLlm, prompt: string): Promise<string | null>`; `narrativeFor(entries: readonly AgentJournalEntry[], state: AgentState, llm: ResolvedAgentLlm | null, nowMs?: number, file?: string, callLlm?: (prompt: string) => Promise<string | null>): Promise<NarrativeResult>`. `file` defaults to the cache path in `process.cwd()`; `callLlm` is dependency-injected so tests never touch the network; default calls `requestNarrative`.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -621,7 +621,7 @@ describe("requestNarrative", () => {
 });
 ```
 
-Append to `test/agent-narrative.test.ts` (import `narrativeFor` and `buildRunSummary` — extend the existing import):
+Append to `test/agent-narrative.test.ts` (import `narrativeFor` and `buildRunSummary` — extend the existing import; `mkdtempSync`/`tmpdir`/`join` are already imported from Task 3's cache tests):
 
 ```ts
 import { vi } from "vitest";
@@ -644,23 +644,39 @@ const LLM = {
 	timeoutMs: 1000,
 };
 
+const cacheFile = (): string => {
+	const dir = mkdtempSync(join(tmpdir(), "vexis-narrative-"));
+	return join(dir, "narrative.json");
+};
+
 describe("narrativeFor", () => {
 	it("returns cached text when fresh", async () => {
 		const now = Date.parse("2026-08-12T10:05:00.000Z");
+		const file = cacheFile();
+		writeNarrativeCache(
+			{
+				at: "2026-08-12T10:04:00.000Z",
+				coveringTs: "2026-08-12T09:00:00.000Z",
+				text: "Ringkasan.",
+				source: "llm",
+			},
+			file,
+		);
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		const spy = vi.fn(async (prompt: string) => "generated");
-		const out = await narrativeFor(entries, mkState(), LLM, now, spy);
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan.", source: "llm" });
 		expect(spy).not.toHaveBeenCalled();
 	});
 	it("generates via LLM when stale and persists result", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		const spy = vi.fn(async (prompt: string) => "Ringkasan baru.");
-		const out = await narrativeFor(entries, mkState(), LLM, now, spy);
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan baru.", source: "llm" });
 		expect(spy).toHaveBeenCalledOnce();
-		expect(readNarrativeCache()).toMatchObject({
+		expect(readNarrativeCache(file)).toMatchObject({
 			text: "Ringkasan baru.",
 			source: "llm",
 			coveringTs: "2026-08-12T09:00:00.000Z",
@@ -668,34 +684,37 @@ describe("narrativeFor", () => {
 	});
 	it("falls back to summary when LLM fails and caches fallback", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		const spy = vi.fn(async () => null);
-		const out = await narrativeFor(entries, mkState(), LLM, now, spy);
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out.source).toBe("fallback");
 		expect(out.text).toBe(buildRunSummary(entries));
-		expect(readNarrativeCache()).toMatchObject({ source: "fallback" });
+		expect(readNarrativeCache(file)).toMatchObject({ source: "fallback" });
 	});
 	it("skips LLM entirely when llm is null", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		const spy = vi.fn(async () => "unused");
-		const out = await narrativeFor(entries, mkState(), null, now, spy);
+		const out = await narrativeFor(entries, mkState(), null, now, file, spy);
 		expect(out.source).toBe("fallback");
 		expect(spy).not.toHaveBeenCalled();
 	});
 	it("survives a throwing callLlm", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		const spy = vi.fn(async () => {
 			throw new Error("boom");
 		});
-		const out = await narrativeFor(entries, mkState(), LLM, now, spy);
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out.source).toBe("fallback");
 	});
 });
 ```
 
-Note: `narrativeFor` tests that use `readNarrativeCache()`/`writeNarrativeCache` default path touch `process.cwd()` — this is a temp-independent but real file `.vexis-agent-narrative.json` in the repo root. It is gitignored (Task 3), so leaving it behind is acceptable; the `stale → generate` tests change it in place. Tests run in the repo root, and `isNarrativeStale` guards against cross-test pollution via `coveringTs`/`at`.
+Note: every `narrativeFor` test uses its own temp cache file (`cacheFile()`), so tests are order-independent and never write into the repo root.
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -741,11 +760,12 @@ export async function narrativeFor(
 	state: AgentState,
 	llm: ResolvedAgentLlm | null,
 	nowMs: number = Date.now(),
+	file: string = DEFAULT_CACHE_FILE,
 	callLlm: (prompt: string) => Promise<string | null> = (prompt) =>
 		llm === null ? Promise.resolve(null) : requestNarrative(llm, prompt),
 ): Promise<NarrativeResult> {
 	const windowed = windowEntries(entries, nowMs);
-	const cached = readNarrativeCache();
+	const cached = readNarrativeCache(file);
 	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
 		return { text: cached.text, source: cached.source };
 	}
@@ -763,12 +783,15 @@ export async function narrativeFor(
 			// keep fallback text
 		}
 	}
-	writeNarrativeCache({
-		at: new Date(nowMs).toISOString(),
-		coveringTs: newestEntryTs(windowed),
-		text,
-		source,
-	});
+	writeNarrativeCache(
+		{
+			at: new Date(nowMs).toISOString(),
+			coveringTs: newestEntryTs(windowed),
+			text,
+			source,
+		},
+		file,
+	);
 	return { text, source };
 }
 ```
