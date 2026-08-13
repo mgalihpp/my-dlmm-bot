@@ -4,10 +4,7 @@ import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Context, Effect, Layer, Ref } from "effect";
-import type {
-	CreatePreset,
-	VexisConfig,
-} from "../domain/config.js";
+import type { CreatePreset, VexisConfig } from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
 
 function candidatePaths(): string[] {

@@ -471,12 +471,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("fast cycle error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						formatError("fast cycle", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("fast cycle", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.fast === myGen) {
@@ -518,12 +515,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("cycle error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						formatError("cycle", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("cycle", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.cycle === myGen) {
@@ -550,12 +544,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			} catch (e) {
 				logError("oor error:", e);
 				if (cfg) {
-					await notify(
-						bot,
-						chatId,
-						formatError("OOR check", e),
-						{ keyboard: notifyKeyboard("error") },
-					);
+					await notify(bot, chatId, formatError("OOR check", e), {
+						keyboard: notifyKeyboard("error"),
+					});
 				}
 			} finally {
 				if (busy.oor === myGen) {
@@ -1043,11 +1034,7 @@ async function evaluatePlans(
 		rt.state.llmStatus = "failed";
 		appendJournal(journal);
 		saveState(rt.state);
-		await notify(
-			bot,
-			chatId,
-			formatError("LLM decision", new Error(failure)),
-		);
+		await notify(bot, chatId, formatError("LLM decision", new Error(failure)));
 		return;
 	}
 	logInfo(
