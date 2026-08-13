@@ -56,7 +56,7 @@ import {
 	requestPositionDecisions,
 } from "./llm.js";
 import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
-import { allowed, notify, notifyKeyboard } from "./notify.js";
+import { notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import { alignedSchedule, delayToDaily } from "./schedule.js";
 import {
@@ -135,13 +135,10 @@ async function liveSend(
 async function liveStep(
 	bot: Bot,
 	chatId: string,
-	cfg: AgentCfg,
 	live: LiveMsg,
 	msg: string,
 ): Promise<void> {
-	if (allowed(cfg.notifLevel, "live")) {
-		await liveSend(bot, chatId, live, msg);
-	}
+	await liveSend(bot, chatId, live, msg);
 }
 
 /** Reconciles tracked plans against the on-chain open portfolio: adopts positions opened manually/elsewhere and prunes plans whose position is no longer on-chain. */
@@ -273,8 +270,6 @@ async function retryOpen(
 		await notify(
 			bot,
 			chatId,
-			cfg.notifLevel,
-			"action",
 			formatAction({
 				action: "open",
 				poolName: cand.poolName,
@@ -343,8 +338,6 @@ async function retryClose(
 		await notify(
 			bot,
 			chatId,
-			cfg.notifLevel,
-			"action",
 			formatAction({
 				action: cand.action,
 				poolName: cand.poolName,
@@ -481,8 +474,6 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					await notify(
 						bot,
 						chatId,
-						cfg.notifLevel,
-						"error",
 						formatError("fast cycle", e),
 						{ keyboard: notifyKeyboard("error") },
 					);
@@ -530,8 +521,6 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					await notify(
 						bot,
 						chatId,
-						cfg.notifLevel,
-						"error",
 						formatError("cycle", e),
 						{ keyboard: notifyKeyboard("error") },
 					);
@@ -564,8 +553,6 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					await notify(
 						bot,
 						chatId,
-						cfg.notifLevel,
-						"error",
 						formatError("OOR check", e),
 						{ keyboard: notifyKeyboard("error") },
 					);
@@ -738,8 +725,6 @@ async function evaluateTpSl(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action,
 					poolName: plan.poolName,
@@ -774,8 +759,6 @@ async function evaluateTpSl(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action,
 					poolName: plan.poolName,
@@ -910,8 +893,6 @@ async function evaluateOor(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "close",
 					poolName: pos.poolName,
@@ -926,8 +907,6 @@ async function evaluateOor(
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "close",
 					poolName: pos.poolName,
@@ -965,23 +944,21 @@ async function evaluatePlans(
 	const live: LiveMsg = { msgId: null };
 	const cycle = rt.state.cycle + 1;
 	const liveLines = [`🔎 screening pools...`];
-	if (allowed(cfg.notifLevel, "live")) {
-		await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
-	}
+	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	let screen;
 	try {
 		screen = await screenPools();
 	} catch (e) {
 		logError("screening failed:", e);
 		liveLines.push("❌ screening failed");
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		return;
 	}
 	logInfo(
 		`screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
 	);
 	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,
 		rt.state.cooldowns,
@@ -991,7 +968,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`⏳ ${cooldownSkipped} pool${cooldownSkipped === 1 ? "" : "s"} in cooldown, skipped`,
 		);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
 	const { pools: candidatePools, skipped: dupSkipped } = filterDuplicates(
 		noCooldownPools,
@@ -1001,7 +978,7 @@ async function evaluatePlans(
 		liveLines.push(
 			`🔁 ${dupSkipped} pool${dupSkipped === 1 ? "" : "s"} already open, skipped`,
 		);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
 	const mintByPool = new Map(
 		candidatePools.map((p) => [p.pool, p.baseMint] as const),
@@ -1042,7 +1019,7 @@ async function evaluatePlans(
 		activePositions: p.activePositions,
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
 	const {
 		decisions: rawDecisions,
@@ -1062,15 +1039,13 @@ async function evaluatePlans(
 		const failure = errorMessage ?? "LLM request failed — cycle skipped";
 		logError(`LLM: ${failure}`);
 		liveLines[liveLines.length - 1] = `❌ LLM failed — ${failure}`;
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		rt.state.llmStatus = "failed";
 		appendJournal(journal);
 		saveState(rt.state);
 		await notify(
 			bot,
 			chatId,
-			cfg.notifLevel,
-			"error",
 			formatError("LLM decision", new Error(failure)),
 		);
 		return;
@@ -1083,7 +1058,7 @@ async function evaluatePlans(
 	}
 	liveLines[liveLines.length - 1] =
 		`🧠 LLM: ${llmCandidates.length} candidates → ${rawDecisions.length} decisions`;
-	await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 
 	const { decisions: validated, dropped } = validateOpenDecisions(
 		ranked,
@@ -1100,7 +1075,7 @@ async function evaluatePlans(
 
 	const liveDecision = async (line: string) => {
 		liveLines.push(line);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	};
 
 	for (const d of validated) {
@@ -1252,7 +1227,7 @@ async function evaluatePlans(
 			`decide: ${pool.name} heuristic ${h} → OPEN ${amountSol} SOL (budget ${budget.toFixed(3)})`,
 		);
 		liveLines.push(`🚀 OPEN ${pool.name} ${amountSol} SOL (sending tx...)`);
-		await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		const preset = resolveCreatePresetFrom(getConfigSync());
 		const params = buildCreateParams({
 			poolAddress: pool.pool,
@@ -1317,12 +1292,10 @@ async function evaluatePlans(
 			);
 			liveLines[liveLines.length - 1] =
 				`✅ OPEN ${pool.name} ${amountSol} SOL ${sig || "?"}`;
-			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "open",
 					poolName: pool.name,
@@ -1336,12 +1309,10 @@ async function evaluatePlans(
 			logError("open failed:", pool.pool, e);
 			journal.candidates.push({ ...base, execution: "failed" });
 			liveLines[liveLines.length - 1] = `❌ OPEN ${pool.name} failed`;
-			await liveStep(bot, chatId, cfg, live, formatLive(cycle, liveLines));
+			await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 			await notify(
 				bot,
 				chatId,
-				cfg.notifLevel,
-				"action",
 				formatAction({
 					action: "open",
 					poolName: pool.name,
@@ -1360,9 +1331,5 @@ async function evaluatePlans(
 		journal.llmStatus,
 		rt.state.cooldowns,
 	);
-	if (cfg.notifLevel === "verbose") {
-		await liveSend(bot, chatId, live, summary);
-	} else {
-		await notify(bot, chatId, cfg.notifLevel, "summary", summary);
-	}
+	await liveSend(bot, chatId, live, summary);
 }
