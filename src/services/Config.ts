@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
@@ -29,6 +29,10 @@ export function loadConfigSync(): { config: VexisConfig; path: string | null } {
 		}
 	}
 	return { config: {}, path: null };
+}
+
+export function reloadConfigFile(path: string): VexisConfig {
+	return JSON.parse(readFileSync(path, "utf8")) as VexisConfig;
 }
 
 export interface AppConfigService {
@@ -188,9 +192,30 @@ export const resolveAgentConfigFrom = (
 const make = (
 	initial: VexisConfig,
 	path: string | null,
+	watchFile = false,
 ): Effect.Effect<AppConfigService> =>
 	Effect.gen(function* () {
 		const ref = yield* Ref.make(initial);
+
+		if (path !== null && watchFile) {
+			let timer: NodeJS.Timeout | null = null;
+			const watcher = watch(path, () => {
+				if (timer != null) clearTimeout(timer);
+				timer = setTimeout(() => {
+					timer = null;
+					try {
+						Effect.runSync(Ref.set(ref, reloadConfigFile(path)));
+					} catch (e) {
+						console.error(
+							`[config] reload failed, keeping previous config: ${
+								e instanceof Error ? e.message : e
+							}`,
+						);
+					}
+				}, 150);
+			});
+			process.once("exit", () => watcher.close());
+		}
 
 		const persist = (config: VexisConfig): Effect.Effect<void, ConfigError> =>
 			path === null
@@ -269,7 +294,7 @@ export const AppConfigLive = Layer.effect(
 		try: () => loadConfigSync(),
 		catch: (e) =>
 			new ConfigError({ message: e instanceof Error ? e.message : String(e) }),
-	}).pipe(Effect.flatMap(({ config, path }) => make(config, path))),
+	}).pipe(Effect.flatMap(({ config, path }) => make(config, path, true))),
 );
 
 export const AppConfigTest = (
