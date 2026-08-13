@@ -6,6 +6,13 @@ Vexis discovers and screens pools using the Meteora Pool Discovery API, tracks p
 
 Built with TypeScript, [Effect](https://effect.website/) (functional effect system + dependency injection), [grammY](https://grammy.dev/) (Telegram), and [@effect/cli](https://effect.website/docs/cli/) (CLI).
 
+## Documentation
+
+- **[AI Agent Guide (Indonesian)](docs/ai-agent.md)** — how the AI agent works, setup, commands, and monitoring.
+- **[Configuration Reference (Indonesian)](docs/config-reference.md)** — every config key, default value, and environment variable.
+- **[Troubleshooting (Indonesian)](docs/troubleshooting.md)** — symptom → cause → fix for common issues.
+- **[Prompt for AI Coding Agents (Indonesian)](docs/coding-agent-prompt.md)** — copy-paste prompts for Claude Code, Codex, and other agentic coding tools.
+
 ## Screenshots
 
 | | | |
@@ -170,7 +177,7 @@ Set any filter to `null` to skip it.
 
 ## AI Agent
 
-Automated DLMM position management (`/agent`). The agent screens pools, lets an LLM decide `open`/`hold` per candidate, then opens positions behind deterministic guardrails — with TP/SL and out-of-range (OOR) handling on top. Full details: [docs/ai-agent.md](docs/ai-agent.md).
+Automated DLMM position management (`/agent`). The agent screens pools, lets an LLM decide `open`/`hold` per candidate, then opens positions behind deterministic guardrails — with TP/SL and out-of-range (OOR) handling on top. Full details: [docs/ai-agent.md](docs/ai-agent.md). The guide also links a [configuration reference](docs/config-reference.md), a [troubleshooting guide](docs/troubleshooting.md), and [copy-paste prompts for AI coding agents](docs/coding-agent-prompt.md) (Claude Code, Codex, etc.).
 
 **How it works:**
 
