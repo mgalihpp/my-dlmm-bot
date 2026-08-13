@@ -14,6 +14,7 @@ import {
 	isNarrativeStale,
 	NARRATIVE_TTL_MS,
 	narrativeFor,
+	narrativeSnapshot,
 	newestEntryTs,
 	readNarrativeCache,
 	windowEntries,
@@ -307,5 +308,87 @@ describe("narrative cache file", () => {
 		const corrupt = join(dir, "corrupt.json");
 		writeFileSync(corrupt, "{not json", "utf8");
 		expect(readNarrativeCache(corrupt)).toBeNull();
+	});
+});
+
+describe("narrativeSnapshot", () => {
+	it("returns cached text when fresh", () => {
+		const now = Date.parse("2026-08-12T10:05:00.000Z");
+		const file = cacheFile();
+		writeNarrativeCache(
+			{
+				at: "2026-08-12T10:00:00.000Z",
+				coveringTs: "2026-08-12T09:00:00.000Z",
+				text: "Ringkasan cache.",
+				source: "llm",
+			},
+			file,
+		);
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		expect(narrativeSnapshot(entries, now, file)).toEqual({
+			text: "Ringkasan cache.",
+			source: "llm",
+		});
+	});
+	it("returns the deterministic fallback when stale, without touching the LLM", () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		writeNarrativeCache(
+			{
+				at: "2026-08-12T09:00:00.000Z",
+				coveringTs: "2026-08-12T09:00:00.000Z",
+				text: "Ringkasan lama.",
+				source: "llm",
+			},
+			file,
+		);
+		const entries = [
+			mkEntry("2026-08-12T10:29:00.000Z", 3, [
+				mkCandidate({
+					poolName: "WIF/SOL",
+					action: "open",
+					guardrail: "pass",
+					execution: "ok",
+				}),
+			]),
+		];
+		expect(narrativeSnapshot(entries, now, file)).toEqual({
+			text: buildRunSummary(windowEntries(entries, now)),
+			source: "fallback",
+		});
+	});
+	it("returns the deterministic fallback when no cache exists", () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const out = narrativeSnapshot(entries, now, file);
+		expect(out.source).toBe("fallback");
+		expect(out.text).toBe(buildRunSummary(windowEntries(entries, now)));
+	});
+});
+
+describe("narrativeFor single-flight", () => {
+	it("dedupes concurrent generations for the same cache file", async () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		let resolveLlm: (text: string) => void = () => {};
+		const gate = new Promise<string>((resolve) => {
+			resolveLlm = resolve;
+		});
+		let calls = 0;
+		const spy = vi.fn(async () => {
+			calls += 1;
+			return gate;
+		});
+		const first = narrativeFor(entries, mkState(), LLM, now, file, spy);
+		const second = narrativeFor(entries, mkState(), LLM, now, file, spy);
+		await Promise.resolve();
+		expect(calls).toBe(1);
+		resolveLlm("Ringkasan single-flight.");
+		const [a, b] = await Promise.all([first, second]);
+		expect(a).toEqual({ text: "Ringkasan single-flight.", source: "llm" });
+		expect(b).toEqual(a);
+		expect(calls).toBe(1);
 	});
 });

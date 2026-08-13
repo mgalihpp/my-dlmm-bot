@@ -287,6 +287,18 @@ describe("renderAgent narrative + timeline", () => {
 		expect(html).toContain("Ringkasan prosa.");
 		expect(html).toContain(">GENERATED<");
 	});
+	it("renders the narrative panel with async upgrade attributes", () => {
+		const html = renderAgent(
+			[mkEntry(1, [mkCandidate()])],
+			mkState(),
+			{ action: "all", page: 1 },
+			NARRATIVE,
+		);
+		expect(html).toContain('id="agent-narrative"');
+		expect(html).toContain('hx-get="/partials/agent/narrative"');
+		expect(html).toContain('hx-trigger="load"');
+		expect(html).toContain('hx-swap="outerHTML"');
+	});
 	it("renders fallback badge for fallback source", () => {
 		const html = renderAgent(
 			[mkEntry(1, [])],

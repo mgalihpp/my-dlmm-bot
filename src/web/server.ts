@@ -7,7 +7,10 @@ import {
 import { Effect, Schema } from "effect";
 import { errorMessage } from "../errors.js";
 import { AppLayer } from "../layers.js";
-import { AppConfig } from "../services/Config.js";
+import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
+import { readJournalAll } from "../telegram/agent/journal.js";
+import { loadState } from "../telegram/agent/state.js";
+import { narrativeFor } from "./agent-narrative.js";
 import {
 	expiredCookieHeader,
 	passwordMatches,
@@ -24,7 +27,7 @@ import {
 	rpcHost,
 } from "./layout.js";
 import { createWebServerProgram } from "./lifecycle.js";
-import { agentContent } from "./pages/agent.js";
+import { agentContent, renderAgentNarrativePanel } from "./pages/agent.js";
 import { poolsContent } from "./pages/pools.js";
 import { closedPositionsContent, portfolioContent } from "./pages/portfolio.js";
 
@@ -180,7 +183,7 @@ export function buildRouter(password: string, shell: ShellInfo) {
 		const parsedPage = rawPage === null ? 1 : Number(rawPage);
 		const page =
 			Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-		return yield* agentContent({
+		return agentContent({
 			action: url.searchParams.get("action"),
 			page,
 		});
@@ -193,6 +196,18 @@ export function buildRouter(password: string, shell: ShellInfo) {
 	const agentPartial = agentRoute.pipe(
 		Effect.map((inner) => partialResponse(inner, "/partials/agent")),
 	);
+	const agentNarrativeRoute = Effect.gen(function* () {
+		const configService = yield* AppConfig;
+		const current = yield* configService.get;
+		const llm = resolveAgentConfigFrom(current).llm;
+		const journal = readJournalAll();
+		const state = loadState();
+		const narrative = yield* Effect.promise(() =>
+			narrativeFor(journal, state, llm),
+		);
+		const panel: string = renderAgentNarrativePanel(journal, narrative);
+		return yield* HttpServerResponse.html(panel);
+	});
 
 	return HttpRouter.empty.pipe(
 		HttpRouter.get(
@@ -221,6 +236,7 @@ export function buildRouter(password: string, shell: ShellInfo) {
 		HttpRouter.get("/partials/pools", poolsPartial),
 		HttpRouter.get("/agent", agentPage),
 		HttpRouter.get("/partials/agent", agentPartial),
+		HttpRouter.get("/partials/agent/narrative", agentNarrativeRoute),
 	);
 }
 

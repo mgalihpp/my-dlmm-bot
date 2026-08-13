@@ -1,5 +1,3 @@
-import { Effect } from "effect";
-import { AppConfig, resolveAgentConfigFrom } from "../../services/Config.js";
 import {
 	type AgentJournalEntry,
 	type JournalCandidate,
@@ -11,7 +9,7 @@ import {
 	loadState,
 } from "../../telegram/agent/state.js";
 import type { NarrativeResult } from "../agent-narrative.js";
-import { narrativeFor } from "../agent-narrative.js";
+import { narrativeSnapshot } from "../agent-narrative.js";
 import { barChart, CHART_COLORS } from "../charts.js";
 import { errorBanner, escapeHtml } from "../layout.js";
 import {
@@ -284,7 +282,15 @@ function briefingPanel(
 			: narrative.source === "llm"
 				? badge("GENERATED", "pass")
 				: badge("FALLBACK", "neutral");
-	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">LATEST RUN</span><b>Decision context</b></div>${badge(journal.length > 0 ? "DATA READY" : "NO DATA", journal.length > 0 ? "pass" : "neutral")}</div><p class="briefing">${escapeHtml(copy)}</p><div class="briefing-tags">${sourceBadge}${badge(`${stats.blocked} BLOCKED`, stats.blocked > 0 ? "review" : "neutral")}<span class="muted small">Read-only journal analysis</span></div></div>`;
+	return `<div id="agent-narrative" class="panel" hx-get="/partials/agent/narrative" hx-trigger="load" hx-swap="outerHTML"><div class="panel-head"><div><span class="eyebrow">LATEST RUN</span><b>Decision context</b></div>${badge(journal.length > 0 ? "DATA READY" : "NO DATA", journal.length > 0 ? "pass" : "neutral")}</div><p class="briefing">${escapeHtml(copy)}</p><div class="briefing-tags">${sourceBadge}${badge(`${stats.blocked} BLOCKED`, stats.blocked > 0 ? "review" : "neutral")}<span class="muted small">Read-only journal analysis</span></div></div>`;
+}
+
+/** Panel fragment served by /partials/agent/narrative after the LLM completes. */
+export function renderAgentNarrativePanel(
+	journal: readonly AgentJournalEntry[],
+	narrative: NarrativeResult,
+): string {
+	return briefingPanel(agentStats(journal), journal, narrative);
 }
 
 function cycleChart(journal: readonly AgentJournalEntry[]): string {
@@ -377,29 +383,26 @@ function renderTimelineEntry(row: JournalRow): string {
 export const agentContent = (opts?: {
 	readonly action?: string | null;
 	readonly page?: number;
-}): Effect.Effect<string, never, AppConfig> =>
-	Effect.gen(function* () {
-		try {
-			const configService = yield* AppConfig;
-			const current = yield* configService.get;
-			const llm = resolveAgentConfigFrom(current).llm;
-			const journal = readJournalAll();
-			const state = loadState();
-			const narrative = yield* Effect.promise(() =>
-				narrativeFor(journal, state, llm),
-			);
-			return renderAgent(
-				journal,
-				state,
-				{
-					action: parseJournalFilter(opts?.action),
-					page: opts?.page ?? 1,
-				},
-				narrative,
-			);
-		} catch (error) {
-			return errorBanner(
-				error instanceof Error ? error.message : String(error),
-			);
-		}
-	});
+	readonly narrativeFile?: string;
+}): string => {
+	try {
+		const journal = readJournalAll();
+		const state = loadState();
+		const narrative = narrativeSnapshot(
+			journal,
+			Date.now(),
+			opts?.narrativeFile,
+		);
+		return renderAgent(
+			journal,
+			state,
+			{
+				action: parseJournalFilter(opts?.action),
+				page: opts?.page ?? 1,
+			},
+			narrative,
+		);
+	} catch (error) {
+		return errorBanner(error instanceof Error ? error.message : String(error));
+	}
+};

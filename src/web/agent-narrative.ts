@@ -251,20 +251,29 @@ export async function requestNarrative(
 	}
 }
 
-export async function narrativeFor(
+/** Fast synchronous path for page rendering: cached text when fresh, else deterministic fallback. Never touches the LLM. */
+export function narrativeSnapshot(
 	entries: readonly AgentJournalEntry[],
-	state: AgentState,
-	llm: ResolvedAgentLlm | null,
 	nowMs: number = Date.now(),
 	file: string = DEFAULT_CACHE_FILE,
-	callLlm: (prompt: string) => Promise<string | null> = (prompt) =>
-		llm === null ? Promise.resolve(null) : requestNarrative(llm, prompt),
-): Promise<NarrativeResult> {
+): NarrativeResult {
 	const windowed = windowEntries(entries, nowMs);
 	const cached = readNarrativeCache(file);
 	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
 		return { text: cached.text, source: cached.source };
 	}
+	return { text: buildRunSummary(windowed), source: "fallback" };
+}
+
+async function doGenerate(
+	entries: readonly AgentJournalEntry[],
+	state: AgentState,
+	llm: ResolvedAgentLlm | null,
+	nowMs: number,
+	file: string,
+	callLlm: (prompt: string) => Promise<string | null>,
+): Promise<NarrativeResult> {
+	const windowed = windowEntries(entries, nowMs);
 	const fallbackText = buildRunSummary(windowed);
 	let text = fallbackText;
 	let source: NarrativeResult["source"] = "fallback";
@@ -289,4 +298,35 @@ export async function narrativeFor(
 		file,
 	);
 	return { text, source };
+}
+
+let inflight: { file: string; promise: Promise<NarrativeResult> } | null = null;
+
+/** Deduplicates concurrent generation per cache file so parallel requests share one LLM call. */
+export function narrativeFor(
+	entries: readonly AgentJournalEntry[],
+	state: AgentState,
+	llm: ResolvedAgentLlm | null,
+	nowMs: number = Date.now(),
+	file: string = DEFAULT_CACHE_FILE,
+	callLlm: (prompt: string) => Promise<string | null> = (prompt) =>
+		llm === null ? Promise.resolve(null) : requestNarrative(llm, prompt),
+): Promise<NarrativeResult> {
+	const windowed = windowEntries(entries, nowMs);
+	const cached = readNarrativeCache(file);
+	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
+		return Promise.resolve({ text: cached.text, source: cached.source });
+	}
+	if (inflight !== null && inflight.file === file) {
+		return inflight.promise;
+	}
+	const tracked = doGenerate(entries, state, llm, nowMs, file, callLlm).finally(
+		() => {
+			if (inflight !== null && inflight.promise === tracked) {
+				inflight = null;
+			}
+		},
+	);
+	inflight = { file, promise: tracked };
+	return tracked;
 }
