@@ -80,6 +80,8 @@
 		"maxActiveTvl": null,
 		"minVolume": 1000,
 		"maxVolume": null,
+		"minVolume24h": 500000,
+		"maxVolume24h": null,
 		"minFee": 50,
 		"maxFee": null,
 		"minFeeActiveTvlRatio": 0.05,

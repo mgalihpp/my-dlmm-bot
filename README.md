@@ -153,6 +153,7 @@ Set any filter to `null` to skip it.
 | TVL | `minTvl` / `maxTvl` | Min/max total value locked |
 | Active TVL | `minActiveTvl` / `maxActiveTvl` | Min/max active TVL |
 | Volume | `minVolume` / `maxVolume` | Min/max trading volume |
+| 24h Volume | `minVolume24h` / `maxVolume24h` | Min/max 24h trading volume (server-side, independent of screening timeframe) |
 | Fee | `minFee` / `maxFee` | Min/max fee amount ($) |
 | Fee/TVL ratio | `minFeeActiveTvlRatio` / `maxFeeActiveTvlRatio` | Min/max fee-to-TVL ratio |
 | Bin step | `minBinStep` / `maxBinStep` | Min/max DLMM bin step |
