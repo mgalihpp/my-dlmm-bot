@@ -131,19 +131,27 @@ export function buildRouter(password: string, shell: ShellInfo) {
 		});
 	});
 
-	const portfolioPage = portfolioContent.pipe(
-		Effect.map((inner) =>
-			pageResponse(
-				"Portfolio",
-				"portfolio",
-				inner,
-				"/partials/portfolio",
-				shell,
-			),
+	const portfolioRoute = Effect.gen(function* () {
+		const request = yield* HttpServerRequest.HttpServerRequest;
+		const url = new URL(request.url, "http://localhost");
+		const rawPage = url.searchParams.get("closedPage");
+		const parsedPage = rawPage === null ? 1 : Number(rawPage);
+		const closedPage =
+			Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+		const refreshPath =
+			closedPage > 1
+				? `/partials/portfolio?closedPage=${closedPage}`
+				: "/partials/portfolio";
+		const inner = yield* portfolioContent({ closedPage });
+		return { inner, refreshPath };
+	});
+	const portfolioPage = portfolioRoute.pipe(
+		Effect.map(({ inner, refreshPath }) =>
+			pageResponse("Portfolio", "portfolio", inner, refreshPath, shell),
 		),
 	);
-	const portfolioPartial = portfolioContent.pipe(
-		Effect.map((inner) => partialResponse(inner, "/partials/portfolio")),
+	const portfolioPartial = portfolioRoute.pipe(
+		Effect.map(({ inner, refreshPath }) => partialResponse(inner, refreshPath)),
 	);
 	const closedDetailRoute = Effect.gen(function* () {
 		const request = yield* HttpServerRequest.HttpServerRequest;

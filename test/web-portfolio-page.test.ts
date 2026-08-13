@@ -12,9 +12,11 @@ import type {
 	PositionPnLData,
 } from "../src/domain/index.js";
 import { AppConfigTest } from "../src/services/Config.js";
+import { Dlmm, type DlmmService } from "../src/services/Dlmm.js";
 import { MeteoraApiLayer } from "../src/services/MeteoraApi.js";
 import {
 	closedPositionsContent,
+	portfolioContent,
 	renderClosedDetail,
 	renderPortfolio,
 } from "../src/web/pages/portfolio.js";
@@ -145,7 +147,11 @@ describe("renderClosedDetail", () => {
 	it("shows PnL SOL percentage under the SOL amount", () => {
 		const html = renderClosedDetail("OLD/SOL", [
 			mkPos(),
-			mkPos({ positionAddress: "posB", pnlSol: "-0.05", pnlSolPctChange: null }),
+			mkPos({
+				positionAddress: "posB",
+				pnlSol: "-0.05",
+				pnlSolPctChange: null,
+			}),
 		]);
 		expect(html).toContain('<div class="sub">+5.10%</div>');
 		expect(html).toContain('<div class="sub">-</div>');
@@ -502,6 +508,35 @@ const layerWith = (
 		Layer.provideMerge(AppConfigTest({ wallet: "Wallet111" })),
 	);
 
+const dlmmStub = Layer.succeed(Dlmm, {
+	attachLivePositions: (pools: OpenPool[]) => Effect.succeed(pools),
+} as unknown as DlmmService);
+
+const layerWithDlmm = (
+	handler: (url: string) => { body: unknown; status?: number },
+) => layerWith(handler).pipe(Layer.provideMerge(dlmmStub));
+
+const closedPortfolioBody = {
+	hasNext: true,
+	page: 2,
+	pageSize: 10,
+	totalCount: 12,
+	totalPositions: 12,
+	pools: [
+		mkClosed({ poolAddress: "poolA" }),
+		mkClosed({ poolAddress: "poolB" }),
+	],
+};
+
+const openPortfolioEmptyBody = {
+	hasNext: false,
+	page: 1,
+	pageSize: 10,
+	totalCount: 0,
+	totalPositions: 0,
+	pools: [],
+};
+
 describe("closedPositionsContent", () => {
 	it("renders closed positions detail for a pool", async () => {
 		const result = await Effect.runPromise(
@@ -538,5 +573,72 @@ describe("closedPositionsContent", () => {
 			),
 		);
 		expect(result).toContain("Failed to load closed positions");
+	});
+});
+
+describe("portfolioContent", () => {
+	it("forwards closedPage to the closed portfolio API", async () => {
+		let closedUrl = "";
+		const result = await Effect.runPromise(
+			portfolioContent({ closedPage: 2 }).pipe(
+				Effect.provide(
+					layerWithDlmm((url) => {
+						if (url.includes("/portfolio/total")) return { body: mkTotal() };
+						if (url.includes("/portfolio/open"))
+							return { body: openPortfolioEmptyBody };
+						if (url.includes("/portfolio?")) {
+							closedUrl = url;
+							return { body: closedPortfolioBody };
+						}
+						return { body: { error: "unexpected" }, status: 404 };
+					}),
+				),
+			),
+		);
+		expect(closedUrl).toContain("page=2");
+		expect(closedUrl).toContain("page_size=10");
+		expect(result).toContain("showing 11–12 of 12");
+	});
+
+	it("defaults to page 1 when closedPage is missing", async () => {
+		let closedUrl = "";
+		await Effect.runPromise(
+			portfolioContent().pipe(
+				Effect.provide(
+					layerWithDlmm((url) => {
+						if (url.includes("/portfolio/total")) return { body: mkTotal() };
+						if (url.includes("/portfolio/open"))
+							return { body: openPortfolioEmptyBody };
+						if (url.includes("/portfolio?")) {
+							closedUrl = url;
+							return { body: closedPortfolioBody };
+						}
+						return { body: { error: "unexpected" }, status: 404 };
+					}),
+				),
+			),
+		);
+		expect(closedUrl).toContain("page=1");
+	});
+
+	it("falls back to page 1 for invalid closedPage", async () => {
+		let closedUrl = "";
+		await Effect.runPromise(
+			portfolioContent({ closedPage: -3 }).pipe(
+				Effect.provide(
+					layerWithDlmm((url) => {
+						if (url.includes("/portfolio/total")) return { body: mkTotal() };
+						if (url.includes("/portfolio/open"))
+							return { body: openPortfolioEmptyBody };
+						if (url.includes("/portfolio?")) {
+							closedUrl = url;
+							return { body: closedPortfolioBody };
+						}
+						return { body: { error: "unexpected" }, status: 404 };
+					}),
+				),
+			),
+		);
+		expect(closedUrl).toContain("page=1");
 	});
 });

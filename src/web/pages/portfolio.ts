@@ -35,6 +35,14 @@ export interface PortfolioData {
 	readonly closed: readonly ClosedPool[];
 }
 
+export const CLOSED_PAGE_SIZE = 10;
+
+function normalizePage(value: number | undefined): number {
+	return value !== undefined && Number.isSafeInteger(value) && value > 0
+		? value
+		: 1;
+}
+
 const EMPTY_TOTAL: PortfolioTotal = {
 	totalPnlUsd: "-",
 	totalPnlSol: "-",
@@ -392,63 +400,76 @@ export const closedPositionsContent = (
 		),
 	);
 
-export const portfolioContent: Effect.Effect<
-	string,
-	never,
-	AppConfig | MeteoraApi | Dlmm
-> = Effect.gen(function* () {
-	const config = yield* AppConfig;
-	const wallet = yield* config.wallet();
-	const api = yield* MeteoraApi;
-	const dlmm = yield* Dlmm;
+export const portfolioContent = (
+	opts: { readonly closedPage?: number } = {},
+): Effect.Effect<string, never, AppConfig | MeteoraApi | Dlmm> =>
+	Effect.gen(function* () {
+		const config = yield* AppConfig;
+		const wallet = yield* config.wallet();
+		const api = yield* MeteoraApi;
+		const dlmm = yield* Dlmm;
 
-	const open = yield* api.openPortfolio(wallet, 1, 10).pipe(
-		Effect.flatMap((response) =>
-			api.enrichOpenPortfolioPnl(response.pools, wallet, {
-				withRanges: true,
+		const open = yield* api.openPortfolio(wallet, 1, 10).pipe(
+			Effect.flatMap((response) =>
+				api.enrichOpenPortfolioPnl(response.pools, wallet, {
+					withRanges: true,
+				}),
+			),
+			Effect.flatMap((enriched) => dlmm.attachLivePositions(enriched, wallet)),
+			Effect.catchAll(() => Effect.succeed([] as OpenPool[])),
+		);
+
+		const closedRes = yield* api
+			.closedPortfolio(wallet, normalizePage(opts.closedPage), CLOSED_PAGE_SIZE)
+			.pipe(Effect.catchAll(() => Effect.succeed(null)));
+		const closed = closedRes?.pools ?? [];
+
+		const total = yield* api
+			.totalPnl(wallet)
+			.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
+
+		const openBalance = open.reduce(
+			(sum, pool) => sum + parseFloat(pool.balances || "0"),
+			0,
+		);
+		const openFees = open.reduce(
+			(sum, pool) => sum + parseFloat(pool.unclaimedFees || "0"),
+			0,
+		);
+		const unrealizedUsd = open.reduce((sum, pool) => {
+			const n = parseFloat(pool.pnl);
+			return Number.isNaN(n) ? sum : sum + n;
+		}, 0);
+		const unrealizedSol = open.reduce((sum, pool) => {
+			if (pool.pnlSol == null) return sum;
+			const n = parseFloat(pool.pnlSol);
+			return Number.isNaN(n) ? sum : sum + n;
+		}, 0);
+		yield* Effect.sync(() =>
+			recordSnapshot({
+				ts: Math.floor(Date.now() / 1000),
+				pnlUsd: unrealizedUsd,
+				pnlSol: unrealizedSol,
+				balanceUsd: openBalance,
+				feesUsd: openFees,
 			}),
+		).pipe(Effect.catchAll(() => Effect.succeed(null)));
+
+		const closedPagination: ClosedPagination | null =
+			closedRes !== null
+				? {
+						page: closedRes.page,
+						pageSize: closedRes.pageSize,
+						total: closedRes.totalCount,
+					}
+				: null;
+		return renderPortfolio(
+			{ total, open, closed },
+			readHistory(),
+			closedPagination,
+		);
+	}).pipe(
+		Effect.catchAll((error) =>
+			Effect.succeed(errorBanner(errorMessage(error))),
 		),
-		Effect.flatMap((enriched) => dlmm.attachLivePositions(enriched, wallet)),
-		Effect.catchAll(() => Effect.succeed([] as OpenPool[])),
 	);
-
-	const closed = yield* api.closedPortfolio(wallet, 1, 10).pipe(
-		Effect.map((response) => response.pools),
-		Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-	);
-
-	const total = yield* api
-		.totalPnl(wallet)
-		.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
-
-	const openBalance = open.reduce(
-		(sum, pool) => sum + parseFloat(pool.balances || "0"),
-		0,
-	);
-	const openFees = open.reduce(
-		(sum, pool) => sum + parseFloat(pool.unclaimedFees || "0"),
-		0,
-	);
-	const unrealizedUsd = open.reduce((sum, pool) => {
-		const n = parseFloat(pool.pnl);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-	const unrealizedSol = open.reduce((sum, pool) => {
-		if (pool.pnlSol == null) return sum;
-		const n = parseFloat(pool.pnlSol);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-	yield* Effect.sync(() =>
-		recordSnapshot({
-			ts: Math.floor(Date.now() / 1000),
-			pnlUsd: unrealizedUsd,
-			pnlSol: unrealizedSol,
-			balanceUsd: openBalance,
-			feesUsd: openFees,
-		}),
-	).pipe(Effect.catchAll(() => Effect.succeed(null)));
-
-	return renderPortfolio({ total, open, closed }, readHistory());
-}).pipe(
-	Effect.catchAll((error) => Effect.succeed(errorBanner(errorMessage(error)))),
-);
