@@ -15,13 +15,13 @@ Built with TypeScript, [Effect](https://effect.website/) (functional effect syst
 
 ## Zero-Setup via AI Coding Agent
 
-Don't want to set up anything yourself? Open Claude Code, Codex, or any AI coding agent in an empty folder and paste this once — the agent clones the repo, reads the docs, and does the full installation for you (Node.js, dependencies, config, secrets). You only answer preference questions:
+Paste this into Claude Code, Codex, or any AI coding agent in an empty folder. The agent clones the repo, reads the docs, and performs the full installation (Node.js, dependencies, config, secrets). You only answer preference questions:
 
 ```text
-Clone repo https://github.com/mgalihpp/my-dlmm-bot ke folder ini. Baca README.md di repo tersebut, lalu ikuti prompt setup di docs/coding-agent-prompt.md (bagian "Prompt Setup Sekali Paste") secara penuh. Kamu yang mengerjakan SEMUA instalasi dari nol (Node.js, dependencies, config, secret) — saya end user yang hanya menjawab pertanyaan preferensi. Jawab dalam bahasa Indonesia.
+Clone repo https://github.com/mgalihpp/my-dlmm-bot ke folder ini. Baca README.md di repo tersebut, lalu ikuti prompt setup di docs/coding-agent-prompt.md. Kerjakan seluruh instalasi dari nol (Node.js, dependencies, config, secret). Jawab dalam bahasa Indonesia.
 ```
 
-If you are an AI coding agent reading this README: the full one-shot setup prompt lives in [docs/coding-agent-prompt.md](docs/coding-agent-prompt.md).
+If you are an AI coding agent reading this README: the one-shot setup prompt lives in [docs/coding-agent-prompt.md](docs/coding-agent-prompt.md).
 
 ## Screenshots
 

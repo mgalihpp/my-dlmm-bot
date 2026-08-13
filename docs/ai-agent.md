@@ -2,7 +2,7 @@
 
 AI agent Vexis mengotomasi manajemen posisi DLMM Meteora di Solana: **menemukan** pool kandidat via screening deterministik, **memutuskan** `open`/`hold` per kandidat lewat LLM, lalu **membuka posisi** di belakang guardrail deterministik yang tidak bisa di-bypass. Ditambah monitoring take-profit/stop-loss (TP/SL), penanganan posisi out-of-range (OOR), learning bobot sinyal Darwinian dari PnL, dan briefing harian.
 
-Dokumen ini untuk orang yang mau **mencoba** agent-nya. Detail implementasi ada di `docs/dev/ai-agent.md` (internal).
+Panduan untuk mencoba agent. Detail implementasi: `docs/dev/ai-agent.md` (internal).
 
 ## Requirements
 
@@ -63,7 +63,7 @@ Mulai agent dari Telegram dengan `/agent start`. Cek status dengan `/agent statu
 Screening (deterministik) → LLM decide open/hold → validasi anti-halusinasi → guardrail (hard block) → createPosition
 ```
 
-Heuristic bukan penentu keputusan — hanya memilih pool mana yang dilihat LLM. LLM adalah juri, guardrail adalah polisi.
+Heuristic bukan penentu keputusan — hanya memilih pool mana yang dilihat LLM.
 
 ### Job terjadwal
 
@@ -150,7 +150,7 @@ Tombol pada notifikasi: `📊 PnL` (detail posisi), `⚠️ Retry` (re-run TP/SL
 ## Risiko & Batasan
 
 - Agent melakukan **transaksi on-chain nyata** — gunakan hot wallet khusus dengan dana terbatas.
-- LLM bisa salah — guardrail adalah lapisan terakhir, tapi heuristic hanya memilih kandidat; keputusan akhir di LLM.
+- LLM bisa salah — guardrail adalah lapisan terakhir yang memblokir open tidak aman.
 - LLM gagal → cycle di-skip (zero trade) — desain fail-safe.
 - OOR: LLM gagal → semua posisi di-hold (`degraded`), **bukan** auto-close.
 - Budget caps (`maxSolPerPosition`, `maxTotalSol`, `maxOpenPositions`) adalah hard block yang tidak bisa dilewati LLM.
