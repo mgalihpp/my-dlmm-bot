@@ -13,6 +13,16 @@ Built with TypeScript, [Effect](https://effect.website/) (functional effect syst
 - **[Troubleshooting (Indonesian)](docs/troubleshooting.md)** — symptom → cause → fix for common issues.
 - **[Prompt for AI Coding Agents (Indonesian)](docs/coding-agent-prompt.md)** — copy-paste prompts for Claude Code, Codex, and other agentic coding tools.
 
+## Zero-Setup via AI Coding Agent
+
+Don't want to set up anything yourself? Open Claude Code, Codex, or any AI coding agent in an empty folder and paste this once — the agent clones the repo, reads the docs, and does the full installation for you (Node.js, dependencies, config, secrets). You only answer preference questions:
+
+```text
+Clone repo https://github.com/mgalihpp/my-dlmm-bot ke folder ini. Baca README.md di repo tersebut, lalu ikuti prompt setup di docs/coding-agent-prompt.md (bagian "Prompt Setup Sekali Paste") secara penuh. Kamu yang mengerjakan SEMUA instalasi dari nol (Node.js, dependencies, config, secret) — saya end user yang hanya menjawab pertanyaan preferensi. Jawab dalam bahasa Indonesia.
+```
+
+If you are an AI coding agent reading this README: the full one-shot setup prompt lives in [docs/coding-agent-prompt.md](docs/coding-agent-prompt.md).
+
 ## Screenshots
 
 | | | |
