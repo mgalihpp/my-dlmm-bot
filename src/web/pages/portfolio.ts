@@ -218,7 +218,8 @@ function positionRangeChart(pool: OpenPool): string {
 		if (!inRange) return "";
 		const progress = index / (barCount - 1);
 		const barHeight = 16 + (1 - progress) * 48;
-		return `<rect x="${(index * barWidth + 1).toFixed(1)}" y="${(baseline - barHeight).toFixed(1)}" width="${Math.max(1, barWidth - 1.2).toFixed(1)}" height="${barHeight.toFixed(1)}" rx="1"/>`;
+		const side = price < current ? "left" : "right";
+		return `<rect class="range-bar-${side}" x="${(index * barWidth + 1).toFixed(1)}" y="${(baseline - barHeight).toFixed(1)}" width="${Math.max(1, barWidth - 1.2).toFixed(1)}" height="${barHeight.toFixed(1)}" rx="1"/>`;
 	}).join("");
 	const formatPrice = (price: number) =>
 		price >= 1 ? price.toFixed(3) : price.toFixed(5);

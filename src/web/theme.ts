@@ -12,6 +12,7 @@ export const themeCss = `
 	--loss: #ff6f6f;
 	--gold: #f0bd57;
 	--blue: #63a9ff;
+	--solana: #9945ff;
 	--radius: 4px;
 	--grid: rgba(255, 255, 255, 0.018);
 	--nav-active: #1a222e;
@@ -34,6 +35,7 @@ export const themeCss = `
 	--loss: #c0392b;
 	--gold: #a36a00;
 	--blue: #2f6fd0;
+	--solana: #7b3fc4;
 	--grid: rgba(0, 0, 0, 0.025);
 	--nav-active: #e6e9ee;
 	--tag: #c8cdd5;
@@ -340,7 +342,9 @@ td small { margin-top: 5px; color: var(--muted); font: 10px monospace; }
 .position-range-chart { width: min(360px, 42vw); min-width: 240px; margin-top: 10px; overflow: hidden; border: 1px solid var(--line); background: #171724; }
 .position-range-chart svg { display: block; width: 100%; height: auto; }
 .range-axis { stroke: var(--muted); stroke-width: 1; opacity: 0.65; }
-.range-bars { fill: var(--blue); opacity: 0.95; }
+.range-bars { opacity: 0.95; }
+.range-bar-left { fill: var(--blue); }
+.range-bar-right { fill: var(--solana); }
 .range-price-line { stroke: var(--foreground); stroke-width: 2; stroke-dasharray: 5 4; }
 .range-price-label { fill: #303044; }
 .range-price-title, .range-price-value, .range-label { fill: var(--foreground); font-family: monospace; }
