@@ -1,5 +1,6 @@
 import { type Bot, InlineKeyboard } from "grammy";
 import type { VexisConfig } from "../../domain/config.js";
+import type { RuntimeAgent } from "../agent/engine.js";
 import { escapeMarkdown, tgBold, tgCode } from "../format.js";
 import { configPath, getConfigSync, updateConfig } from "../fx.js";
 import { MD, replyError } from "../utils.js";
@@ -69,6 +70,16 @@ const EDITABLE_FIELDS = [
 	{ key: "pools.maxHolders", label: "Max Holders", type: "number" as const },
 	{ key: "pools.minVolume", label: "Min Volume", type: "number" as const },
 	{ key: "pools.maxVolume", label: "Max Volume", type: "number" as const },
+	{
+		key: "pools.minVolume24h",
+		label: "Min Vol 24h",
+		type: "number" as const,
+	},
+	{
+		key: "pools.maxVolume24h",
+		label: "Max Vol 24h",
+		type: "number" as const,
+	},
 	{ key: "pools.minTvl", label: "Min TVL", type: "number" as const },
 	{ key: "pools.maxTvl", label: "Max TVL", type: "number" as const },
 	{
@@ -205,6 +216,164 @@ const EDITABLE_FIELDS = [
 		label: "Max Token Age (h)",
 		type: "number" as const,
 	},
+	// ── Agent (DLMM bot) ──
+	{
+		key: "agent.enabled",
+		label: "DLMM Agent Enabled",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.intervalMinutes",
+		label: "DLMM Agent Interval (min)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxCandidates",
+		label: "Max Candidates",
+		type: "number" as const,
+	},
+	{
+		key: "agent.minCandidate",
+		label: "Min Candidate Score",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxSolPerPosition",
+		label: "Max SOL / Position",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxTotalSol",
+		label: "Max Total SOL",
+		type: "number" as const,
+	},
+	{
+		key: "agent.maxOpenPositions",
+		label: "Max Open Positions",
+		type: "number" as const,
+	},
+	{
+		key: "agent.txCooldownMs",
+		label: "Tx Cooldown (ms)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.poolCooldownMs",
+		label: "Pool Cooldown (ms)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.tpPct",
+		label: "DLMM Agent Take Profit %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.slPct",
+		label: "DLMM Agent Stop Loss %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.llm.baseUrl",
+		label: "LLM Base URL",
+		type: "string" as const,
+	},
+	{ key: "agent.llm.apiKey", label: "LLM API Key", type: "string" as const },
+	{ key: "agent.llm.model", label: "LLM Model", type: "string" as const },
+	{
+		key: "agent.llm.timeoutMs",
+		label: "LLM Timeout (ms)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxPriceVsAthPct",
+		label: "Max Price vs ATH %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.enabled",
+		label: "Guardrails Enabled",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.minTokenFeesSol",
+		label: "Min Token Fees (SOL)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxBundlePct",
+		label: "Max Bundle %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxBotHoldersPct",
+		label: "Max Bot Holders %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.maxTop10Pct",
+		label: "Max Top10 %",
+		type: "number" as const,
+	},
+	{
+		key: "agent.risks.blockWash",
+		label: "Block Wash Trading",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockRugpull",
+		label: "Block Rugpull",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockDexScreenerPaid",
+		label: "Block DexScreener Paid",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.risks.blockDevSoldAll",
+		label: "Block Dev Sold All",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.darwin.enabled",
+		label: "Darwin Enabled",
+		type: "boolean" as const,
+	},
+	{
+		key: "agent.darwin.windowDays",
+		label: "Darwin Window (days)",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.recalcEvery",
+		label: "Darwin Recalc Every",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.boostFactor",
+		label: "Darwin Boost Factor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.decayFactor",
+		label: "Darwin Decay Factor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.weightFloor",
+		label: "Darwin Weight Floor",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.weightCeiling",
+		label: "Darwin Weight Ceiling",
+		type: "number" as const,
+	},
+	{
+		key: "agent.darwin.minSamples",
+		label: "Darwin Min Samples",
+		type: "number" as const,
+	},
 ] as const;
 
 function getNestedValue(obj: any, path: string): any {
@@ -273,6 +442,30 @@ function buildConfigText(
 			val === undefined || val === null ? "(default)" : String(val);
 		lines.push(`  ${escapeMarkdown(field.label)}: ${tgCode(display)}`);
 	}
+	lines.push(
+		"",
+		tgBold("DLMM Agent 🤖"),
+		`  Enabled: ${tgCode(formatValue("agent.enabled", config))}`,
+		`  Interval: ${tgCode(formatValue("agent.intervalMinutes", config))}m`,
+		`  Max Open: ${tgCode(formatValue("agent.maxOpenPositions", config))}`,
+		`  TP: ${tgCode(formatValue("agent.tpPct", config))}%  SL: ${tgCode(formatValue("agent.slPct", config))}%`,
+		`  Pool Cooldown: ${tgCode(formatValue("agent.poolCooldownMs", config))}ms`,
+		`  LLM Model: ${tgCode(formatValue("agent.llm.model", config))}`,
+		"",
+		tgBold("Guardrails 🛡"),
+		`  Enabled: ${tgCode(formatValue("agent.risks.enabled", config))}`,
+		`  Max Bot Holders: ${tgCode(formatValue("agent.risks.maxBotHoldersPct", config))}%`,
+		`  Max Bundle: ${tgCode(formatValue("agent.risks.maxBundlePct", config))}%`,
+		`  Max Top10: ${tgCode(formatValue("agent.risks.maxTop10Pct", config))}%`,
+		`  Max ATH: ${tgCode(formatValue("agent.risks.maxPriceVsAthPct", config))}%`,
+		`  Min Fees: ${tgCode(formatValue("agent.risks.minTokenFeesSol", config))} SOL`,
+		`  Block Wash: ${tgCode(formatValue("agent.risks.blockWash", config))}  Rugpull: ${tgCode(formatValue("agent.risks.blockRugpull", config))}  DexPaid: ${tgCode(formatValue("agent.risks.blockDexScreenerPaid", config))}  DevSold: ${tgCode(formatValue("agent.risks.blockDevSoldAll", config))}`,
+		"",
+		tgBold("Darwin 🧬"),
+		`  Enabled: ${tgCode(formatValue("agent.darwin.enabled", config))}`,
+		`  Window: ${tgCode(formatValue("agent.darwin.windowDays", config))}d  Recalc: ${tgCode(formatValue("agent.darwin.recalcEvery", config))}  MinSamples: ${tgCode(formatValue("agent.darwin.minSamples", config))}`,
+		`  Boost: ${tgCode(formatValue("agent.darwin.boostFactor", config))}  Decay: ${tgCode(formatValue("agent.darwin.decayFactor", config))}  Floor: ${tgCode(formatValue("agent.darwin.weightFloor", config))}  Ceil: ${tgCode(formatValue("agent.darwin.weightCeiling", config))}`,
+	);
 	return lines.join("\n");
 }
 
@@ -294,7 +487,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Take Profit %", "cfg:set:takeProfitPct")
 			.row()
 			.text("⚡ Create »", "cfg:page:6")
-			.text("MC/Holders »", "cfg:page:2");
+			.text("MC/Holders »", "cfg:page:2")
+			.row()
+			.text("🤖 DLMM Agent »", "cfg:page:7");
 	}
 	if (page === 6) {
 		return new InlineKeyboard()
@@ -319,6 +514,73 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.row()
 			.text("« General", "cfg:page:1");
 	}
+	if (page === 7) {
+		return new InlineKeyboard()
+			.text("🔄 DLMM Agent On", "cfg:toggle:agent.enabled")
+			.text("✏️ Interval (min)", "cfg:set:agent.intervalMinutes")
+			.row()
+			.text("✏️ Max Candidates", "cfg:set:agent.maxCandidates")
+			.text("✏️ Min Score", "cfg:set:agent.minCandidate")
+			.row()
+			.text("✏️ Max SOL/Pos", "cfg:set:agent.maxSolPerPosition")
+			.text("✏️ Max Total SOL", "cfg:set:agent.maxTotalSol")
+			.row()
+			.text("✏️ Max Open Pos", "cfg:set:agent.maxOpenPositions")
+			.text("✏️ Tx Cooldown (ms)", "cfg:set:agent.txCooldownMs")
+			.row()
+			.text("✏️ Pool Cooldown", "cfg:set:agent.poolCooldownMs")
+			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.row()
+			.text("✏️ TP %", "cfg:set:agent.tpPct")
+			.text("✏️ SL %", "cfg:set:agent.slPct")
+			.row()
+			.text("✏️ LLM URL", "cfg:set:agent.llm.baseUrl")
+			.text("✏️ LLM Model", "cfg:set:agent.llm.model")
+			.row()
+			.text("✏️ LLM Timeout", "cfg:set:agent.llm.timeoutMs")
+			.text("✏️ LLM API Key", "cfg:set:agent.llm.apiKey")
+			.row()
+			.text("🛡 Guardrails »", "cfg:page:8")
+			.text("🧬 Darwin »", "cfg:page:9")
+			.row()
+			.text("« General", "cfg:page:1");
+	}
+	if (page === 8) {
+		return new InlineKeyboard()
+			.text("🔄 Guardrails On", "cfg:toggle:agent.risks.enabled")
+			.row()
+			.text("✏️ Max Bot Holders %", "cfg:set:agent.risks.maxBotHoldersPct")
+			.text("✏️ Max Bundle %", "cfg:set:agent.risks.maxBundlePct")
+			.row()
+			.text("✏️ Max Top10 %", "cfg:set:agent.risks.maxTop10Pct")
+			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.row()
+			.text("✏️ Min Token Fees (SOL)", "cfg:set:agent.risks.minTokenFeesSol")
+			.text("🔄 Block Wash", "cfg:toggle:agent.risks.blockWash")
+			.row()
+			.text("🔄 Block Rugpull", "cfg:toggle:agent.risks.blockRugpull")
+			.text("🔄 Block Dex Paid", "cfg:toggle:agent.risks.blockDexScreenerPaid")
+			.row()
+			.text("🔄 Block Dev Sold", "cfg:toggle:agent.risks.blockDevSoldAll")
+			.row()
+			.text("« DLMM Agent", "cfg:page:7");
+	}
+	if (page === 9) {
+		return new InlineKeyboard()
+			.text("🔄 Darwin On", "cfg:toggle:agent.darwin.enabled")
+			.text("✏️ Window (days)", "cfg:set:agent.darwin.windowDays")
+			.row()
+			.text("✏️ Recalc Every", "cfg:set:agent.darwin.recalcEvery")
+			.text("✏️ Min Samples", "cfg:set:agent.darwin.minSamples")
+			.row()
+			.text("✏️ Boost Factor", "cfg:set:agent.darwin.boostFactor")
+			.text("✏️ Decay Factor", "cfg:set:agent.darwin.decayFactor")
+			.row()
+			.text("✏️ Weight Floor", "cfg:set:agent.darwin.weightFloor")
+			.text("✏️ Weight Ceiling", "cfg:set:agent.darwin.weightCeiling")
+			.row()
+			.text("« DLMM Agent", "cfg:page:7");
+	}
 	if (page === 2) {
 		return new InlineKeyboard()
 			.text("✏️ Min MC", "cfg:set:pools.minMcap")
@@ -337,6 +599,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.row()
 			.text("✏️ Min Vol", "cfg:set:pools.minVolume")
 			.text("✏️ Max Vol", "cfg:set:pools.maxVolume")
+			.row()
+			.text("✏️ Min Vol 24h", "cfg:set:pools.minVolume24h")
+			.text("✏️ Max Vol 24h", "cfg:set:pools.maxVolume24h")
 			.row()
 			.text("✏️ Min Fee", "cfg:set:pools.minFee")
 			.text("✏️ Max Fee", "cfg:set:pools.maxFee")
@@ -391,6 +656,9 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 
 function pageForKey(key: string): number {
 	if (key.startsWith("create.")) return 6;
+	if (key.startsWith("agent.risks.")) return 8;
+	if (key.startsWith("agent.darwin.")) return 9;
+	if (key.startsWith("agent.")) return 7;
 	const page1 = new Set([
 		"wallet",
 		"rpcUrl",
@@ -413,6 +681,8 @@ function pageForKey(key: string): number {
 		"pools.maxTvl",
 		"pools.minVolume",
 		"pools.maxVolume",
+		"pools.minVolume24h",
+		"pools.maxVolume24h",
 		"pools.minFee",
 		"pools.maxFee",
 		"pools.minFeeActiveTvlRatio",
@@ -447,7 +717,13 @@ const pendingEdits = new Map<
 	}
 >();
 
-export function registerConfigEditor(bot: Bot) {
+export function registerConfigEditor(bot: Bot, rtAgent?: RuntimeAgent | null) {
+	const syncAgentRuntime = async (enabled: boolean) => {
+		if (!rtAgent) return;
+		if (enabled) rtAgent.start();
+		else rtAgent.stop();
+	};
+
 	// /config — show config with edit buttons
 	bot.command("config", async (ctx) => {
 		const text = buildConfigText(getConfigSync(), configPath());
@@ -517,6 +793,9 @@ export function registerConfigEditor(bot: Bot) {
 			await replyError(ctx, e);
 			return;
 		}
+		if (field === "agent.enabled") {
+			await syncAgentRuntime(getNestedValue(getConfigSync(), field) === true);
+		}
 		const text = buildConfigText(getConfigSync(), configPath());
 		await ctx.editMessageText(`${tgBold("✅ Reset to default")}\n\n${text}`, {
 			...MD,
@@ -548,6 +827,9 @@ export function registerConfigEditor(bot: Bot) {
 		} catch (e) {
 			await replyError(ctx, e);
 			return;
+		}
+		if (field === "agent.enabled") {
+			await syncAgentRuntime(getNestedValue(getConfigSync(), field) === true);
 		}
 		const text = buildConfigText(getConfigSync(), configPath());
 		await ctx.editMessageText(text, {
@@ -637,6 +919,12 @@ export function registerConfigEditor(bot: Bot) {
 		} catch (e) {
 			await replyError(ctx, e);
 			return;
+		}
+
+		if (pending.key === "agent.enabled") {
+			await syncAgentRuntime(
+				getNestedValue(getConfigSync(), pending.key) === true,
+			);
 		}
 
 		const text = buildConfigText(getConfigSync(), configPath());

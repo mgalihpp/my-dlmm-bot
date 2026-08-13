@@ -41,6 +41,14 @@ export const PositionPnlEntry = Schema.Struct({
 });
 export type PositionPnlEntry = Schema.Schema.Type<typeof PositionPnlEntry>;
 
+export const PositionRangeEntry = Schema.Struct({
+	address: Schema.String,
+	minPrice: Schema.String,
+	maxPrice: Schema.String,
+	poolActivePrice: Schema.NullOr(Schema.String),
+});
+export type PositionRangeEntry = Schema.Schema.Type<typeof PositionRangeEntry>;
+
 export const OpenPool = Schema.Struct({
 	poolAddress: Schema.String,
 	binStep: Schema.Number,
@@ -62,6 +70,7 @@ export const OpenPool = Schema.Struct({
 	positionsOutOfRange: Schema.Array(Schema.String),
 	positionsPnl: Schema.optional(Schema.Array(PositionPnlEntry)),
 	positionsLive: Schema.optional(Schema.Array(PositionLiveEntry)),
+	positionsRange: Schema.optional(Schema.Array(PositionRangeEntry)),
 	outOfRange: Schema.NullOr(Schema.Boolean),
 	poolPrice: Schema.Number,
 	poolStateUpdatedAtBlockTime: Schema.optional(Schema.NullOr(Schema.Number)),

@@ -65,10 +65,14 @@ export const api = {
 				a.positionPnl(poolAddress, user, status, page, pageSize),
 			),
 		),
-	enrichOpenPortfolioPnl: (pools: readonly OpenPool[], wallet: string) =>
+	enrichOpenPortfolioPnl: (
+		pools: readonly OpenPool[],
+		wallet: string,
+		opts?: { withRanges?: boolean },
+	) =>
 		runFx(
 			Effect.flatMap(MeteoraApi, (a) =>
-				a.enrichOpenPortfolioPnl(pools, wallet),
+				a.enrichOpenPortfolioPnl(pools, wallet, opts),
 			),
 		),
 	poolHistoricalVolume: (address: string) =>

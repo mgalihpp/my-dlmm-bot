@@ -1,9 +1,10 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { Duration, Effect, type Fiber, Schedule } from "effect";
+import { Effect, type Fiber } from "effect";
 import type { Bot } from "grammy";
 import { InlineKeyboard } from "grammy";
 import { registerAction } from "./action-store.js";
+import { alignedSchedule } from "./agent/schedule.js";
 import { escapeMarkdown, tgBold, tgCode, tgPct } from "./format.js";
 import { api, getConfig, resolveWallet } from "./fx.js";
 import { runtime } from "./runtime.js";
@@ -52,6 +53,20 @@ function threshold(v: number | null | undefined): number | null {
 	return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+/** True when the AI agent tracks the pool/position and therefore owns its
+ * TP/SL handling — the global watcher must skip it to avoid double
+ * notifications and a manual close button pointing at an already-closed
+ * position. */
+export function agentTracks(
+	plans: readonly { pool: string; positionAddress: string | null }[],
+	poolAddress: string,
+	positionAddress: string,
+): boolean {
+	return plans.some(
+		(p) => p.positionAddress === positionAddress || p.pool === poolAddress,
+	);
+}
+
 function pnlPct(pos: {
 	pnlSolPctChange: string | number | null;
 	pnlPctChange: string;
@@ -68,10 +83,16 @@ function pnlPct(pos: {
 	return null;
 }
 
-export function createTpSl(bot: Bot, chatId: string): RuntimeTpSl {
+export function createTpSl(
+	bot: Bot,
+	chatId: string,
+	isAgentOwned?: (poolAddress: string, positionAddress: string) => boolean,
+): RuntimeTpSl {
 	const rt: RuntimeTpSl = { state: loadState(), fiber: null };
 
-	const check = Effect.tryPromise(() => runCheck(rt, bot, chatId)).pipe(
+	const check = Effect.tryPromise(() =>
+		runCheck(rt, bot, chatId, isAgentOwned),
+	).pipe(
 		Effect.catchAll((e) =>
 			Effect.sync(() => {
 				console.error("[tpsl] check failed:", e);
@@ -80,7 +101,7 @@ export function createTpSl(bot: Bot, chatId: string): RuntimeTpSl {
 	);
 
 	rt.fiber = runtime.runFork(
-		check.pipe(Effect.repeat(Schedule.spaced(Duration.minutes(1)))),
+		check.pipe(Effect.repeat(alignedSchedule(30_000))),
 	);
 
 	return rt;
@@ -90,6 +111,7 @@ async function runCheck(
 	rt: RuntimeTpSl,
 	bot: Bot,
 	chatId: string,
+	isAgentOwned?: (poolAddress: string, positionAddress: string) => boolean,
 ): Promise<void> {
 	const config = await getConfig();
 	const sl = threshold(config.stopLossPct);
@@ -113,6 +135,9 @@ async function runCheck(
 
 		for (const p of pdata.positions) {
 			if (p.isClosed) continue;
+			// Positions owned by the AI agent are closed by the agent itself —
+			// the global watcher must not double-notify or offer a stale button.
+			if (isAgentOwned?.(pool.poolAddress, p.positionAddress)) continue;
 			seen.add(p.positionAddress);
 			const pct = pnlPct(p);
 			if (!pct) continue;
@@ -218,7 +243,10 @@ export function registerTpSlCommands(bot: Bot) {
 			`Take Profit: ${tpTxt}`,
 			"",
 			escapeMarkdown(
-				"Basis: PnL % (SOL). Applies to all open positions, checked every 1m.",
+				"Basis: PnL % (SOL). Applies to all open positions, checked every 30s.",
+			),
+			escapeMarkdown(
+				"Positions managed by the AI agent are closed by the agent itself and excluded here.",
 			),
 			escapeMarkdown(
 				"Edit via /config → Stop Loss % / Take Profit %, or vexis.config.json.",

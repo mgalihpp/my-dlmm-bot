@@ -26,4 +26,14 @@ export interface ScreenedPool {
 	fromAthPct: number | null;
 	tokenXAddress: string;
 	rugScore?: number | null;
+	priceSeries?: number[] | null;
+	bundlePct?: number | null;
+	top10Pct?: number | null;
+	botHoldersPct?: number | null;
+	globalFeesSol?: number | null;
+	isRugpull?: boolean | null;
+	isWash?: boolean | null;
+	devSoldAll?: boolean | null;
+	dexScreenerPaid?: boolean | null;
+	priceVsAthPct?: number | null;
 }

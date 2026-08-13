@@ -10,7 +10,7 @@ import {
 	tgCode,
 	tgOrganic,
 	tgPct,
-	tgPoolAddr,
+	tgPoolLink,
 	tgTxLink,
 	tgUsd,
 } from "../format.js";
@@ -106,12 +106,16 @@ export function registerCreate(bot: Bot) {
 				const volChg =
 					p.volumeChangePct != null ? tgPct(p.volumeChangePct) : "\\-";
 				const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
+				const fromAth =
+					p.fromAthPct != null
+						? ` \\| ${escapeMarkdown(`From ATH ${(p.fromAthPct * 100).toFixed(1)}%`)}`
+						: "";
 				lines.push(
-					`${tgBold(escapeMarkdown(`${p.baseSymbol}/${p.quoteSymbol}`))}  ${tgPoolAddr(p.pool)}`,
+					`${tgPoolLink(`${p.baseSymbol}/${p.quoteSymbol}`, p.pool)}`,
 					`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
 					`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 					`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
-					`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg} \\| Vol ${volChg} \\| Rug ${rug}`,
+					`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg}${fromAth} \\| Vol ${volChg} \\| Rug ${rug}`,
 					"",
 				);
 				const wid = createWizard({
@@ -1259,7 +1263,7 @@ function formatCostQuote(quote: PositionCostQuote): string {
 	}
 	if (quote.binArraysCount > 0) {
 		lines.push(
-			`⚠️ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ = ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ \\(*non\\-refundable*\\)`,
+			`⚠️ New bin arrays: ${escapeMarkdown(String(quote.binArraysCount))} × ${escapeMarkdown((quote.binArrayCost / quote.binArraysCount).toFixed(4))} ◎ \\= ${escapeMarkdown(quote.binArrayCost.toFixed(4))} ◎ \\(*non\\-refundable*\\)`,
 		);
 	}
 	if (quote.bitmapExtensionCost > 0) {

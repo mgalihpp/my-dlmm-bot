@@ -9,6 +9,44 @@
 	"alertInterval": 0,
 	"stopLossPct": -10,
 	"takeProfitPct": 25,
+	"agent": {
+		"enabled": false,
+		"intervalMinutes": 15,
+		"maxCandidates": 5,
+		"minCandidate": 70,
+		"maxSolPerPosition": 0.5,
+		"maxTotalSol": 3,
+		"maxOpenPositions": 4,
+		"txCooldownMs": 300000,
+		"tpPct": 25,
+		"slPct": -10,
+		"risks": {
+			"enabled": true,
+			"minTokenFeesSol": 30,
+			"maxBundlePct": 30,
+			"maxBotHoldersPct": 30,
+			"maxTop10Pct": 60,
+			"maxPriceVsAthPct": 80,
+			"blockWash": true,
+			"blockRugpull": true,
+			"blockDexScreenerPaid": true,
+			"blockDevSoldAll": true
+		},
+		"darwin": {
+			"enabled": true,
+			"windowDays": 60,
+			"recalcEvery": 5,
+			"boostFactor": 1.05,
+			"decayFactor": 0.95,
+			"weightFloor": 0.3,
+			"weightCeiling": 2.5,
+			"minSamples": 10
+		},
+		"llm": {
+			"baseUrl": "https://api.openai.com/v1",
+			"model": "gpt-4o-mini"
+		}
+	},
 	"create": {
 		"strategy": "bidask",
 		"mode": "single-y",
@@ -42,6 +80,8 @@
 		"maxActiveTvl": null,
 		"minVolume": 1000,
 		"maxVolume": null,
+		"minVolume24h": 500000,
+		"maxVolume24h": null,
 		"minFee": 50,
 		"maxFee": null,
 		"minFeeActiveTvlRatio": 0.05,
@@ -67,5 +107,10 @@
 		"priceTrend": null,
 		"solPairOnly": true,
 		"displayLimit": 15
+	},
+	"web": {
+		"enabled": false,
+		"port": 8080,
+		"password": "change-me"
 	}
 }

@@ -3,8 +3,11 @@
 import { Effect } from "effect";
 import { Bot } from "grammy";
 import { errorMessage } from "../errors.js";
-import { AppConfig } from "../services/Config.js";
+import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
+import { registerAgentCommands, registerMenuSpokes } from "./agent/commands.js";
+import { createAgent, type RuntimeAgent } from "./agent/engine.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
+import { registerDashboard } from "./dashboard.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { registerBalance } from "./handlers/balance.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
@@ -17,13 +20,14 @@ import { registerWatchlist } from "./handlers/watchlist.js";
 import { takeInputSession } from "./input-store.js";
 import { registerMenu } from "./menu.js";
 import { runtime } from "./runtime.js";
-import { createTpSl, registerTpSlCommands } from "./tpsl.js";
+import { agentTracks, createTpSl, registerTpSlCommands } from "./tpsl.js";
 import { MD } from "./utils.js";
 
 const HELP = [
 	tgBold("🤖 Vexis DLMM Bot"),
 	"",
 	tgBold("Read-only"),
+	escapeMarkdown("/dashboard - open the hub"),
 	escapeMarkdown("/balance - SOL & token balances"),
 	escapeMarkdown("/portfolio - total PnL summary"),
 	escapeMarkdown("/open - open positions"),
@@ -52,6 +56,11 @@ const HELP = [
 	escapeMarkdown("/setalert - enable alerts"),
 	escapeMarkdown("/stopalert - disable alerts"),
 	escapeMarkdown("/alerts - show active alerts"),
+	escapeMarkdown("/tpsl - global TP/SL thresholds"),
+	"",
+	tgBold("Agent"),
+	escapeMarkdown("/agent - DLMM agent (start/stop/status/portfolio/journal)"),
+	escapeMarkdown("/briefing - send the daily briefing"),
 ].join("\n");
 
 async function main() {
@@ -90,12 +99,12 @@ async function main() {
 	bot.command("start", (ctx) => ctx.reply(HELP, MD));
 	bot.command("help", (ctx) => ctx.reply(HELP, MD));
 
-	registerConfigEditor(bot);
+	let rtAgent: RuntimeAgent | null = null;
 	registerPortfolio(bot);
 	registerPool(bot);
 	registerCreate(bot);
-	registerOnchain(bot);
-	registerManage(bot);
+	registerOnchain(bot, () => rtAgent);
+	registerManage(bot, () => rtAgent);
 	registerWatchlist(bot);
 	registerBalance(bot);
 	registerMenu(bot);
@@ -104,31 +113,72 @@ async function main() {
 	if (chatId) {
 		const rt = createAlerts(bot, chatId);
 		registerAlertCommands(bot, chatId, rt);
-		createTpSl(bot, chatId);
 		registerTpSlCommands(bot);
+
+		rtAgent = createAgent(bot, chatId);
+		// The global TP/SL watcher must skip positions the agent manages, or
+		// both fire on the same thresholds → double notifications and a stale
+		// manual close button.
+		createTpSl(bot, chatId, (poolAddress, positionAddress) =>
+			agentTracks(rtAgent!.state.plans, poolAddress, positionAddress),
+		);
+		registerDashboard(bot, rtAgent); // live header
+		registerMenuSpokes(bot, rtAgent);
+		registerAgentCommands(bot, rtAgent);
+		const agentCfg = resolveAgentConfigFrom(
+			await runtime.runPromise(Effect.flatMap(AppConfig, (c) => c.get)),
+		);
+		if (agentCfg.enabled) rtAgent.start();
+	} else {
+		registerDashboard(bot, null); // idle header fallback
 	}
+
+	registerConfigEditor(bot, rtAgent);
 
 	bot.catch((err) => {
 		console.error("Bot error:", err.error);
 	});
 
 	await bot.api.setMyCommands([
-		{ command: "start", description: "Start the bot / show all commands" },
-		{ command: "menu", description: "Open menu" },
+		{ command: "start", description: "Show the dashboard" },
+		{ command: "dashboard", description: "Open the hub menu" },
+		{ command: "help", description: "Show all commands" },
+		// Read-only
+		{ command: "balance", description: "SOL & token balances" },
+		{ command: "portfolio", description: "Total PnL summary" },
+		{ command: "open", description: "Open positions" },
+		{ command: "closed", description: "Closed positions" },
+		{ command: "pools", description: "Top pools by fee/TVL" },
+		{ command: "pool", description: "Pool detail (<address> optional)" },
+		{ command: "config", description: "View & edit config" },
+		// Watchlist
+		{ command: "watchadd", description: "Add wallet to watchlist" },
+		{ command: "watchremove", description: "Remove wallet from watchlist" },
+		{ command: "watchlist", description: "List watched wallets" },
+		{ command: "watchpositions", description: "Positions of watched wallets" },
+		{ command: "wallets", description: "Query any wallets" },
+		// On-chain
 		{ command: "manage", description: "Position manager" },
-		{
-			command: "tpsl",
-			description: "Show global stop-loss / take-profit thresholds",
-		},
 		{
 			command: "create",
 			description: "Create a DLMM position (guided wizard)",
 		},
-		{ command: "balance", description: "SOL & token balances" },
-		{ command: "portfolio", description: "Total PnL summary" },
-		{ command: "open", description: "Open positions" },
-		{ command: "pools", description: "Top pools by fee/TVL" },
-		{ command: "help", description: "Show all commands" },
+		{ command: "close", description: "Close position & zap out" },
+		{ command: "addliq", description: "Add liquidity" },
+		{ command: "removeliq", description: "Remove liquidity" },
+		{ command: "claimfee", description: "Claim fees" },
+		{ command: "claimreward", description: "Claim rewards" },
+		// Alerts
+		{ command: "setalert", description: "Enable alerts" },
+		{ command: "stopalert", description: "Disable alerts" },
+		{ command: "alerts", description: "Show active alerts" },
+		{ command: "tpsl", description: "Global TP/SL thresholds" },
+		// Agent
+		{
+			command: "agent",
+			description: "DLMM Agent (start/stop/status/portfolio/journal)",
+		},
+		{ command: "briefing", description: "Send the daily briefing" },
 	]);
 
 	console.log(

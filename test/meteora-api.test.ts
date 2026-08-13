@@ -138,3 +138,132 @@ describe("MeteoraApi", () => {
 		expect(result.pools).toEqual([]);
 	});
 });
+
+const positionPnlBody = {
+	totalCount: 1,
+	page: 1,
+	pageSize: 100,
+	hasNext: false,
+	positions: [
+		{
+			positionAddress: "Pos1",
+			minPrice: "0.5",
+			maxPrice: "2",
+			lowerBinId: -34,
+			upperBinId: 35,
+			feePerTvl24h: "0.5",
+			isClosed: false,
+			pnlUsd: "10",
+			pnlPctChange: "5.2",
+			pnlSol: "0.1",
+			pnlSolPctChange: "5.1",
+			allTimeDeposits: {
+				tokenX: { amount: "10", amountSol: null, usd: "5" },
+				tokenY: { amount: "1", amountSol: "1", usd: "100" },
+				total: { usd: "105", sol: "1" },
+			},
+			allTimeWithdrawals: {
+				tokenX: { amount: "0", amountSol: null, usd: "0" },
+				tokenY: { amount: "0", amountSol: "0", usd: "0" },
+				total: { usd: "0", sol: "0" },
+			},
+			allTimeFees: {
+				tokenX: { amount: "0.1", amountSol: null, usd: "0.05" },
+				tokenY: { amount: "0.01", amountSol: "0.01", usd: "1" },
+				total: { usd: "1.05", sol: "0.01" },
+			},
+			closedAt: null,
+			createdAt: 1720000000,
+			isOutOfRange: false,
+			poolActiveBinId: 0,
+			poolActivePrice: "1.5",
+		},
+	],
+	tokenX: "JUP",
+	tokenXPrice: "1",
+	tokenY: "SOL",
+	tokenYPrice: "150",
+	solPrice: "150",
+	rewardTokenX: null,
+	rewardTokenXPrice: "0",
+	rewardTokenY: null,
+	rewardTokenYPrice: "0",
+};
+
+const pnlUrl = (pool: string) => (url: string) =>
+	url.includes(`/positions/${pool}/pnl`)
+		? { body: positionPnlBody }
+		: { body: { error: "unexpected" }, status: 404 };
+
+const pnlPool = {
+	poolAddress: "Pool1",
+	binStep: 25,
+	baseFee: 0.25,
+	tokenX: "JUP",
+	tokenY: "SOL",
+	tokenXMint: "MintX",
+	tokenYMint: "So11111111111111111111111111111111111111112",
+	balances: "100",
+	unclaimedFees: "1.5",
+	feePerTvl24h: "0.5",
+	pnl: "10",
+	pnlPctChange: "5.2",
+	pnlSol: "0.1",
+	pnlSolPctChange: "5.1",
+	totalDeposit: "50",
+	openPositionCount: 1,
+	listPositions: ["Pos1"],
+	positionsOutOfRange: [],
+	outOfRange: false,
+	poolPrice: 1.5,
+};
+
+describe("MeteoraApi enrichOpenPortfolioPnl", () => {
+	it("withRanges enriches even single-position pools", async () => {
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const api = yield* MeteoraApi;
+				return yield* api.enrichOpenPortfolioPnl(
+					[{ ...pnlPool, openPositionCount: 1 } as never],
+					"W",
+					{ withRanges: true },
+				);
+			}).pipe(Effect.provide(layerWith(pnlUrl("Pool1")))),
+		);
+		expect(result[0].positionsRange).toEqual([
+			{
+				address: "Pos1",
+				minPrice: "0.5",
+				maxPrice: "2",
+				poolActivePrice: "1.5",
+			},
+		]);
+		expect(result[0].positionsPnl).toHaveLength(1);
+	});
+
+	it("default skips single-position pools", async () => {
+		let calls = 0;
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const api = yield* MeteoraApi;
+				return yield* api.enrichOpenPortfolioPnl(
+					[
+						{ ...pnlPool, poolAddress: "Pool1", openPositionCount: 1 } as never,
+						{ ...pnlPool, poolAddress: "Pool2", openPositionCount: 2 } as never,
+					],
+					"W",
+				);
+			}).pipe(
+				Effect.provide(
+					layerWith((url) => {
+						if (url.includes("/positions/")) calls++;
+						return { body: positionPnlBody };
+					}),
+				),
+			),
+		);
+		expect(calls).toBe(1);
+		expect(result[0].positionsPnl).toBeUndefined();
+		expect(result[1].positionsPnl).toHaveLength(1);
+	});
+});

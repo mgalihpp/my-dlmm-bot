@@ -12,19 +12,6 @@ import { api, dlmm, resolveWallet, screenPools, watchlist } from "./fx.js";
 import { MD } from "./utils.js";
 
 export function registerMenu(bot: Bot) {
-	bot.command("menu", async (ctx) => {
-		await ctx.reply(mainMenu(), { ...MD, reply_markup: mainMenuKeyboard() });
-	});
-
-	// ─── Main menu callback ──────────────────────────────────────────────────
-	bot.callbackQuery(/^menu:main$/, async (ctx) => {
-		await ctx.answerCallbackQuery();
-		await ctx.editMessageText(mainMenu(), {
-			...MD,
-			reply_markup: mainMenuKeyboard(),
-		});
-	});
-
 	// ─── Portfolio ───────────────────────────────────────────────────────────
 	bot.callbackQuery(/^menu:portfolio$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
@@ -200,11 +187,14 @@ export function registerMenu(bot: Bot) {
 			tgBold("📋 All Commands"),
 			"",
 			tgBold("Read-only"),
+			"`/dashboard` — open the hub",
+			"`/balance` — SOL & token balances",
 			"`/portfolio` — total PnL",
 			"`/open` — open positions",
 			"`/closed` — closed positions",
 			"`/pools` — top pools",
 			"`/pool <addr>` — pool detail",
+			"`/config` — view & edit config",
 			"",
 			tgBold("On-chain"),
 			"`/manage` — position manager",
@@ -226,6 +216,11 @@ export function registerMenu(bot: Bot) {
 			"`/setalert` — enable alerts",
 			"`/stopalert` — disable alerts",
 			"`/alerts` — show active alerts",
+			"`/tpsl` — global TP/SL thresholds",
+			"",
+			tgBold("Agent"),
+			"`/agent` — start/stop/status/portfolio/journal",
+			"`/briefing` — send the daily briefing",
 		].join("\n");
 		await ctx.editMessageText(text, {
 			...MD,
@@ -236,26 +231,8 @@ export function registerMenu(bot: Bot) {
 
 // ─── Keyboard builders ─────────────────────────────────────────────────────
 
-function mainMenuKeyboard(): InlineKeyboard {
-	return new InlineKeyboard()
-		.text("📊 Portfolio", "menu:portfolio")
-		.text("📈 Open", "menu:open")
-		.text("📉 Closed", "menu:closed")
-		.row()
-		.text("⚡ Manage", "mng:pools")
-		.text("🔥 Pools", "menu:pools")
-		.text("🔔 Alerts", "menu:alerts")
-		.row()
-		.text("👁️ Watch", "menu:watchlist")
-		.text("📋 Commands", "menu:commands");
-}
-
 function backKeyboard(target: string): { inline_keyboard: any[][] } {
 	return {
 		inline_keyboard: [[{ text: "⬅️ Back", callback_data: `menu:${target}` }]],
 	};
-}
-
-function mainMenu(): string {
-	return [tgBold("🤖 Vexis DLMM Bot"), "", "Select a menu:"].join("\n");
 }

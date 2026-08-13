@@ -14,3 +14,10 @@ vexis.config.json
 
 # stop-loss / take-profit rules (per-machine runtime state)
 .vexis-tpsl.json
+
+# agent runtime state (autonomous trading loop)
+.vexis-agent.json
+.vexis-agent-journal.jsonl
+.vexis-agent-signals.json
+.vexis-portfolio-history.json
+.vexis-agent-narrative.json

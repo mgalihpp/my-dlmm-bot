@@ -27,8 +27,8 @@ const TokenSummary = Schema.Struct({
 			Schema.Struct({
 				name: Schema.String,
 				level: Schema.String,
-				score: Schema.Number,
-				description: Schema.String,
+				score: Schema.optional(Schema.Number),
+				description: Schema.optional(Schema.String),
 			}),
 		),
 	),
@@ -38,10 +38,24 @@ const TokenSummary = Schema.Struct({
 });
 type TokenSummary = Schema.Schema.Type<typeof TokenSummary>;
 
+export interface RugCheckRisk {
+	name: string;
+	level: string;
+}
+
+export interface RugCheckSummary {
+	score: number;
+	risks: RugCheckRisk[];
+	lpLockedPct: number | null;
+}
+
 export interface RugCheckService {
 	readonly getScore: (
 		mint: string,
 	) => Effect.Effect<number | null, RugCheckApiError>;
+	readonly getSummary: (
+		mint: string,
+	) => Effect.Effect<RugCheckSummary | null, RugCheckApiError>;
 }
 
 export class RugCheck extends Context.Tag("RugCheck")<
@@ -112,14 +126,29 @@ const make = Effect.gen(function* () {
 		);
 	};
 
+	// Enrichment callers (screening) treat null as "no data"; an error object
+	// would leak into consumers and crash them (e.g. `summary.risks.some`).
+	const swallowToNull = <A>(_e: RugCheckApiError): A | null => null;
+
 	const service: RugCheckService = {
+		getSummary: (mint) =>
+			getSummary(mint).pipe(
+				Effect.map((s) => ({
+					score: s.score,
+					risks: (s.risks ?? []).map((r) => ({
+						name: r.name,
+						level: r.level,
+					})),
+					lpLockedPct: s.lpLockedPct,
+				})),
+				Effect.catchAll((e) =>
+					Effect.succeed(swallowToNull<RugCheckSummary>(e)),
+				),
+			),
 		getScore: (mint) =>
 			getSummary(mint).pipe(
 				Effect.map((s) => s.score),
-				Effect.catchAll((e) => {
-					if (e.status === 404) return Effect.succeed(null);
-					return Effect.fail(e);
-				}),
+				Effect.catchAll((e) => Effect.succeed(swallowToNull<number>(e))),
 			),
 	};
 	return service;

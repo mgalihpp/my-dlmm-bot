@@ -6,6 +6,23 @@ Vexis discovers and screens pools using the Meteora Pool Discovery API, tracks p
 
 Built with TypeScript, [Effect](https://effect.website/) (functional effect system + dependency injection), [grammY](https://grammy.dev/) (Telegram), and [@effect/cli](https://effect.website/docs/cli/) (CLI).
 
+## Documentation
+
+- **[AI Agent Guide (Indonesian)](docs/ai-agent.md)** — how the AI agent works, setup, commands, and monitoring.
+- **[Configuration Reference (Indonesian)](docs/config-reference.md)** — every config key, default value, and environment variable.
+- **[Troubleshooting (Indonesian)](docs/troubleshooting.md)** — symptom → cause → fix for common issues.
+- **[Prompt for AI Coding Agents (Indonesian)](docs/coding-agent-prompt.md)** — copy-paste prompts for Claude Code, Codex, and other agentic coding tools.
+
+## Zero-Setup via AI Coding Agent
+
+Paste this into Claude Code, Codex, or any AI coding agent in an empty folder. The agent clones the repo, reads the docs, and performs the full installation (Node.js, dependencies, config, secrets). You only answer preference questions:
+
+```text
+Clone repo https://github.com/mgalihpp/my-dlmm-bot ke folder ini. Baca README.md di repo tersebut, lalu ikuti prompt setup di docs/coding-agent-prompt.md. Kerjakan seluruh instalasi dari nol (Node.js, dependencies, config, secret). Jawab dalam bahasa Indonesia.
+```
+
+If you are an AI coding agent reading this README: the one-shot setup prompt lives in [docs/coding-agent-prompt.md](docs/coding-agent-prompt.md).
+
 ## Screenshots
 
 | | | |
@@ -22,6 +39,7 @@ Built with TypeScript, [Effect](https://effect.website/) (functional effect syst
 - **Take-Profit / Stop-Loss** — Automated rules that trigger on PnL thresholds per position.
 - **Watchlist** — Track LP positions across multiple wallets in one place.
 - **Config Editor** — Edit any config value interactively from Telegram via `/config`.
+- **AI Agent** — Automated position management: an LLM decides `open`/`hold` per screened pool, deterministic guardrails block unsafe opens, plus TP/SL and out-of-range handling with Darwinian weight learning. See [AI Agent](#ai-agent).
 
 ## Architecture
 
@@ -55,6 +73,7 @@ src/
 │   ├── bot.ts           # Bot entry point
 │   ├── alerts.ts        # Cron-based alert engine
 │   ├── tpsl.ts          # Take-profit / stop-loss engine
+│   ├── agent/           # AI agent (LLM decisions, guardrails, journal)
 │   └── handlers/        # One handler per command group
 ├── services/            # Effect services (MeteoraApi, Dlmm, Screening, ...)
 ├── domain/              # Effect.Schema types (config, portfolio, pool, position)
@@ -132,6 +151,7 @@ Config search order: `$VEXIS_CONFIG` (explicit path) → `./vexis.config.json` �
 | `create.mode` | `single-y`, `single-x`, or `both` sided position |
 | `create.slippageBps` | Swap slippage in basis points |
 | `pools.*` | Pool screening filters (see below) |
+| `agent.*` | AI agent config (see [AI Agent](#ai-agent)) |
 
 ### Screening Filters
 
@@ -150,6 +170,7 @@ Set any filter to `null` to skip it.
 | TVL | `minTvl` / `maxTvl` | Min/max total value locked |
 | Active TVL | `minActiveTvl` / `maxActiveTvl` | Min/max active TVL |
 | Volume | `minVolume` / `maxVolume` | Min/max trading volume |
+| 24h Volume | `minVolume24h` / `maxVolume24h` | Min/max 24h trading volume (server-side, independent of screening timeframe) |
 | Fee | `minFee` / `maxFee` | Min/max fee amount ($) |
 | Fee/TVL ratio | `minFeeActiveTvlRatio` / `maxFeeActiveTvlRatio` | Min/max fee-to-TVL ratio |
 | Bin step | `minBinStep` / `maxBinStep` | Min/max DLMM bin step |
@@ -163,6 +184,47 @@ Set any filter to `null` to skip it.
 | Volume change % | `minVolumeChangePct` / `maxVolumeChangePct` | Min/max volume change percentage |
 | Price trend | `priceTrend` | Filter by price trend direction |
 | SOL pair only | `solPairOnly` | Boolean — only show SOL-paired pools |
+
+## AI Agent
+
+Automated DLMM position management (`/agent`). The agent screens pools, lets an LLM decide `open`/`hold` per candidate, then opens positions behind deterministic guardrails — with TP/SL and out-of-range (OOR) handling on top. Full details: [docs/ai-agent.md](docs/ai-agent.md). The guide also links a [configuration reference](docs/config-reference.md), a [troubleshooting guide](docs/troubleshooting.md), and [copy-paste prompts for AI coding agents](docs/coding-agent-prompt.md) (Claude Code, Codex, etc.).
+
+**How it works:**
+
+```
+Screening (deterministic) → LLM decides open/hold → validate (anti-hallucination) → guardrails (hard block) → createPosition
+```
+
+- **LLM decides** — the heuristic only ranks which pools the LLM sees (`minCandidate` no longer gates). If the LLM call fails, the whole cycle is skipped — zero trades.
+- **Guardrails** — deterministic filters that the LLM can't bypass: duplicate/cooldown/risk/budget checks.
+- **TP/SL** — automated take-profit / stop-loss on PnL thresholds.
+- **OOR** — out-of-range positions get a separate LLM `hold`/`close` decision.
+- **Darwinian weights** — signal weights re-learned from closed-position PnL.
+- **Journal** — every cycle logged to `.vexis-agent-journal.jsonl` (JSONL).
+
+```json
+{
+  "agent": {
+    "enabled": false,
+    "maxCandidates": 5,
+    "maxSolPerPosition": 0.5,
+    "maxTotalSol": 3,
+    "maxOpenPositions": 4,
+    "txCooldownMs": 300000,
+    "poolCooldownMs": 86400000,
+    "tpPct": 25,
+    "slPct": -10,
+    "llm": {
+      "baseUrl": "https://api.openai.com/v1",
+      "model": "gpt-4o-mini",
+      "apiKey": "sk-...",
+      "timeoutMs": 120000
+    }
+  }
+}
+```
+
+Commands: `/agent start`, `/agent stop`, `/agent status`, `/agent portfolio`, `/agent journal [n]`. Agent state persists to `.vexis-agent.json`.
 
 ## Telegram Bot
 
@@ -234,6 +296,37 @@ npm run bot
 
 With `alertInterval > 0`, the bot polls on a cron schedule and notifies you on: PnL changes past thresholds, positions going out of range, new/closed positions, balance changes, and fee accrual. TP/SL rules evaluate per-position PnL% and fire once when the threshold is crossed. State survives restarts via `.vexis-alerts.json` and `.vexis-tpsl.json`.
 
+## Web UI
+
+Vexis includes a read-only neo-brutalist dashboard for portfolio monitoring, pool screening, and AI agent history. It runs as a separate process and never exposes on-chain controls or private keys.
+
+Enable it in `vexis.config.json`:
+
+```json
+{
+  "web": {
+    "enabled": true,
+    "port": 8080,
+    "password": "your-dashboard-password"
+  }
+}
+```
+
+`VEXIS_WEB_PASSWORD` overrides the config password. The dashboard is disabled by default.
+
+```bash
+npm run web        # dev mode (tsx)
+npm run web:start  # compiled mode (after npm run build)
+```
+
+Portfolio and agent pages refresh every 30 seconds through htmx. Pool screening refreshes when a timeframe is submitted. For pm2:
+
+```bash
+npm run build
+pm2 start "npm run web:start" --name vexis-web
+pm2 save
+```
+
 ## CLI
 
 ```bash
@@ -298,7 +391,8 @@ Deploy directly from GitHub. Set these in your config file or via environment va
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_CHAT_ID`
 - `VEXIS_PRIVATE_KEY`
-- `RPC_URL`
+
+Note: `rpcUrl` is set in the config file only — there is no `RPC_URL` environment variable.
 
 Build command: `npm install && npm run build`
 

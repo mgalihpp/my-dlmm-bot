@@ -70,13 +70,60 @@ export interface RuntimeAlerts {
 	watchlistFiber: AlertFiber | null;
 }
 
-function loadState(): AlertState {
-	if (existsSync(STATE_FILE)) {
+const isRecord = (v: unknown): v is Record<string, unknown> =>
+	typeof v === "object" && v !== null && !Array.isArray(v);
+
+const bool = (v: unknown): boolean => (typeof v === "boolean" ? v : false);
+
+const num = (v: unknown): number =>
+	typeof v === "number" && Number.isFinite(v) ? v : 0;
+
+const nullableNum = (v: unknown): number | null =>
+	typeof v === "number" && Number.isFinite(v) ? v : null;
+
+const poolSnapshotOf = (v: unknown): PoolSnapshot | null => {
+	if (!isRecord(v) || typeof v.poolAddress !== "string") return null;
+	return v as unknown as PoolSnapshot;
+};
+
+const walletPositionsOf = (v: unknown): WalletPositionsSnapshot | null => {
+	if (!isRecord(v) || typeof v.walletAddress !== "string") return null;
+	return {
+		walletAddress: v.walletAddress,
+		pools: Array.isArray(v.pools)
+			? v.pools
+					.map((p) =>
+						isRecord(p) && typeof p.poolAddress === "string"
+							? (p as unknown as WalletPoolEntry)
+							: null,
+					)
+					.filter((p): p is WalletPoolEntry => p !== null)
+			: [],
+	};
+};
+
+export function loadState(file = STATE_FILE): AlertState {
+	if (existsSync(file)) {
 		try {
-			const raw = JSON.parse(readFileSync(STATE_FILE, "utf8"));
-			delete raw.trackedPools;
-			delete raw.lastPoolApr;
-			return raw as AlertState;
+			const raw = JSON.parse(readFileSync(file, "utf8")) as unknown;
+			if (isRecord(raw)) {
+				return {
+					portfolioHours: num(raw.portfolioHours),
+					positionCheckEnabled: bool(raw.positionCheckEnabled),
+					lastPnlUsd: nullableNum(raw.lastPnlUsd),
+					lastOpenSnapshot: Array.isArray(raw.lastOpenSnapshot)
+						? raw.lastOpenSnapshot
+								.map(poolSnapshotOf)
+								.filter((p): p is PoolSnapshot => p !== null)
+						: [],
+					watchlistEnabled: bool(raw.watchlistEnabled),
+					watchlistSnapshot: Array.isArray(raw.watchlistSnapshot)
+						? raw.watchlistSnapshot
+								.map(walletPositionsOf)
+								.filter((w): w is WalletPositionsSnapshot => w !== null)
+						: [],
+				};
+			}
 		} catch {}
 	}
 	return {
@@ -206,6 +253,7 @@ function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 			let currentPools = await api.enrichOpenPortfolioPnl(
 				res.pools ?? [],
 				wallet,
+				{ withRanges: true },
 			);
 			currentPools = await dlmm.attachLivePositions(currentPools, wallet);
 			console.log(

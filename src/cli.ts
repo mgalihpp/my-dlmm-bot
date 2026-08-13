@@ -652,14 +652,16 @@ const poolListCmd = Command.make(
 				yield* Console.log(
 					`  ${gray("Pos(A/O)")}  ${p.activePositions}/${p.openPositions}  ${gray("Age")} ${p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : dim("-")}`,
 				);
-			if (p.priceChangePct != null) {
-				const arrow = p.priceChangePct > 0 ? "+" : "";
-				const athLabel =
-					p.fromAthPct != null ? `  ${gray("From ATH")} ${red(`-${(p.fromAthPct * 100).toFixed(1)}%`)}` : "";
-				yield* Console.log(
-					`  ${gray("Price")}     ${p.price}  ${p.priceChangePct > 0 ? green(`${arrow}${p.priceChangePct.toFixed(1)}%`) : red(`${p.priceChangePct.toFixed(1)}%`)}${athLabel}`,
-				);
-			}
+				if (p.priceChangePct != null) {
+					const arrow = p.priceChangePct > 0 ? "+" : "";
+					const athLabel =
+						p.fromAthPct != null
+							? `  ${gray("From ATH")} ${red(`-${(p.fromAthPct * 100).toFixed(1)}%`)}`
+							: "";
+					yield* Console.log(
+						`  ${gray("Price")}     ${p.price}  ${p.priceChangePct > 0 ? green(`${arrow}${p.priceChangePct.toFixed(1)}%`) : red(`${p.priceChangePct.toFixed(1)}%`)}${athLabel}`,
+					);
+				}
 				if (p.volumeChangePct != null) {
 					const arrow = p.volumeChangePct > 0 ? "+" : "";
 					yield* Console.log(

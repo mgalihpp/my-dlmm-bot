@@ -58,6 +58,8 @@ export function buildDiscoveryFilter(
 	if (s.maxActiveTvl != null) filters.push(`active_tvl<=${s.maxActiveTvl}`);
 	if (s.minVolume != null) filters.push(`volume>=${s.minVolume}`);
 	if (s.maxVolume != null) filters.push(`volume<=${s.maxVolume}`);
+	if (s.minVolume24h != null) filters.push(`volume_24h>=${s.minVolume24h}`);
+	if (s.maxVolume24h != null) filters.push(`volume_24h<=${s.maxVolume24h}`);
 	if (s.minFee != null) filters.push(`fee>=${s.minFee}`);
 	if (s.maxFee != null) filters.push(`fee<=${s.maxFee}`);
 	if (s.minFeeActiveTvlRatio != null)

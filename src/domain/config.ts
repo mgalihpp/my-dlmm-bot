@@ -24,6 +24,8 @@ export interface PoolsConfig {
 	maxActiveTvl?: number;
 	minVolume?: number;
 	maxVolume?: number;
+	minVolume24h?: number;
+	maxVolume24h?: number;
 	minFee?: number;
 	maxFee?: number;
 	minFeeActiveTvlRatio?: number;
@@ -69,6 +71,65 @@ export interface CreateConfig {
 	slippageBps?: number;
 }
 
+export interface AgentLlmConfig {
+	baseUrl?: string;
+	apiKey?: string;
+	model?: string;
+	timeoutMs?: number;
+}
+
+export interface AgentRiskConfig {
+	enabled?: boolean;
+	minTokenFeesSol?: number;
+	maxBundlePct?: number;
+	maxBotHoldersPct?: number;
+	maxTop10Pct?: number;
+	maxPriceVsAthPct?: number;
+	blockWash?: boolean;
+	blockRugpull?: boolean;
+	blockDexScreenerPaid?: boolean;
+	blockDevSoldAll?: boolean;
+}
+
+export interface AgentDarwinConfig {
+	enabled?: boolean;
+	windowDays?: number;
+	recalcEvery?: number;
+	boostFactor?: number;
+	decayFactor?: number;
+	weightFloor?: number;
+	weightCeiling?: number;
+	minSamples?: number;
+}
+
+export type NotifLevel = "verbose" | "normal" | "errors-only";
+
+export interface AgentConfig {
+	enabled?: boolean;
+	intervalMinutes?: number;
+	maxCandidates?: number;
+	/** @deprecated No longer gates opening — the LLM decides. Kept for config-file compatibility. */
+	minCandidate?: number;
+	maxSolPerPosition?: number;
+	maxTotalSol?: number;
+	maxOpenPositions?: number;
+	txCooldownMs?: number;
+	poolCooldownMs?: number;
+	tpPct?: number;
+	slPct?: number;
+	/** @deprecated Notifications are always sent; kept for config-file compatibility. */
+	notifLevel?: NotifLevel;
+	llm?: AgentLlmConfig;
+	risks?: AgentRiskConfig;
+	darwin?: AgentDarwinConfig;
+}
+
+export interface WebConfig {
+	enabled?: boolean;
+	port?: number;
+	password?: string;
+}
+
 export interface VexisConfig {
 	wallet?: string;
 	privateKey?: string;
@@ -82,6 +143,8 @@ export interface VexisConfig {
 	takeProfitPct?: number | null;
 	create?: CreateConfig;
 	pools?: PoolsConfig;
+	agent?: AgentConfig;
+	web?: WebConfig;
 }
 
 export interface CreatePreset {

@@ -133,6 +133,7 @@ export async function showPositionList(
 export async function resolvePoolDetail(poolAddr: string): Promise<{
 	tokenX: string;
 	tokenY: string;
+	tokenXMint: string;
 	positions: string[];
 	pnl: string;
 	pnlPctChange: string;
@@ -147,6 +148,7 @@ export async function resolvePoolDetail(poolAddr: string): Promise<{
 		return {
 			tokenX: pool.tokenX,
 			tokenY: pool.tokenY,
+			tokenXMint: pool.tokenXMint,
 			positions: [...pool.listPositions],
 			pnl: pool.pnl,
 			pnlPctChange: pool.pnlPctChange,

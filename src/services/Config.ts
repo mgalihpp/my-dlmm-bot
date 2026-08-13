@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, watch, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
@@ -29,6 +29,10 @@ export function loadConfigSync(): { config: VexisConfig; path: string | null } {
 		}
 	}
 	return { config: {}, path: null };
+}
+
+export function reloadConfigFile(path: string): VexisConfig {
+	return JSON.parse(readFileSync(path, "utf8")) as VexisConfig;
 }
 
 export interface AppConfigService {
@@ -83,12 +87,135 @@ export const resolveCreatePresetFrom = (config: VexisConfig): CreatePreset => {
 	};
 };
 
+export interface ResolvedAgentLlm {
+	baseUrl: string;
+	model: string;
+	apiKey: string;
+	timeoutMs: number;
+}
+
+export interface ResolvedAgentRisks {
+	enabled: boolean;
+	minTokenFeesSol: number;
+	maxBundlePct: number;
+	maxBotHoldersPct: number;
+	maxTop10Pct: number;
+	maxPriceVsAthPct: number;
+	blockWash: boolean;
+	blockRugpull: boolean;
+	blockDexScreenerPaid: boolean;
+	blockDevSoldAll: boolean;
+}
+
+export interface ResolvedAgentDarwin {
+	enabled: boolean;
+	windowDays: number;
+	recalcEvery: number;
+	boostFactor: number;
+	decayFactor: number;
+	weightFloor: number;
+	weightCeiling: number;
+	minSamples: number;
+}
+
+export interface ResolvedAgentConfig {
+	enabled: boolean;
+	intervalMinutes: number;
+	maxCandidates: number;
+	minCandidate: number;
+	maxSolPerPosition: number;
+	maxTotalSol: number;
+	maxOpenPositions: number;
+	txCooldownMs: number;
+	poolCooldownMs: number;
+	tpPct: number;
+	slPct: number;
+	llm: ResolvedAgentLlm;
+	risks: ResolvedAgentRisks;
+	darwin: ResolvedAgentDarwin;
+}
+
+export const resolveAgentConfigFrom = (
+	c: VexisConfig,
+	env: Record<string, string | undefined> = process.env,
+): ResolvedAgentConfig => {
+	const a = c.agent ?? {};
+	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
+	const r = a.risks ?? {};
+	const d = a.darwin ?? {};
+	return {
+		enabled: a.enabled ?? false,
+		intervalMinutes: Math.max(1, a.intervalMinutes ?? 15),
+		maxCandidates: a.maxCandidates ?? 5,
+		minCandidate: a.minCandidate ?? 70,
+		maxSolPerPosition: a.maxSolPerPosition ?? 0.5,
+		maxTotalSol: a.maxTotalSol ?? 3,
+		maxOpenPositions: a.maxOpenPositions ?? 4,
+		txCooldownMs: a.txCooldownMs ?? 300_000,
+		poolCooldownMs: a.poolCooldownMs ?? 24 * 3_600_000,
+		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
+		slPct: a.slPct ?? c.stopLossPct ?? -10,
+		llm: {
+			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(
+				/\/$/,
+				"",
+			),
+			model: a.llm?.model ?? "gpt-4o-mini",
+			apiKey,
+			timeoutMs: a.llm?.timeoutMs ?? 120_000,
+		},
+		risks: {
+			enabled: r.enabled ?? true,
+			minTokenFeesSol: r.minTokenFeesSol ?? 30,
+			maxBundlePct: r.maxBundlePct ?? 30,
+			maxBotHoldersPct: r.maxBotHoldersPct ?? 30,
+			maxTop10Pct: r.maxTop10Pct ?? 60,
+			maxPriceVsAthPct: r.maxPriceVsAthPct ?? 80,
+			blockWash: r.blockWash ?? true,
+			blockRugpull: r.blockRugpull ?? true,
+			blockDexScreenerPaid: r.blockDexScreenerPaid ?? true,
+			blockDevSoldAll: r.blockDevSoldAll ?? true,
+		},
+		darwin: {
+			enabled: d.enabled ?? true,
+			windowDays: d.windowDays ?? 60,
+			recalcEvery: d.recalcEvery ?? 5,
+			boostFactor: d.boostFactor ?? 1.05,
+			decayFactor: d.decayFactor ?? 0.95,
+			weightFloor: d.weightFloor ?? 0.3,
+			weightCeiling: d.weightCeiling ?? 2.5,
+			minSamples: d.minSamples ?? 10,
+		},
+	};
+};
+
 const make = (
 	initial: VexisConfig,
 	path: string | null,
+	watchFile = false,
 ): Effect.Effect<AppConfigService> =>
 	Effect.gen(function* () {
 		const ref = yield* Ref.make(initial);
+
+		if (path !== null && watchFile) {
+			let timer: NodeJS.Timeout | null = null;
+			const watcher = watch(path, () => {
+				if (timer != null) clearTimeout(timer);
+				timer = setTimeout(() => {
+					timer = null;
+					try {
+						Effect.runSync(Ref.set(ref, reloadConfigFile(path)));
+					} catch (e) {
+						console.error(
+							`[config] reload failed, keeping previous config: ${
+								e instanceof Error ? e.message : e
+							}`,
+						);
+					}
+				}, 150);
+			});
+			process.once("exit", () => watcher.close());
+		}
 
 		const persist = (config: VexisConfig): Effect.Effect<void, ConfigError> =>
 			path === null
@@ -167,7 +294,7 @@ export const AppConfigLive = Layer.effect(
 		try: () => loadConfigSync(),
 		catch: (e) =>
 			new ConfigError({ message: e instanceof Error ? e.message : String(e) }),
-	}).pipe(Effect.flatMap(({ config, path }) => make(config, path))),
+	}).pipe(Effect.flatMap(({ config, path }) => make(config, path, true))),
 );
 
 export const AppConfigTest = (

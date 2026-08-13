@@ -47,7 +47,7 @@ export const PositionPnLResponse = Schema.Struct({
 	tokenXPrice: Schema.String,
 	tokenY: Schema.NullOr(Schema.String),
 	tokenYPrice: Schema.String,
-	solPrice: Schema.NullOr(Schema.String),
+	solPrice: Schema.optional(Schema.NullOr(Schema.String)),
 	rewardTokenX: Schema.NullOr(Schema.String),
 	rewardTokenXPrice: Schema.String,
 	rewardTokenY: Schema.NullOr(Schema.String),
