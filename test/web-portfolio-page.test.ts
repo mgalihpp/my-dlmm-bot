@@ -1,3 +1,9 @@
+import {
+	HttpClient,
+	HttpClientRequest,
+	HttpClientResponse,
+} from "@effect/platform";
+import { Effect, Layer } from "effect";
 import { describe, expect, it } from "vitest";
 import type {
 	ClosedPool,
@@ -5,7 +11,10 @@ import type {
 	PortfolioTotal,
 	PositionPnLData,
 } from "../src/domain/index.js";
+import { AppConfigTest } from "../src/services/Config.js";
+import { MeteoraApiLayer } from "../src/services/MeteoraApi.js";
 import {
+	closedPositionsContent,
 	renderClosedDetail,
 	renderPortfolio,
 } from "../src/web/pages/portfolio.js";
@@ -336,5 +345,122 @@ describe("renderPortfolio", () => {
 		});
 		expect(html).toContain("$150.00");
 		expect(html).toContain("$2.00");
+	});
+});
+
+const closedPnlBody = {
+	totalCount: 1,
+	page: 1,
+	pageSize: 100,
+	hasNext: false,
+	positions: [
+		{
+			positionAddress: "posA",
+			minPrice: "0.5",
+			maxPrice: "2",
+			lowerBinId: -34,
+			upperBinId: 35,
+			feePerTvl24h: "0.5",
+			isClosed: true,
+			pnlUsd: "10",
+			pnlPctChange: "5.2",
+			pnlSol: "0.1",
+			pnlSolPctChange: "5.1",
+			allTimeDeposits: {
+				tokenX: { amount: "10", amountSol: null, usd: "5" },
+				tokenY: { amount: "1", amountSol: "1", usd: "100" },
+				total: { usd: "105", sol: "1" },
+			},
+			allTimeWithdrawals: {
+				tokenX: { amount: "0", amountSol: null, usd: "0" },
+				tokenY: { amount: "0", amountSol: "0", usd: "0" },
+				total: { usd: "60", sol: "0.4" },
+			},
+			allTimeFees: {
+				tokenX: { amount: "0.1", amountSol: null, usd: "0.05" },
+				tokenY: { amount: "0.01", amountSol: "0.01", usd: "1" },
+				total: { usd: "1.05", sol: "0.01" },
+			},
+			closedAt: 1_754_000_000,
+			createdAt: 1_753_000_000,
+			isOutOfRange: false,
+			poolActiveBinId: 0,
+			poolActivePrice: "1.5",
+		},
+	],
+	tokenX: "OLD",
+	tokenXPrice: "1",
+	tokenY: "SOL",
+	tokenYPrice: "150",
+	solPrice: "150",
+	rewardTokenX: null,
+	rewardTokenXPrice: "0",
+	rewardTokenY: null,
+	rewardTokenYPrice: "0",
+};
+
+const mockClient = (
+	handler: (url: string) => { body: unknown; status?: number },
+) =>
+	Layer.succeed(
+		HttpClient.HttpClient,
+		HttpClient.make((req) => {
+			const { body, status } = handler(req.url);
+			return Effect.succeed(
+				HttpClientResponse.fromWeb(
+					HttpClientRequest.get(req.url),
+					new Response(JSON.stringify(body), {
+						status: status ?? 200,
+						headers: { "content-type": "application/json" },
+					}),
+				),
+			);
+		}),
+	);
+
+const layerWith = (
+	handler: (url: string) => { body: unknown; status?: number },
+) =>
+	MeteoraApiLayer.pipe(
+		Layer.provide(mockClient(handler)),
+		Layer.provideMerge(AppConfigTest({ wallet: "Wallet111" })),
+	);
+
+describe("closedPositionsContent", () => {
+	it("renders closed positions detail for a pool", async () => {
+		const result = await Effect.runPromise(
+			closedPositionsContent("PoolX", "OLD/SOL").pipe(
+				Effect.provide(
+					layerWith((url) =>
+						url.includes("/positions/PoolX/pnl")
+							? { body: closedPnlBody }
+							: { body: { error: "unexpected" }, status: 404 },
+					),
+				),
+			),
+		);
+		expect(result).toContain("CLOSED POSITIONS // OLD/SOL");
+		expect(result).toContain("posA");
+		expect(result).toContain("$105.00");
+	});
+
+	it("returns an empty string when no pool is given", async () => {
+		const result = await Effect.runPromise(
+			closedPositionsContent("", "").pipe(
+				Effect.provide(layerWith(() => ({ body: {} }))),
+			),
+		);
+		expect(result).toBe("");
+	});
+
+	it("shows an error message when the API call fails", async () => {
+		const result = await Effect.runPromise(
+			closedPositionsContent("PoolX", "OLD/SOL").pipe(
+				Effect.provide(
+					layerWith(() => ({ body: { error: "nope" }, status: 500 })),
+				),
+			),
+		);
+		expect(result).toContain("Failed to load closed positions");
 	});
 });

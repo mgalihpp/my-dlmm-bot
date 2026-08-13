@@ -5,6 +5,7 @@ import {
 	HttpServerResponse,
 } from "@effect/platform";
 import { Effect, Schema } from "effect";
+import { errorMessage } from "../errors.js";
 import { AppLayer } from "../layers.js";
 import { AppConfig } from "../services/Config.js";
 import {
@@ -15,11 +16,17 @@ import {
 	verifySessionCookie,
 } from "./auth.js";
 import { resolveWebConfig } from "./config.js";
-import { contentRegion, loginPage, pageShell, rpcHost } from "./layout.js";
+import {
+	contentRegion,
+	errorBanner,
+	loginPage,
+	pageShell,
+	rpcHost,
+} from "./layout.js";
 import { createWebServerProgram } from "./lifecycle.js";
 import { agentContent } from "./pages/agent.js";
 import { poolsContent } from "./pages/pools.js";
-import { portfolioContent } from "./pages/portfolio.js";
+import { closedPositionsContent, portfolioContent } from "./pages/portfolio.js";
 
 function withCookie(
 	response: HttpServerResponse.HttpServerResponse,
@@ -138,6 +145,18 @@ export function buildRouter(password: string, shell: ShellInfo) {
 	const portfolioPartial = portfolioContent.pipe(
 		Effect.map((inner) => partialResponse(inner, "/partials/portfolio")),
 	);
+	const closedDetailRoute = Effect.gen(function* () {
+		const request = yield* HttpServerRequest.HttpServerRequest;
+		const url = new URL(request.url, "http://localhost");
+		const pool = url.searchParams.get("pool") ?? "";
+		const pair = url.searchParams.get("pair") ?? "";
+		const html = yield* closedPositionsContent(pool, pair).pipe(
+			Effect.catchAll((error) =>
+				Effect.succeed(errorBanner(errorMessage(error))),
+			),
+		);
+		return HttpServerResponse.html(html);
+	});
 	const poolsPage = poolsRoute.pipe(
 		Effect.map((inner) =>
 			pageResponse("Pool Radar", "pools", inner, null, shell),
@@ -189,6 +208,7 @@ export function buildRouter(password: string, shell: ShellInfo) {
 		),
 		HttpRouter.get("/portfolio", portfolioPage),
 		HttpRouter.get("/partials/portfolio", portfolioPartial),
+		HttpRouter.get("/partials/closed-positions", closedDetailRoute),
 		HttpRouter.get("/pools", poolsPage),
 		HttpRouter.get("/partials/pools", poolsPartial),
 		HttpRouter.get("/agent", agentPage),

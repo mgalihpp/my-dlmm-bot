@@ -267,6 +267,28 @@ export function renderClosedDetail(
 	)}`;
 }
 
+export const closedPositionsContent = (
+	pool: string,
+	pair: string,
+): Effect.Effect<string, never, AppConfig | MeteoraApi> =>
+	Effect.gen(function* () {
+		if (!pool) return "";
+		const config = yield* AppConfig;
+		const wallet = yield* config.wallet();
+		const api = yield* MeteoraApi;
+		const res = yield* api
+			.positionPnl(pool, wallet, "closed", 1, 100)
+			.pipe(Effect.catchAll(() => Effect.succeed(null)));
+		if (res === null) {
+			return `<div class="detail-error">Failed to load closed positions</div>`;
+		}
+		return renderClosedDetail(pair, res.positions);
+	}).pipe(
+		Effect.catchAll((error) =>
+			Effect.succeed(errorBanner(errorMessage(error))),
+		),
+	);
+
 export const portfolioContent: Effect.Effect<
 	string,
 	never,
