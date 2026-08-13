@@ -8,12 +8,28 @@ import type { AgentState } from "../telegram/agent/state.js";
 
 export const NARRATIVE_DAY_MS = 24 * 3_600_000;
 
+/** Daily cut hour (local server time) — mirrors the Telegram briefing schedule. */
+export const NARRATIVE_CUT_HOUR = 9;
+
+/** Most recent wall-clock `hour`:00 (local time) at or before `nowMs`. */
+export function dailyCut(hour: number, nowMs: number): number {
+	const target = new Date(nowMs);
+	target.setHours(hour, 0, 0, 0);
+	if (target.getTime() > nowMs) target.setDate(target.getDate() - 1);
+	return target.getTime();
+}
+
+/** Journal entries inside the briefing-aligned window: [last cut - 24h, last cut]. */
 export function windowEntries(
 	entries: readonly AgentJournalEntry[],
 	nowMs: number,
 ): AgentJournalEntry[] {
-	const cutoff = nowMs - NARRATIVE_DAY_MS;
-	return entries.filter((entry) => Date.parse(entry.ts) >= cutoff);
+	const cut = dailyCut(NARRATIVE_CUT_HOUR, nowMs);
+	const start = cut - NARRATIVE_DAY_MS;
+	return entries.filter((entry) => {
+		const ts = Date.parse(entry.ts);
+		return ts >= start && ts <= cut;
+	});
 }
 
 function truncate(text: string, max: number): string {
@@ -160,8 +176,6 @@ export interface NarrativeResult {
 	source: "llm" | "fallback";
 }
 
-export const NARRATIVE_TTL_MS = 10 * 60_000;
-
 const DEFAULT_CACHE_FILE = join(process.cwd(), ".vexis-agent-narrative.json");
 
 export function newestEntryTs(entries: readonly AgentJournalEntry[]): string {
@@ -173,15 +187,14 @@ export function newestEntryTs(entries: readonly AgentJournalEntry[]): string {
 	return best > 0 ? new Date(best).toISOString() : "";
 }
 
+/** Stale only when the journal has an entry newer than the cached narrative covers. No time-based TTL: the narrative is a daily briefing-aligned artifact and is regenerated when the covered window gains new activity. */
 export function isNarrativeStale(
 	cache: NarrativeCache | null,
 	journal: readonly AgentJournalEntry[],
-	nowMs: number,
 ): boolean {
 	if (cache === null) return true;
 	const newest = newestEntryTs(journal);
-	if (newest.length > 0 && newest > cache.coveringTs) return true;
-	return nowMs - Date.parse(cache.at) > NARRATIVE_TTL_MS;
+	return newest.length > 0 && newest > cache.coveringTs;
 }
 
 export function readNarrativeCache(
@@ -259,7 +272,7 @@ export function narrativeSnapshot(
 ): NarrativeResult {
 	const windowed = windowEntries(entries, nowMs);
 	const cached = readNarrativeCache(file);
-	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
+	if (cached !== null && !isNarrativeStale(cached, windowed)) {
 		return { text: cached.text, source: cached.source };
 	}
 	return { text: buildRunSummary(windowed), source: "fallback" };
@@ -314,7 +327,7 @@ export function narrativeFor(
 ): Promise<NarrativeResult> {
 	const windowed = windowEntries(entries, nowMs);
 	const cached = readNarrativeCache(file);
-	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
+	if (cached !== null && !isNarrativeStale(cached, windowed)) {
 		return Promise.resolve({ text: cached.text, source: cached.source });
 	}
 	if (inflight !== null && inflight.file === file) {

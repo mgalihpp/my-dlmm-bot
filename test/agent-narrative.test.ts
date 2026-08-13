@@ -11,8 +11,10 @@ import type { NarrativeCache } from "../src/web/agent-narrative.js";
 import {
 	buildNarrativePrompt,
 	buildRunSummary,
+	dailyCut,
 	isNarrativeStale,
-	NARRATIVE_TTL_MS,
+	NARRATIVE_CUT_HOUR,
+	NARRATIVE_DAY_MS,
 	narrativeFor,
 	narrativeSnapshot,
 	newestEntryTs,
@@ -37,16 +39,19 @@ describe("narrativeFor", () => {
 	it("returns cached text when fresh", async () => {
 		const now = Date.parse("2026-08-12T10:05:00.000Z");
 		const file = cacheFile();
+		const entryTs = new Date(
+			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
+		).toISOString();
 		writeNarrativeCache(
 			{
 				at: "2026-08-12T10:04:00.000Z",
-				coveringTs: "2026-08-12T09:00:00.000Z",
+				coveringTs: entryTs,
 				text: "Ringkasan.",
 				source: "llm",
 			},
 			file,
 		);
-		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => "generated");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan.", source: "llm" });
@@ -55,7 +60,10 @@ describe("narrativeFor", () => {
 	it("generates via LLM when stale and persists result", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
 		const file = cacheFile();
-		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const entryTs = new Date(
+			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
+		).toISOString();
+		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => "Ringkasan baru.");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out).toEqual({ text: "Ringkasan baru.", source: "llm" });
@@ -63,13 +71,16 @@ describe("narrativeFor", () => {
 		expect(readNarrativeCache(file)).toMatchObject({
 			text: "Ringkasan baru.",
 			source: "llm",
-			coveringTs: "2026-08-12T09:00:00.000Z",
+			coveringTs: entryTs,
 		});
 	});
 	it("falls back to summary when LLM fails and caches fallback", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
 		const file = cacheFile();
-		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const entryTs = new Date(
+			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
+		).toISOString();
+		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => null);
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
 		expect(out.source).toBe("fallback");
@@ -79,7 +90,10 @@ describe("narrativeFor", () => {
 	it("skips LLM entirely when llm is null", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
 		const file = cacheFile();
-		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const entryTs = new Date(
+			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
+		).toISOString();
+		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => "unused");
 		const out = await narrativeFor(entries, mkState(), null, now, file, spy);
 		expect(out.source).toBe("fallback");
@@ -88,7 +102,10 @@ describe("narrativeFor", () => {
 	it("survives a throwing callLlm", async () => {
 		const now = Date.parse("2026-08-12T10:30:00.000Z");
 		const file = cacheFile();
-		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const entryTs = new Date(
+			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
+		).toISOString();
+		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => {
 			throw new Error("boom");
 		});
@@ -129,18 +146,42 @@ const mkState = (): AgentState => ({
 	cooldowns: [],
 });
 
+describe("dailyCut", () => {
+	it("returns today at the cut hour when already past it", () => {
+		const today9 = new Date();
+		today9.setHours(NARRATIVE_CUT_HOUR, 0, 0, 0);
+		const after = today9.getTime() + 60_000;
+		expect(dailyCut(NARRATIVE_CUT_HOUR, after)).toBe(today9.getTime());
+	});
+	it("returns the previous day when before the cut hour", () => {
+		const today9 = new Date();
+		today9.setHours(NARRATIVE_CUT_HOUR, 0, 0, 0);
+		const before = today9.getTime() - 60_000;
+		expect(dailyCut(NARRATIVE_CUT_HOUR, before)).toBe(
+			today9.getTime() - NARRATIVE_DAY_MS,
+		);
+	});
+});
+
 describe("windowEntries", () => {
-	const now = Date.parse("2026-08-12T12:00:00.000Z");
-	it("keeps only entries inside the last 24h", () => {
+	it("keeps only entries inside the briefing-aligned window ending at the 9am cut", () => {
+		const now = Date.parse("2026-08-12T12:00:00.000Z");
+		const cut = dailyCut(NARRATIVE_CUT_HOUR, now);
+		const start = cut - NARRATIVE_DAY_MS;
+		const at = (ms: number) => new Date(ms).toISOString();
 		const entries = [
-			mkEntry("2026-08-11T11:59:00.000Z", 1, []),
-			mkEntry("2026-08-11T12:00:00.000Z", 2, []),
-			mkEntry("2026-08-12T11:00:00.000Z", 3, []),
+			mkEntry(at(start - 1), 0, []),
+			mkEntry(at(start), 1, []),
+			mkEntry(at(cut - 1), 2, []),
+			mkEntry(at(cut), 3, []),
+			mkEntry(at(cut + 1), 4, []),
 		];
-		expect(windowEntries(entries, now).map((e) => e.cycle)).toEqual([2, 3]);
+		expect(windowEntries(entries, now).map((e) => e.cycle)).toEqual([1, 2, 3]);
 	});
 	it("returns empty for empty journal", () => {
-		expect(windowEntries([], now)).toEqual([]);
+		expect(windowEntries([], Date.parse("2026-08-12T12:00:00.000Z"))).toEqual(
+			[],
+		);
 	});
 });
 
@@ -268,29 +309,19 @@ describe("newestEntryTs", () => {
 
 describe("isNarrativeStale", () => {
 	it("true when no cache exists", () => {
-		expect(isNarrativeStale(null, [], Date.now())).toBe(true);
+		expect(isNarrativeStale(null, [])).toBe(true);
 	});
-	it("false when fresh and covering latest entry", () => {
+	it("false when covering the latest entry", () => {
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
-		expect(
-			isNarrativeStale(CACHE, entries, Date.parse("2026-08-12T10:05:00.000Z")),
-		).toBe(false);
+		expect(isNarrativeStale(CACHE, entries)).toBe(false);
 	});
 	it("true when a newer journal entry exists", () => {
 		const entries = [mkEntry("2026-08-12T09:30:00.000Z", 1, [])];
-		expect(
-			isNarrativeStale(CACHE, entries, Date.parse("2026-08-12T10:05:00.000Z")),
-		).toBe(true);
+		expect(isNarrativeStale(CACHE, entries)).toBe(true);
 	});
-	it("true when cache is older than the TTL", () => {
+	it("false when no newer entries even long after the cache was written", () => {
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
-		expect(
-			isNarrativeStale(
-				CACHE,
-				entries,
-				Date.parse(CACHE.at) + NARRATIVE_TTL_MS + 1,
-			),
-		).toBe(true);
+		expect(isNarrativeStale(CACHE, entries)).toBe(false);
 	});
 });
 
@@ -335,15 +366,15 @@ describe("narrativeSnapshot", () => {
 		const file = cacheFile();
 		writeNarrativeCache(
 			{
-				at: "2026-08-12T09:00:00.000Z",
-				coveringTs: "2026-08-12T09:00:00.000Z",
+				at: "2026-08-12T09:05:00.000Z",
+				coveringTs: "2026-08-11T09:00:00.000Z",
 				text: "Ringkasan lama.",
 				source: "llm",
 			},
 			file,
 		);
 		const entries = [
-			mkEntry("2026-08-12T10:29:00.000Z", 3, [
+			mkEntry("2026-08-11T10:00:00.000Z", 3, [
 				mkCandidate({
 					poolName: "WIF/SOL",
 					action: "open",
