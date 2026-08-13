@@ -108,6 +108,9 @@ describe("buildOpenDecisionPrompt", () => {
 		]);
 		expect(prompt).toContain("rugScore=1500");
 		expect(prompt).toContain("priceVsAthPct=60");
+		expect(prompt).toContain("0-2500");
+		expect(prompt).toContain("lower = lower rug-pull risk");
+		expect(prompt).toContain("meme tokens can still go to zero");
 	});
 });
 
