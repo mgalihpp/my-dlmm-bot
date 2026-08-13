@@ -25,10 +25,9 @@ If you are an AI coding agent reading this README: the one-shot setup prompt liv
 
 ## Screenshots
 
-| | | |
-|:---:|:---:|:---:|
-| ![snap1](docs/snap1.png) | ![snap2](docs/snap2.png) | ![snap3](docs/snap3.png) |
-| ![snap4](docs/snap4.png) | ![snap5](docs/snap5.png) | ![snap6](docs/snap6.png) |
+| | |
+|:---:|:---:|
+| ![web](docs/web.png) | ![snap7](docs/snap7.png) |
 
 ## Features
 
