@@ -31,7 +31,6 @@ const cfg: ResolvedAgentConfig = {
 	poolCooldownMs: 24 * 3_600_000,
 	tpPct: 25,
 	slPct: -10,
-	notifLevel: "normal",
 	llm: { baseUrl: "", model: "m", apiKey: "", timeoutMs: 1000 },
 	risks: {
 		enabled: true,

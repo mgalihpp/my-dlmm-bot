@@ -26,7 +26,6 @@ const llmCfg: ResolvedAgentConfig = {
 	poolCooldownMs: 24 * 3_600_000,
 	tpPct: 25,
 	slPct: -10,
-	notifLevel: "normal",
 	llm: {
 		baseUrl: "http://localhost",
 		model: "m",
