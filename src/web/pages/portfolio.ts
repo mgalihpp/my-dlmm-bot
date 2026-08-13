@@ -3,13 +3,14 @@ import type {
 	ClosedPool,
 	OpenPool,
 	PortfolioTotal,
+	PositionPnLData,
 } from "../../domain/index.js";
 import { errorMessage } from "../../errors.js";
 import { AppConfig } from "../../services/Config.js";
 import { Dlmm } from "../../services/Dlmm.js";
 import { MeteoraApi } from "../../services/MeteoraApi.js";
 import { CHART_COLORS, lineChart } from "../charts.js";
-import { errorBanner, escapeHtml } from "../layout.js";
+import { errorBanner, escapeHtml, shortAddr } from "../layout.js";
 import {
 	type PortfolioSnapshot,
 	readHistory,
@@ -201,6 +202,35 @@ function renderClosed(pools: readonly ClosedPool[]): string {
 	return `<h2>Closed Positions <span class="sub">// ${pools.length} pools</span></h2>${table(
 		["Pool", "Deposit", "Withdraw", "Fees", "PnL USD", "PnL SOL", "Closed"],
 		rows,
+	)}`;
+}
+
+export function renderClosedDetail(
+	pair: string,
+	positions: readonly PositionPnLData[],
+): string {
+	const closed = positions.filter((pos) => pos.isClosed);
+	if (closed.length === 0) {
+		return `<span class="muted">No closed positions</span>`;
+	}
+	const rows = closed.map((pos) => {
+		const pnlPct = parseFloat(pos.pnlPctChange);
+		const pnlSol = pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : NaN;
+		const addrLink = `<a href="${escapeHtml(`https://solscan.io/account/${pos.positionAddress}`)}" target="_blank" rel="noopener" class="mono">${escapeHtml(shortAddr(pos.positionAddress))}</a>`;
+		return `<tr>
+<td>${addrLink}</td>
+<td>${fmtUsd(pos.allTimeDeposits.total.usd)}</td>
+<td>${fmtUsd(pos.allTimeWithdrawals.total.usd)}</td>
+<td>${fmtUsd(pos.allTimeFees.total.usd)}</td>
+<td class="${pnlClass(pnlPct)}">${fmtUsd(pos.pnlUsd)}<div class="sub">${fmtPct(pnlPct)}</div></td>
+<td class="${pnlClass(pnlSol)}">${fmtSol(pos.pnlSol)}</td>
+<td class="mono">${escapeHtml(tsLocal(pos.closedAt))}</td>
+</tr>`;
+	});
+	return `<span class="detail-head">CLOSED POSITIONS // ${escapeHtml(pair)}</span>${table(
+		["Position", "Deposit", "Withdraw", "Fees", "PnL USD", "PnL SOL", "Closed"],
+		rows,
+		"detail-table",
 	)}`;
 }
 

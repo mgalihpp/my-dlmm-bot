@@ -3,8 +3,12 @@ import type {
 	ClosedPool,
 	OpenPool,
 	PortfolioTotal,
+	PositionPnLData,
 } from "../src/domain/index.js";
-import { renderPortfolio } from "../src/web/pages/portfolio.js";
+import {
+	renderClosedDetail,
+	renderPortfolio,
+} from "../src/web/pages/portfolio.js";
 
 const mkTotal = (over: Partial<PortfolioTotal> = {}): PortfolioTotal => ({
 	totalPnlUsd: "123.45",
@@ -55,6 +59,79 @@ const mkClosed = (over: Partial<ClosedPool> = {}): ClosedPool => ({
 	pnlSolPctChange: "10",
 	pnlPctChange: "25",
 	...over,
+});
+
+const mkPos = (over: Partial<PositionPnLData> = {}): PositionPnLData => ({
+	positionAddress: "posA",
+	minPrice: "0.5",
+	maxPrice: "2",
+	lowerBinId: -34,
+	upperBinId: 35,
+	feePerTvl24h: "0.5",
+	isClosed: true,
+	pnlUsd: "10",
+	pnlPctChange: "5.2",
+	pnlSol: "0.1",
+	pnlSolPctChange: "5.1",
+	allTimeDeposits: {
+		tokenX: { amount: "10", amountSol: null, usd: "5" },
+		tokenY: { amount: "1", amountSol: "1", usd: "100" },
+		total: { usd: "105", sol: "1" },
+	},
+	allTimeWithdrawals: {
+		tokenX: { amount: "0", amountSol: null, usd: "0" },
+		tokenY: { amount: "0", amountSol: "0", usd: "0" },
+		total: { usd: "60", sol: "0.4" },
+	},
+	allTimeFees: {
+		tokenX: { amount: "0.1", amountSol: null, usd: "0.05" },
+		tokenY: { amount: "0.01", amountSol: "0.01", usd: "1" },
+		total: { usd: "1.05", sol: "0.01" },
+	},
+	closedAt: 1_754_000_000,
+	createdAt: 1_753_000_000,
+	isOutOfRange: false,
+	poolActiveBinId: 0,
+	poolActivePrice: "1.5",
+	...over,
+});
+
+describe("renderClosedDetail", () => {
+	it("renders one row per closed position with deposit/withdraw/fees/pnl", () => {
+		const html = renderClosedDetail("OLD/SOL", [
+			mkPos(),
+			mkPos({
+				positionAddress: "posB",
+				pnlUsd: "-5",
+				pnlPctChange: "-8",
+				pnlSol: "-0.05",
+				closedAt: null,
+			}),
+		]);
+		expect(html).toContain("CLOSED POSITIONS // OLD/SOL");
+		expect(html).toContain("posA");
+		expect(html).toContain("posB");
+		expect(html).toContain("$105.00");
+		expect(html).toContain("$60.00");
+		expect(html).toContain("$1.05");
+		expect(html).toContain("+5.20%");
+		expect(html).toContain("-8.00%");
+		expect(html).toContain("loss");
+		expect(html).toContain("https://solscan.io/account/posA");
+	});
+
+	it("filters out open positions and shows an empty message", () => {
+		const html = renderClosedDetail("A/SOL", [mkPos({ isClosed: false })]);
+		expect(html).toContain("No closed positions");
+		expect(html).not.toContain("posA");
+	});
+
+	it("shows placeholders for null closedAt and null pnlSol", () => {
+		const html = renderClosedDetail("A/SOL", [
+			mkPos({ closedAt: null, pnlSol: null }),
+		]);
+		expect(html).toContain(">posA</a>");
+	});
 });
 
 describe("renderPortfolio", () => {
