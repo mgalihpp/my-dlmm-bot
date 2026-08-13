@@ -337,6 +337,16 @@ td small { margin-top: 5px; color: var(--muted); font: 10px monospace; }
 .badge.blocked { border-color: color-mix(in srgb, var(--loss) 35%, transparent); background: color-mix(in srgb, var(--loss) 8%, transparent); color: var(--loss); }
 .badge.hold { border-color: color-mix(in srgb, var(--blue) 35%, transparent); background: color-mix(in srgb, var(--blue) 7%, transparent); color: var(--blue); }
 .badge.neutral { color: var(--muted); }
+.position-range-chart { width: min(360px, 42vw); min-width: 240px; margin-top: 10px; overflow: hidden; border: 1px solid var(--line); background: #171724; }
+.position-range-chart svg { display: block; width: 100%; height: auto; }
+.range-axis { stroke: var(--muted); stroke-width: 1; opacity: 0.65; }
+.range-bars { fill: var(--blue); opacity: 0.95; }
+.range-price-line { stroke: var(--foreground); stroke-width: 2; stroke-dasharray: 5 4; }
+.range-price-label { fill: #303044; }
+.range-price-title, .range-price-value, .range-label { fill: var(--foreground); font-family: monospace; }
+.range-price-title { font-size: 10px; opacity: 0.72; }
+.range-price-value { font-size: 10px; font-weight: 700; }
+.range-label { fill: var(--muted); font-size: 10px; }
 .star { padding: 3px; border: 0; background: transparent; color: var(--muted); }
 .star:hover, .star.active { color: var(--gold); }
 .empty { display: grid; place-items: center; gap: 8px; padding: 42px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); text-align: center; }
@@ -427,6 +437,7 @@ h2 .sub { margin-left: 8px; font: normal 11px monospace; }
 	.close-nav { margin-left: auto; padding: 2px 5px; }
 	.mobile-menu { padding: 0; }
 	.content { width: 100%; padding: 0 12px 30px; }
+	.position-range-chart { width: min(360px, 80vw); min-width: 220px; }
 	.topbar { height: 74px; }
 	.topbar h1 { font-size: 16px; }
 	.top-actions { gap: 6px; }

@@ -160,6 +160,7 @@ function renderOpen(pools: readonly OpenPool[]): string {
 		const range = pool.outOfRange
 			? badge("OOR", "blocked")
 			: badge("IN RANGE", "pass");
+		const rangeChart = pool.outOfRange ? "" : positionRangeChart(pool);
 		const link = `<a href="${escapeHtml(meteoraUrl(pool.poolAddress))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
 		return `<tr>
 <td>${link}<div class="sub mono">${escapeHtml(pool.poolAddress.slice(0, 8))}...</div></td>
@@ -168,7 +169,7 @@ function renderOpen(pools: readonly OpenPool[]): string {
 <td>${fmtUsd(pool.unclaimedFees)}</td>
 <td class="${pnlClass(pnlPct)}">${fmtUsd(pool.pnl)}<div class="sub">${fmtPct(pnlPct)}</div></td>
 <td class="${pnlClass(pnlSolPct)}">${fmtSol(pool.pnlSol)}<div class="sub">${pool.pnlSolPctChange != null ? fmtPct(pnlSolPct) : "-"}</div></td>
-<td>${range}<div class="sub">${pool.openPositionCount} position${pool.openPositionCount === 1 ? "" : "s"}</div></td>
+<td>${range}<div class="sub">${pool.openPositionCount} position${pool.openPositionCount === 1 ? "" : "s"}</div>${rangeChart}</td>
 </tr>`;
 	});
 
@@ -176,6 +177,53 @@ function renderOpen(pools: readonly OpenPool[]): string {
 		["Pool", "Bin", "Balance", "Fees", "PnL", "PnL SOL", "Range"],
 		rows,
 	)}`;
+}
+
+function positionRangeChart(pool: OpenPool): string {
+	const ranges = pool.positionsRange ?? [];
+	const prices = ranges.flatMap((position) => [
+		Number(position.minPrice),
+		Number(position.maxPrice),
+	]);
+	const min = Math.min(...prices);
+	const max = Math.max(...prices);
+	const current = pool.poolPrice;
+	if (
+		ranges.length === 0 ||
+		!Number.isFinite(min) ||
+		!Number.isFinite(max) ||
+		!Number.isFinite(current) ||
+		max <= min
+	) {
+		return "";
+	}
+
+	const width = 360;
+	const height = 132;
+	const baseline = 94;
+	const chartMin = min - (max - min) * 0.04;
+	const chartMax = max + (max - min) * 0.04;
+	const xFor = (price: number) =>
+		((price - chartMin) / (chartMax - chartMin)) * width;
+	const currentX = Math.max(0, Math.min(width, xFor(current)));
+	const barCount = 56;
+	const barWidth = width / barCount;
+	const bars = Array.from({ length: barCount }, (_, index) => {
+		const price = chartMin + ((index + 0.5) / barCount) * (chartMax - chartMin);
+		const inRange = ranges.some(
+			(position) =>
+				price >= Number(position.minPrice) &&
+				price <= Number(position.maxPrice),
+		);
+		if (!inRange) return "";
+		const progress = index / (barCount - 1);
+		const barHeight = 16 + (1 - progress) * 48;
+		return `<rect x="${(index * barWidth + 1).toFixed(1)}" y="${(baseline - barHeight).toFixed(1)}" width="${Math.max(1, barWidth - 1.2).toFixed(1)}" height="${barHeight.toFixed(1)}" rx="1"/>`;
+	}).join("");
+	const formatPrice = (price: number) =>
+		price >= 1 ? price.toFixed(3) : price.toFixed(5);
+	const labelX = Math.min(width - 52, Math.max(52, currentX));
+	return `<div class="position-range-chart"><svg viewBox="0 0 ${width} ${height}" role="img" aria-label="Position price range chart"><line class="range-axis" x1="0" y1="${baseline}" x2="${width}" y2="${baseline}"/><g class="range-bars">${bars}</g><line class="range-price-line" x1="${currentX.toFixed(1)}" y1="8" x2="${currentX.toFixed(1)}" y2="${baseline + 4}"/><rect class="range-price-label" x="${(labelX - 52).toFixed(1)}" y="0" width="104" height="27" rx="5"/><text class="range-price-title" x="${labelX.toFixed(1)}" y="11" text-anchor="middle">Pool Price</text><text class="range-price-value" x="${labelX.toFixed(1)}" y="22" text-anchor="middle">${escapeHtml(formatPrice(current))} ${escapeHtml(pool.tokenX)}/${escapeHtml(pool.tokenY)}</text><text class="range-label" x="0" y="119">${escapeHtml(formatPrice(min))}</text><text class="range-label" x="${(width / 2).toFixed(1)}" y="119" text-anchor="middle">${escapeHtml(formatPrice((min + max) / 2))}</text><text class="range-label" x="${width}" y="119" text-anchor="end">${escapeHtml(formatPrice(max))}</text></svg></div>`;
 }
 
 function renderClosed(pools: readonly ClosedPool[]): string {
