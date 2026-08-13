@@ -24,6 +24,8 @@ export interface PoolsConfig {
 	maxActiveTvl?: number;
 	minVolume?: number;
 	maxVolume?: number;
+	minVolume24h?: number;
+	maxVolume24h?: number;
 	minFee?: number;
 	maxFee?: number;
 	minFeeActiveTvlRatio?: number;

@@ -80,6 +80,19 @@ describe("buildDiscoveryFilter", () => {
 		expect(f).toContain("dlmm_bin_step>=20");
 		expect(f).toContain("So11111111111111111111111111111111111111112");
 	});
+	it("appends 24h volume filters when configured", () => {
+		const f = buildDiscoveryFilter({
+			minVolume24h: 500000,
+			maxVolume24h: 2000000,
+		});
+		expect(f).toContain("volume_24h>=500000");
+		expect(f).toContain("volume_24h<=2000000");
+	});
+	it("omits 24h volume filters when unset", () => {
+		const f = buildDiscoveryFilter({ minVolume: 1000 });
+		expect(f).toContain("volume>=1000");
+		expect(f).not.toContain("volume_24h");
+	});
 });
 
 describe("scoreCandidate", () => {
