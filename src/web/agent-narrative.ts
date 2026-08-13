@@ -1,5 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { generateText } from "ai";
+import type { ResolvedAgentLlm } from "../services/Config.js";
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
 import type { AgentState } from "../telegram/agent/state.js";
 
@@ -209,4 +212,73 @@ export function writeNarrativeCache(
 	} catch (e) {
 		console.warn("[agent] narrative cache write failed:", e);
 	}
+}
+
+export async function requestNarrative(
+	llm: ResolvedAgentLlm,
+	prompt: string,
+): Promise<string | null> {
+	if (llm.apiKey.length === 0) return null;
+	const provider = createOpenAICompatible({
+		name: "vexis-narrative",
+		baseURL: llm.baseUrl,
+		apiKey: llm.apiKey,
+	});
+	try {
+		const { text } = await generateText({
+			model: provider(llm.model),
+			messages: [{ role: "user", content: prompt }],
+			temperature: 0,
+			maxRetries: 1,
+			timeout: llm.timeoutMs,
+		});
+		if (!text) return null;
+		return text;
+	} catch (e) {
+		console.error(
+			"[agent] narrative LLM request failed:",
+			e instanceof Error ? e.message : String(e),
+		);
+		return null;
+	}
+}
+
+export async function narrativeFor(
+	entries: readonly AgentJournalEntry[],
+	state: AgentState,
+	llm: ResolvedAgentLlm | null,
+	nowMs: number = Date.now(),
+	file: string = DEFAULT_CACHE_FILE,
+	callLlm: (prompt: string) => Promise<string | null> = (prompt) =>
+		llm === null ? Promise.resolve(null) : requestNarrative(llm, prompt),
+): Promise<NarrativeResult> {
+	const windowed = windowEntries(entries, nowMs);
+	const cached = readNarrativeCache(file);
+	if (cached !== null && !isNarrativeStale(cached, windowed, nowMs)) {
+		return { text: cached.text, source: cached.source };
+	}
+	const fallbackText = buildRunSummary(windowed);
+	let text = fallbackText;
+	let source: NarrativeResult["source"] = "fallback";
+	if (llm !== null && llm.apiKey.length > 0) {
+		try {
+			const generated = await callLlm(buildNarrativePrompt(windowed, state));
+			if (generated !== null && generated.trim().length > 0) {
+				text = generated.trim();
+				source = "llm";
+			}
+		} catch {
+			// keep fallback text
+		}
+	}
+	writeNarrativeCache(
+		{
+			at: new Date(nowMs).toISOString(),
+			coveringTs: newestEntryTs(windowed),
+			text,
+			source,
+		},
+		file,
+	);
+	return { text, source };
 }

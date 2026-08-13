@@ -1,7 +1,7 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import type {
 	AgentJournalEntry,
 	JournalCandidate,
@@ -12,12 +12,89 @@ import {
 	buildNarrativePrompt,
 	buildRunSummary,
 	isNarrativeStale,
+	narrativeFor,
 	newestEntryTs,
 	readNarrativeCache,
 	windowEntries,
 	writeNarrativeCache,
 } from "../src/web/agent-narrative.js";
 import type { NarrativeCache } from "../src/web/agent-narrative.js";
+
+const LLM = {
+	baseUrl: "http://localhost",
+	model: "m",
+	apiKey: "key",
+	timeoutMs: 1000,
+};
+
+const cacheFile = (): string => {
+	const dir = mkdtempSync(join(tmpdir(), "vexis-narrative-"));
+	return join(dir, "narrative.json");
+};
+
+describe("narrativeFor", () => {
+	it("returns cached text when fresh", async () => {
+		const now = Date.parse("2026-08-12T10:05:00.000Z");
+		const file = cacheFile();
+		writeNarrativeCache(
+			{
+				at: "2026-08-12T10:04:00.000Z",
+				coveringTs: "2026-08-12T09:00:00.000Z",
+				text: "Ringkasan.",
+				source: "llm",
+			},
+			file,
+		);
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const spy = vi.fn(async (prompt: string) => "generated");
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
+		expect(out).toEqual({ text: "Ringkasan.", source: "llm" });
+		expect(spy).not.toHaveBeenCalled();
+	});
+	it("generates via LLM when stale and persists result", async () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const spy = vi.fn(async (prompt: string) => "Ringkasan baru.");
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
+		expect(out).toEqual({ text: "Ringkasan baru.", source: "llm" });
+		expect(spy).toHaveBeenCalledOnce();
+		expect(readNarrativeCache(file)).toMatchObject({
+			text: "Ringkasan baru.",
+			source: "llm",
+			coveringTs: "2026-08-12T09:00:00.000Z",
+		});
+	});
+	it("falls back to summary when LLM fails and caches fallback", async () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const spy = vi.fn(async () => null);
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
+		expect(out.source).toBe("fallback");
+		expect(out.text).toBe(buildRunSummary(entries));
+		expect(readNarrativeCache(file)).toMatchObject({ source: "fallback" });
+	});
+	it("skips LLM entirely when llm is null", async () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const spy = vi.fn(async () => "unused");
+		const out = await narrativeFor(entries, mkState(), null, now, file, spy);
+		expect(out.source).toBe("fallback");
+		expect(spy).not.toHaveBeenCalled();
+	});
+	it("survives a throwing callLlm", async () => {
+		const now = Date.parse("2026-08-12T10:30:00.000Z");
+		const file = cacheFile();
+		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
+		const spy = vi.fn(async () => {
+			throw new Error("boom");
+		});
+		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
+		expect(out.source).toBe("fallback");
+	});
+});
 
 const mkCandidate = (over: Partial<JournalCandidate> = {}): JournalCandidate => ({
 	pool: "poolA",
