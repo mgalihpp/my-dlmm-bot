@@ -207,6 +207,8 @@ describe("renderPortfolio", () => {
 		expect(html).toContain('class="detail-row"');
 		expect(html).toContain("/partials/closed-positions?pool=pool2");
 		expect(html).toContain("__vexisClosedBound");
+		expect(html).toContain('closest("tr.closed-row")');
+		expect(html).toContain('closest("a")');
 	});
 
 	it("does not emit chevron script when there are no closed pools", () => {

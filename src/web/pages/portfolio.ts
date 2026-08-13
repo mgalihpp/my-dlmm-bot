@@ -214,11 +214,12 @@ function closedDetailScript(): string {
 	if (window.__vexisClosedBound) return;
 	window.__vexisClosedBound = true;
 	document.addEventListener("click", function (e) {
-		var btn = e.target && e.target.closest ? e.target.closest(".chevron") : null;
-		if (!btn) return;
-		var row = btn.closest("tr");
-		var detail = row ? row.nextElementSibling : null;
-		if (!detail || !detail.classList.contains("detail-row")) return;
+		var row = e.target && e.target.closest ? e.target.closest("tr.closed-row") : null;
+		if (!row) return;
+		if (e.target.closest("a")) return;
+		var btn = row.querySelector(".chevron");
+		var detail = row.nextElementSibling;
+		if (!btn || !detail || !detail.classList.contains("detail-row")) return;
 		var inner = detail.querySelector(".detail-inner");
 		if (detail.classList.contains("loaded")) {
 			detail.hidden = !detail.hidden;
