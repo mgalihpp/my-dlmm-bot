@@ -4,6 +4,7 @@ import type {
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
+import type { NarrativeResult } from "../src/web/agent-narrative.js";
 import {
 	agentStats,
 	journalRows,
@@ -12,6 +13,8 @@ import {
 	renderAgent,
 	timelineGroups,
 } from "../src/web/pages/agent.js";
+
+const NARRATIVE: NarrativeResult = { text: "Ringkasan prosa.", source: "llm" };
 
 const mkCandidate = (
 	over: Partial<JournalCandidate> = {},
@@ -262,5 +265,42 @@ describe("timelineGroups", () => {
 	});
 	it("returns empty for empty rows", () => {
 		expect(timelineGroups([])).toEqual([]);
+	});
+});
+
+describe("renderAgent narrative + timeline", () => {
+	it("renders narrative prose and source badge", () => {
+		const html = renderAgent([mkEntry(1, [mkCandidate()])], mkState(), { action: "all", page: 1 }, NARRATIVE);
+		expect(html).toContain("Ringkasan prosa.");
+		expect(html).toContain(">GENERATED<");
+	});
+	it("renders fallback badge for fallback source", () => {
+		const html = renderAgent([mkEntry(1, [])], mkState(), { action: "all", page: 1 }, { text: "x", source: "fallback" });
+		expect(html).toContain(">FALLBACK<");
+	});
+	it("renders rationale, blocked reason and tx link in timeline entries", () => {
+		const entries = [
+			mkEntry(1, [
+				mkCandidate({ poolName: "WIF/SOL", rationale: "volume naik", txSignature: "sig9" }),
+				mkCandidate({ action: "open", guardrail: "blocked", blockedReason: "cooldown", execution: null, txSignature: null }),
+			]),
+		];
+		const html = renderAgent(entries, mkState(), { action: "all", page: 1 }, NARRATIVE);
+		expect(html).toContain('class="timeline-cycle"');
+		expect(html).toContain("volume naik");
+		expect(html).toContain("cooldown");
+		expect(html).toContain('href="https://solscan.io/tx/sig9"');
+		expect(html).toContain("WIF/SOL");
+	});
+	it("marks llm-failed cycles", () => {
+		const entries = [
+			{ ts: "2026-08-12T10:00:00.000Z", cycle: 9, llmStatus: "failed" as const, candidates: [mkCandidate({ action: "hold" })] },
+		];
+		const html = renderAgent(entries, mkState(), { action: "all", page: 1 }, NARRATIVE);
+		expect(html).toContain("LLM FAILED");
+	});
+	it("falls back to the old copy when narrative is null", () => {
+		const html = renderAgent([mkEntry(1, [mkCandidate({ action: "open" })])], mkState(), { action: "all", page: 1 });
+		expect(html).toContain("1 open decisions across 1 cycles.");
 	});
 });

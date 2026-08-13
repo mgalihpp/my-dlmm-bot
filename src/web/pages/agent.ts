@@ -1,4 +1,5 @@
 import { Effect } from "effect";
+import type { NarrativeResult } from "../agent-narrative.js";
 import {
 	type AgentJournalEntry,
 	type JournalCandidate,
@@ -13,7 +14,6 @@ import {
 	solscanUrl,
 	statsGrid,
 	summaryCard,
-	table,
 	tsLocal,
 } from "../templates.js";
 
@@ -220,6 +220,7 @@ export function renderAgent(
 	journal: readonly AgentJournalEntry[],
 	state: AgentState | null,
 	opts: AgentViewOptions,
+	narrative: NarrativeResult | null = null,
 ): string {
 	const stats = agentStats(journal);
 	const lastActivity = state?.lastCycleAt ?? journal.at(-1)?.ts ?? null;
@@ -247,10 +248,10 @@ ${sectionHead(
 )}
 <div class="agent-banner"><div class="agent-status"><span class="pulse ${state?.running ? "active" : ""}"></span><div><span class="eyebrow">AUTOMATION ENGINE</span><h2>${status}</h2><p class="muted">${lastActivity ? `Last cycle completed ${tsLocal(lastActivity)}` : "No cycles recorded yet"}</p></div></div><span class="badge ${state?.running ? "pass" : "neutral"}">${state?.running ? "LIVE" : "STOPPED"}</span></div>
 ${statsGrid(cards, "agent-stats")}
-<div class="grid-two">${briefingPanel(stats, journal)}${cycleChart(journal)}</div>
+<div class="grid-two">${briefingPanel(stats, journal, narrative)}${cycleChart(journal)}</div>
 <h2>Decision Journal <span class="sub">// ${rows.length} entries</span></h2>
 ${journalFilterForm(opts.action)}
-${journal.length === 0 ? `<div class="empty">No journal entries</div>` : renderJournalTable(paged.rows)}
+${journal.length === 0 ? `<div class="empty">No journal entries</div>` : renderJournalTimeline(timelineGroups(paged.rows))}
 ${paginationLinks(opts.action, paged)}
 </section>`;
 }
@@ -262,12 +263,22 @@ function sectionHead(kicker: string, sub: string): string {
 function briefingPanel(
 	stats: AgentStats,
 	journal: readonly AgentJournalEntry[],
+	narrative: NarrativeResult | null,
 ): string {
+	const empty = journal.length === 0;
 	const copy =
-		journal.length === 0
-			? "No decision cycles have been recorded yet."
-			: `${stats.opens} open decisions across ${stats.cycles} cycles. ${stats.blocked} candidates were stopped by guardrails before execution.`;
-	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">LATEST RUN</span><b>Decision context</b></div>${badge(journal.length > 0 ? "DATA READY" : "NO DATA", journal.length > 0 ? "pass" : "neutral")}</div><p class="briefing">${escapeHtml(copy)}</p><div class="briefing-tags">${badge(`${stats.blocked} BLOCKED`, stats.blocked > 0 ? "review" : "neutral")}<span class="muted small">Read-only journal analysis</span></div></div>`;
+		narrative !== null
+			? narrative.text
+			: empty
+				? "No decision cycles have been recorded yet."
+				: `${stats.opens} open decisions across ${stats.cycles} cycles. ${stats.blocked} candidates were stopped by guardrails before execution.`;
+	const sourceBadge =
+		narrative === null
+			? ""
+			: narrative.source === "llm"
+				? badge("GENERATED", "pass")
+				: badge("FALLBACK", "neutral");
+	return `<div class="panel"><div class="panel-head"><div><span class="eyebrow">LATEST RUN</span><b>Decision context</b></div>${badge(journal.length > 0 ? "DATA READY" : "NO DATA", journal.length > 0 ? "pass" : "neutral")}</div><p class="briefing">${escapeHtml(copy)}</p><div class="briefing-tags">${sourceBadge}${badge(`${stats.blocked} BLOCKED`, stats.blocked > 0 ? "review" : "neutral")}<span class="muted small">Read-only journal analysis</span></div></div>`;
 }
 
 function cycleChart(journal: readonly AgentJournalEntry[]): string {
@@ -328,30 +339,35 @@ function paginationLinks(
 	return `<div class="pagination">${prev}<span>showing ${from}–${to} of ${paged.total}</span>${next}</div>`;
 }
 
-function renderJournalTable(rows: readonly JournalRow[]): string {
-	const body = rows
-		.map((row) => {
-			if (row.candidate === null) {
-				return `<tr><td class="mono">#${row.cycle}</td><td class="mono">${escapeHtml(tsLocal(row.ts))}</td><td colspan="4">no candidates</td></tr>`;
-			}
-			const reason = row.candidate.blockedReason
-				? `<div class="sub">${escapeHtml(row.candidate.blockedReason)}</div>`
-				: "";
-			return `<tr>
-<td class="mono">#${row.cycle}</td>
-<td class="mono">${escapeHtml(tsLocal(row.ts))}</td>
-<td>${escapeHtml(row.candidate.poolName || row.candidate.pool)}</td>
-<td>${actionBadge(row.candidate)}</td>
-<td>${guardrailBadge(row.candidate)}${reason}</td>
-<td>${executionText(row.candidate)}</td>
-</tr>`;
+function renderJournalTimeline(groups: readonly TimelineGroup[]): string {
+	return `<div class="timeline">${groups
+		.map((group) => {
+			const llmMarker =
+				group.llmStatus === "failed"
+					? badge("LLM FAILED", "blocked")
+					: "";
+			const body = group.rows
+				.map((row) =>
+					row.candidate === null
+						? `<div class="timeline-empty">no candidates</div>`
+						: renderTimelineEntry(row),
+				)
+				.join("\n");
+			return `<div class="timeline-cycle"><div class="timeline-head"><span class="mono">#${group.cycle}</span>${llmMarker}<span class="muted small">${escapeHtml(tsLocal(group.ts))}</span></div>${body}</div>`;
 		})
-		.join("\n");
-	return table(
-		["Cycle", "Time", "Pool", "Action", "Guardrail", "Execution"],
-		[body],
-		"journal-table",
-	);
+		.join("\n")}</div>`;
+}
+
+function renderTimelineEntry(row: JournalRow): string {
+	const candidate = row.candidate;
+	if (candidate === null) return "";
+	const rationale = candidate.rationale
+		? `<p class="timeline-rationale">${escapeHtml(candidate.rationale)}</p>`
+		: "";
+	const reason = candidate.blockedReason
+		? `<div class="sub">${escapeHtml(candidate.blockedReason)}</div>`
+		: "";
+	return `<div class="timeline-entry"><div class="timeline-entry-head"><span class="timeline-pool">${escapeHtml(candidate.poolName || candidate.pool)}</span>${actionBadge(candidate)}${guardrailBadge(candidate)}${executionText(candidate)}</div>${rationale}${reason}</div>`;
 }
 
 export const agentContent = (opts?: {
