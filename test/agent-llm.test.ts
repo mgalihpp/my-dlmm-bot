@@ -323,7 +323,7 @@ describe("buildPositionPrompt", () => {
 		expect(prompt).toContain("pnlUsd=-12.5");
 		expect(prompt).toContain("amountSol=0.5");
 		expect(prompt).toContain("openSignals=feeActiveTvlRatio:1.45,volume:1.1");
-		expect(prompt).toContain("position age");
+		expect(prompt).toContain("umur posisi");
 	});
 });
 

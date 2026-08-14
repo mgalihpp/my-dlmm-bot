@@ -215,14 +215,12 @@ export function buildOpenDecisionPrompt(
 		})
 		.join("\n");
 	return [
-		"You are a portfolio manager for a DLMM liquidity bot. Candidate pools below passed deterministic screening.",
-		"Decide for EACH whether to OPEN a new position now or HOLD.",
-		"- OPEN = strong fee potential, acceptable risk, fits portfolio context",
-		"- HOLD = wait or avoid",
-		"You may override the heuristic toward OPEN when fee potential clearly exceeds risk, but never toward a candidate breaching the guardrail thresholds below.",
-		"Use the heuristic score as context, not the only factor. Weigh risk fields.",
-		"Risk field notes: rugScore is RugCheck's 0-2500 score. Only rugScore 0-1 is clean — anything above 1 means flagged risk and is vetoed by maxRugScore, never OPEN it. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better. isRugpull/isWash/devSoldAll/dexScreenerPaid are hard-flag booleans — treat any true as a strong reason to HOLD. volatility is 24h price volatility. tokenAgeHours/poolAgeHours are ages in hours. priceTrend is the 24h trend direction. swapCount/uniqueTraders measure real activity. lpLockedPct is RugCheck's LP lock %.",
-		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"open|hold","rationale":"..."}]',
+		"Kandidat pool di bawah sudah lolos screening. Putuskan untuk tiap pool: OPEN (buka posisi sekarang) atau HOLD (skip).",
+		"- OPEN kalau fee potential-nya jelas dan risikonya masuk akal, sesuai kapasitas portfolio.",
+		"- HOLD kalau ragu. Gak perlu maksa.",
+		"Skor heuristic cuma konteks, bukan segalanya. Yang penting: kalau kandidat melanggar threshold guardrails di bawah, jangan OPEN — itu cuma buang waktu, bakal ke-veto juga.",
+		"Baca field risikonya: rugScore skor RugCheck 0-2500. Hanya rugScore 0-1 is clean — di atas 1 ke-veto sama maxRugScore, never OPEN it. dexScreenerPaid cuma tanda bayar promosi DexScreener, bukan rugpull — anggap sinyal kecil, timbang bareng rugScore dan fee. isRugpull/isWash/devSoldAll itu hard flag beneran — kalau true, HOLD. priceVsAthPct tinggi = harga udah deket ATH, makin tipis upside-nya. swapCount/uniqueTraders = aktivitas nyata. top10Pct/bundlePct/botHoldersPct makin kecil makin sehat. volatility tinggi = emang meme, jangan panik, timbang fee-nya.",
+		'Balas JSON array aja, tanpa markdown: [{"pool":"<pool id persis>","action":"open|hold","rationale":"..."}]',
 		...(guardrailsSection ? ["", guardrailsSection] : []),
 		"",
 		"Candidates:",
@@ -338,9 +336,10 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 		)
 		.join("\n");
 	return [
-		"You manage DLMM liquidity positions. Each position below is out of range — its bin range no longer covers the pool's active price, so it earns no fees.",
-		"Decide for each position: `hold` (keep, price may re-enter range) or `close` (zap out to WSOL). Weigh pnlPct, how far the active price sits from the range, position age, and fee opportunity cost: a young position near range is worth holding; an old position many hours out of range that is losing and earning low fees is worth closing. openSignals is the signal snapshot from when the position was opened.",
-		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"hold|close","rationale":"..."}]',
+		"Posisi di bawah lagi out-of-range — range bin-nya udah gak nutup harga aktif pool, jadi gak ngasilin fee.",
+		"Putuskan tiap posisi: hold (tahan, harga bisa balik masuk range) atau close (zap out ke WSOL).",
+		"Timbang: pnlPct, seberapa jauh harga aktif dari range, umur posisi, dan opportunity cost fee-nya. Posisi muda yang deket range → tahan. Posisi tua berjam-jam keluar range, rugi, dan fee-nya rendah → close. openSignals = snapshot sinyal waktu posisi dibuka.",
+		'Balas JSON array aja, tanpa markdown: [{"pool":"<pool id persis>","action":"hold|close","rationale":"..."}]',
 		"",
 		"Positions:",
 		table,
