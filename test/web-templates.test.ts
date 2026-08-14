@@ -23,6 +23,7 @@ import {
 	table,
 	tsLocal,
 } from "../src/web/templates.js";
+import { themeCss } from "../src/web/theme.js";
 
 describe("escapeHtml", () => {
 	it("escapes HTML metacharacters", () => {
@@ -180,5 +181,22 @@ describe("layout pieces", () => {
 		const rendered = loginPage({ error: "bad <pw>" });
 		expect(rendered).toContain('name="password"');
 		expect(rendered).toContain("bad &lt;pw&gt;");
+	});
+});
+
+describe("theme", () => {
+	it("uses theme tokens for the open positions table", () => {
+		expect(themeCss).toContain(
+			".portfolio-positions th, .portfolio-positions td { border-color: var(--line); }",
+		);
+		expect(themeCss).toContain(
+			"background: var(--panel-2); color: var(--muted); font: 9px Arial, sans-serif;",
+		);
+		expect(themeCss).toContain(
+			"background: var(--panel); font-size: 12px; vertical-align: middle;",
+		);
+		expect(themeCss).toContain(
+			".portfolio-positions tbody tr:hover td { background: color-mix(in srgb, var(--profit) 7%, var(--panel)); }",
+		);
 	});
 });
