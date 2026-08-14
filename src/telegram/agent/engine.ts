@@ -590,6 +590,21 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 }
 
 /**
+ * Position age in hours from the API's createdAt epoch. The API sometimes
+ * returns seconds instead of ms (or 0) — normalize and drop implausible
+ * values (age must be in the past and under 10 years).
+ */
+export function positionAgeHours(
+	createdAt: number | null | undefined,
+): number | null {
+	if (createdAt == null || createdAt <= 0) return null;
+	const ms = createdAt < 1e12 ? createdAt * 1000 : createdAt;
+	const hours = Math.floor((Date.now() - ms) / 3_600_000);
+	if (hours < 0 || hours > 24 * 365 * 10) return null;
+	return hours;
+}
+
+/**
  * Fetches position PnL for all plans in parallel. Failed fetches map to null
  * (caller keeps skip-on-error semantics). Keyed by pool — plans are deduped
  * by `filterDuplicates`, so keys are unique.
@@ -654,10 +669,7 @@ async function evaluateTpSl(
 				minPrice: pos.minPrice,
 				maxPrice: pos.maxPrice,
 				poolActivePrice: pos.poolActivePrice,
-				positionAgeHours:
-					pos.createdAt != null && pos.createdAt > 0
-						? Math.floor((Date.now() - pos.createdAt) / 3_600_000)
-						: null,
+				positionAgeHours: positionAgeHours(pos.createdAt),
 				feePerTvl24h: pos.feePerTvl24h,
 				pnlUsd: pos.pnlUsd,
 				unrealizedPnlSol: pos.unrealizedPnl?.balancesSol ?? null,

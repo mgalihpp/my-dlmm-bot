@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { prefetchPlansPnl } from "../src/telegram/agent/engine.js";
+import {
+	positionAgeHours,
+	prefetchPlansPnl,
+} from "../src/telegram/agent/engine.js";
 import type { AgentPlan } from "../src/telegram/agent/state.js";
 
 const plan = (pool: string): AgentPlan => ({
@@ -10,6 +13,24 @@ const plan = (pool: string): AgentPlan => ({
 	positionAddress: `${pool}-pos`,
 	openedAt: new Date().toISOString(),
 	signals: {},
+});
+
+describe("positionAgeHours", () => {
+	const hoursAgo = (h: number) => Date.now() - h * 3_600_000;
+
+	it("computes hours from ms epoch", () => {
+		expect(positionAgeHours(hoursAgo(48))).toBe(48);
+	});
+	it("normalizes seconds epoch to hours", () => {
+		expect(positionAgeHours(Math.floor(hoursAgo(24) / 1000))).toBe(24);
+	});
+	it("rejects zero, future and implausibly old values", () => {
+		expect(positionAgeHours(0)).toBeNull();
+		expect(positionAgeHours(-5)).toBeNull();
+		expect(positionAgeHours(null)).toBeNull();
+		expect(positionAgeHours(hoursAgo(-1))).toBeNull();
+		expect(positionAgeHours(hoursAgo(24 * 365 * 11))).toBeNull();
+	});
 });
 
 describe("prefetchPlansPnl", () => {
