@@ -463,6 +463,7 @@ function buildConfigText(
 		`  Max Bundle: ${tgCode(formatValue("agent.risks.maxBundlePct", config))}%`,
 		`  Max Top10: ${tgCode(formatValue("agent.risks.maxTop10Pct", config))}%`,
 		`  Max ATH: ${tgCode(formatValue("agent.risks.maxPriceVsAthPct", config))}%`,
+		`  Max Rug Score: ${tgCode(formatValue("agent.risks.maxRugScore", config))}`,
 		`  Min Fees: ${tgCode(formatValue("agent.risks.minTokenFeesSol", config))} SOL`,
 		`  Block Wash: ${tgCode(formatValue("agent.risks.blockWash", config))}  Rugpull: ${tgCode(formatValue("agent.risks.blockRugpull", config))}  DexPaid: ${tgCode(formatValue("agent.risks.blockDexScreenerPaid", config))}  DevSold: ${tgCode(formatValue("agent.risks.blockDevSoldAll", config))}`,
 		"",
@@ -560,6 +561,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Max Top10 %", "cfg:set:agent.risks.maxTop10Pct")
 			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
 			.row()
+			.text("✏️ Max Rug Score", "cfg:set:agent.risks.maxRugScore")
 			.text("✏️ Min Token Fees (SOL)", "cfg:set:agent.risks.minTokenFeesSol")
 			.text("🔄 Block Wash", "cfg:toggle:agent.risks.blockWash")
 			.row()
