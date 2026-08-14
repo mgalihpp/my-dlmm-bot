@@ -129,6 +129,7 @@ function fix(n: number | null | undefined, decimals: number): number | null {
 
 export function condensePool(pool: DiscoveryPool): ScreenedPool {
 	const createdAt = numeric(pool.token_x?.created_at);
+	const poolCreatedAt = numeric(pool.pool_created_at);
 	return {
 		pool: pool.pool_address,
 		name: pool.name,
@@ -162,6 +163,13 @@ export function condensePool(pool: DiscoveryPool): ScreenedPool {
 				: null,
 		volumeChangePct: fix(pool.volume_change_pct, 1),
 		tokenXAddress: pool.token_x?.address ?? "",
+		poolAgeHours:
+			poolCreatedAt != null
+				? Math.floor((Date.now() - poolCreatedAt) / 3_600_000)
+				: null,
+		swapCount: Math.round(pool.swap_count ?? 0),
+		uniqueTraders: Math.round(pool.unique_traders ?? 0),
+		priceTrend: typeof pool.price_trend === "string" ? pool.price_trend : null,
 	};
 }
 

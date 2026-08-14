@@ -36,4 +36,9 @@ export interface ScreenedPool {
 	devSoldAll?: boolean | null;
 	dexScreenerPaid?: boolean | null;
 	priceVsAthPct?: number | null;
+	poolAgeHours: number | null;
+	swapCount: number;
+	uniqueTraders: number;
+	priceTrend: string | null;
+	lpLockedPct?: number | null;
 }

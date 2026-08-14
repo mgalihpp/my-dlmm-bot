@@ -7,7 +7,15 @@ import {
 } from "../src/telegram/agent/briefing.js";
 
 const DATA: BriefingData = {
-	portfolio: [{ poolName: "WIF/SOL", amountSol: 0.5, pnlPct: 12.3 }],
+	portfolio: [
+		{
+			poolName: "WIF/SOL",
+			amountSol: 0.5,
+			pnlPct: 12.3,
+			ageHours: 72,
+			feePerTvl24h: "0.0042",
+		},
+	],
 	deployedSol: 1.5,
 	stats: {
 		closes: 4,
@@ -27,6 +35,13 @@ const DATA: BriefingData = {
 			feeActiveTvlRatio: 0.012,
 			volume: 500_000,
 			priceVsAthPct: 45,
+			rugScore: 900,
+			holders: 10_000,
+			organicScore: 80,
+			tvl: 150_000,
+			volatility: 0.25,
+			tokenAgeHours: 96,
+			poolAgeHours: 48,
 		},
 	],
 };
@@ -38,6 +53,10 @@ describe("buildBriefingPrompt", () => {
 		expect(prompt).toContain("BONK/SOL");
 		expect(prompt).toContain("closes=4");
 		expect(prompt).toContain("1.5");
+		expect(prompt).toContain("ageHours=72");
+		expect(prompt).toContain("feePerTvl24h=0.0042");
+		expect(prompt).toContain("rugScore=900");
+		expect(prompt).toContain("poolAgeHours=48");
 	});
 
 	it("handles empty portfolio and market", () => {

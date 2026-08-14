@@ -13,6 +13,7 @@ const pool = (over: Partial<DiscoveryPool> = {}): DiscoveryPool =>
 		pool_address: "PoolAddr",
 		name: "AAA/SOL",
 		pool_type: "dlmm",
+		pool_created_at: Date.now() - 24 * 3_600_000,
 		token_x: {
 			address: "MintX",
 			symbol: "AAA",
@@ -114,6 +115,23 @@ describe("condensePool", () => {
 		expect(c.binStep).toBe(20);
 		expect(c.priceChangePct).toBeNull();
 		expect(c.tokenAgeHours).toBe(5);
+	});
+	it("condenses pool age and activity fields", () => {
+		const c = condensePool(
+			pool({
+				swap_count: 1234,
+				unique_traders: 567,
+				price_trend: "up",
+			}),
+		);
+		expect(c.poolAgeHours).toBe(24);
+		expect(c.swapCount).toBe(1234);
+		expect(c.uniqueTraders).toBe(567);
+		expect(c.priceTrend).toBe("up");
+	});
+	it("tolerates missing pool_created_at", () => {
+		const c = condensePool(pool({ pool_created_at: undefined }));
+		expect(c.poolAgeHours).toBeNull();
 	});
 });
 

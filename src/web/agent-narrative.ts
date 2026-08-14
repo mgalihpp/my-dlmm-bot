@@ -4,7 +4,9 @@ import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { ResolvedAgentLlm } from "../services/Config.js";
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
+import { loadSignalWeights } from "../telegram/agent/signalWeights.js";
 import type { AgentState } from "../telegram/agent/state.js";
+import { tradeStats } from "../telegram/agent/stats.js";
 
 export const NARRATIVE_DAY_MS = 24 * 3_600_000;
 
@@ -75,6 +77,18 @@ export function buildNarrativePrompt(
 					.map((e) => `- ${e.at} ${e.action} ${e.pool}`)
 					.join("\n")
 			: "- none";
+	const deployedSol = state.plans.reduce(
+		(sum, p) => sum + (p.amountSol ?? 0),
+		0,
+	);
+	const activePositions = state.plans.filter(
+		(p) => p.positionAddress != null,
+	).length;
+	const stats = tradeStats(loadSignalWeights().perf);
+	const statsLine =
+		stats.closes > 0
+			? `closes=${stats.closes} winRate=${Math.round(stats.winRate ?? 0)}% avg=${(stats.avgPnlPct ?? 0).toFixed(2)}% total=${(stats.totalPnlPct ?? 0).toFixed(2)}%`
+			: "no closed trades yet";
 	return [
 		"Anda adalah portfolio manager untuk bot likuiditas Solana DLMM. Ringkas aktivitas otomatis 24 jam terakhir dalam bahasa Indonesia, teks polos, tanpa markdown/emoji, maksimal 120 kata.",
 		"Cakup: 1) apa yang terjadi (open/close dengan nama pool, TP/SL, blocked dengan alasan), 2) anomali (eksekusi gagal, cycle dengan llm=failed — keputusan saat itu hanya berbasis heuristik), 3) catatan risiko penutup (posisi di luar range, capital terpusat, blocked opens).",
@@ -89,6 +103,9 @@ export function buildNarrativePrompt(
 		executions,
 		"",
 		`Total cycle sejauh ini: ${state.cycle}.`,
+		"",
+		`Deployed: ${deployedSol.toFixed(2)} SOL, posisi aktif: ${activePositions}.`,
+		`Stats: ${statsLine}`,
 	].join("\n");
 }
 
