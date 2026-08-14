@@ -471,11 +471,17 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				cfg = resolveAgentConfigFrom(await getConfig());
 				const wallet = await resolveWallet();
 				section("TP/SL FAST CHECK");
+				const t0 = Date.now();
 				await syncOnchainPlans(rt, wallet);
+				const t1 = Date.now();
 				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
 					includeOor: false,
 					myGen,
 				});
+				const t2 = Date.now();
+				logInfo(
+					`fast check done: sync=${t1 - t0}ms tpsl=${t2 - t1}ms total=${t2 - t0}ms`,
+				);
 			} catch (e) {
 				logError("fast cycle error:", e);
 				if (cfg) {
@@ -639,10 +645,14 @@ async function evaluateTpSl(
 	const plansWithPosition = [...rt.state.plans].filter(
 		(p) => p.positionAddress != null,
 	);
+	const t0 = Date.now();
 	const pnlByPool = await prefetchPlansPnl(
 		plansWithPosition,
 		(pool) => api.positionPnl(pool, wallet, "open"),
 		(pool, e) => logError("positionPnl failed for", pool, e),
+	);
+	logInfo(
+		`positionPnl fetch: ${Date.now() - t0}ms (${plansWithPosition.length} plans)`,
 	);
 	if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 	for (const plan of [...rt.state.plans]) {
@@ -1102,6 +1112,7 @@ async function evaluatePlans(
 				maxTop10Pct: cfg.risks.maxTop10Pct,
 				maxPriceVsAthPct: cfg.risks.maxPriceVsAthPct,
 				minTokenFeesSol: cfg.risks.minTokenFeesSol,
+				maxRugScore: cfg.risks.maxRugScore,
 				maxTotalSol: cfg.maxTotalSol,
 				maxOpenPositions: cfg.maxOpenPositions,
 				maxSolPerPosition: cfg.maxSolPerPosition,

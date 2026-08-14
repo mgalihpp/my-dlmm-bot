@@ -85,6 +85,7 @@ export interface AgentRiskConfig {
 	maxBotHoldersPct?: number;
 	maxTop10Pct?: number;
 	maxPriceVsAthPct?: number;
+	maxRugScore?: number;
 	blockWash?: boolean;
 	blockRugpull?: boolean;
 	blockDexScreenerPaid?: boolean;

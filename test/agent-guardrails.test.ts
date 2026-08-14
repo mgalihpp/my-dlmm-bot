@@ -39,6 +39,7 @@ const cfg: ResolvedAgentConfig = {
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
 		maxPriceVsAthPct: 80,
+		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,
 		blockDexScreenerPaid: true,
@@ -222,6 +223,7 @@ const riskCfg = {
 	maxBotHoldersPct: 30,
 	maxTop10Pct: 60,
 	maxPriceVsAthPct: 80,
+	maxRugScore: 1,
 	blockWash: true,
 	blockRugpull: true,
 	blockDexScreenerPaid: true,
@@ -252,6 +254,16 @@ describe("checkRisks", () => {
 		});
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain("rugpull");
+	});
+	it("blocks rugScore above maxRugScore", () => {
+		const r = checkRisks({ pool: { ...clean, rugScore: 2 }, risks: riskCfg });
+		expect(r.ok).toBe(false);
+		expect(r.reason).toContain("rugScore 2 > 1");
+	});
+	it("passes rugScore at or below maxRugScore", () => {
+		expect(
+			checkRisks({ pool: { ...clean, rugScore: 1 }, risks: riskCfg }).ok,
+		).toBe(true);
 	});
 	it("blocks wash trading", () => {
 		const r = checkRisks({ pool: { ...clean, isWash: true }, risks: riskCfg });

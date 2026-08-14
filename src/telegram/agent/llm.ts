@@ -55,6 +55,7 @@ export interface GuardrailContext {
 	maxTop10Pct: number | null;
 	maxPriceVsAthPct: number | null;
 	minTokenFeesSol: number | null;
+	maxRugScore: number | null;
 	maxTotalSol: number;
 	maxOpenPositions: number;
 	maxSolPerPosition: number;
@@ -77,6 +78,10 @@ export function buildGuardrailSection(g: GuardrailContext): string {
 		);
 	if (g.minTokenFeesSol != null)
 		lines.push(`- minTokenFeesSol=${g.minTokenFeesSol} SOL`);
+	if (g.maxRugScore != null)
+		lines.push(
+			`- maxRugScore=${g.maxRugScore} (RugCheck 0-2500; only 0-1 is clean, anything above means flagged risk)`,
+		);
 	lines.push(
 		`- capacity: ${g.openPositions}/${g.maxOpenPositions} open positions, deployed ${g.deployedSol.toFixed(2)}/${g.maxTotalSol} SOL cap, max ${g.maxSolPerPosition} SOL per position`,
 	);
@@ -216,7 +221,7 @@ export function buildOpenDecisionPrompt(
 		"- HOLD = wait or avoid",
 		"You may override the heuristic toward OPEN when fee potential clearly exceeds risk, but never toward a candidate breaching the guardrail thresholds below.",
 		"Use the heuristic score as context, not the only factor. Weigh risk fields.",
-		"Risk field notes: rugScore is RugCheck's 0-2500 score, lower = lower rug-pull risk, but no score (not even 1) means zero risk — meme tokens can still go to zero. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better. isRugpull/isWash/devSoldAll/dexScreenerPaid are hard-flag booleans — treat any true as a strong reason to HOLD. volatility is 24h price volatility. tokenAgeHours/poolAgeHours are ages in hours. priceTrend is the 24h trend direction. swapCount/uniqueTraders measure real activity. lpLockedPct is RugCheck's LP lock %.",
+		"Risk field notes: rugScore is RugCheck's 0-2500 score. Only rugScore 0-1 is clean — anything above 1 means flagged risk and is vetoed by maxRugScore, never OPEN it. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better. isRugpull/isWash/devSoldAll/dexScreenerPaid are hard-flag booleans — treat any true as a strong reason to HOLD. volatility is 24h price volatility. tokenAgeHours/poolAgeHours are ages in hours. priceTrend is the 24h trend direction. swapCount/uniqueTraders measure real activity. lpLockedPct is RugCheck's LP lock %.",
 		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"open|hold","rationale":"..."}]',
 		...(guardrailsSection ? ["", guardrailsSection] : []),
 		"",

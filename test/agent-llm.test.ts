@@ -40,6 +40,7 @@ const llmCfg: ResolvedAgentConfig = {
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
 		maxPriceVsAthPct: 80,
+		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,
 		blockDexScreenerPaid: true,
@@ -154,8 +155,8 @@ describe("buildOpenDecisionPrompt", () => {
 		expect(prompt).toContain("rugScore=1500");
 		expect(prompt).toContain("priceVsAthPct=60");
 		expect(prompt).toContain("0-2500");
-		expect(prompt).toContain("lower = lower rug-pull risk");
-		expect(prompt).toContain("meme tokens can still go to zero");
+		expect(prompt).toContain("rugScore 0-1 is clean");
+		expect(prompt).toContain("never OPEN it");
 	});
 
 	it("includes age, activity, trend and hard-flag fields when present", () => {

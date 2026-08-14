@@ -290,6 +290,11 @@ const EDITABLE_FIELDS = [
 		type: "number" as const,
 	},
 	{
+		key: "agent.risks.maxRugScore",
+		label: "Max RugCheck Score",
+		type: "number" as const,
+	},
+	{
 		key: "agent.risks.enabled",
 		label: "Guardrails Enabled",
 		type: "boolean" as const,

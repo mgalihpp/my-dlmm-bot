@@ -120,6 +120,7 @@ export function checkRisks(input: {
 		dexScreenerPaid?: boolean | null;
 		priceVsAthPct?: number | null;
 		fromAthPct?: number | null;
+		rugScore?: number | null;
 	};
 	risks: ResolvedAgentRisks;
 }): GuardOk {
@@ -127,6 +128,12 @@ export function checkRisks(input: {
 	if (!risks.enabled) return { ok: true, reason: null };
 	if (risks.blockRugpull && pool.isRugpull === true) {
 		return { ok: false, reason: "rugpull flagged" };
+	}
+	if (pool.rugScore != null && pool.rugScore > risks.maxRugScore) {
+		return {
+			ok: false,
+			reason: `rugScore ${pool.rugScore} > ${risks.maxRugScore}`,
+		};
 	}
 	if (risks.blockWash && pool.isWash === true) {
 		return { ok: false, reason: "wash trading flagged" };

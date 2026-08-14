@@ -42,6 +42,7 @@ const cfg: ResolvedAgentConfig = {
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
 		maxPriceVsAthPct: 80,
+		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,
 		blockDexScreenerPaid: true,
