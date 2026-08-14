@@ -8,6 +8,7 @@ import {
 	rpcHost,
 	shortAddr,
 } from "../src/web/layout.js";
+import { isPublicPath } from "../src/web/routes/shared.js";
 import {
 	badge,
 	fmtPct,
@@ -181,6 +182,38 @@ describe("layout pieces", () => {
 		const rendered = loginPage({ error: "bad <pw>" });
 		expect(rendered).toContain('name="password"');
 		expect(rendered).toContain("bad &lt;pw&gt;");
+	});
+
+	it("loginPage uses the observer access brand treatment", () => {
+		const rendered = loginPage();
+		expect(rendered).toContain('src="/images/logo.png"');
+		expect(rendered).toContain("Observer access");
+		expect(rendered).toContain(
+			"Read-only access to dashboards and on-chain data.",
+		);
+		expect(rendered).toContain('placeholder="Enter password"');
+		expect(rendered).toContain("Read only. No keys. No transactions.");
+		expect(rendered).toContain('class="login-note"');
+	});
+
+	it("pageShell uses the current logo asset in the web brand", () => {
+		const rendered = pageShell({
+			title: "Portfolio",
+			active: "portfolio",
+			body: "",
+			rpc: "rpc",
+			wallet: "wallet",
+		});
+		expect(rendered).toContain('src="/images/logo.png"');
+		expect(rendered).toContain("SOLANA LIQUIDITY OPS");
+		expect(rendered).not.toContain('class="brand-mark">V</span>');
+	});
+});
+
+describe("public web paths", () => {
+	it("allows the login logo without authenticating", () => {
+		expect(isPublicPath("/images/logo.png")).toBe(true);
+		expect(isPublicPath("/portfolio")).toBe(false);
 	});
 });
 

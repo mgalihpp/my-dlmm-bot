@@ -19,12 +19,21 @@ export function withCookie(
 	return HttpServerResponse.setHeader(response, "set-cookie", cookie);
 }
 
+export function isPublicPath(path: string): boolean {
+	return (
+		path === "/login" ||
+		path === "/logout" ||
+		path === "/health" ||
+		path === "/images/logo.png"
+	);
+}
+
 export function requireAuth(password: string) {
 	return HttpMiddleware.make((app) =>
 		Effect.gen(function* () {
 			const request = yield* HttpServerRequest.HttpServerRequest;
 			const path = request.url.split("?", 1)[0];
-			if (path === "/login" || path === "/logout" || path === "/health") {
+			if (isPublicPath(path)) {
 				return yield* app;
 			}
 

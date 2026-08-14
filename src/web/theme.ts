@@ -100,18 +100,19 @@ a:hover { text-decoration: underline; }
 }
 .brand-link:hover { text-decoration: none; }
 .brand-mark {
-	display: grid;
+	position: relative;
+	display: block;
+	overflow: hidden;
 	width: 25px;
 	height: 25px;
-	place-items: center;
-	border-radius: 3px;
-	background: var(--profit);
-	color: var(--background);
-	font: 800 15px monospace;
+	flex: 0 0 25px;
+	background: transparent;
 }
+.logo-crop img { position: absolute; display: block; max-width: none; }
+.brand-mark img { width: 92px; left: -34px; top: -18px; }
 .brand b, .brand small { display: block; }
 .brand b { font-size: 15px; letter-spacing: 0.16em; }
-.brand small { margin-top: 3px; color: var(--muted); font: 9px monospace; letter-spacing: 0.11em; }
+.brand small { margin-top: 3px; color: var(--muted); font: 8px monospace; letter-spacing: 0.08em; white-space: nowrap; }
 .close-nav, .mobile-menu {
 	display: none;
 	border: 0;
@@ -433,22 +434,33 @@ h2 { margin: 26px 0 12px; font-size: 15px; font-weight: 600; }
 h2 .sub { margin-left: 8px; font: normal 11px monospace; }
 .section-kicker { margin: -10px 0 18px; color: var(--muted); font: 10px monospace; letter-spacing: 0.12em; }
 
-.login-theme { position: fixed; top: 14px; right: 14px; z-index: 9; padding: 7px 10px; border: 1px solid var(--line); border-radius: 3px; background: var(--panel); color: var(--muted); font: 10px monospace; text-transform: uppercase; }
+.login-theme { position: fixed; top: 14px; right: 14px; z-index: 9; display: grid; width: 34px; height: 34px; place-items: center; padding: 0; border: 1px solid transparent; border-radius: 4px; background: transparent; color: var(--muted); }
 .login-theme:hover { border-color: var(--profit); color: var(--profit); }
-.login-layout { min-height: 100vh; display: grid; place-items: center; padding: 20px; }
-.login-card { width: min(100%, 820px); display: grid; grid-template-columns: 1.1fr 0.9fr; overflow: hidden; border: 1px solid var(--line); background: var(--panel); }
-.login-copy { padding: clamp(24px, 6vw, 56px); border-right: 1px solid var(--line); background: var(--profit); color: var(--background); }
-.login-copy .eyebrow { color: var(--background); opacity: 0.7; }
-.login-copy h1 { margin: 44px 0 16px; font-size: clamp(2.6rem, 8vw, 4.8rem); font-weight: 800; letter-spacing: -0.06em; line-height: 0.85; }
-.login-copy p { max-width: 30rem; font-size: 12px; line-height: 1.6; }
-.login-form { padding: clamp(24px, 6vw, 56px); }
-.login-form h2 { margin: 0 0 22px; font-size: 16px; font-weight: 600; }
-.login-form form { display: grid; gap: 12px; }
-.login-form label { color: var(--muted); font: 10px monospace; letter-spacing: 0.1em; text-transform: uppercase; }
-.login-form input { width: 100%; padding: 13px; border: 1px solid var(--line); border-radius: var(--radius); outline: 0; background: var(--background); color: var(--foreground); font: 11px monospace; }
+.login-theme svg { margin: 0; vertical-align: initial; }
+.login-layout { min-height: 100vh; display: grid; place-items: center; padding: 32px 20px; }
+.login-card { width: min(100%, 460px); }
+.login-copy { padding: 0; color: var(--foreground); text-align: center; }
+.login-brand { display: flex; align-items: center; justify-content: center; gap: 18px; margin: 0 0 36px; text-align: left; }
+.login-logo-mark { position: relative; width: 48px; height: 48px; flex: 0 0 48px; overflow: hidden; }
+.login-logo-mark img { width: 160px; left: -58px; top: -31px; }
+.login-wordmark strong, .login-wordmark small { display: block; }
+.login-wordmark strong { color: var(--foreground); font-size: 28px; font-weight: 400; letter-spacing: 0.23em; line-height: 1; }
+.login-wordmark small { margin-top: 6px; color: var(--muted); font: 12px monospace; letter-spacing: 0.1em; white-space: nowrap; }
+.login-copy h1 { margin: 0; font-size: 26px; font-weight: 400; letter-spacing: -0.03em; line-height: 1.25; }
+.login-copy p { margin: 12px 0 44px; color: var(--muted); font-size: 16px; line-height: 1.5; }
+.login-form { padding: 0; }
+.login-error { margin: 0 0 16px; padding: 11px 13px; border: 1px solid var(--loss); background: color-mix(in srgb, var(--loss) 9%, transparent); color: var(--loss); font-size: 12px; text-align: left; }
+.login-form form { display: grid; margin: 0; }
+.login-form label { display: block; margin-bottom: 14px; color: var(--muted); font: 12px monospace; letter-spacing: 0.03em; text-transform: uppercase; }
+.login-input-wrap { position: relative; }
+.login-form input { width: 100%; height: 56px; padding: 0 50px 0 17px; border: 1px solid var(--line); border-radius: 5px; outline: 0; background: transparent; color: var(--foreground); font: 15px Arial, sans-serif; }
+.login-form input::placeholder { color: var(--muted); opacity: 1; }
 .login-form input:focus { border-color: var(--blue); box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 25%, transparent); }
-.login-form button { padding: 13px; border: 1px solid var(--foreground); border-radius: var(--radius); background: var(--foreground); color: var(--background); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.login-lock { position: absolute; top: 50%; right: 16px; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.login-form button { width: 100%; height: 55px; margin-top: 20px; border: 1px solid var(--foreground); border-radius: 5px; background: var(--foreground); color: var(--background); font-size: 15px; font-weight: 500; letter-spacing: 0; text-transform: uppercase; }
 .login-form button:hover { border-color: var(--profit); background: var(--profit); }
+.login-note { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 42px 0 0; color: var(--muted); font-size: 14px; }
+.login-note svg { flex: 0 0 auto; }
 .scrim { display: none; }
 
 .page-region > * { animation: rise-in 240ms ease both; }
@@ -491,8 +503,13 @@ h2 .sub { margin-left: 8px; font: normal 11px monospace; }
 	th, td { padding-right: 12px; padding-left: 12px; }
 	.hbar-label { flex-basis: 92px; }
 	.hbar-value { flex-basis: 72px; }
-	.login-card { grid-template-columns: 1fr; }
-	.login-copy { border-right: 0; border-bottom: 1px solid var(--line); }
-	.login-copy h1 { margin-top: 24px; }
+	.login-layout { padding: 28px 18px; }
+	.login-brand { gap: 13px; margin-bottom: 30px; }
+	.login-logo-mark { width: 42px; height: 42px; flex-basis: 42px; }
+	.login-logo-mark img { width: 140px; left: -51px; top: -27px; }
+	.login-wordmark strong { font-size: 24px; }
+	.login-wordmark small { font-size: 10px; }
+	.login-copy h1 { font-size: 23px; }
+	.login-copy p { font-size: 14px; margin-bottom: 36px; }
 }
 `;

@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { HttpRouter, HttpServerResponse } from "@effect/platform";
 import { Effect } from "effect";
 import { AppLayer } from "../layers.js";
@@ -11,6 +13,10 @@ import { poolsRoutes } from "./routes/pools.js";
 import { portfolioRoutes } from "./routes/portfolio.js";
 import { requireAuth, type ShellInfo } from "./routes/shared.js";
 
+const LOGO_BYTES = readFileSync(
+	resolve(process.cwd(), "src/web/images/logo.png"),
+);
+
 export function buildRouter(password: string, shell: ShellInfo) {
 	const auth = authRoutes(password);
 	const portfolio = portfolioRoutes(shell);
@@ -23,6 +29,15 @@ export function buildRouter(password: string, shell: ShellInfo) {
 			Effect.succeed(HttpServerResponse.redirect("/portfolio")),
 		),
 		HttpRouter.get("/health", Effect.succeed(HttpServerResponse.text("ok"))),
+		HttpRouter.get(
+			"/images/logo.png",
+			Effect.succeed(
+				HttpServerResponse.uint8Array(LOGO_BYTES, {
+					contentType: "image/png",
+					headers: { "cache-control": "public, max-age=86400" },
+				}),
+			),
+		),
 		HttpRouter.get("/login", auth.loginPage),
 		HttpRouter.post("/login", auth.loginSubmit),
 		HttpRouter.get("/logout", auth.logout),

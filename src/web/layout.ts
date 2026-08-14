@@ -38,6 +38,12 @@ const NAV: ReadonlyArray<{
 	{ key: "agent", label: "Agent Log", href: "/agent" },
 ];
 
+const VEXIS_LOGO_SRC = "/images/logo.png";
+
+function logoMark(className: string): string {
+	return `<span class="logo-crop ${className}" aria-hidden="true"><img src="${VEXIS_LOGO_SRC}" alt=""></span>`;
+}
+
 export function pageShell(params: PageShellParams): string {
 	const links = NAV.map((item) => {
 		const active = item.key === params.active;
@@ -62,7 +68,7 @@ export function pageShell(params: PageShellParams): string {
 <main class="terminal">
 	<aside class="sidebar" id="primary-navigation">
 		<div class="brand">
-			<a class="brand-link" href="/portfolio"><span class="brand-mark">V</span><span><b>VEXIS</b><small>DLMM OPS</small></span></a>
+			<a class="brand-link" href="/portfolio">${logoMark("brand-mark")}<span><b>VEXIS</b><small>SOLANA LIQUIDITY OPS</small></span></a>
 			<button class="close-nav" type="button" aria-label="Close navigation" onclick="closeNav()">&#10005;</button>
 		</div>
 		<div class="workspace"><span class="dot green"></span>MAINNET<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></div>
@@ -155,7 +161,7 @@ export function errorBanner(message: string): string {
 
 export function loginPage(opts: { error?: string | null } = {}): string {
 	const error = opts.error
-		? `<p class="error">${escapeHtml(opts.error)}</p>`
+		? `<p class="login-error">${escapeHtml(opts.error)}</p>`
 		: "";
 	return `<!doctype html>
 <html lang="en">
@@ -171,18 +177,21 @@ export function loginPage(opts: { error?: string | null } = {}): string {
 <main class="login-layout">
 	<div class="login-card">
 		<section class="login-copy">
-			<div class="eyebrow">VEXIS / SOLANA LIQUIDITY OPS</div>
-			<h1>READ<br>ONLY.</h1>
-			<p>Observe portfolio health, screen DLMM pools, and inspect agent decisions. No private keys. No execution controls.</p>
+			<div class="login-brand">${logoMark("login-logo-mark")}<span class="login-wordmark"><strong>VEXIS</strong><small>SOLANA LIQUIDITY OPS</small></span></div>
+			<h1>Observer access</h1>
+			<p>Read-only access to dashboards and on-chain data.</p>
 		</section>
 		<section class="login-form">
-			<h2>Observer access</h2>
 			${error}
 			<form method="post" action="/login">
 				<label for="password">Dashboard password</label>
-				<input id="password" type="password" name="password" placeholder="ENTER PASSWORD" autofocus required>
+				<div class="login-input-wrap">
+					<input id="password" type="password" name="password" placeholder="Enter password" autofocus required>
+					<svg class="login-lock" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="4" y="10" width="16" height="11" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/><circle cx="12" cy="15.5" r="1" fill="currentColor" stroke="none"/></svg>
+				</div>
 				<button type="submit">Enter dashboard</button>
 			</form>
+			<p class="login-note"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M12 3 19 6v5c0 4.5-2.7 8-7 10-4.3-2-7-5.5-7-10V6l7-3Z"/><path d="m9 12 2 2 4-4"/></svg><span>Read only. No keys. No transactions.</span></p>
 		</section>
 	</div>
 </main>
