@@ -16,6 +16,7 @@ export type TokenInfo = Schema.Schema.Type<typeof TokenInfo>;
 export const DlmmPool = Schema.Struct({
 	address: Schema.String,
 	name: Schema.String,
+	created_at: Schema.Number,
 	token_x: TokenInfo,
 	token_y: TokenInfo,
 	tvl: Schema.Number,

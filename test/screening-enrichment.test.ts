@@ -21,6 +21,7 @@ const poolFixture = {
 	pool_address: "Pool111",
 	name: "FOO-SOL",
 	pool_type: "dlmm",
+	pool_created_at: Date.now() - 24 * 3_600_000,
 	token_x: {
 		address: "Mint111",
 		symbol: "FOO",
@@ -139,6 +140,8 @@ describe("Screening enrichment", () => {
 		expect(pool.isWash).toBe(false);
 		expect(pool.dexScreenerPaid).toBe(false);
 		expect(pool.rugScore).toBe(1200);
+		expect(pool.lpLockedPct).toBe(0);
+		expect(pool.poolAgeHours).toBe(24);
 	});
 
 	it("fills priceVsAthPct as price % of 24h OHLCV high (not drop %)", async () => {

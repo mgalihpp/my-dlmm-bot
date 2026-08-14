@@ -22,6 +22,8 @@ export interface BriefingPoolLine {
 	poolName: string;
 	amountSol: number;
 	pnlPct: number | null;
+	ageHours: number | null;
+	feePerTvl24h: string | null;
 }
 
 export interface BriefingMarketLine {
@@ -30,6 +32,13 @@ export interface BriefingMarketLine {
 	feeActiveTvlRatio: number;
 	volume: number;
 	priceVsAthPct: number | null;
+	rugScore: number | null;
+	holders: number;
+	organicScore: number;
+	tvl: number;
+	volatility: number;
+	tokenAgeHours: number | null;
+	poolAgeHours: number | null;
 }
 
 export interface BriefingData {
@@ -46,7 +55,7 @@ export function buildBriefingPrompt(data: BriefingData): string {
 			? data.portfolio
 					.map(
 						(p) =>
-							`- ${p.poolName} ${p.amountSol} SOL pnl=${p.pnlPct == null ? "n/a" : `${p.pnlPct.toFixed(2)}%`}`,
+							`- ${p.poolName} ${p.amountSol} SOL pnl=${p.pnlPct == null ? "n/a" : `${p.pnlPct.toFixed(2)}%`}${p.ageHours != null ? ` ageHours=${p.ageHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}`,
 					)
 					.join("\n")
 			: "- none";
@@ -55,7 +64,7 @@ export function buildBriefingPrompt(data: BriefingData): string {
 			? data.market
 					.map(
 						(m) =>
-							`- ${m.name} heuristic=${m.heuristic} feeTvlRatio=${m.feeActiveTvlRatio.toFixed(4)} volume=${m.volume}${m.priceVsAthPct != null ? ` priceVsAthPct=${m.priceVsAthPct}` : ""}`,
+							`- ${m.name} heuristic=${m.heuristic} feeTvlRatio=${m.feeActiveTvlRatio.toFixed(4)} volume=${m.volume} rugScore=${m.rugScore ?? "n/a"} holders=${m.holders} organic=${m.organicScore} tvl=${m.tvl} volatility=${m.volatility.toFixed(4)}${m.priceVsAthPct != null ? ` priceVsAthPct=${m.priceVsAthPct}` : ""}${m.tokenAgeHours != null ? ` tokenAgeHours=${m.tokenAgeHours}` : ""}${m.poolAgeHours != null ? ` poolAgeHours=${m.poolAgeHours}` : ""}`,
 					)
 					.join("\n")
 			: "- none";
@@ -70,6 +79,7 @@ export function buildBriefingPrompt(data: BriefingData): string {
 		"2. Last 24h activity: what opened, closed, hit TP/SL, was blocked or failed.",
 		"3. Market snapshot: notable top screened pools by heuristic, fees, volume.",
 		"Language: Indonesian. Be specific, no filler. Flag risks: out-of-range positions, losing trades, concentrated capital, blocked opens.",
+		"For portfolio lines, flag position age and feePerTvl24h when they indicate risk (old out-of-range position, low earned fees).",
 		"",
 		"Portfolio:",
 		portfolioSection,
@@ -159,6 +169,11 @@ export async function collectBriefingData(
 				poolName: plan.poolName,
 				amountSol: plan.amountSol,
 				pnlPct: pnlPctValue(pos),
+				ageHours:
+					plan.openedAt != null
+						? Math.floor((Date.now() - Date.parse(plan.openedAt)) / 3_600_000)
+						: null,
+				feePerTvl24h: pos.feePerTvl24h,
 			});
 		} catch {
 			// positionPnl failed for this pool → skip
@@ -184,6 +199,13 @@ export async function collectBriefingData(
 				feeActiveTvlRatio: p.feeActiveTvlRatio,
 				volume: p.volume,
 				priceVsAthPct: p.priceVsAthPct ?? null,
+				rugScore: p.rugScore ?? null,
+				holders: p.holders,
+				organicScore: p.organicScore,
+				tvl: p.tvl,
+				volatility: p.volatility,
+				tokenAgeHours: p.tokenAgeHours ?? null,
+				poolAgeHours: p.poolAgeHours ?? null,
 			});
 		}
 	} catch {

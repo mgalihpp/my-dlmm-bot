@@ -50,6 +50,7 @@ import {
 	readJournalAll,
 } from "./journal.js";
 import {
+	buildGuardrailSection,
 	type LlmCandidate,
 	type OorPosition,
 	requestOpenDecisions,
@@ -65,7 +66,12 @@ import {
 	signalSnapshot,
 	weightsSummary,
 } from "./signalWeights.js";
-import { type AgentState, loadState, saveState } from "./state.js";
+import {
+	type AgentPlan,
+	type AgentState,
+	loadState,
+	saveState,
+} from "./state.js";
 import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
@@ -431,7 +437,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 					Math.max(agentCfg.txCooldownMs, 60_000),
 					() => rt.runCycle(),
 				);
-				eventFiber = schedule("event", 30_000, () => rt.runFast());
+				// TP/SL fast check — tight interval so SL triggers early in a
+				// fast dump (rugpull) instead of catching the price mid-fall.
+				eventFiber = schedule("event", 10_000, () => rt.runFast());
 				oorFiber = schedule("oor", agentCfg.intervalMinutes * 60_000, () =>
 					rt.runOor(),
 				);
@@ -581,6 +589,29 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	return rt;
 }
 
+/**
+ * Fetches position PnL for all plans in parallel. Failed fetches map to null
+ * (caller keeps skip-on-error semantics). Keyed by pool — plans are deduped
+ * by `filterDuplicates`, so keys are unique.
+ */
+export async function prefetchPlansPnl<A>(
+	plans: readonly AgentPlan[],
+	fetch: (pool: string) => Promise<A>,
+	onError?: (pool: string, e: unknown) => void,
+): Promise<Map<string, A | null>> {
+	const results = await Promise.all(
+		plans.map(async (plan) => {
+			try {
+				return [plan.pool, await fetch(plan.pool)] as const;
+			} catch (e) {
+				onError?.(plan.pool, e);
+				return [plan.pool, null] as const;
+			}
+		}),
+	);
+	return new Map(results);
+}
+
 async function evaluateTpSl(
 	rt: RuntimeAgent,
 	bot: Bot,
@@ -590,16 +621,20 @@ async function evaluateTpSl(
 	opts: { includeOor?: boolean; myGen: number } = { myGen: 0 },
 ) {
 	const oorPositions: OorPosition[] = [];
+	const plansWithPosition = [...rt.state.plans].filter(
+		(p) => p.positionAddress != null,
+	);
+	const pnlByPool = await prefetchPlansPnl(
+		plansWithPosition,
+		(pool) => api.positionPnl(pool, wallet, "open"),
+		(pool, e) => logError("positionPnl failed for", pool, e),
+	);
+	if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 	for (const plan of [...rt.state.plans]) {
 		if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 		if (!plan.positionAddress) continue;
-		let pdata;
-		try {
-			pdata = await api.positionPnl(plan.pool, wallet, "open");
-		} catch (e) {
-			logError("positionPnl failed for", plan.pool, e);
-			continue;
-		}
+		const pdata = pnlByPool.get(plan.pool) ?? null;
+		if (pdata === null) continue;
 		const pos = pdata.positions.find(
 			(pp) => pp.positionAddress === plan.positionAddress,
 		);
@@ -619,6 +654,20 @@ async function evaluateTpSl(
 				minPrice: pos.minPrice,
 				maxPrice: pos.maxPrice,
 				poolActivePrice: pos.poolActivePrice,
+				positionAgeHours:
+					pos.createdAt != null && pos.createdAt > 0
+						? Math.floor((Date.now() - pos.createdAt) / 3_600_000)
+						: null,
+				feePerTvl24h: pos.feePerTvl24h,
+				pnlUsd: pos.pnlUsd,
+				unrealizedPnlSol: pos.unrealizedPnl?.balancesSol ?? null,
+				amountSol: plan.amountSol,
+				openSignals: plan.signals
+					? Object.entries(plan.signals)
+							.sort((a, b) => b[1] - a[1])
+							.map(([name, w]) => `${name}:${w}`)
+							.join(",")
+					: null,
 			});
 		}
 		if (pct == null) continue;
@@ -1008,10 +1057,49 @@ async function evaluatePlans(
 		botHoldersPct: p.botHoldersPct ?? null,
 		globalFeesSol: p.globalFeesSol ?? null,
 		activePositions: p.activePositions,
+		tvl: p.tvl,
+		activeTvl: p.activeTvl,
+		mcap: p.mcap,
+		volatility: p.volatility,
+		binStep: p.binStep,
+		baseFeePct: p.baseFeePct,
+		fee: p.fee,
+		openPositions: p.openPositions,
+		tokenAgeHours: p.tokenAgeHours ?? null,
+		price: p.price,
+		priceChangePct: p.priceChangePct ?? null,
+		volumeChangePct: p.volumeChangePct ?? null,
+		fromAthPct: p.fromAthPct ?? null,
+		poolAgeHours: p.poolAgeHours ?? null,
+		swapCount: p.swapCount,
+		uniqueTraders: p.uniqueTraders,
+		priceTrend: p.priceTrend ?? null,
+		lpLockedPct: p.lpLockedPct ?? null,
+		isRugpull: p.isRugpull ?? null,
+		isWash: p.isWash ?? null,
+		devSoldAll: p.devSoldAll ?? null,
+		dexScreenerPaid: p.dexScreenerPaid ?? null,
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
 	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
+	const guardrailsSection = cfg.risks.enabled
+		? buildGuardrailSection({
+				maxBundlePct: cfg.risks.maxBundlePct,
+				maxBotHoldersPct: cfg.risks.maxBotHoldersPct,
+				maxTop10Pct: cfg.risks.maxTop10Pct,
+				maxPriceVsAthPct: cfg.risks.maxPriceVsAthPct,
+				minTokenFeesSol: cfg.risks.minTokenFeesSol,
+				maxTotalSol: cfg.maxTotalSol,
+				maxOpenPositions: cfg.maxOpenPositions,
+				maxSolPerPosition: cfg.maxSolPerPosition,
+				deployedSol,
+				openPositions,
+				cooldowns: rt.state.cooldowns.filter(
+					(c) => Date.parse(c.until) > Date.now(),
+				),
+			})
+		: undefined;
 	const {
 		decisions: rawDecisions,
 		failed,
@@ -1021,6 +1109,7 @@ async function evaluatePlans(
 		candidates: llmCandidates,
 		weightsSummary: weightsSummary(weights),
 		portfolioContext,
+		guardrails: guardrailsSection,
 	});
 	journal.llmStatus =
 		llmCandidates.length === 0 ? "skipped" : failed ? "failed" : "ok";

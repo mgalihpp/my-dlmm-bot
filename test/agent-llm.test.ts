@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import { describe, expect, it, vi } from "vitest";
 import type { ResolvedAgentConfig } from "../src/services/Config.js";
 import {
+	buildGuardrailSection,
 	buildOpenDecisionPrompt,
 	buildPositionPrompt,
 	describeLlmFailure,
@@ -68,6 +69,51 @@ const candidates = [
 	},
 ];
 
+describe("buildGuardrailSection", () => {
+	const ctx = {
+		maxBundlePct: 30,
+		maxBotHoldersPct: 30,
+		maxTop10Pct: 60,
+		maxPriceVsAthPct: 80,
+		minTokenFeesSol: 30,
+		maxTotalSol: 3,
+		maxOpenPositions: 4,
+		maxSolPerPosition: 0.5,
+		deployedSol: 1.2,
+		openPositions: 2,
+		cooldowns: [
+			{
+				pool: "PoolC",
+				poolName: "CCC/SOL",
+				until: "2026-08-15T00:00:00.000Z",
+				reason: "rug check",
+			},
+		],
+	};
+	it("renders thresholds, capacity and cooldowns", () => {
+		const s = buildGuardrailSection(ctx);
+		expect(s).toContain("maxBundlePct=30%");
+		expect(s).toContain("maxPriceVsAthPct=80%");
+		expect(s).toContain("minTokenFeesSol=30 SOL");
+		expect(s).toContain("2/4 open positions");
+		expect(s).toContain("CCC/SOL");
+		expect(s).toContain("rug check");
+	});
+	it("skips unset thresholds and empty cooldowns", () => {
+		const s = buildGuardrailSection({
+			...ctx,
+			maxBundlePct: null,
+			maxBotHoldersPct: null,
+			maxTop10Pct: null,
+			maxPriceVsAthPct: null,
+			minTokenFeesSol: null,
+			cooldowns: [],
+		});
+		expect(s).not.toContain("maxBundlePct");
+		expect(s).toContain("cooldown: none");
+	});
+});
+
 describe("buildOpenDecisionPrompt", () => {
 	it("includes candidates, open/hold instruction and portfolio context", () => {
 		const prompt = buildOpenDecisionPrompt(
@@ -110,6 +156,66 @@ describe("buildOpenDecisionPrompt", () => {
 		expect(prompt).toContain("0-2500");
 		expect(prompt).toContain("lower = lower rug-pull risk");
 		expect(prompt).toContain("meme tokens can still go to zero");
+	});
+
+	it("includes age, activity, trend and hard-flag fields when present", () => {
+		const prompt = buildOpenDecisionPrompt(
+			[
+				{
+					pool: "Pool111",
+					pair: "FOO/SOL",
+					heuristic: 80,
+					feeActiveTvlRatio: 0.05,
+					organicScore: 70,
+					holders: 1000,
+					volume: 50000,
+					tvl: 20000,
+					activeTvl: 15000,
+					mcap: 1_000_000,
+					volatility: 0.12,
+					binStep: 100,
+					baseFeePct: 0.003,
+					fee: 100,
+					openPositions: 20,
+					tokenAgeHours: 48,
+					price: 1,
+					priceChangePct: 5.2,
+					volumeChangePct: -10.1,
+					fromAthPct: 0.6,
+					poolAgeHours: 24,
+					swapCount: 1234,
+					uniqueTraders: 567,
+					priceTrend: "up",
+					lpLockedPct: 80,
+					isRugpull: false,
+					isWash: false,
+					devSoldAll: true,
+					dexScreenerPaid: false,
+				},
+			],
+			undefined,
+			undefined,
+			buildGuardrailSection({
+				maxBundlePct: 30,
+				maxBotHoldersPct: 30,
+				maxTop10Pct: 60,
+				maxPriceVsAthPct: 80,
+				minTokenFeesSol: 30,
+				maxTotalSol: 3,
+				maxOpenPositions: 4,
+				maxSolPerPosition: 0.5,
+				deployedSol: 1.2,
+				openPositions: 2,
+				cooldowns: [],
+			}),
+		);
+		expect(prompt).toContain("poolAgeHours=24");
+		expect(prompt).toContain("tokenAgeHours=48");
+		expect(prompt).toContain("volatility=0.1200");
+		expect(prompt).toContain("priceTrend=up");
+		expect(prompt).toContain("devSoldAll=true");
+		expect(prompt).toContain("Guardrail thresholds");
+		expect(prompt).toContain("maxBundlePct=30%");
 	});
 });
 
@@ -192,6 +298,31 @@ describe("buildPositionPrompt", () => {
 			},
 		]);
 		expect(prompt).toContain("pnlPct=-2.50%");
+	});
+
+	it("renders position age, fees, pnl and open signals when present", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolA",
+				poolName: "AAA/SOL",
+				pnlPct: -2.5,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "3",
+				positionAgeHours: 48,
+				feePerTvl24h: "0.0012",
+				pnlUsd: "-12.5",
+				unrealizedPnlSol: "0.05",
+				amountSol: 0.5,
+				openSignals: "feeActiveTvlRatio:1.45,volume:1.1",
+			},
+		]);
+		expect(prompt).toContain("positionAgeHours=48");
+		expect(prompt).toContain("feePerTvl24h=0.0012");
+		expect(prompt).toContain("pnlUsd=-12.5");
+		expect(prompt).toContain("amountSol=0.5");
+		expect(prompt).toContain("openSignals=feeActiveTvlRatio:1.45,volume:1.1");
+		expect(prompt).toContain("position age");
 	});
 });
 

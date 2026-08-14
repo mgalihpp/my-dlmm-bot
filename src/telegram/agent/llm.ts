@@ -18,6 +18,77 @@ export interface LlmCandidate {
 	botHoldersPct?: number | null;
 	globalFeesSol?: number | null;
 	activePositions?: number | null;
+	tvl?: number | null;
+	activeTvl?: number | null;
+	mcap?: number | null;
+	volatility?: number | null;
+	binStep?: number | null;
+	baseFeePct?: number | null;
+	fee?: number | null;
+	openPositions?: number | null;
+	tokenAgeHours?: number | null;
+	price?: number | null;
+	priceChangePct?: number | null;
+	volumeChangePct?: number | null;
+	fromAthPct?: number | null;
+	poolAgeHours?: number | null;
+	swapCount?: number | null;
+	uniqueTraders?: number | null;
+	priceTrend?: string | null;
+	lpLockedPct?: number | null;
+	isRugpull?: boolean | null;
+	isWash?: boolean | null;
+	devSoldAll?: boolean | null;
+	dexScreenerPaid?: boolean | null;
+}
+
+export interface CooldownEntry {
+	pool: string;
+	poolName: string;
+	until: string;
+	reason: string;
+}
+
+export interface GuardrailContext {
+	maxBundlePct: number | null;
+	maxBotHoldersPct: number | null;
+	maxTop10Pct: number | null;
+	maxPriceVsAthPct: number | null;
+	minTokenFeesSol: number | null;
+	maxTotalSol: number;
+	maxOpenPositions: number;
+	maxSolPerPosition: number;
+	deployedSol: number;
+	openPositions: number;
+	cooldowns: readonly CooldownEntry[];
+}
+
+export function buildGuardrailSection(g: GuardrailContext): string {
+	const lines = [
+		"Guardrail thresholds (hard veto — opens breaching any of these are rejected by the bot):",
+	];
+	if (g.maxBundlePct != null) lines.push(`- maxBundlePct=${g.maxBundlePct}%`);
+	if (g.maxBotHoldersPct != null)
+		lines.push(`- maxBotHoldersPct=${g.maxBotHoldersPct}%`);
+	if (g.maxTop10Pct != null) lines.push(`- maxTop10Pct=${g.maxTop10Pct}%`);
+	if (g.maxPriceVsAthPct != null)
+		lines.push(
+			`- maxPriceVsAthPct=${g.maxPriceVsAthPct}% (price as % of 24h high)`,
+		);
+	if (g.minTokenFeesSol != null)
+		lines.push(`- minTokenFeesSol=${g.minTokenFeesSol} SOL`);
+	lines.push(
+		`- capacity: ${g.openPositions}/${g.maxOpenPositions} open positions, deployed ${g.deployedSol.toFixed(2)}/${g.maxTotalSol} SOL cap, max ${g.maxSolPerPosition} SOL per position`,
+	);
+	if (g.cooldowns.length > 0) {
+		lines.push("- cooldown (do not open):");
+		for (const c of g.cooldowns) {
+			lines.push(`  - ${c.poolName || c.pool} until ${c.until} (${c.reason})`);
+		}
+	} else {
+		lines.push("- cooldown: none");
+	}
+	return lines.join("\n");
 }
 
 export type PositionAction = "hold" | "close";
@@ -29,6 +100,12 @@ export interface OorPosition {
 	minPrice: string;
 	maxPrice: string;
 	poolActivePrice: string | null;
+	positionAgeHours?: number | null;
+	feePerTvl24h?: string | null;
+	pnlUsd?: string | null;
+	unrealizedPnlSol?: string | null;
+	amountSol?: number | null;
+	openSignals?: string | null;
 }
 
 export interface PositionDecision {
@@ -65,21 +142,83 @@ export function buildOpenDecisionPrompt(
 	candidates: readonly LlmCandidate[],
 	weightsSummary?: string,
 	portfolioContext?: string,
+	guardrailsSection?: string,
 ): string {
 	const table = candidates
-		.map(
-			(c) =>
-				`- pool=${c.pool} pair=${c.pair} heuristic=${c.heuristic} feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)} organic=${c.organicScore} holders=${c.holders} volume=${c.volume}${c.priceVsAthPct != null ? ` priceVsAthPct=${c.priceVsAthPct}` : ""}${c.rugScore != null ? ` rugScore=${c.rugScore}` : ""}${c.top10Pct != null ? ` top10Pct=${c.top10Pct}` : ""}${c.bundlePct != null ? ` bundlePct=${c.bundlePct}` : ""}${c.botHoldersPct != null ? ` botHoldersPct=${c.botHoldersPct}` : ""}${c.globalFeesSol != null ? ` globalFeesSol=${c.globalFeesSol}` : ""}${c.activePositions != null ? ` activePositions=${c.activePositions}` : ""}`,
-		)
+		.map((c) => {
+			const parts = [
+				`pool=${c.pool}`,
+				`pair=${c.pair}`,
+				`heuristic=${c.heuristic}`,
+				`feeTvlRatio=${c.feeActiveTvlRatio.toFixed(4)}`,
+				`organic=${c.organicScore}`,
+				`holders=${c.holders}`,
+				`volume=${c.volume}`,
+			];
+			return parts
+				.concat(
+					...(c.tvl != null ? [`tvl=${c.tvl}`] : []),
+					...(c.activeTvl != null ? [`activeTvl=${c.activeTvl}`] : []),
+					...(c.mcap != null ? [`mcap=${c.mcap}`] : []),
+					...(c.fee != null ? [`fee=${c.fee}`] : []),
+					...(c.volatility != null
+						? [`volatility=${c.volatility.toFixed(4)}`]
+						: []),
+					...(c.binStep != null ? [`binStep=${c.binStep}`] : []),
+					...(c.baseFeePct != null ? [`baseFeePct=${c.baseFeePct}`] : []),
+					...(c.price != null ? [`price=${c.price}`] : []),
+					...(c.priceChangePct != null
+						? [`priceChangePct=${c.priceChangePct}`]
+						: []),
+					...(c.volumeChangePct != null
+						? [`volumeChangePct=${c.volumeChangePct}`]
+						: []),
+					...(c.fromAthPct != null ? [`fromAthPct=${c.fromAthPct}`] : []),
+					...(c.tokenAgeHours != null
+						? [`tokenAgeHours=${c.tokenAgeHours}`]
+						: []),
+					...(c.poolAgeHours != null ? [`poolAgeHours=${c.poolAgeHours}`] : []),
+					...(c.swapCount != null ? [`swapCount=${c.swapCount}`] : []),
+					...(c.uniqueTraders != null
+						? [`uniqueTraders=${c.uniqueTraders}`]
+						: []),
+					...(c.priceTrend != null ? [`priceTrend=${c.priceTrend}`] : []),
+					...(c.lpLockedPct != null ? [`lpLockedPct=${c.lpLockedPct}`] : []),
+					...(c.isRugpull != null ? [`isRugpull=${c.isRugpull}`] : []),
+					...(c.isWash != null ? [`isWash=${c.isWash}`] : []),
+					...(c.devSoldAll != null ? [`devSoldAll=${c.devSoldAll}`] : []),
+					...(c.dexScreenerPaid != null
+						? [`dexScreenerPaid=${c.dexScreenerPaid}`]
+						: []),
+					...(c.priceVsAthPct != null
+						? [`priceVsAthPct=${c.priceVsAthPct}`]
+						: []),
+					...(c.rugScore != null ? [`rugScore=${c.rugScore}`] : []),
+					...(c.top10Pct != null ? [`top10Pct=${c.top10Pct}`] : []),
+					...(c.bundlePct != null ? [`bundlePct=${c.bundlePct}`] : []),
+					...(c.botHoldersPct != null
+						? [`botHoldersPct=${c.botHoldersPct}`]
+						: []),
+					...(c.globalFeesSol != null
+						? [`globalFeesSol=${c.globalFeesSol}`]
+						: []),
+					...(c.activePositions != null
+						? [`activePositions=${c.activePositions}`]
+						: []),
+				)
+				.join(" ");
+		})
 		.join("\n");
 	return [
 		"You are a portfolio manager for a DLMM liquidity bot. Candidate pools below passed deterministic screening.",
 		"Decide for EACH whether to OPEN a new position now or HOLD.",
 		"- OPEN = strong fee potential, acceptable risk, fits portfolio context",
 		"- HOLD = wait or avoid",
+		"You may override the heuristic toward OPEN when fee potential clearly exceeds risk, but never toward a candidate breaching the guardrail thresholds below.",
 		"Use the heuristic score as context, not the only factor. Weigh risk fields.",
-		"Risk field notes: rugScore is RugCheck's 0-2500 score, lower = lower rug-pull risk, but no score (not even 1) means zero risk — meme tokens can still go to zero. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better.",
+		"Risk field notes: rugScore is RugCheck's 0-2500 score, lower = lower rug-pull risk, but no score (not even 1) means zero risk — meme tokens can still go to zero. priceVsAthPct is % of ATH. top10Pct/bundlePct/botHoldersPct are percentages, lower is better. isRugpull/isWash/devSoldAll/dexScreenerPaid are hard-flag booleans — treat any true as a strong reason to HOLD. volatility is 24h price volatility. tokenAgeHours/poolAgeHours are ages in hours. priceTrend is the 24h trend direction. swapCount/uniqueTraders measure real activity. lpLockedPct is RugCheck's LP lock %.",
 		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"open|hold","rationale":"..."}]',
+		...(guardrailsSection ? ["", guardrailsSection] : []),
 		"",
 		"Candidates:",
 		table,
@@ -124,6 +263,7 @@ export async function requestOpenDecisions(opts: {
 	candidates: readonly LlmCandidate[];
 	weightsSummary?: string;
 	portfolioContext?: string;
+	guardrails?: string;
 }): Promise<{
 	decisions: LlmOpenDecision[] | null;
 	failed: boolean;
@@ -147,6 +287,7 @@ export async function requestOpenDecisions(opts: {
 		opts.candidates,
 		opts.weightsSummary,
 		opts.portfolioContext,
+		opts.guardrails,
 	);
 	logInfo("LLM open-decision request:", {
 		model: cfg.llm.model,
@@ -188,12 +329,12 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	const table = positions
 		.map(
 			(p) =>
-				`- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}`,
+				`- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`,
 		)
 		.join("\n");
 	return [
 		"You manage DLMM liquidity positions. Each position below is out of range — its bin range no longer covers the pool's active price, so it earns no fees.",
-		"Decide for each position: `hold` (keep, price may re-enter range) or `close` (zap out to WSOL). Weigh pnlPct and how far the active price sits from the range.",
+		"Decide for each position: `hold` (keep, price may re-enter range) or `close` (zap out to WSOL). Weigh pnlPct, how far the active price sits from the range, position age, and fee opportunity cost: a young position near range is worth holding; an old position many hours out of range that is losing and earning low fees is worth closing. openSignals is the signal snapshot from when the position was opened.",
 		'Reply with a JSON array only, never markdown: [{"pool":"<exact pool id>","action":"hold|close","rationale":"..."}]',
 		"",
 		"Positions:",

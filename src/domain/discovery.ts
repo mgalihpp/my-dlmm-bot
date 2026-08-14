@@ -19,6 +19,7 @@ export type DiscoveryTokenInfo = Schema.Schema.Type<typeof DiscoveryTokenInfo>;
 export const DiscoveryPool = Schema.Struct({
 	pool_address: Schema.String,
 	name: Schema.String,
+	pool_created_at: Schema.Number,
 	pool_type: Schema.String,
 	token_x: DiscoveryTokenInfo,
 	token_y: DiscoveryTokenInfo,

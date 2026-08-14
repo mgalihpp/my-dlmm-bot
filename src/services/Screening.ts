@@ -107,6 +107,7 @@ const make = Effect.gen(function* () {
 								isRugpull?: boolean | null;
 								isWash?: boolean | null;
 								devSoldAll?: boolean | null;
+								lpLockedPct?: number | null;
 							};
 							const t = assign(audit);
 							poolMut.bundlePct = t?.bundlePct ?? null;
@@ -116,6 +117,7 @@ const make = Effect.gen(function* () {
 							poolMut.dexScreenerPaid = t?.dexScreenerPaid ?? null;
 							const s = assign(summary);
 							poolMut.rugScore = s?.score ?? null;
+							poolMut.lpLockedPct = s?.lpLockedPct ?? null;
 							poolMut.isRugpull =
 								s?.risks?.some(
 									(r) =>

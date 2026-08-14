@@ -206,12 +206,16 @@ describe("buildNarrativePrompt", () => {
 		expect(prompt).toContain("exec=failed");
 		expect(prompt).toContain("llm=ok");
 		expect(prompt).toContain("...");
+		expect(prompt).toContain("Deployed:");
+		expect(prompt).toContain("Stats:");
 		expect(prompt.length).toBeLessThan(2500);
 	});
 	it("handles empty journal and empty state sections", () => {
 		const prompt = buildNarrativePrompt([], mkState());
 		expect(prompt).toContain("- kosong");
 		expect(prompt).toContain("- none");
+		expect(prompt).toContain("Deployed:");
+		expect(prompt).toContain("posisi aktif:");
 	});
 	it("marks llm-failed cycles", () => {
 		const entries = [
