@@ -298,12 +298,18 @@ export async function requestOpenDecisions(opts: {
 		prompt,
 	});
 	try {
-		const { text } = await generateText({
+		const result = await generateText({
 			model: provider(cfg.llm.model),
 			messages: [{ role: "user", content: prompt }],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
+			providerOptions: { vexisLlm: { thinking: { type: "disabled" } } },
+		});
+		const { text, usage } = result;
+		logInfo("LLM open-decision usage:", {
+			input: usage.inputTokens,
+			output: usage.outputTokens,
 		});
 		logInfo("LLM open-decision raw response:", text);
 		if (!text)
@@ -404,12 +410,18 @@ export async function requestPositionDecisions(opts: {
 		prompt,
 	});
 	try {
-		const { text } = await generateText({
+		const result = await generateText({
 			model: provider(cfg.llm.model),
 			messages: [{ role: "user", content: prompt }],
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
+			providerOptions: { vexisLlm: { thinking: { type: "disabled" } } },
+		});
+		const { text, usage } = result;
+		logInfo("LLM OOR position usage:", {
+			input: usage.inputTokens,
+			output: usage.outputTokens,
 		});
 		logInfo("LLM OOR position raw response:", text);
 		if (!text)

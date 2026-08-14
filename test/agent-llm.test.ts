@@ -401,7 +401,10 @@ describe("requestOpenDecisions failure messaging", () => {
 	});
 
 	it("reports an empty LLM response", async () => {
-		vi.mocked(generateText).mockResolvedValue({ text: "" } as never);
+		vi.mocked(generateText).mockResolvedValue({
+			text: "",
+			usage: { inputTokens: 0, outputTokens: 0 },
+		} as never);
 		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
 		expect(r.failed).toBe(true);
 		expect(r.errorMessage).toContain("empty response");
@@ -410,6 +413,7 @@ describe("requestOpenDecisions failure messaging", () => {
 	it("reports an unparseable LLM response", async () => {
 		vi.mocked(generateText).mockResolvedValue({
 			text: "sure, here you go",
+			usage: { inputTokens: 0, outputTokens: 0 },
 		} as never);
 		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
 		expect(r.failed).toBe(true);
@@ -419,6 +423,7 @@ describe("requestOpenDecisions failure messaging", () => {
 	it("returns decisions for a valid response", async () => {
 		vi.mocked(generateText).mockResolvedValue({
 			text: JSON.stringify([{ pool: "PoolA", action: "open", rationale: "r" }]),
+			usage: { inputTokens: 0, outputTokens: 0 },
 		});
 		const r = await requestOpenDecisions({ cfg: llmCfg, candidates });
 		expect(r.failed).toBe(false);
@@ -450,14 +455,20 @@ describe("requestPositionDecisions failure messaging", () => {
 	});
 
 	it("reports an empty LLM response", async () => {
-		vi.mocked(generateText).mockResolvedValue({ text: "" } as never);
+		vi.mocked(generateText).mockResolvedValue({
+			text: "",
+			usage: { inputTokens: 0, outputTokens: 0 },
+		} as never);
 		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
 		expect(r.degraded).toBe(true);
 		expect(r.errorMessage).toContain("empty response");
 	});
 
 	it("reports an unparseable LLM response", async () => {
-		vi.mocked(generateText).mockResolvedValue({ text: "ok" } as never);
+		vi.mocked(generateText).mockResolvedValue({
+			text: "ok",
+			usage: { inputTokens: 0, outputTokens: 0 },
+		} as never);
 		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
 		expect(r.degraded).toBe(true);
 		expect(r.errorMessage).toContain("unparseable");
@@ -466,6 +477,7 @@ describe("requestPositionDecisions failure messaging", () => {
 	it("returns decisions for a valid response", async () => {
 		vi.mocked(generateText).mockResolvedValue({
 			text: JSON.stringify([{ pool: "P1", action: "hold", rationale: "wait" }]),
+			usage: { inputTokens: 0, outputTokens: 0 },
 		});
 		const r = await requestPositionDecisions({ cfg: llmCfg, positions });
 		expect(r.degraded).toBe(false);
