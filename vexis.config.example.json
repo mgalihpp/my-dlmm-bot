@@ -26,7 +26,7 @@
 			"maxBundlePct": 30,
 			"maxBotHoldersPct": 30,
 			"maxTop10Pct": 60,
-			"maxPriceVsAthPct": 80,
+			"minFromAthPct": 30,
 			"blockWash": true,
 			"blockRugpull": true,
 			"blockDexScreenerPaid": true,

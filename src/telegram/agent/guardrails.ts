@@ -174,13 +174,14 @@ export function checkRisks(input: {
 	if (risks.blockDevSoldAll && pool.devSoldAll === true) {
 		return { ok: false, reason: "dev sold all holdings" };
 	}
-	const athPct =
-		pool.priceVsAthPct ??
-		(pool.fromAthPct != null ? (1 - pool.fromAthPct) * 100 : null);
-	if (athPct != null && athPct > risks.maxPriceVsAthPct) {
+	// % below ATH (0 = at ATH, 20 = 800k on a 1M ATH). Block opens too close to ATH.
+	const fromAthPct =
+		pool.fromAthPct ??
+		(pool.priceVsAthPct != null ? 1 - pool.priceVsAthPct / 100 : null);
+	if (fromAthPct != null && fromAthPct * 100 < risks.minFromAthPct) {
 		return {
 			ok: false,
-			reason: `price ${athPct.toFixed(2)}% from ATH > ${risks.maxPriceVsAthPct.toFixed(2)}%`,
+			reason: `price ${(fromAthPct * 100).toFixed(2)}% from ATH < ${risks.minFromAthPct.toFixed(2)}%`,
 		};
 	}
 	return { ok: true, reason: null };

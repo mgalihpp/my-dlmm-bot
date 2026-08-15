@@ -75,7 +75,7 @@ Filter risiko deterministik yang tidak bisa di-bypass LLM.
 | `risks.maxBundlePct` | `30` | Cap persentase bundled holders |
 | `risks.maxBotHoldersPct` | `30` | Cap persentase bot holders |
 | `risks.maxTop10Pct` | `60` | Cap persentase top-10 holders |
-| `risks.maxPriceVsAthPct` | `80` | Cap jarak harga dari ATH (%) |
+| `risks.minFromAthPct` | `30` | Blokir open kalau harga < 30% di bawah ATH (0% = di ATH, 20% = 800k kalau ATH 1M) |
 | `risks.blockWash` | `true` | Blokir pool dengan indikasi wash trading |
 | `risks.blockRugpull` | `true` | Blokir pool terindikasi rugpull |
 | `risks.blockDexScreenerPaid` | `true` | Blokir pool berbayar di DEX Screener |

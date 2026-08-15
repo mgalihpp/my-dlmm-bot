@@ -41,7 +41,7 @@ const cfg: ResolvedAgentConfig = {
 		maxBundlePct: 30,
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
-		maxPriceVsAthPct: 80,
+		minFromAthPct: 30,
 		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,

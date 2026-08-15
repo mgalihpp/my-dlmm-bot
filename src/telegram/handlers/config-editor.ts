@@ -285,8 +285,8 @@ const EDITABLE_FIELDS = [
 		type: "number" as const,
 	},
 	{
-		key: "agent.risks.maxPriceVsAthPct",
-		label: "Max Price vs ATH %",
+		key: "agent.risks.minFromAthPct",
+		label: "Min From ATH %",
 		type: "number" as const,
 	},
 	{
@@ -462,7 +462,7 @@ function buildConfigText(
 		`  Max Bot Holders: ${tgCode(formatValue("agent.risks.maxBotHoldersPct", config))}%`,
 		`  Max Bundle: ${tgCode(formatValue("agent.risks.maxBundlePct", config))}%`,
 		`  Max Top10: ${tgCode(formatValue("agent.risks.maxTop10Pct", config))}%`,
-		`  Max ATH: ${tgCode(formatValue("agent.risks.maxPriceVsAthPct", config))}%`,
+		`  Min From ATH: ${tgCode(formatValue("agent.risks.minFromAthPct", config))}%`,
 		`  Max Rug Score: ${tgCode(formatValue("agent.risks.maxRugScore", config))}`,
 		`  Min Fees: ${tgCode(formatValue("agent.risks.minTokenFeesSol", config))} SOL`,
 		`  Block Wash: ${tgCode(formatValue("agent.risks.blockWash", config))}  Rugpull: ${tgCode(formatValue("agent.risks.blockRugpull", config))}  DexPaid: ${tgCode(formatValue("agent.risks.blockDexScreenerPaid", config))}  DevSold: ${tgCode(formatValue("agent.risks.blockDevSoldAll", config))}`,
@@ -535,7 +535,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Tx Cooldown (ms)", "cfg:set:agent.txCooldownMs")
 			.row()
 			.text("✏️ Pool Cooldown", "cfg:set:agent.poolCooldownMs")
-			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.text("✏️ Min From ATH %", "cfg:set:agent.risks.minFromAthPct")
 			.row()
 			.text("✏️ TP %", "cfg:set:agent.tpPct")
 			.text("✏️ SL %", "cfg:set:agent.slPct")
@@ -559,7 +559,7 @@ function buildConfigKeyboard(page = 1): InlineKeyboard {
 			.text("✏️ Max Bundle %", "cfg:set:agent.risks.maxBundlePct")
 			.row()
 			.text("✏️ Max Top10 %", "cfg:set:agent.risks.maxTop10Pct")
-			.text("✏️ Max ATH %", "cfg:set:agent.risks.maxPriceVsAthPct")
+			.text("✏️ Min From ATH %", "cfg:set:agent.risks.minFromAthPct")
 			.row()
 			.text("✏️ Max Rug Score", "cfg:set:agent.risks.maxRugScore")
 			.text("✏️ Min Token Fees (SOL)", "cfg:set:agent.risks.minTokenFeesSol")

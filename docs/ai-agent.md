@@ -98,7 +98,7 @@ Status LLM (`llmStatus`):
 
 - **Duplikat** — posisi sudah ada di pool/base token yang sama
 - **Cooldown** — pool masih dalam cooldown, atau tx-cooldown global antar OPEN
-- **Risiko** — rugpull, wash trading, bundle/bot/top-10 holders melebihi cap, global fees terlalu rendah, dex-paid, dev sold all, harga jauh dari ATH
+- **Risiko** — rugpull, wash trading, bundle/bot/top-10 holders melebihi cap, global fees terlalu rendah, dex-paid, dev sold all, harga terlalu dekat ke ATH (buka hanya kalau ≥ `minFromAthPct`% di bawah ATH)
 - **Budget** — melebihi `maxSolPerPosition`, `maxTotalSol`, atau `maxOpenPositions`
 
 ### Darwinian

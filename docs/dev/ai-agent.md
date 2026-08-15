@@ -139,7 +139,7 @@ Semua murni deterministik. Detail:
 | `checkPoolCooldown` | Cooldown per pool (address atau baseMint) |
 | `filterCooldown` | Pre-filter pool dalam cooldown |
 | `recordCooldown` | Tambah entry cooldown + prune yang expired |
-| `checkRisks` | Blokir rugpull, wash, bundle% > cap, botHolders% > cap, top10% > cap, global fees < min, dex-paid, dev-sold-all, price-vs-ATH > cap |
+| `checkRisks` | Blokir rugpull, wash, bundle% > cap, botHolders% > cap, top10% > cap, global fees < min, dex-paid, dev-sold-all, harga < `minFromAthPct`% di bawah ATH |
 | `checkOpenGuardrail` | `amount > maxSolPerPosition`, `deployed + amount > maxTotalSol`, `openCount >= maxOpenPositions` |
 | `deriveOpenAmount` | `min(maxSolPerPosition, maxTotalSol - deployed)`; `0` kalau budget habis |
 | `lastOpenExecutionAt` | Timestamp OPEN terakhir (untuk tx-cooldown; tp/sl/close diabaikan) |
@@ -147,7 +147,7 @@ Semua murni deterministik. Detail:
 
 ### Default risk config (bila tidak di-set)
 
-`risks.enabled: true`, `minTokenFeesSol: 30`, `maxBundlePct: 30`, `maxBotHoldersPct: 30`, `maxTop10Pct: 60`, `maxPriceVsAthPct: 80`, `blockWash/blockRugpull/blockDexScreenerPaid/blockDevSoldAll: true`.
+`risks.enabled: true`, `minTokenFeesSol: 30`, `maxBundlePct: 30`, `maxBotHoldersPct: 30`, `maxTop10Pct: 60`, `minFromAthPct: 30`, `blockWash/blockRugpull/blockDexScreenerPaid/blockDevSoldAll: true`.
 
 ---
 

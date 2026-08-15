@@ -38,7 +38,7 @@ const cfg: ResolvedAgentConfig = {
 		maxBundlePct: 30,
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
-		maxPriceVsAthPct: 80,
+		minFromAthPct: 30,
 		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,
@@ -222,7 +222,7 @@ const riskCfg = {
 	maxBundlePct: 30,
 	maxBotHoldersPct: 30,
 	maxTop10Pct: 60,
-	maxPriceVsAthPct: 80,
+	minFromAthPct: 30,
 	maxRugScore: 1,
 	blockWash: true,
 	blockRugpull: true,
@@ -298,18 +298,25 @@ describe("checkRisks", () => {
 			checkRisks({ pool: { ...clean, devSoldAll: true }, risks: riskCfg }).ok,
 		).toBe(false);
 	});
-	it("blocks price too close to ATH", () => {
+	it("blocks price too close to ATH (less than 30% below it)", () => {
 		const r = checkRisks({
-			pool: { ...clean, priceVsAthPct: 90 },
+			pool: { ...clean, fromAthPct: 0.1 },
 			risks: riskCfg,
 		});
 		expect(r.ok).toBe(false);
 		expect(r.reason).toContain("ATH");
 	});
-	it("falls back to fromAthPct when priceVsAthPct is null", () => {
-		// fromAthPct = 0 means at ATH → priceVsAthPct equivalent 100 > 80 → block
+	it("passes when price is far enough below ATH", () => {
 		const r = checkRisks({
-			pool: { ...clean, priceVsAthPct: null, fromAthPct: 0.05 },
+			pool: { ...clean, fromAthPct: 0.4 },
+			risks: riskCfg,
+		});
+		expect(r.ok).toBe(true);
+	});
+	it("falls back to priceVsAthPct when fromAthPct is null", () => {
+		// priceVsAthPct = 90 → drop 10% < 30 → block
+		const r = checkRisks({
+			pool: { ...clean, priceVsAthPct: 90, fromAthPct: null },
 			risks: riskCfg,
 		});
 		expect(r.ok).toBe(false);

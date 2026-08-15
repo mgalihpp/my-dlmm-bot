@@ -100,7 +100,7 @@ export interface ResolvedAgentRisks {
 	maxBundlePct: number;
 	maxBotHoldersPct: number;
 	maxTop10Pct: number;
-	maxPriceVsAthPct: number;
+	minFromAthPct: number;
 	maxRugScore: number;
 	blockWash: boolean;
 	blockRugpull: boolean;
@@ -171,7 +171,7 @@ export const resolveAgentConfigFrom = (
 			maxBundlePct: r.maxBundlePct ?? 30,
 			maxBotHoldersPct: r.maxBotHoldersPct ?? 30,
 			maxTop10Pct: r.maxTop10Pct ?? 60,
-			maxPriceVsAthPct: r.maxPriceVsAthPct ?? 80,
+			minFromAthPct: r.minFromAthPct ?? 30,
 			maxRugScore: r.maxRugScore ?? 1,
 			blockWash: r.blockWash ?? true,
 			blockRugpull: r.blockRugpull ?? true,

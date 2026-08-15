@@ -39,7 +39,7 @@ const llmCfg: ResolvedAgentConfig = {
 		maxBundlePct: 30,
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
-		maxPriceVsAthPct: 80,
+		minFromAthPct: 30,
 		maxRugScore: 1,
 		blockWash: true,
 		blockRugpull: true,
@@ -75,7 +75,7 @@ describe("buildGuardrailSection", () => {
 		maxBundlePct: 30,
 		maxBotHoldersPct: 30,
 		maxTop10Pct: 60,
-		maxPriceVsAthPct: 80,
+		minFromAthPct: 30,
 		minTokenFeesSol: 30,
 		maxTotalSol: 3,
 		maxOpenPositions: 4,
@@ -94,7 +94,7 @@ describe("buildGuardrailSection", () => {
 	it("renders thresholds, capacity and cooldowns", () => {
 		const s = buildGuardrailSection(ctx);
 		expect(s).toContain("maxBundlePct=30%");
-		expect(s).toContain("maxPriceVsAthPct=80%");
+		expect(s).toContain("minFromAthPct=30%");
 		expect(s).toContain("minTokenFeesSol=30 SOL");
 		expect(s).toContain("2/4 open positions");
 		expect(s).toContain("CCC/SOL");
@@ -106,7 +106,7 @@ describe("buildGuardrailSection", () => {
 			maxBundlePct: null,
 			maxBotHoldersPct: null,
 			maxTop10Pct: null,
-			maxPriceVsAthPct: null,
+			minFromAthPct: null,
 			minTokenFeesSol: null,
 			cooldowns: [],
 		});
@@ -200,7 +200,7 @@ describe("buildOpenDecisionPrompt", () => {
 				maxBundlePct: 30,
 				maxBotHoldersPct: 30,
 				maxTop10Pct: 60,
-				maxPriceVsAthPct: 80,
+				minFromAthPct: 30,
 				minTokenFeesSol: 30,
 				maxTotalSol: 3,
 				maxOpenPositions: 4,

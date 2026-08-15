@@ -84,7 +84,8 @@ export interface AgentRiskConfig {
 	maxBundlePct?: number;
 	maxBotHoldersPct?: number;
 	maxTop10Pct?: number;
-	maxPriceVsAthPct?: number;
+	/** Min distance below ATH (%) — block opens closer than this. */
+	minFromAthPct?: number;
 	maxRugScore?: number;
 	blockWash?: boolean;
 	blockRugpull?: boolean;

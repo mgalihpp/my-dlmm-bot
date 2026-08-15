@@ -1110,7 +1110,7 @@ async function evaluatePlans(
 				maxBundlePct: cfg.risks.maxBundlePct,
 				maxBotHoldersPct: cfg.risks.maxBotHoldersPct,
 				maxTop10Pct: cfg.risks.maxTop10Pct,
-				maxPriceVsAthPct: cfg.risks.maxPriceVsAthPct,
+				minFromAthPct: cfg.risks.minFromAthPct,
 				minTokenFeesSol: cfg.risks.minTokenFeesSol,
 				maxRugScore: cfg.risks.maxRugScore,
 				maxTotalSol: cfg.maxTotalSol,

@@ -53,7 +53,7 @@ export interface GuardrailContext {
 	maxBundlePct: number | null;
 	maxBotHoldersPct: number | null;
 	maxTop10Pct: number | null;
-	maxPriceVsAthPct: number | null;
+	minFromAthPct: number | null;
 	minTokenFeesSol: number | null;
 	maxRugScore: number | null;
 	maxTotalSol: number;
@@ -72,9 +72,9 @@ export function buildGuardrailSection(g: GuardrailContext): string {
 	if (g.maxBotHoldersPct != null)
 		lines.push(`- maxBotHoldersPct=${g.maxBotHoldersPct}%`);
 	if (g.maxTop10Pct != null) lines.push(`- maxTop10Pct=${g.maxTop10Pct}%`);
-	if (g.maxPriceVsAthPct != null)
+	if (g.minFromAthPct != null)
 		lines.push(
-			`- maxPriceVsAthPct=${g.maxPriceVsAthPct}% (price as % of 24h high)`,
+			`- minFromAthPct=${g.minFromAthPct}% (block when price is less than X% below its ATH/24h high)`,
 		);
 	if (g.minTokenFeesSol != null)
 		lines.push(`- minTokenFeesSol=${g.minTokenFeesSol} SOL`);

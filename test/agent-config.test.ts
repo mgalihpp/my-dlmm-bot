@@ -54,7 +54,7 @@ describe("resolveAgentConfigFrom", () => {
 			expect(c.risks.maxBundlePct).toBe(30);
 			expect(c.risks.maxBotHoldersPct).toBe(30);
 			expect(c.risks.maxTop10Pct).toBe(60);
-			expect(c.risks.maxPriceVsAthPct).toBe(80);
+			expect(c.risks.minFromAthPct).toBe(30);
 			expect(c.risks.blockWash).toBe(true);
 			expect(c.risks.blockRugpull).toBe(true);
 			expect(c.risks.blockDexScreenerPaid).toBe(true);
