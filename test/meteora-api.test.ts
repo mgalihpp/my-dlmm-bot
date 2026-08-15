@@ -266,4 +266,20 @@ describe("MeteoraApi enrichOpenPortfolioPnl", () => {
 		expect(result[0].positionsPnl).toBeUndefined();
 		expect(result[1].positionsPnl).toHaveLength(1);
 	});
+
+	it("decodes position pnl when pnlSol / pnlSolPctChange fields are missing", async () => {
+		const body = JSON.parse(JSON.stringify(positionPnlBody));
+		delete body.positions[0].pnlSol;
+		delete body.positions[0].pnlSolPctChange;
+		const result = await Effect.runPromise(
+			Effect.gen(function* () {
+				const api = yield* MeteoraApi;
+				return yield* api.positionPnl("Pool1", "W", "open");
+			}).pipe(Effect.provide(layerWith(() => ({ body })))),
+		);
+		expect(result.positions[0].positionAddress).toBe("Pos1");
+		expect(result.positions[0].pnlSol).toBeUndefined();
+		expect(result.positions[0].pnlSolPctChange).toBeUndefined();
+		expect(result.positions[0].pnlPctChange).toBe("5.2");
+	});
 });

@@ -23,8 +23,12 @@ export const PositionPnLData = Schema.Struct({
 	isClosed: Schema.Boolean,
 	pnlUsd: Schema.String,
 	pnlPctChange: Schema.String,
-	pnlSol: Schema.NullOr(Schema.Union(Schema.String, Schema.Number)),
-	pnlSolPctChange: Schema.NullOr(Schema.Union(Schema.String, Schema.Number)),
+	pnlSol: Schema.optional(
+		Schema.NullOr(Schema.Union(Schema.String, Schema.Number)),
+	),
+	pnlSolPctChange: Schema.optional(
+		Schema.NullOr(Schema.Union(Schema.String, Schema.Number)),
+	),
 	allTimeDeposits: TokenPairTotal,
 	allTimeWithdrawals: TokenPairTotal,
 	allTimeFees: TokenPairTotal,

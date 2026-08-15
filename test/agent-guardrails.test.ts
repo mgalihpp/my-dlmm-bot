@@ -622,11 +622,31 @@ describe("checkCloseGate", () => {
 		expect(out.ok).toBe(false);
 	});
 
-	it("blocks close when the pool has an active cooldown", () => {
+	it("blocks close when the pool has an active close cooldown", () => {
 		const out = checkCloseGate(
 			{ pool: "P1", baseMint: "mx" },
 			[{ pool: "P1" }],
-			[cd()],
+			[cd({ reason: "closed (OOR)" })],
+			NOW,
+		);
+		expect(out.ok).toBe(false);
+	});
+
+	it("ignores non-close cooldowns (blocked-open cooldown must not block TP/SL close)", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[cd({ reason: "already open on same token" })],
+			NOW,
+		);
+		expect(out.ok).toBe(true);
+	});
+
+	it("blocks close when close cooldown matches baseMint (re-adopted same token)", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[cd({ pool: "OTHER-POOL", reason: "tp triggered" })],
 			NOW,
 		);
 		expect(out.ok).toBe(false);

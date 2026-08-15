@@ -80,7 +80,7 @@ export function actionCounts(
 
 /** Canonical PnL %: prefer SOL-side change, fall back to token-side. */
 export function pnlPctValue(pos: {
-	pnlSolPctChange: string | number | null;
+	pnlSolPctChange?: string | number | null | undefined;
 	pnlPctChange: string;
 }): number | null {
 	if (pos.pnlSolPctChange != null) {

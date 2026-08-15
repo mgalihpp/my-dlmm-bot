@@ -68,13 +68,13 @@ export function agentTracks(
 }
 
 function pnlPct(pos: {
-	pnlSolPctChange: string | number | null;
+	pnlSolPctChange?: string | number | null | undefined;
 	pnlPctChange: string;
 }): {
 	value: number;
 	basis: "sol" | "usd";
 } | null {
-	if (pos.pnlSolPctChange !== null) {
+	if (pos.pnlSolPctChange != null) {
 		const val = Number(pos.pnlSolPctChange);
 		if (Number.isFinite(val)) return { value: val, basis: "sol" };
 	}

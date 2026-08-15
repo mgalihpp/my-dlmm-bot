@@ -241,10 +241,22 @@ export function checkPoolCooldown(
 	return { ok: true, reason: null };
 }
 
+/** Cooldown reasons recorded right after a close — only these may block a
+ * later close (re-adopted stale on-chain API after a close). Cooldowns from
+ * blocked opens (duplicate/risk/guardrail) must never block closing an
+ * existing position, or TP/SL gets stuck on pools that were simply vetoed
+ * for opening. */
+const CLOSE_COOLDOWN_REASON = /(triggered|closed|retried)/;
+
+function isCloseCooldown(c: AgentCooldown): boolean {
+	return CLOSE_COOLDOWN_REASON.test(c.reason);
+}
+
 /**
  * Close gate: blocks a close when the plan is no longer tracked (already
  * closed this cycle by another path, e.g. the OOR flow) or the pool is still
- * in cooldown (e.g. re-adopted from a stale on-chain API right after a close).
+ * in a close-origin cooldown (e.g. re-adopted from a stale on-chain API right
+ * after a close).
  */
 export function checkCloseGate(
 	plan: { pool: string; baseMint?: string | null },
@@ -255,7 +267,17 @@ export function checkCloseGate(
 	if (!plans.some((p) => p.pool === plan.pool)) {
 		return { ok: false, reason: "plan no longer tracked" };
 	}
-	return checkPoolCooldown(plan.pool, plan.baseMint ?? null, cooldowns, nowMs);
+	for (const c of cooldowns) {
+		if (!isCloseCooldown(c)) continue;
+		const gate = checkPoolCooldown(
+			plan.pool,
+			plan.baseMint ?? null,
+			[c],
+			nowMs,
+		);
+		if (!gate.ok) return gate;
+	}
+	return { ok: true, reason: null };
 }
 
 /**
