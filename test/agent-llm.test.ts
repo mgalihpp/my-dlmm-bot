@@ -325,6 +325,26 @@ describe("buildPositionPrompt", () => {
 		expect(prompt).toContain("openSignals=feeActiveTvlRatio:1.45,volume:1.1");
 		expect(prompt).toContain("umur posisi");
 	});
+
+	it("frames OOR-right as full SOL (idle, opportunity cost) and OOR-left as full meme token (real loss risk)", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolA",
+				poolName: "AAA/SOL",
+				pnlPct: 1.2,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "3",
+				positionAgeHours: 0,
+			},
+		]);
+		expect(prompt).toContain("OOR ke kanan");
+		expect(prompt).toContain("full SOL");
+		expect(prompt).toContain("opportunity cost");
+		expect(prompt).toContain("OOR ke kiri");
+		expect(prompt).toContain("full token meme");
+		expect(prompt).toContain("lock profit");
+	});
 });
 
 describe("isLlmTimeout", () => {

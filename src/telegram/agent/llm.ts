@@ -344,7 +344,7 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	return [
 		"Posisi di bawah lagi out-of-range — range bin-nya udah gak nutup harga aktif pool, jadi gak ngasilin fee.",
 		"Putuskan tiap posisi: hold (tahan, harga bisa balik masuk range) atau close (zap out ke WSOL).",
-		"Timbang: pnlPct, seberapa jauh harga aktif dari range, umur posisi, dan opportunity cost fee-nya. Posisi muda yang deket range → tahan. Posisi tua berjam-jam keluar range, rugi, dan fee-nya rendah → close. openSignals = snapshot sinyal waktu posisi dibuka.",
+		"Timbang: pnlPct, seberapa jauh harga aktif dari range, umur posisi, dan opportunity cost fee-nya. OOR ke kanan (harga di atas maxPrice) = posisi full SOL: udah gak ikut pump token, cuma nganggur gak dapet fee (itu opportunity cost-nya). Kalau udah jauh (>~20%) di atas range dan gak kunjung balik → close, biar modal gak nganggur dan bisa dipindah. Posisi muda yang deket range → tahan (harga bisa balik masuk range, fee jalan lagi). OOR ke kiri (harga di bawah minPrice) = posisi full token meme: kalau pnlPct negatif (token dump) → ini rugi beneran, makin lama makin dalam, close; kalau pnlPct positif → ikut naik, close buat lock profit. openSignals = snapshot sinyal waktu posisi dibuka.",
 		'Balas JSON array aja, tanpa markdown: [{"pool":"<pool id persis>","action":"hold|close","rationale":"..."}]',
 		"",
 		"Positions:",
