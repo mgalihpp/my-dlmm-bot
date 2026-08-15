@@ -57,6 +57,7 @@ describe("buildBriefingPrompt", () => {
 		expect(prompt).toContain("feePerTvl24h=0.0042");
 		expect(prompt).toContain("rugScore=900");
 		expect(prompt).toContain("poolAgeHours=48");
+		expect(prompt).toContain("fromAthPct=55.0%");
 	});
 
 	it("handles empty portfolio and market", () => {

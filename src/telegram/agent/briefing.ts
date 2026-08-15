@@ -64,7 +64,7 @@ export function buildBriefingPrompt(data: BriefingData): string {
 			? data.market
 					.map(
 						(m) =>
-							`- ${m.name} heuristic=${m.heuristic} feeTvlRatio=${m.feeActiveTvlRatio.toFixed(4)} volume=${m.volume} rugScore=${m.rugScore ?? "n/a"} holders=${m.holders} organic=${m.organicScore} tvl=${m.tvl} volatility=${m.volatility.toFixed(4)}${m.priceVsAthPct != null ? ` priceVsAthPct=${m.priceVsAthPct}` : ""}${m.tokenAgeHours != null ? ` tokenAgeHours=${m.tokenAgeHours}` : ""}${m.poolAgeHours != null ? ` poolAgeHours=${m.poolAgeHours}` : ""}`,
+							`- ${m.name} heuristic=${m.heuristic} feeTvlRatio=${m.feeActiveTvlRatio.toFixed(4)} volume=${m.volume} rugScore=${m.rugScore ?? "n/a"} holders=${m.holders} organic=${m.organicScore} tvl=${m.tvl} volatility=${m.volatility.toFixed(4)}${m.priceVsAthPct != null ? ` fromAthPct=${(100 - m.priceVsAthPct).toFixed(1)}%` : ""}${m.tokenAgeHours != null ? ` tokenAgeHours=${m.tokenAgeHours}` : ""}${m.poolAgeHours != null ? ` poolAgeHours=${m.poolAgeHours}` : ""}`,
 					)
 					.join("\n")
 			: "- none";
@@ -74,12 +74,15 @@ export function buildBriefingPrompt(data: BriefingData): string {
 			? `closes=${data.stats.closes} winRate=${Math.round(data.stats.winRate ?? 0)}% avg=${(data.stats.avgPnlPct ?? 0).toFixed(2)}% total=${(data.stats.totalPnlPct ?? 0).toFixed(2)}%`
 			: "no closed trades yet";
 	return [
-		"You are a portfolio manager for a Solana DLMM liquidity bot. Write a concise daily briefing under 300 words. Plain text only — no markdown, no emoji, no bold. Cover:",
-		"1. Portfolio health: open positions, their PnL, win rate, deployed SOL vs max.",
-		"2. Last 24h activity: what opened, closed, hit TP/SL, was blocked or failed.",
-		"3. Market snapshot: notable top screened pools by heuristic, fees, volume.",
-		"Language: Indonesian. Be specific, no filler. Flag risks: out-of-range positions, losing trades, concentrated capital, blocked opens.",
-		"For portfolio lines, flag position age and feePerTvl24h when they indicate risk (old out-of-range position, low earned fees).",
+		"Tulis briefing harian ringkas (maks 300 kata) untuk bot LP Meteora DLMM di Solana. Plain text saja — tanpa markdown, tanpa emoji, tanpa bold.",
+		"Bahasa: Indonesia. Padat, spesifik, sebut angka. Jangan isi opini kosong.",
+		"",
+		"Cover:",
+		"1. Kesehatan portfolio: posisi terbuka, PnL tiap posisi, win rate, deployed SOL vs max. Flag risiko: posisi out-of-range (OOR), posisi tua dengan fee rendah, modal terkonsentrasi.",
+		"2. Aktivitas 24 jam terakhir: apa yang OPEN, CLOSE, kena TP/SL, yang di-block guardrail, atau gagal.",
+		"3. Snapshot market: pool top hasil screening — sebut feeTvlRatio, volume, rugScore, dan fromAthPct (% harga di bawah ATH, makin besar makin jauh dari puncak).",
+		"",
+		"Untuk baris portfolio, flag ageHours dan feePerTvl24h saat mengindikasikan risiko (posisi tua out-of-range, fee rendah).",
 		"",
 		"Portfolio:",
 		portfolioSection,

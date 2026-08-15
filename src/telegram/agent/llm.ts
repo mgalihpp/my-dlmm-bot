@@ -68,27 +68,41 @@ export function buildGuardrailSection(g: GuardrailContext): string {
 	const lines = [
 		"Guardrail thresholds (hard veto — opens breaching any of these are rejected by the bot):",
 	];
-	if (g.maxBundlePct != null) lines.push(`- maxBundlePct=${g.maxBundlePct}%`);
+	if (g.maxBundlePct != null)
+		lines.push(
+			`- maxBundlePct=${g.maxBundlePct}% (bundlePct above this → reject)`,
+		);
 	if (g.maxBotHoldersPct != null)
-		lines.push(`- maxBotHoldersPct=${g.maxBotHoldersPct}%`);
-	if (g.maxTop10Pct != null) lines.push(`- maxTop10Pct=${g.maxTop10Pct}%`);
+		lines.push(
+			`- maxBotHoldersPct=${g.maxBotHoldersPct}% (botHoldersPct above this → reject)`,
+		);
+	if (g.maxTop10Pct != null)
+		lines.push(
+			`- maxTop10Pct=${g.maxTop10Pct}% (top10Pct above this → reject)`,
+		);
 	if (g.minFromAthPct != null)
 		lines.push(
-			`- minFromAthPct=${g.minFromAthPct}% (block when price is less than X% below its ATH/24h high)`,
+			`- minFromAthPct=${g.minFromAthPct}% (fromAthPct below this = price less than ${g.minFromAthPct}% under its 24h high → reject)`,
 		);
 	if (g.minTokenFeesSol != null)
-		lines.push(`- minTokenFeesSol=${g.minTokenFeesSol} SOL`);
+		lines.push(
+			`- minTokenFeesSol=${g.minTokenFeesSol} SOL (globalFeesSol below this → reject)`,
+		);
 	if (g.maxRugScore != null)
 		lines.push(
-			`- maxRugScore=${g.maxRugScore} (RugCheck 0-2500; only 0-1 is clean, anything above means flagged risk)`,
+			`- maxRugScore=${g.maxRugScore} (RugCheck 0-2500; 0-1 = clean, above → reject)`,
 		);
 	lines.push(
 		`- capacity: ${g.openPositions}/${g.maxOpenPositions} open positions, deployed ${g.deployedSol.toFixed(2)}/${g.maxTotalSol} SOL cap, max ${g.maxSolPerPosition} SOL per position`,
 	);
 	if (g.cooldowns.length > 0) {
-		lines.push("- cooldown (do not open):");
+		lines.push(
+			"- cooldown (do not open, per-pool — other pools are NOT in cooldown):",
+		);
 		for (const c of g.cooldowns) {
-			lines.push(`  - ${c.poolName || c.pool} until ${c.until} (${c.reason})`);
+			lines.push(
+				`  - ${c.poolName || c.pool} (pool=${c.pool}) until ${c.until} (${c.reason})`,
+			);
 		}
 	} else {
 		lines.push("- cooldown: none");
@@ -178,7 +192,11 @@ export function buildOpenDecisionPrompt(
 					...(c.volumeChangePct != null
 						? [`volumeChangePct=${c.volumeChangePct}`]
 						: []),
-					...(c.fromAthPct != null ? [`fromAthPct=${c.fromAthPct}`] : []),
+					...(c.fromAthPct != null
+						? [`fromAthPct=${(c.fromAthPct * 100).toFixed(1)}%`]
+						: c.priceVsAthPct != null
+							? [`fromAthPct=${(100 - c.priceVsAthPct).toFixed(1)}%`]
+							: []),
 					...(c.tokenAgeHours != null
 						? [`tokenAgeHours=${c.tokenAgeHours}`]
 						: []),
@@ -194,9 +212,6 @@ export function buildOpenDecisionPrompt(
 					...(c.devSoldAll != null ? [`devSoldAll=${c.devSoldAll}`] : []),
 					...(c.dexScreenerPaid != null
 						? [`dexScreenerPaid=${c.dexScreenerPaid}`]
-						: []),
-					...(c.priceVsAthPct != null
-						? [`priceVsAthPct=${c.priceVsAthPct}`]
 						: []),
 					...(c.rugScore != null ? [`rugScore=${c.rugScore}`] : []),
 					...(c.top10Pct != null ? [`top10Pct=${c.top10Pct}`] : []),
@@ -215,12 +230,32 @@ export function buildOpenDecisionPrompt(
 		})
 		.join("\n");
 	return [
-		"Kandidat pool di bawah sudah lolos screening. Putuskan untuk tiap pool: OPEN (buka posisi sekarang) atau HOLD (skip).",
-		"- OPEN kalau fee potential-nya jelas dan risikonya masuk akal, sesuai kapasitas portfolio.",
-		"- HOLD kalau ragu. Gak perlu maksa.",
-		"Skor heuristic cuma konteks, bukan segalanya. Yang penting: kalau kandidat melanggar threshold guardrails di bawah, jangan OPEN — itu cuma buang waktu, bakal ke-veto juga.",
-		"Baca field risikonya: rugScore skor RugCheck 0-2500. Hanya rugScore 0-1 is clean — di atas 1 ke-veto sama maxRugScore, never OPEN it. dexScreenerPaid cuma tanda bayar promosi DexScreener, bukan rugpull — anggap sinyal kecil, timbang bareng rugScore dan fee. isRugpull/isWash/devSoldAll itu hard flag beneran — kalau true, HOLD. priceVsAthPct tinggi = harga udah deket ATH, makin tipis upside-nya. swapCount/uniqueTraders = aktivitas nyata. top10Pct/bundlePct/botHoldersPct makin kecil makin sehat. volatility tinggi = emang meme, jangan panik, timbang fee-nya.",
-		'Balas JSON array aja, tanpa markdown: [{"pool":"<pool id persis>","action":"open|hold","rationale":"..."}]',
+		"Kamu mengelola posisi LP bot di pool Meteora DLMM (Solana). Pool di bawah sudah lolos screening deterministik. Untuk SETIAP pool, putuskan: OPEN (buka posisi sekarang) atau HOLD (lewat).",
+		"",
+		"Cara kerja DLMM yang relevan untuk keputusan ini:",
+		"- Likuiditas disimpan dalam bin-bin harga (range). Posisi menghasilkan fee HANYA selama harga aktif pool berada di dalam range bin posisi.",
+		"- feeTvlRatio = fee yang dihasilkan pool per unit active TVL — metrik efisiensi utama. Makin besar, makin cepat modal bekerja.",
+		"- binStep = jarak harga antar bin. Makin kecil makin rapat; makin besar cocok untuk aset volatil.",
+		"- volatility tinggi itu normal untuk meme dan justru sumber fee, tapi bikin posisi gampang out-of-range (berhenti dapat fee sampai harga balik).",
+		"",
+		"Makna field (arah baik/buruk):",
+		"- feeTvlRatio: makin besar makin bagus (fee per unit likuiditas aktif).",
+		"- organicScore: makin besar makin organik (bukan bot).",
+		"- holders, volume, swapCount, uniqueTraders: aktivitas nyata. swapCount tinggi tapi uniqueTraders rendah = bau wash/bot.",
+		"- top10Pct, bundlePct, botHoldersPct: makin kecil makin sehat.",
+		"- rugScore (RugCheck 0-2500): 0-1 bersih; di atas 1 kena veto maxRugScore — jangan pernah OPEN.",
+		"- isRugpull/isWash/devSoldAll: kalau true → HOLD.",
+		"- dexScreenerPaid: cuma tanda bayar promosi DexScreener, BUKAN sinyal rugpull — jangan jadikan alasan veto.",
+		"- fromAthPct: % harga di bawah ATH/24h-high. Makin besar makin jauh dari puncak = lebih banyak ruang naik. Guardrail veto kalau < minFromAthPct (kebanyakan deket puncak).",
+		"- globalFeesSol: total fee pool; kalau < minTokenFeesSol kena veto.",
+		"- activeTvl/tvl: likuiditas aktif vs total — likuiditas yang benar-benar dipakai swap.",
+		"",
+		"Aturan:",
+		"1. Pool yang kena guardrail di bawah → jangan OPEN, toh bakal di-veto bot.",
+		"2. Prioritaskan feeTvlRatio kuat + risiko terkendali + aktivitas nyata.",
+		"3. OPEN hanya kalau fee potential-nya jelas dan risikonya masuk akal. Ragu = HOLD. HOLD itu keputusan aman, bukan kegagalan.",
+		"",
+		'Balas JSON array polos, tanpa markdown, satu objek per pool: [{"pool":"<id pool persis>","action":"open|hold","rationale":"1 kalimat spesifik, wajib sebut angka nyata dari data (mis. feeTvlRatio=0.08, rugScore=2, bundlePct=45%)"}]',
 		...(guardrailsSection ? ["", guardrailsSection] : []),
 		"",
 		"Candidates:",
@@ -342,10 +377,18 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 		)
 		.join("\n");
 	return [
-		"Posisi di bawah lagi out-of-range — range bin-nya udah gak nutup harga aktif pool, jadi gak ngasilin fee.",
-		"Putuskan tiap posisi: hold (tahan, harga bisa balik masuk range) atau close (zap out ke WSOL).",
-		"Timbang: pnlPct, seberapa jauh harga aktif dari range, umur posisi, dan opportunity cost fee-nya. OOR ke kanan (harga di atas maxPrice) = posisi full SOL: udah gak ikut pump token, cuma nganggur gak dapet fee (itu opportunity cost-nya). Kalau udah jauh (>~20%) di atas range dan gak kunjung balik → close, biar modal gak nganggur dan bisa dipindah. Posisi muda yang deket range → tahan (harga bisa balik masuk range, fee jalan lagi). OOR ke kiri (harga di bawah minPrice) = posisi full token meme: kalau pnlPct negatif (token dump) → ini rugi beneran, makin lama makin dalam, close; kalau pnlPct positif → ikut naik, close buat lock profit. openSignals = snapshot sinyal waktu posisi dibuka.",
-		'Balas JSON array aja, tanpa markdown: [{"pool":"<pool id persis>","action":"hold|close","rationale":"..."}]',
+		"Posisi DLMM di bawah lagi out-of-range (OOR): harga aktif pool sudah keluar dari range bin posisi, jadi posisi TIDAK menghasilkan fee sampai harga balik masuk range.",
+		"",
+		"Mekanik DLMM yang relevan:",
+		"- Posisi LP baru menghasilkan fee saat harga aktif pool berada DI DALAM range bin posisi.",
+		"- Saat harga keluar range, posisi tetap terbuka tapi 'nganggur' — tidak dapat fee.",
+		"- OOR ke kanan (poolActivePrice > maxPrice): harga sudah naik di atas range → posisi jadi full SOL, gak ikut pump token. Kalau udah jauh dan gak kunjung balik → close, biar modal gak nganggur dan bisa dipindah (opportunity cost).",
+		"- OOR ke kiri (poolActivePrice < minPrice): harga sudah turun di bawah range → posisi jadi full token meme. Kalau pnlPct negatif (token dump) → ini rugi beneran, makin lama makin dalam, close; kalau pnlPct positif → ikut naik, close buat lock profit.",
+		"- Posisi muda yang deket range → tahan (harga bisa balik masuk range, fee jalan lagi).",
+		"- Pertimbangkan juga umur posisi (positionAgeHours) dan feePerTvl24h: posisi tua yang lama OOR dan fee-nya rendah = makin layak close.",
+		"- openSignals = snapshot sinyal waktu posisi dibuka (konteks saja).",
+		"",
+		'Balas JSON array polos, tanpa markdown: [{"pool":"<id pool persis>","action":"hold|close","rationale":"1 kalimat spesifik, sebut angka (mis. poolActivePrice 3x maxPrice, pnlPct=-8%, ageHours=50)"}]',
 		"",
 		"Positions:",
 		table,

@@ -153,10 +153,10 @@ describe("buildOpenDecisionPrompt", () => {
 			},
 		]);
 		expect(prompt).toContain("rugScore=1500");
-		expect(prompt).toContain("priceVsAthPct=60");
+		expect(prompt).toContain("fromAthPct=40.0%");
 		expect(prompt).toContain("0-2500");
-		expect(prompt).toContain("rugScore 0-1 is clean");
-		expect(prompt).toContain("never OPEN it");
+		expect(prompt).toContain("jangan pernah OPEN");
+		expect(prompt).toContain("feeTvlRatio");
 	});
 
 	it("includes age, activity, trend and hard-flag fields when present", () => {
