@@ -138,6 +138,29 @@ describe("formatCycleSummary", () => {
 		expect(text).toContain("A/SOL");
 		expect(text).toContain("sig");
 	});
+	it("shows the rationale for holds", () => {
+		const entry: AgentJournalEntry = {
+			ts: "2026-08-08T00:00:00Z",
+			cycle: 3,
+			llmStatus: "ok",
+			candidates: [
+				{
+					pool: "P1",
+					poolName: "A/SOL",
+					heuristicScore: 80,
+					rationale: "volume too low",
+					action: "hold",
+					guardrail: "pass",
+					blockedReason: null,
+					execution: null,
+					txSignature: null,
+				},
+			],
+		};
+		const text = formatCycleSummary([entry], "ok");
+		expect(text).toContain("held");
+		expect(text).toContain("volume too low");
+	});
 });
 
 describe("formatLive", () => {

@@ -17,6 +17,12 @@ import type { ActionCounts, TradeStats } from "./stats.js";
 
 export { formatRangeBar };
 
+/** Shorten a string for compact Telegram lines. */
+function truncate(s: string | null, max: number): string {
+	if (!s) return "no rationale";
+	return s.length <= max ? s : `${s.slice(0, max - 1)}…`;
+}
+
 export function formatStatus(
 	state: AgentState,
 	cfg: ResolvedAgentConfig,
@@ -144,7 +150,7 @@ export function formatCycleSummary(
 					: c.guardrail === "blocked"
 						? `⛔ blocked: ${escapeMarkdown(c.blockedReason ?? "")}`
 						: c.action === "hold"
-							? "held"
+							? `held \\| ${escapeMarkdown(truncate(c.rationale, 140))}`
 							: "";
 		lines.push(
 			`${icon} ${escapeMarkdown(c.action.toUpperCase())} ${tgPoolLink(c.poolName, c.pool)}${status ? ` \\| ${status}` : ""}`,
