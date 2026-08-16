@@ -1,18 +1,9 @@
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect } from "react";
-import {
-	useLoaderData,
-	useRevalidator,
-	useSearchParams,
-} from "react-router";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { Button } from "~/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import type { AgentPayload } from "~/lib/server/agent.server";
 import { CycleChart } from "./cycle-chart";
 import { DecisionJournal } from "./decision-journal";
@@ -25,7 +16,7 @@ const REFRESH_MS = 30_000;
 export function AgentPage() {
 	const data = useLoaderData<AgentPayload>();
 	const { revalidate, state } = useRevalidator();
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [, setSearchParams] = useSearchParams();
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -86,10 +77,7 @@ export function AgentPage() {
 						<StatusBanner state={data.state!} />
 						<StatCards stats={data.stats!} />
 						<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @4xl/main:grid-cols-2">
-							<NarrativeCard
-								narrative={data.narrative!}
-								stats={data.stats!}
-							/>
+							<NarrativeCard narrative={data.narrative!} stats={data.stats!} />
 							<CycleChart data={data.chart!} />
 						</div>
 						<DecisionJournal

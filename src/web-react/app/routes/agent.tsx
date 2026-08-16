@@ -1,9 +1,6 @@
 import { redirect } from "react-router";
-import { ChartAreaInteractive } from "~/components/chart-area-interactive";
-import { DashboardShell } from "~/components/dashboard-shell";
-import { DataTable } from "~/components/data-table";
-import { SectionCards } from "~/components/section-cards";
-import data from "~/dashboard/data.json";
+import { AgentPage } from "~/components/agent/agent-page";
+import { fetchAgent } from "~/lib/server/agent.server";
 import { getWebPassword } from "~/lib/server/portfolio.server";
 import { hasValidSession } from "~/lib/server/session.server";
 import type { Route } from "./+types/agent";
@@ -13,19 +10,16 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (password.length === 0 || !hasValidSession(request, password)) {
 		throw redirect("/");
 	}
-	return null;
+	const url = new URL(request.url);
+	const rawPage = url.searchParams.get("page");
+	const parsedPage = rawPage === null ? 1 : Number(rawPage);
+	const page =
+		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+	return fetchAgent(page, url.searchParams.get("action"));
 }
 
-export default function AgentPage() {
-	return (
-		<DashboardShell title="Agent">
-			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-				<SectionCards />
-				<div className="px-4 lg:px-6">
-					<ChartAreaInteractive />
-				</div>
-				<DataTable data={data} />
-			</div>
-		</DashboardShell>
-	);
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+	return serverLoader();
 }
+
+export default AgentPage;

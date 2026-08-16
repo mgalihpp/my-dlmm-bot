@@ -1,18 +1,13 @@
+import type { JournalCandidate } from "@vexis/telegram/agent/journal.js";
+import type { JournalFilter, TimelineGroup } from "@vexis/web/pages/agent.js";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	ExternalLinkIcon,
 } from "lucide-react";
-import type { JournalCandidate } from "@vexis/telegram/agent/journal.js";
-import type { JournalFilter, TimelineGroup } from "@vexis/web/pages/agent.js";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
 	Tooltip,
@@ -160,16 +155,19 @@ export function DecisionJournal({
 											No candidates
 										</p>
 									) : (
-										group.rows.map((row, i) =>
+										group.rows.map((row) =>
 											row.candidate === null ? (
 												<p
-													key={i}
+													key={`${row.cycle}-empty`}
 													className="py-2 text-xs text-muted-foreground"
 												>
 													No candidates
 												</p>
 											) : (
-												<CandidateRow key={i} candidate={row.candidate} />
+												<CandidateRow
+													key={`${row.cycle}-${row.candidate.pool}-${row.candidate.action}`}
+													candidate={row.candidate}
+												/>
 											),
 										)
 									)}
