@@ -1,7 +1,9 @@
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
+import { MarketCharts } from "~/components/pools/market-charts";
+import { StatCards } from "~/components/pools/stat-cards";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -11,21 +13,22 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "~/components/ui/select";
-import { TIMEFRAMES, type PoolsPayload } from "~/lib/pools";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { type Currency, type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
 
 export function PoolsPage() {
 	const data = useLoaderData<PoolsPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeframe = searchParams.get("timeframe") ?? data.timeframe;
+	const [currency, setCurrency] = useState<Currency>("usd");
 
 	useEffect(() => {
 		const onVisibility = () => {
 			if (!document.hidden) revalidate();
 		};
 		document.addEventListener("visibilitychange", onVisibility);
-		return () =>
-			document.removeEventListener("visibilitychange", onVisibility);
+		return () => document.removeEventListener("visibilitychange", onVisibility);
 	}, [revalidate]);
 
 	const onTimeframeChange = (value: string) =>
@@ -44,6 +47,15 @@ export function PoolsPage() {
 						</p>
 					</div>
 					<div className="flex items-center gap-2">
+						<Tabs
+							value={currency}
+							onValueChange={(v) => setCurrency(v as Currency)}
+						>
+							<TabsList>
+								<TabsTrigger value="usd">USD</TabsTrigger>
+								<TabsTrigger value="sol">SOL</TabsTrigger>
+							</TabsList>
+						</Tabs>
 						<Select value={timeframe} onValueChange={onTimeframeChange}>
 							<SelectTrigger className="h-9" aria-label="Timeframe">
 								<SelectValue placeholder="Timeframe" />
@@ -90,11 +102,18 @@ export function PoolsPage() {
 						</CardContent>
 					</Card>
 				) : (
-					<div className="px-4 lg:px-6">
-						<p className="text-sm text-muted-foreground">
-							Charts, stat cards, and table land in the next tasks.
-						</p>
-					</div>
+					<>
+						<StatCards
+							pools={data.pools}
+							currency={currency}
+							solPrice={data.solPrice}
+						/>
+						<MarketCharts
+							pools={data.pools}
+							currency={currency}
+							solPrice={data.solPrice}
+						/>
+					</>
 				)}
 			</div>
 		</DashboardShell>
