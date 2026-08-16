@@ -211,8 +211,7 @@ const make = (
 ): Effect.Effect<AppConfigService> =>
 	Effect.gen(function* () {
 		const ref = yield* Ref.make(initial);
-		const listeners =
-			new Set<(prev: VexisConfig, next: VexisConfig) => void>();
+		const listeners = new Set<(prev: VexisConfig, next: VexisConfig) => void>();
 		const notify = (prev: VexisConfig, next: VexisConfig) => {
 			for (const cb of listeners) cb(prev, next);
 		};

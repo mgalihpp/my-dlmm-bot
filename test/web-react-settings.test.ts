@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { AgentState } from "../src/telegram/agent/state.js";
 import type { VexisConfig } from "../src/domain/config.js";
+import type { AgentState } from "../src/telegram/agent/state.js";
 import {
-	EDITABLE_FIELDS,
 	buildSettingsPayload,
+	EDITABLE_FIELDS,
 	getNested,
 	parseFieldValue,
 	setNested,
@@ -67,7 +67,11 @@ describe("stripSecrets", () => {
 
 describe("buildSettingsPayload", () => {
 	it("returns editable values, strips secrets, reports agent state", () => {
-		const p = buildSettingsPayload(mkConfig(), "/x/vexis.config.json", mkState());
+		const p = buildSettingsPayload(
+			mkConfig(),
+			"/x/vexis.config.json",
+			mkState(),
+		);
 		expect(p.ok).toBe(true);
 		expect(p.configPath).toBe("/x/vexis.config.json");
 		expect(p.agent.enabled).toBe(true);
@@ -85,9 +89,9 @@ describe("parseFieldValue", () => {
 		expect(parseFieldValue(find("agent.enabled"), "true")).toBe(true);
 		expect(parseFieldValue(find("agent.enabled"), "false")).toBe(false);
 		expect(parseFieldValue(find("create.strategy"), "bidask")).toBe("bidask");
-		expect(parseFieldValue(find("create.amountPresets"), "0.1, 0.25, 1")).toEqual([
-			0.1, 0.25, 1,
-		]);
+		expect(
+			parseFieldValue(find("create.amountPresets"), "0.1, 0.25, 1"),
+		).toEqual([0.1, 0.25, 1]);
 		expect(
 			parseFieldValue(find("pools.blockedLaunchpads"), "pump.fun, xyz"),
 		).toEqual(["pump.fun", "xyz"]);

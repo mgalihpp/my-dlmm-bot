@@ -222,6 +222,24 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 				Effect.flatMap((enriched) =>
 					dlmm.attachLivePositions(enriched, wallet),
 				),
+				Effect.map((enriched) => {
+					for (const pool of enriched) {
+						const createdAt = new Map(
+							(pool.positionsPnl ?? []).map((position) => [
+								position.address,
+								position.createdAt,
+							]),
+						);
+						if (pool.positionsLive) {
+							for (const position of pool.positionsLive) {
+								Object.assign(position, {
+									createdAt: createdAt.get(position.address) ?? null,
+								});
+							}
+						}
+					}
+					return enriched;
+				}),
 				Effect.flatMap((enriched) => enrichWithIcons(enriched, api)),
 				Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
 			);

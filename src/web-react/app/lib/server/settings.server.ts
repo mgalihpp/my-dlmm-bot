@@ -59,7 +59,12 @@ export const EDITABLE_FIELDS: readonly EditableField[] = [
 	field("agent.llm.model", "LLM Model", "string", "agent"),
 	field("agent.llm.timeoutMs", "LLM Timeout (ms)", "number", "agent"),
 	field("agent.risks.enabled", "Guardrails Enabled", "boolean", "agent"),
-	field("agent.risks.minTokenFeesSol", "Min Token Fees (SOL)", "number", "agent"),
+	field(
+		"agent.risks.minTokenFeesSol",
+		"Min Token Fees (SOL)",
+		"number",
+		"agent",
+	),
 	field("agent.risks.maxBundlePct", "Max Bundle %", "number", "agent"),
 	field("agent.risks.maxBotHoldersPct", "Max Bot Holders %", "number", "agent"),
 	field("agent.risks.maxTop10Pct", "Max Top10 %", "number", "agent"),
@@ -67,15 +72,30 @@ export const EDITABLE_FIELDS: readonly EditableField[] = [
 	field("agent.risks.maxRugScore", "Max RugCheck Score", "number", "agent"),
 	field("agent.risks.blockWash", "Block Wash Trading", "boolean", "agent"),
 	field("agent.risks.blockRugpull", "Block Rugpull", "boolean", "agent"),
-	field("agent.risks.blockDexScreenerPaid", "Block DexScreener Paid", "boolean", "agent"),
-	field("agent.risks.blockDevSoldAll", "Block Dev Sold All", "boolean", "agent"),
+	field(
+		"agent.risks.blockDexScreenerPaid",
+		"Block DexScreener Paid",
+		"boolean",
+		"agent",
+	),
+	field(
+		"agent.risks.blockDevSoldAll",
+		"Block Dev Sold All",
+		"boolean",
+		"agent",
+	),
 	field("agent.darwin.enabled", "Darwin Enabled", "boolean", "agent"),
 	field("agent.darwin.windowDays", "Darwin Window (days)", "number", "agent"),
 	field("agent.darwin.recalcEvery", "Darwin Recalc Every", "number", "agent"),
 	field("agent.darwin.boostFactor", "Darwin Boost Factor", "number", "agent"),
 	field("agent.darwin.decayFactor", "Darwin Decay Factor", "number", "agent"),
 	field("agent.darwin.weightFloor", "Darwin Weight Floor", "number", "agent"),
-	field("agent.darwin.weightCeiling", "Darwin Weight Ceiling", "number", "agent"),
+	field(
+		"agent.darwin.weightCeiling",
+		"Darwin Weight Ceiling",
+		"number",
+		"agent",
+	),
 	field("agent.darwin.minSamples", "Darwin Min Samples", "number", "agent"),
 	// Create
 	field("create.strategy", "Strategy", "enum", "create", {
@@ -102,8 +122,18 @@ export const EDITABLE_FIELDS: readonly EditableField[] = [
 	field("pools.pageSize", "Page Size", "number", "pools"),
 	field("pools.timeframe", "Timeframe", "string", "pools"),
 	field("pools.category", "Category", "string", "pools"),
-	field("pools.baseTokenHasHighSupplyConcentration", "High Supply Conc.", "boolean", "pools"),
-	field("pools.baseTokenHasHighSingleOwnership", "High Single Owner", "boolean", "pools"),
+	field(
+		"pools.baseTokenHasHighSupplyConcentration",
+		"High Supply Conc.",
+		"boolean",
+		"pools",
+	),
+	field(
+		"pools.baseTokenHasHighSingleOwnership",
+		"High Single Owner",
+		"boolean",
+		"pools",
+	),
 	field("pools.minMcap", "Min Market Cap", "number", "pools"),
 	field("pools.maxMcap", "Max Market Cap", "number", "pools"),
 	field("pools.minHolders", "Min Holders", "number", "pools"),
@@ -165,13 +195,15 @@ export interface SettingsPayload {
 }
 
 export function getNested(obj: unknown, path: string): unknown {
-	return path.split(".").reduce<unknown>(
-		(o, k) =>
-			o !== null && typeof o === "object"
-				? (o as Record<string, unknown>)[k]
-				: undefined,
-		obj,
-	);
+	return path
+		.split(".")
+		.reduce<unknown>(
+			(o, k) =>
+				o !== null && typeof o === "object"
+					? (o as Record<string, unknown>)[k]
+					: undefined,
+			obj,
+		);
 }
 
 export function setNested(
@@ -205,7 +237,9 @@ export function stripSecrets(config: VexisConfig): void {
 	}
 }
 
-function listSchema(itemType: "number" | "string" | undefined): z.ZodType<unknown> {
+function listSchema(
+	itemType: "number" | "string" | undefined,
+): z.ZodType<unknown> {
 	const base =
 		itemType === "number"
 			? z.array(z.coerce.number().finite())

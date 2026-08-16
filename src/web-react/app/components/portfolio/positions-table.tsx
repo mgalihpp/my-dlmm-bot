@@ -177,6 +177,17 @@ function TokenLink({
 	);
 }
 
+function formatAge(createdAt: number | null | undefined): string {
+	if (createdAt == null) return "-";
+	const ageMs = Math.max(0, Date.now() - createdAt * 1000);
+	const minutes = Math.floor(ageMs / 60_000);
+	if (minutes < 60) return `${minutes}m`;
+	const hours = Math.floor(minutes / 60);
+	if (hours < 24) return `${hours}h ${minutes % 60}m`;
+	const days = Math.floor(hours / 24);
+	return `${days}d ${hours % 24}h`;
+}
+
 function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
@@ -195,6 +206,7 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 				<TableHeader className="bg-muted/30">
 					<TableRow>
 						<TableHead>Position / Range</TableHead>
+						<TableHead>Age</TableHead>
 						<TableHead>Amount</TableHead>
 						<TableHead>Fees</TableHead>
 					</TableRow>
@@ -217,6 +229,9 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										{Number(range.maxPrice).toFixed(5)}
 									</div>
 								) : null}
+							</TableCell>
+							<TableCell className="whitespace-nowrap text-muted-foreground">
+								{formatAge(live.createdAt)}
 							</TableCell>
 							<TableCell className="min-w-44 tabular-nums">
 								<div>
@@ -344,6 +359,7 @@ export function PositionsTable({
 	const SortableHead = ({ label, k }: { label: string; k: SortKey }) => (
 		<TableHead>
 			<button
+				type="button"
 				className="inline-flex items-center gap-1 hover:text-foreground"
 				onClick={() => toggleSort(k)}
 			>
@@ -382,7 +398,7 @@ export function PositionsTable({
 							</TabsTrigger>
 						</TabsList>
 					</Tabs>
-					<label className="relative">
+					<label htmlFor="search" className="relative">
 						<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
 							value={search}

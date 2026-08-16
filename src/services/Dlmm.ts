@@ -52,6 +52,7 @@ export interface RangePreview {
 export interface UserPositionLive {
 	poolAddress: string;
 	positionAddress: string;
+	createdAt?: number | null;
 	amountX: string;
 	amountY: string;
 	feeX: string;
@@ -366,6 +367,7 @@ async function fetchUserPositionsImpl(
 			out.push({
 				poolAddress,
 				positionAddress: pos.publicKey.toBase58(),
+				createdAt: null,
 				amountX: atomicToHuman(d.totalXAmount, dx),
 				amountY: atomicToHuman(d.totalYAmount, dy),
 				feeX: atomicToHuman(d.feeX.toString(), dx),
@@ -561,6 +563,7 @@ const make = Effect.gen(function* () {
 							(pool as { positionsLive?: PositionLiveEntry[] }).positionsLive =
 								l.map((x) => ({
 									address: x.positionAddress,
+									createdAt: x.createdAt,
 									amountX: x.amountX,
 									amountY: x.amountY,
 									feeX: x.feeX,

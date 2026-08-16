@@ -253,6 +253,7 @@ const make = Effect.gen(function* () {
 								const entries: PositionPnlEntry[] = res.positions.map(
 									(pos) => ({
 										address: pos.positionAddress,
+										createdAt: pos.createdAt,
 										pnlUsd: pos.pnlUsd,
 										pnlPctChange: pos.pnlPctChange,
 										pnlSol: pos.pnlSol != null ? String(pos.pnlSol) : null,
