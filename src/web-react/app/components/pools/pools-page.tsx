@@ -2,7 +2,9 @@ import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
+import type { ScreenedPool } from "@vexis/domain/index.js";
 import { MarketCharts } from "~/components/pools/market-charts";
+import { PoolDetailSheet } from "~/components/pools/pool-detail-sheet";
 import { PoolsTable } from "~/components/pools/pools-table";
 import { StatCards } from "~/components/pools/stat-cards";
 import { Button } from "~/components/ui/button";
@@ -23,6 +25,7 @@ export function PoolsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeframe = searchParams.get("timeframe") ?? data.timeframe;
 	const [currency, setCurrency] = useState<Currency>("usd");
+	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
 
 	useEffect(() => {
 		const onVisibility = () => {
@@ -118,7 +121,13 @@ export function PoolsPage() {
 							pools={data.pools}
 							currency={currency}
 							solPrice={data.solPrice}
-							onSelect={() => {}}
+							onSelect={setSelectedPool}
+						/>
+						<PoolDetailSheet
+							pool={selectedPool}
+							currency={currency}
+							solPrice={data.solPrice}
+							onOpenChange={(open) => !open && setSelectedPool(null)}
 						/>
 					</>
 				)}
