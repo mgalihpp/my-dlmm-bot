@@ -21,7 +21,7 @@ import type {
 	PortfolioTotal,
 } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
-import type { RangeFilter } from "./portfolio-page";
+import type { Currency, RangeFilter } from "./portfolio-page";
 
 function Sparkline({
 	values,
@@ -62,16 +62,19 @@ export function StatCards({
 	summary,
 	total,
 	history,
+	currency,
 	rangeFilter,
 	onRangeFilterChange,
 }: {
 	summary: PortfolioSummary;
 	total: PortfolioTotal;
 	history: readonly PortfolioSnapshot[];
+	currency: Currency;
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
 }) {
-	const equity = summary.openBalanceUsd;
+	const isUsd = currency === "usd";
+	const equity = isUsd ? summary.openBalanceUsd : summary.openBalanceSol;
 	const balanceHistory = history
 		.map((s) => s.balanceUsd)
 		.filter((v): v is number => v !== null)
@@ -87,7 +90,7 @@ export function StatCards({
 						Total equity
 					</CardDescription>
 					<CardTitle className="text-2xl font-semibold tabular-nums">
-						{fmtUsd(equity)}
+						{isUsd ? fmtUsd(equity) : fmtSol(equity)}
 					</CardTitle>
 					<CardAction>
 						<Badge
@@ -115,21 +118,23 @@ export function StatCards({
 					<CardTitle
 						className={cn(
 							"text-2xl font-semibold tabular-nums",
-							Number(total.totalPnlUsd) > 0 && "text-emerald-500",
-							Number(total.totalPnlUsd) < 0 && "text-red-500",
+							isUsd && Number(total.totalPnlUsd) > 0 && "text-emerald-500",
+							isUsd && Number(total.totalPnlUsd) < 0 && "text-red-500",
+							!isUsd && Number(total.totalPnlSol) > 0 && "text-emerald-500",
+							!isUsd && Number(total.totalPnlSol) < 0 && "text-red-500",
 						)}
 					>
-						{fmtUsd(total.totalPnlUsd)}
+						{isUsd ? fmtUsd(total.totalPnlUsd) : fmtSol(total.totalPnlSol)}
 					</CardTitle>
 					<CardAction>
-						<Badge variant="outline">{fmtPct(total.totalPnlPctChange)}</Badge>
+						<Badge variant="outline">
+							{isUsd
+								? fmtPct(total.totalPnlPctChange)
+								: fmtPct(total.totalPnlSolPctChange)}
+						</Badge>
 					</CardAction>
 				</CardHeader>
 				<CardFooter className="flex-col items-start gap-1.5 text-sm">
-					<div className="flex gap-2 font-medium">
-						SOL:{" "}
-						<span className="tabular-nums">{fmtSol(total.totalPnlSol)}</span>
-					</div>
 					<div className="text-xs text-muted-foreground">
 						Lifetime across all pools
 					</div>
@@ -145,19 +150,30 @@ export function StatCards({
 					<CardTitle
 						className={cn(
 							"text-2xl font-semibold tabular-nums",
-							summary.unrealizedUsd > 0 && "text-emerald-500",
-							summary.unrealizedUsd < 0 && "text-red-500",
+							(isUsd ? summary.unrealizedUsd : summary.unrealizedSol) > 0 &&
+								"text-emerald-500",
+							(isUsd ? summary.unrealizedUsd : summary.unrealizedSol) < 0 &&
+								"text-red-500",
 						)}
 					>
-						{fmtUsd(summary.unrealizedUsd)}
+						{isUsd
+							? fmtUsd(summary.unrealizedUsd)
+							: fmtSol(summary.unrealizedSol)}
 					</CardTitle>
 					<CardAction>
-						<Badge variant="outline">{fmtSol(summary.unrealizedSol)}</Badge>
+						<Badge variant="outline">
+							{isUsd
+								? fmtPct(summary.unrealizedPct)
+								: fmtPct(summary.unrealizedSolPct)}
+						</Badge>
 					</CardAction>
 				</CardHeader>
 				<CardFooter className="flex-col items-start gap-1.5 text-sm">
 					<div className="text-muted-foreground">
-						{fmtUsd(summary.openBalanceUsd)} in pool balances
+						{isUsd
+							? fmtUsd(summary.openBalanceUsd)
+							: fmtSol(summary.openBalanceSol)}{" "}
+						in pool balances
 					</div>
 				</CardFooter>
 			</Card>
@@ -169,7 +185,7 @@ export function StatCards({
 						Unclaimed fees
 					</CardDescription>
 					<CardTitle className="text-2xl font-semibold tabular-nums">
-						{fmtUsd(summary.openFeesUsd)}
+						{isUsd ? fmtUsd(summary.openFeesUsd) : fmtSol(summary.openFeesSol)}
 					</CardTitle>
 					<CardAction>
 						<Badge variant="outline">

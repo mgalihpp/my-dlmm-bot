@@ -27,7 +27,7 @@ import {
 	solscanUrl,
 } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import type { Currency, RangeFilter } from "./portfolio-page";
+import type { RangeFilter } from "./portfolio-page";
 import { RangeVisual } from "./range-visual";
 
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
@@ -143,12 +143,10 @@ function PositionsDetail({ pool }: { pool: OpenPool }) {
 
 export function PositionsTable({
 	pools,
-	currency,
 	rangeFilter,
 	onRangeFilterChange,
 }: {
 	pools: readonly OpenPool[];
-	currency: Currency;
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
 }) {
@@ -290,7 +288,7 @@ export function PositionsTable({
 									<TableHead>Bin</TableHead>
 									<SortableHead label="Balance" k="balances" />
 									<SortableHead label="Fees" k="fees" />
-									<SortableHead label="PnL" k="pnl" />
+									<SortableHead label="PnL USD" k="pnl" />
 									<SortableHead label="PnL SOL" k="pnlSol" />
 									<TableHead>Range</TableHead>
 									<TableHead className="min-w-40">Visual Range</TableHead>
@@ -298,7 +296,6 @@ export function PositionsTable({
 							</TableHeader>
 							<TableBody>
 								{filtered.map((pool) => {
-									const p = pair(pool.tokenX, pool.tokenY);
 									const oor =
 										pool.outOfRange === true ||
 										pool.positionsOutOfRange.length > 0;
@@ -346,9 +343,7 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlUsd)),
 													)}
 												>
-													{currency === "sol"
-														? fmtSol(pnlSolVal)
-														: fmtUsd(pool.pnl)}
+													{fmtUsd(pool.pnl)}
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pnlPct)}
 													</div>

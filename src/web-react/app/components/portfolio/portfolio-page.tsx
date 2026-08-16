@@ -1,11 +1,10 @@
-import { AlertCircleIcon, RefreshCwIcon, WalletIcon } from "lucide-react";
+import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { shortAddr, timeAgo } from "~/lib/format";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { AllocationDonut } from "./allocation-donut";
 import { ClosedTable } from "./closed-table";
@@ -18,12 +17,19 @@ const REFRESH_MS = 30_000;
 export type Currency = "usd" | "sol";
 export type RangeFilter = "all" | "in-range" | "oor";
 
+function greeting() {
+	const h = new Date().getHours();
+	if (h >= 5 && h < 11) return "Selamat pagi!";
+	if (h >= 11 && h < 15) return "Selamat siang!";
+	if (h >= 15 && h < 18) return "Selamat sore!";
+	return "Selamat malam!";
+}
+
 export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [currency, setCurrency] = useState<Currency>("usd");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
-	const [lastUpdated, setLastUpdated] = useState(Date.now());
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -39,30 +45,11 @@ export function PortfolioPage() {
 		};
 	}, [revalidate]);
 
-	useEffect(() => {
-		setLastUpdated(Date.now());
-	}, [data]);
-
 	return (
 		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
-					<div className="flex items-center gap-2 text-sm text-muted-foreground">
-						{data.ok && data.wallet ? (
-							<>
-								<WalletIcon className="size-4" />
-								<span className="font-mono">{shortAddr(data.wallet, 6)}</span>
-								{data.rpc ? (
-									<span className="hidden md:inline">
-										· {data.rpc.replace(/^https?:\/\//, "")}
-									</span>
-								) : null}
-							</>
-						) : null}
-						<span className="hidden sm:inline">
-							Updated {timeAgo(Math.floor(lastUpdated / 1000))}
-						</span>
-					</div>
+					<h1 className="text-2xl font-bold tracking-tight">{greeting()}</h1>
 					<div className="flex items-center gap-2">
 						<Tabs
 							value={currency}
@@ -106,6 +93,7 @@ export function PortfolioPage() {
 							summary={data.summary!}
 							total={data.total!}
 							history={data.history!}
+							currency={currency}
 							rangeFilter={rangeFilter}
 							onRangeFilterChange={setRangeFilter}
 						/>
@@ -121,7 +109,6 @@ export function PortfolioPage() {
 						</div>
 						<PositionsTable
 							pools={data.pools!}
-							currency={currency}
 							rangeFilter={rangeFilter}
 							onRangeFilterChange={setRangeFilter}
 						/>

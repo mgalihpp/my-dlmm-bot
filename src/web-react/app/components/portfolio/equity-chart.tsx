@@ -10,13 +10,6 @@ import { fmtSol, fmtUsd, tsLocal } from "~/lib/format";
 import type { PortfolioSnapshot } from "~/lib/server/portfolio.server";
 import type { Currency } from "./portfolio-page";
 
-const chartConfig = {
-	value: {
-		label: "PnL",
-		color: "var(--chart-2)",
-	},
-} satisfies ChartConfig;
-
 export function EquityChart({
 	history,
 	currency,
@@ -34,7 +27,41 @@ export function EquityChart({
 
 	const last = points.at(-1);
 	const first = points[0];
-	const positive = (last?.value ?? 0) >= 0;
+	const lastValue = last?.value ?? 0;
+	const positive = lastValue >= 0;
+	const colorFor = (v: number) =>
+		v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
+
+	const stops: { offset: string; color: string }[] = [];
+	if (points.length > 0) {
+		stops.push({ offset: "0%", color: colorFor(points[0].value) });
+	}
+	for (let i = 1; i < points.length; i++) {
+		const previous = points[i - 1].value;
+		const current = points[i].value;
+		const previousColor = colorFor(previous);
+		const currentColor = colorFor(current);
+		if (previousColor !== currentColor) {
+			const ratio =
+				Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
+			const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
+			const offset = `${crossing}%`;
+			stops.push({ offset, color: previousColor });
+			stops.push({ offset, color: currentColor });
+		}
+	}
+	if (points.length > 1) {
+		stops.push({
+			offset: "100%",
+			color: colorFor(points.at(-1)?.value ?? 0),
+		});
+	}
+	const chartConfig = {
+		value: {
+			label: "PnL",
+			color: colorFor(lastValue),
+		},
+	} satisfies ChartConfig;
 
 	return (
 		<Card className="h-full">
@@ -95,12 +122,23 @@ export function EquityChart({
 								}
 							/>
 							<ReferenceLine y={0} stroke="var(--border)" />
+							<defs>
+								<linearGradient id="pnl-grad" x1="0" y1="0" x2="1" y2="0">
+									{stops.map((s) => (
+										<stop
+											key={`${s.offset}-${s.color}`}
+											offset={s.offset}
+											stopColor={s.color}
+										/>
+									))}
+								</linearGradient>
+							</defs>
 							<Area
 								dataKey="value"
 								type="natural"
-								fill="var(--color-value)"
+								fill="url(#pnl-grad)"
 								fillOpacity={0.25}
-								stroke="var(--color-value)"
+								stroke="url(#pnl-grad)"
 								strokeWidth={2}
 							/>
 						</AreaChart>

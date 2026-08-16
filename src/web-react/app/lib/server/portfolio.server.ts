@@ -4,6 +4,7 @@ import { join } from "node:path";
 import type {
 	ClosedPool,
 	OpenPool,
+	OpenPortfolioTotals,
 	PortfolioTotal,
 } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
@@ -34,17 +35,44 @@ const EMPTY_TOTAL: PortfolioTotal = {
 
 export interface PortfolioSummary {
 	readonly openBalanceUsd: number;
+	readonly openBalanceSol: number;
 	readonly openFeesUsd: number;
+	readonly openFeesSol: number;
 	readonly openPositionCount: number;
 	readonly poolsCount: number;
 	readonly outOfRangePositions: number;
 	readonly outOfRangePools: number;
 	readonly unrealizedUsd: number;
 	readonly unrealizedSol: number;
+	readonly unrealizedPct: number;
+	readonly unrealizedSolPct: number;
+}
+
+function parseNum(value: string | null | undefined): number | null {
+	const n = value == null ? NaN : parseFloat(value);
+	return Number.isNaN(n) ? null : n;
+}
+
+function aggregateUnrealizedPct(
+	open: readonly OpenPool[],
+	pnlKey: "pnl" | "pnlSol",
+	pctKey: "pnlPctChange" | "pnlSolPctChange",
+): number {
+	let num = 0;
+	let den = 0;
+	for (const pool of open) {
+		const pnl = parseNum(pool[pnlKey]);
+		const pct = parseNum(pool[pctKey]);
+		if (pnl === null || pct === null || pct === 0 || pnl === 0) continue;
+		num += pnl;
+		den += pnl / pct;
+	}
+	return den === 0 ? 0 : num / den;
 }
 
 export function computePortfolioSummary(
 	open: readonly OpenPool[],
+	totals: OpenPortfolioTotals | null,
 ): PortfolioSummary {
 	const openBalanceUsd = open.reduce(
 		(sum, pool) => sum + (parseFloat(pool.balances) || 0),
@@ -54,6 +82,27 @@ export function computePortfolioSummary(
 		(sum, pool) => sum + (parseFloat(pool.unclaimedFees) || 0),
 		0,
 	);
+	const openBalanceSol = parseNum(totals?.balancesSol) ?? 0;
+	const openFeesSol = parseNum(totals?.unclaimedFeesSol) ?? 0;
+	const unrealizedUsd =
+		parseNum(totals?.pnl) ??
+		open.reduce((sum, pool) => {
+			const n = parseFloat(pool.pnl);
+			return Number.isNaN(n) ? sum : sum + n;
+		}, 0);
+	const unrealizedSol =
+		parseNum(totals?.pnlSol) ??
+		open.reduce((sum, pool) => {
+			if (pool.pnlSol == null) return sum;
+			const n = parseFloat(pool.pnlSol);
+			return Number.isNaN(n) ? sum : sum + n;
+		}, 0);
+	const unrealizedPct =
+		parseNum(totals?.pnlPctChange) ??
+		aggregateUnrealizedPct(open, "pnl", "pnlPctChange");
+	const unrealizedSolPct =
+		parseNum(totals?.pnlSolPctChange) ??
+		aggregateUnrealizedPct(open, "pnlSol", "pnlSolPctChange");
 	const openPositionCount = open.reduce(
 		(sum, pool) => sum + pool.openPositionCount,
 		0,
@@ -65,24 +114,19 @@ export function computePortfolioSummary(
 	const outOfRangePools = open.filter(
 		(pool) => pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
 	).length;
-	const unrealizedUsd = open.reduce((sum, pool) => {
-		const n = parseFloat(pool.pnl);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
-	const unrealizedSol = open.reduce((sum, pool) => {
-		if (pool.pnlSol == null) return sum;
-		const n = parseFloat(pool.pnlSol);
-		return Number.isNaN(n) ? sum : sum + n;
-	}, 0);
 	return {
 		openBalanceUsd,
+		openBalanceSol,
 		openFeesUsd,
+		openFeesSol,
 		openPositionCount,
 		poolsCount: open.length,
 		outOfRangePositions,
 		outOfRangePools,
 		unrealizedUsd,
 		unrealizedSol,
+		unrealizedPct,
+		unrealizedSolPct,
 	};
 }
 
@@ -111,15 +155,18 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 		const api = yield* MeteoraApi;
 		const dlmm = yield* Dlmm;
 
-		const open = yield* api.openPortfolio(wallet, 1, 10).pipe(
-			Effect.flatMap((response) =>
-				api.enrichOpenPortfolioPnl(response.pools, wallet, {
-					withRanges: true,
-				}),
-			),
-			Effect.flatMap((enriched) => dlmm.attachLivePositions(enriched, wallet)),
-			Effect.catchAll(() => Effect.succeed([] as OpenPool[])),
-		);
+		const res = yield* api.openPortfolio(wallet, 1, 10);
+		const apiTotals = res.total ?? null;
+		const open = yield* api
+			.enrichOpenPortfolioPnl(res.pools, wallet, {
+				withRanges: true,
+			})
+			.pipe(
+				Effect.flatMap((enriched) =>
+					dlmm.attachLivePositions(enriched, wallet),
+				),
+				Effect.catchAll(() => Effect.succeed([] as OpenPool[])),
+			);
 
 		const closedRes = yield* api
 			.closedPortfolio(wallet, closedPage, 10)
@@ -129,7 +176,7 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			.totalPnl(wallet)
 			.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
 
-		const summary = computePortfolioSummary(open);
+		const summary = computePortfolioSummary(open, apiTotals);
 		recordSnapshot(
 			{
 				ts: Math.floor(Date.now() / 1000),
