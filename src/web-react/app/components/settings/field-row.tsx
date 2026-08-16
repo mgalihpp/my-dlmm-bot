@@ -16,7 +16,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "~/components/ui/select";
-import type { EditableField } from "~/lib/server/settings.server";
+import type { EditableField } from "~/lib/settings";
 
 export function FieldRow({
 	field,

@@ -1,5 +1,5 @@
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import { EDITABLE_FIELDS, type Section } from "~/lib/server/settings.server";
+import { EDITABLE_FIELDS, type Section } from "~/lib/settings";
 import { FieldRow } from "./field-row";
 
 export function SettingsSection({

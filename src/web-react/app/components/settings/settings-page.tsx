@@ -4,7 +4,15 @@ import { DashboardShell } from "~/components/dashboard-shell";
 import { AgentStatusCard } from "~/components/settings/agent-status-card";
 import { SettingsSection } from "~/components/settings/settings-section";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
-import type { SettingsPayload } from "~/lib/server/settings.server";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import type { Section, SettingsPayload } from "~/lib/settings";
+
+const SECTIONS: readonly { id: Section; title: string }[] = [
+	{ id: "general", title: "General" },
+	{ id: "agent", title: "Agent" },
+	{ id: "create", title: "Create" },
+	{ id: "pools", title: "Pools" },
+];
 
 export function SettingsPage() {
 	const data = useLoaderData<SettingsPayload>();
@@ -58,10 +66,20 @@ export function SettingsPage() {
 					running={agent.running}
 					lastCycleAt={agent.lastCycleAt}
 				/>
-				<SettingsSection section="general" title="General" values={values} />
-				<SettingsSection section="agent" title="Agent" values={values} />
-				<SettingsSection section="create" title="Create" values={values} />
-				<SettingsSection section="pools" title="Pools" values={values} />
+				<Tabs defaultValue="general" orientation="vertical">
+					<TabsList variant="line" className="h-fit shrink-0 gap-1">
+						{SECTIONS.map((s) => (
+							<TabsTrigger key={s.id} value={s.id}>
+								{s.title}
+							</TabsTrigger>
+						))}
+					</TabsList>
+					{SECTIONS.map((s) => (
+						<TabsContent key={s.id} value={s.id}>
+							<SettingsSection section={s.id} title={s.title} values={values} />
+						</TabsContent>
+					))}
+				</Tabs>
 			</div>
 		</DashboardShell>
 	);
