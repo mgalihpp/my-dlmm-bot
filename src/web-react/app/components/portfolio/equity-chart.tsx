@@ -102,6 +102,7 @@ export function EquityChart({
 								cursor={false}
 								content={
 									<ChartTooltipContent
+										className="font-mono font-medium tabular-nums"
 										indicator="dot"
 										formatter={(value) =>
 											currency === "sol"

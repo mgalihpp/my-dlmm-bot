@@ -13,8 +13,8 @@ import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
 
 const chartConfig = {
-	balance: { label: "Balance", color: "var(--chart-3)" },
-	fees: { label: "Unclaimed fees", color: "var(--chart-1)" },
+	balance: { label: "Balance", color: "var(--chart-1)" },
+	fees: { label: "Unclaimed fees", color: "var(--chart-5)" },
 } satisfies ChartConfig;
 
 export function AllocationDonut({
@@ -111,11 +111,11 @@ export function AllocationDonut({
 
 				<div className="flex justify-center gap-4 text-xs">
 					<span className="flex items-center gap-1.5">
-						<i className="size-2.5 rounded-full bg-emerald-500" />
+						<i className="size-2.5 rounded-full bg-chart-1" />
 						Balance <b className="tabular-nums">{fmt(balance)}</b>
 					</span>
 					<span className="flex items-center gap-1.5">
-						<i className="size-2.5 rounded-full bg-red-500" />
+						<i className="size-2.5 rounded-full bg-chart-5" />
 						Unclaimed fees <b className="tabular-nums">{fmt(fees)}</b>
 					</span>
 				</div>

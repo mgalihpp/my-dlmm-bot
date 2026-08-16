@@ -1,5 +1,6 @@
 import { redirect } from "react-router";
-import { DashboardShell } from "~/components/dashboard-shell";
+import { PoolsPage } from "~/components/pools/pools-page";
+import { fetchPools } from "~/lib/server/pools.server";
 import { getWebPassword } from "~/lib/server/portfolio.server";
 import { hasValidSession } from "~/lib/server/session.server";
 import type { Route } from "./+types/pools";
@@ -9,16 +10,12 @@ export async function loader({ request }: Route.LoaderArgs) {
 	if (password.length === 0 || !hasValidSession(request, password)) {
 		throw redirect("/");
 	}
-	return null;
+	const url = new URL(request.url);
+	return fetchPools(url.searchParams.get("timeframe"));
 }
 
-export default function PoolsPage() {
-	return (
-		<DashboardShell title="Pool Radar">
-			<div className="flex flex-1 flex-col items-center justify-center gap-4 py-4 md:py-6">
-				<h2 className="text-2xl font-bold">Pool Radar</h2>
-				<p className="text-muted-foreground">Placeholder — coming soon.</p>
-			</div>
-		</DashboardShell>
-	);
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+	return serverLoader();
 }
+
+export default PoolsPage;

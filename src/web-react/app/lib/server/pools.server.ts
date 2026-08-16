@@ -6,12 +6,12 @@ import {
 	HttpClientRequest,
 	HttpClientResponse,
 } from "@effect/platform";
-import { Effect, Schema } from "effect";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
 import { Screening } from "@vexis/services/Screening.js";
-import { buildPoolsPayload, TIMEFRAMES, type PoolsPayload } from "~/lib/pools";
+import { Effect, Schema } from "effect";
+import { buildPoolsPayload, type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -31,14 +31,15 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 			`https://price.jup.ag/v6/price?ids=${SOL_MINT}`,
 		).pipe(
 			client.execute,
-			Effect.flatMap((r) => HttpClientResponse.schemaBodyJson(PriceResponse)(r)),
+			Effect.flatMap((r) =>
+				HttpClientResponse.schemaBodyJson(PriceResponse)(r),
+			),
 		);
 		return res.data[SOL_MINT]?.price ?? null;
-	})
-		.pipe(
-			Effect.provide(FetchHttpClient.layer),
-			Effect.catchAll(() => Effect.succeed(null)),
-		);
+	}).pipe(
+		Effect.provide(FetchHttpClient.layer),
+		Effect.catchAll(() => Effect.succeed(null)),
+	);
 }
 
 export function fetchPools(rawTimeframe: string | null): Promise<PoolsPayload> {

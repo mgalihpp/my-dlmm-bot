@@ -2,7 +2,15 @@ import type { ScreenedPool } from "@vexis/domain/index.js";
 import type { ScreenResult } from "@vexis/lib/screening.js";
 import { fmtSol, fmtUsd } from "~/lib/format";
 
-export const TIMEFRAMES = ["5m", "30m", "1h", "2h", "4h", "12h", "24h"] as const;
+export const TIMEFRAMES = [
+	"5m",
+	"30m",
+	"1h",
+	"2h",
+	"4h",
+	"12h",
+	"24h",
+] as const;
 
 export type Currency = "usd" | "sol";
 export type OrganicBucket = "all" | "pass" | "review" | "blocked";
