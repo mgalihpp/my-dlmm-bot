@@ -1,3 +1,4 @@
+import type { AgentStats } from "@vexis/web/pages/agent.js";
 import {
 	BanIcon,
 	CircleCheckBigIcon,
@@ -6,7 +7,6 @@ import {
 	TargetIcon,
 	TrophyIcon,
 } from "lucide-react";
-import type { AgentStats } from "@vexis/web/pages/agent.js";
 import {
 	Card,
 	CardDescription,

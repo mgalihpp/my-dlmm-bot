@@ -1,12 +1,7 @@
 import type { NarrativeResult } from "@vexis/web/agent-narrative.js";
 import type { AgentStats } from "@vexis/web/pages/agent.js";
 import { Badge } from "~/components/ui/badge";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "~/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
 export function NarrativeCard({
 	narrative,
