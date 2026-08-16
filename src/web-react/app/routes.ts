@@ -5,4 +5,6 @@ export default [
 	route("portfolio", "routes/portfolio.tsx"),
 	route("pools", "routes/pools.tsx"),
 	route("agent", "routes/agent.tsx"),
+	route("logout", "routes/logout.tsx"),
+	route("api/closed-detail/:pool", "routes/api/closed-detail.tsx"),
 ] satisfies RouteConfig;

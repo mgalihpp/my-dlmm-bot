@@ -1,0 +1,134 @@
+import { AlertCircleIcon, RefreshCwIcon, WalletIcon } from "lucide-react";
+import { useEffect, useState } from "react";
+import { useLoaderData, useRevalidator } from "react-router";
+import { DashboardShell } from "~/components/dashboard-shell";
+import { Button } from "~/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { shortAddr, timeAgo } from "~/lib/format";
+import type { PortfolioPayload } from "~/lib/server/portfolio.server";
+import { AllocationDonut } from "./allocation-donut";
+import { ClosedTable } from "./closed-table";
+import { EquityChart } from "./equity-chart";
+import { PositionsTable } from "./positions-table";
+import { StatCards } from "./stat-cards";
+
+const REFRESH_MS = 30_000;
+
+export type Currency = "usd" | "sol";
+export type RangeFilter = "all" | "in-range" | "oor";
+
+export function PortfolioPage() {
+	const data = useLoaderData<PortfolioPayload>();
+	const { revalidate, state } = useRevalidator();
+	const [currency, setCurrency] = useState<Currency>("usd");
+	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
+	const [lastUpdated, setLastUpdated] = useState(Date.now());
+
+	useEffect(() => {
+		const timer = setInterval(() => {
+			if (!document.hidden) revalidate();
+		}, REFRESH_MS);
+		const onVisibility = () => {
+			if (!document.hidden) revalidate();
+		};
+		document.addEventListener("visibilitychange", onVisibility);
+		return () => {
+			clearInterval(timer);
+			document.removeEventListener("visibilitychange", onVisibility);
+		};
+	}, [revalidate]);
+
+	useEffect(() => {
+		setLastUpdated(Date.now());
+	}, [data]);
+
+	return (
+		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
+			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
+					<div className="flex items-center gap-2 text-sm text-muted-foreground">
+						{data.ok && data.wallet ? (
+							<>
+								<WalletIcon className="size-4" />
+								<span className="font-mono">{shortAddr(data.wallet, 6)}</span>
+								{data.rpc ? (
+									<span className="hidden md:inline">
+										· {data.rpc.replace(/^https?:\/\//, "")}
+									</span>
+								) : null}
+							</>
+						) : null}
+						<span className="hidden sm:inline">
+							Updated {timeAgo(Math.floor(lastUpdated / 1000))}
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<Tabs
+							value={currency}
+							onValueChange={(v) => setCurrency(v as Currency)}
+						>
+							<TabsList>
+								<TabsTrigger value="usd">USD</TabsTrigger>
+								<TabsTrigger value="sol">SOL</TabsTrigger>
+							</TabsList>
+						</Tabs>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => revalidate()}
+							disabled={state === "loading"}
+						>
+							<RefreshCwIcon
+								className={state === "loading" ? "animate-spin" : ""}
+							/>
+							Refresh
+						</Button>
+					</div>
+				</div>
+
+				{!data.ok ? (
+					<Card className="mx-4 lg:mx-6">
+						<CardHeader>
+							<CardTitle className="flex items-center gap-2 text-destructive">
+								<AlertCircleIcon className="size-5" />
+								Failed to load portfolio
+							</CardTitle>
+						</CardHeader>
+						<CardContent className="text-sm text-muted-foreground">
+							{data.error ?? "Unknown error"} — check the backend connection and
+							try refreshing.
+						</CardContent>
+					</Card>
+				) : (
+					<>
+						<StatCards
+							summary={data.summary!}
+							total={data.total!}
+							history={data.history!}
+							rangeFilter={rangeFilter}
+							onRangeFilterChange={setRangeFilter}
+						/>
+						<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @4xl/main:grid-cols-3">
+							<div className="@4xl/main:col-span-2">
+								<EquityChart history={data.history!} currency={currency} />
+							</div>
+							<AllocationDonut
+								pools={data.pools!}
+								summary={data.summary!}
+								currency={currency}
+							/>
+						</div>
+						<PositionsTable
+							pools={data.pools!}
+							currency={currency}
+							rangeFilter={rangeFilter}
+							onRangeFilterChange={setRangeFilter}
+						/>
+						<ClosedTable closed={data.closed!} />
+					</>
+				)}
+			</div>
+		</DashboardShell>
+	);
+}

@@ -1,9 +1,20 @@
+import { redirect } from "react-router";
 import { ChartAreaInteractive } from "~/components/chart-area-interactive";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { DataTable } from "~/components/data-table";
 import { SectionCards } from "~/components/section-cards";
-
 import data from "~/dashboard/data.json";
+import { getWebPassword } from "~/lib/server/portfolio.server";
+import { hasValidSession } from "~/lib/server/session.server";
+import type { Route } from "./+types/agent";
+
+export async function loader({ request }: Route.LoaderArgs) {
+	const password = await getWebPassword();
+	if (password.length === 0 || !hasValidSession(request, password)) {
+		throw redirect("/");
+	}
+	return null;
+}
 
 export default function AgentPage() {
 	return (

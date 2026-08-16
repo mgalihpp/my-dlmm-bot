@@ -1,12 +1,24 @@
-import { DashboardShell } from "~/components/dashboard-shell";
+import { redirect } from "react-router";
+import { PortfolioPage } from "~/components/portfolio/portfolio-page";
+import { fetchPortfolio, getWebPassword } from "~/lib/server/portfolio.server";
+import { hasValidSession } from "~/lib/server/session.server";
+import type { Route } from "./+types/portfolio";
 
-export default function PortfolioPage() {
-	return (
-		<DashboardShell title="Portfolio">
-			<div className="flex flex-1 flex-col items-center justify-center gap-4 py-4 md:py-6">
-				<h2 className="text-2xl font-bold">Portfolio</h2>
-				<p className="text-muted-foreground">Placeholder — coming soon.</p>
-			</div>
-		</DashboardShell>
-	);
+export async function loader({ request }: Route.LoaderArgs) {
+	const password = await getWebPassword();
+	if (password.length === 0 || !hasValidSession(request, password)) {
+		throw redirect("/");
+	}
+	const url = new URL(request.url);
+	const rawPage = url.searchParams.get("closedPage");
+	const parsedPage = rawPage === null ? 1 : Number(rawPage);
+	const closedPage =
+		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+	return fetchPortfolio(closedPage);
 }
+
+export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
+	return serverLoader();
+}
+
+export default PortfolioPage;

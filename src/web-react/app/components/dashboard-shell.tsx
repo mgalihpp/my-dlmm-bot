@@ -5,9 +5,13 @@ import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
 
 export function DashboardShell({
 	title = "Documents",
+	wallet,
+	rpc,
 	children,
 }: {
 	title?: string;
+	wallet?: string;
+	rpc?: string;
 	children: ReactNode;
 }) {
 	return (
@@ -19,7 +23,7 @@ export function DashboardShell({
 				} as React.CSSProperties
 			}
 		>
-			<AppSidebar variant="inset" />
+			<AppSidebar wallet={wallet} rpc={rpc} />
 			<SidebarInset>
 				<SiteHeader title={title} />
 				<div className="flex flex-1 flex-col">

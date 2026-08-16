@@ -25,7 +25,7 @@ const data = {
 	user: {
 		name: "shadcn",
 		email: "m@example.com",
-		avatar: "/avatars/shadcn.jpg",
+		avatar: "/logo.png",
 	},
 	navMain: [
 		{
@@ -63,7 +63,14 @@ const data = {
 	],
 };
 
-export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+export function AppSidebar({
+	wallet,
+	rpc,
+	...props
+}: React.ComponentProps<typeof Sidebar> & {
+	wallet?: string;
+	rpc?: string;
+}) {
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
 			<SidebarHeader className="border-b border-sidebar-border">
@@ -84,7 +91,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 				<NavSecondary items={data.navSecondary} className="mt-auto" />
 			</SidebarContent>
 			<SidebarFooter>
-				<NavUser user={data.user} />
+				<NavUser user={data.user} wallet={wallet} rpc={rpc} />
 			</SidebarFooter>
 		</Sidebar>
 	);
