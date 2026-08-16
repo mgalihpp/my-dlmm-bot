@@ -1,8 +1,8 @@
+import type { ScreenedPool } from "@vexis/domain/index.js";
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
-import type { ScreenedPool } from "@vexis/domain/index.js";
 import { MarketCharts } from "~/components/pools/market-charts";
 import { PoolDetailSheet } from "~/components/pools/pool-detail-sheet";
 import { PoolsTable } from "~/components/pools/pools-table";

@@ -11,10 +11,10 @@ import {
 } from "~/components/ui/sheet";
 import { fmtPct, meteoraUrl, solscanUrl } from "~/lib/format";
 import {
+	type Currency,
 	fmtAmount,
 	organicBucket,
 	rugBucket,
-	type Currency,
 } from "~/lib/pools";
 
 function Metric({ label, value }: { label: string; value: string }) {
@@ -42,7 +42,10 @@ export function PoolDetailSheet({
 	const metrics: { label: string; value: string }[] = [
 		{ label: "Market cap", value: fmtAmount(pool.mcap, currency, solPrice) },
 		{ label: "TVL", value: fmtAmount(pool.tvl, currency, solPrice) },
-		{ label: "Active TVL", value: fmtAmount(pool.activeTvl, currency, solPrice) },
+		{
+			label: "Active TVL",
+			value: fmtAmount(pool.activeTvl, currency, solPrice),
+		},
 		{ label: "Volume", value: fmtAmount(pool.volume, currency, solPrice) },
 		{ label: "Fees", value: fmtAmount(pool.fee, currency, solPrice) },
 		{ label: "Holders", value: String(pool.holders) },
@@ -66,7 +69,8 @@ export function PoolDetailSheet({
 		},
 		{
 			label: "Fee / TVL ratio",
-			value: pool.feeActiveTvlRatio != null ? String(pool.feeActiveTvlRatio) : "-",
+			value:
+				pool.feeActiveTvlRatio != null ? String(pool.feeActiveTvlRatio) : "-",
 		},
 		{ label: "Active positions", value: String(pool.activePositions) },
 		{ label: "Open positions", value: String(pool.openPositions) },
@@ -119,7 +123,13 @@ export function PoolDetailSheet({
 							</SheetTitle>
 							<SheetDescription className="flex items-center gap-2">
 								<span className="tabular-nums">{price}</span>
-								<span className={pool.priceChangePct != null && pool.priceChangePct >= 0 ? "text-emerald-500" : "text-red-500"}>
+								<span
+									className={
+										pool.priceChangePct != null && pool.priceChangePct >= 0
+											? "text-emerald-500"
+											: "text-red-500"
+									}
+								>
 									{fmtPct(pool.priceChangePct)}
 								</span>
 							</SheetDescription>
@@ -140,10 +150,26 @@ export function PoolDetailSheet({
 						<Metric key={m.label} label={m.label} value={m.value} />
 					))}
 					<div className="col-span-2 flex items-center gap-1.5 pt-1">
-						<Badge variant={organicBucket(pool.organicScore) === "pass" ? "default" : organicBucket(pool.organicScore) === "review" ? "secondary" : "destructive"}>
+						<Badge
+							variant={
+								organicBucket(pool.organicScore) === "pass"
+									? "default"
+									: organicBucket(pool.organicScore) === "review"
+										? "secondary"
+										: "destructive"
+							}
+						>
 							Organic: {pool.organicScore}
 						</Badge>
-						<Badge variant={rugBucket(pool.rugScore) === "pass" ? "default" : rugBucket(pool.rugScore) === "review" ? "secondary" : "outline"}>
+						<Badge
+							variant={
+								rugBucket(pool.rugScore) === "pass"
+									? "default"
+									: rugBucket(pool.rugScore) === "review"
+										? "secondary"
+										: "outline"
+							}
+						>
 							Rug: {pool.rugScore ?? "N/A"}
 						</Badge>
 					</div>

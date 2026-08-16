@@ -1,6 +1,6 @@
+import type { ScreenedPool } from "@vexis/domain/index.js";
 import { SearchIcon } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { ScreenedPool } from "@vexis/domain/index.js";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -12,22 +12,19 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
-import {
-	ToggleGroup,
-	ToggleGroupItem,
-} from "~/components/ui/toggle-group";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
 import {
+	type Currency,
 	fmtAmount,
 	matchesSearch,
+	type OrganicBucket,
 	organicBucket,
 	organicFilter,
-	rugBucket,
-	sortPools,
-	type Currency,
-	type OrganicBucket,
 	type PoolSortKey,
+	rugBucket,
 	type SortDir,
+	sortPools,
 } from "~/lib/pools";
 import { cn } from "~/lib/utils";
 
@@ -110,6 +107,7 @@ export function PoolsTable({
 	const SortableHead = ({ label, k }: { label: string; k: PoolSortKey }) => (
 		<TableHead>
 			<button
+				type="button"
 				className="inline-flex items-center gap-1 hover:text-foreground"
 				onClick={() => toggleSort(k)}
 			>
@@ -143,9 +141,10 @@ export function PoolsTable({
 						<ToggleGroupItem value="review">Review</ToggleGroupItem>
 						<ToggleGroupItem value="blocked">Blocked</ToggleGroupItem>
 					</ToggleGroup>
-					<label className="relative">
+					<label className="relative" htmlFor="pools-search">
 						<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
+							id="pools-search"
 							value={search}
 							onChange={(e) => setSearch(e.target.value)}
 							placeholder="Search pool…"
@@ -211,7 +210,8 @@ export function PoolsTable({
 														className="font-medium hover:underline"
 														onClick={(e) => e.stopPropagation()}
 													>
-														{pool.name || `${pool.baseSymbol}/${pool.quoteSymbol}`}
+														{pool.name ||
+															`${pool.baseSymbol}/${pool.quoteSymbol}`}
 													</a>
 													<span className="font-mono text-xs text-muted-foreground">
 														{shortAddr(pool.pool, 5)}
@@ -243,7 +243,9 @@ export function PoolsTable({
 											</div>
 										</TableCell>
 										<TableCell>
-											<Badge variant={badgeVariant(organicBucket(pool.organicScore))}>
+											<Badge
+												variant={badgeVariant(organicBucket(pool.organicScore))}
+											>
 												{pool.organicScore}
 											</Badge>
 										</TableCell>
