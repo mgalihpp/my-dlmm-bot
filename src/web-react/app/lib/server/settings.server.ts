@@ -111,6 +111,8 @@ export function buildSettingsPayload(
 	return {
 		ok: true,
 		configPath,
+		wallet: config.wallet,
+		rpc: config.rpcUrl ?? "rpc not configured",
 		agent: {
 			enabled: agentState.enabled,
 			running: agentState.running,

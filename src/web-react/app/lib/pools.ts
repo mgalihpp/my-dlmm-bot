@@ -37,6 +37,8 @@ export interface PoolsPayload {
 	readonly pools: readonly ScreenedPool[];
 	readonly solPrice: number | null;
 	readonly fetchedAt: number;
+	readonly wallet?: string;
+	readonly rpc?: string;
 }
 
 export function organicBucket(score: number): "pass" | "review" | "blocked" {

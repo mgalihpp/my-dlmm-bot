@@ -55,7 +55,8 @@ export function fetchPools(rawTimeframe: string | null): Promise<PoolsPayload> {
 		const screening = yield* Screening;
 		const result = yield* screening.screen({ timeframe });
 		const solPrice = yield* fetchSolPrice();
-		return buildPoolsPayload(result, solPrice, timeframe);
+		const payload = buildPoolsPayload(result, solPrice, timeframe);
+		return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
 	}).pipe(
 		Effect.provide(AppLayer),
 		Effect.catchAll((error) =>

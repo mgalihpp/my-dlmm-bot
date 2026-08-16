@@ -1,6 +1,7 @@
 import "~/lib/server/env.server";
 
 import { join } from "node:path";
+import { loadConfigSync } from "@vexis/services/Config.js";
 import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
 import { readJournalAll } from "@vexis/telegram/agent/journal.js";
 import type { AgentState } from "@vexis/telegram/agent/state.js";
@@ -50,6 +51,8 @@ export interface AgentPayload {
 	readonly pages?: number;
 	readonly chart?: readonly CyclePoint[];
 	readonly groups?: readonly TimelineGroup[];
+	readonly wallet?: string;
+	readonly rpc?: string;
 }
 
 export function buildAgentPayload(
@@ -80,6 +83,8 @@ export function buildAgentPayload(
 	}));
 	return {
 		ok: true,
+		wallet: undefined,
+		rpc: undefined,
 		filter,
 		state: {
 			enabled: state.enabled,
@@ -110,5 +115,7 @@ export function fetchAgent(
 		Date.now(),
 		join(root, ".vexis-agent-narrative.json"),
 	);
-	return buildAgentPayload(journal, state, narrative, rawAction, page);
+	const payload = buildAgentPayload(journal, state, narrative, rawAction, page);
+	const { config } = loadConfigSync();
+	return { ...payload, wallet: config.wallet, rpc: config.rpcUrl };
 }

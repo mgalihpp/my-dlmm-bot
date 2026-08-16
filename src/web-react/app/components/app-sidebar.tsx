@@ -23,8 +23,8 @@ import {
 
 const data = {
 	user: {
-		name: "shadcn",
-		email: "m@example.com",
+		name: "Vexis User",
+		email: "Connected wallet",
 		avatar: "/logo.png",
 	},
 	navMain: [

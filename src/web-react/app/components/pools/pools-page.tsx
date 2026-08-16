@@ -39,7 +39,7 @@ export function PoolsPage() {
 		setSearchParams(value === data.timeframe ? {} : { timeframe: value });
 
 	return (
-		<DashboardShell title="Pool Radar">
+		<DashboardShell title="Pool Radar" wallet={data.wallet} rpc={data.rpc}>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
 					<div>

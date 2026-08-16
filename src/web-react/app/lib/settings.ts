@@ -10,6 +10,20 @@ export interface EditableField {
 	readonly itemType?: "number" | "string";
 }
 
+export interface SettingsPayload {
+	readonly ok: boolean;
+	readonly error?: string;
+	readonly configPath: string | null;
+	readonly wallet?: string;
+	readonly rpc?: string;
+	readonly agent: {
+		readonly enabled: boolean;
+		readonly running: boolean;
+		readonly lastCycleAt: string | null;
+	};
+	readonly values: Record<string, unknown>;
+}
+
 export const SECRET_PATHS: readonly string[] = [
 	"privateKey",
 	"telegramBotToken",

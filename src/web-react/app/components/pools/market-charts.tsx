@@ -64,7 +64,12 @@ export function MarketCharts({
 					<ChartContainer config={tvlConfig} className="h-72 w-full">
 						<BarChart accessibilityLayer data={top} layout="vertical">
 							<CartesianGrid horizontal={false} />
-							<XAxis type="number" hide />
+							<XAxis
+								type="number"
+								tickLine={false}
+								axisLine={false}
+								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+							/>
 							<YAxis
 								type="category"
 								dataKey="name"
@@ -96,9 +101,16 @@ export function MarketCharts({
 					</p>
 				</CardHeader>
 				<CardContent>
-					<ChartContainer config={scatterConfig} className="h-72 w-full">
-						<ScatterChart accessibilityLayer data={scatter}>
-							<CartesianGrid />
+					<ChartContainer
+						config={scatterConfig}
+						className="h-72 w-full [&_.recharts-cartesian-axis-tick_text]:fill-foreground [&_.recharts-scatter-symbol]:fill-cyan-400 [&_.recharts-scatter-symbol]:stroke-background"
+					>
+						<ScatterChart
+							accessibilityLayer
+							data={scatter}
+							margin={{ left: 18, right: 12, bottom: 8 }}
+						>
+							<CartesianGrid stroke="var(--border)" />
 							<XAxis
 								type="number"
 								dataKey="mcap"
@@ -106,6 +118,7 @@ export function MarketCharts({
 								scale="log"
 								domain={["auto", "auto"]}
 								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+								width={90}
 							/>
 							<YAxis
 								type="number"
@@ -114,6 +127,7 @@ export function MarketCharts({
 								scale="log"
 								domain={["auto", "auto"]}
 								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+								width={90}
 							/>
 							<ChartTooltip
 								cursor={{ strokeDasharray: "3 3" }}
@@ -125,7 +139,12 @@ export function MarketCharts({
 									/>
 								}
 							/>
-							<Scatter dataKey="volume" fill="var(--color-volume)" />
+							<Scatter
+								dataKey="volume"
+								fill="#22d3ee"
+								stroke="var(--background)"
+								strokeWidth={1.5}
+							/>
 						</ScatterChart>
 					</ChartContainer>
 				</CardContent>
