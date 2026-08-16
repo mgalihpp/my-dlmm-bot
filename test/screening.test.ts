@@ -18,6 +18,7 @@ const pool = (over: Partial<DiscoveryPool> = {}): DiscoveryPool =>
 			address: "MintX",
 			symbol: "AAA",
 			name: "Alpha",
+			icon: "https://img/x.png",
 			decimals: 6,
 			price: 1,
 			market_cap: 1000000.4,
@@ -109,6 +110,8 @@ describe("condensePool", () => {
 	it("rounds, fixes and falls back", () => {
 		const c = condensePool(pool());
 		expect(c.pool).toBe("PoolAddr");
+		expect(c.baseIcon).toBe("https://img/x.png");
+		expect(c.quoteIcon).toBeNull();
 		expect(c.tvl).toBe(10001);
 		expect(c.mcap).toBe(1000000);
 		expect(c.volatility).toBe(0.1235);

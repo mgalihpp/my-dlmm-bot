@@ -10,7 +10,9 @@ const mkPool = (over: Partial<ScreenedPool> = {}): ScreenedPool => ({
 	name: "Token/SOL",
 	baseSymbol: "Token",
 	baseMint: "mintA",
+	baseIcon: null,
 	quoteSymbol: "SOL",
+	quoteIcon: null,
 	tvl: 10000,
 	activeTvl: 8000,
 	mcap: 50000,
@@ -62,6 +64,20 @@ describe("renderPools", () => {
 		expect(html).toContain("&lt;scr&gt;");
 		expect(html).toContain('href="https://app.meteora.ag/dlmm/poolA"');
 		expect(html).toContain("$50,000.00");
+	});
+
+	it("renders token icon and falls back when absent", () => {
+		const withIcon = renderPools(
+			mkResult([mkPool({ baseIcon: "https://img/x.png" })]),
+			{ timeframe: "5m" },
+		);
+		expect(withIcon).toContain(
+			'<img class="token-icon" src="https://img/x.png"',
+		);
+		const without = renderPools(mkResult([mkPool({ baseIcon: null })]), {
+			timeframe: "5m",
+		});
+		expect(without).not.toContain("token-icon");
 	});
 
 	it("shows empty state when no pools", () => {

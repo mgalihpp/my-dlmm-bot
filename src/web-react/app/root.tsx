@@ -6,7 +6,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 } from "react-router";
-
+import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -33,6 +33,7 @@ export default function App() {
 	return (
 		<TooltipProvider delayDuration={0}>
 			<Outlet />
+			<Toaster />
 		</TooltipProvider>
 	);
 }

@@ -26,7 +26,6 @@ export function EquityChart({
 		}));
 
 	const last = points.at(-1);
-	const first = points[0];
 	const lastValue = last?.value ?? 0;
 	const positive = lastValue >= 0;
 	const colorFor = (v: number) =>
@@ -78,11 +77,6 @@ export function EquityChart({
 							: "—"}
 					</span>
 				</div>
-				{first && last ? (
-					<span className="text-xs text-muted-foreground">
-						{first.label} → {last.label}
-					</span>
-				) : null}
 			</CardHeader>
 			<CardContent>
 				{points.length < 2 ? (
@@ -103,10 +97,6 @@ export function EquityChart({
 								tickLine={false}
 								axisLine={false}
 								tickMargin={8}
-								tickFormatter={(value: string) =>
-									value.length > 12 ? `${value.slice(0, 8)}…` : value
-								}
-								hide
 							/>
 							<ChartTooltip
 								cursor={false}

@@ -74,7 +74,10 @@ function filterForm(timeframe: string): string {
 function renderPoolTable(pools: readonly ScreenedPool[]): string {
 	const rows = pools.map((pool) => {
 		const pair = pool.name || `${pool.baseSymbol}/${pool.quoteSymbol}`;
-		const link = `<a href="${escapeHtml(meteoraUrl(pool.pool))}" target="_blank" rel="noopener">${escapeHtml(pair)}</a>`;
+		const icon = pool.baseIcon
+			? `<img class="token-icon" src="${escapeHtml(pool.baseIcon)}" alt="" onerror="this.style.display='none'">`
+			: "";
+		const link = `<a href="${escapeHtml(meteoraUrl(pool.pool))}" target="_blank" rel="noopener">${icon}${escapeHtml(pair)}</a>`;
 		const organicKind =
 			pool.organicScore >= 80
 				? "pass"

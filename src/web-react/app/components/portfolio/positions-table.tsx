@@ -1,5 +1,4 @@
-import type { OpenPool } from "@vexis/domain/portfolio.js";
-import { ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
+import { CheckIcon, ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Badge } from "~/components/ui/badge";
@@ -26,6 +25,7 @@ import {
 	shortAddr,
 	solscanUrl,
 } from "~/lib/format";
+import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { RangeFilter } from "./portfolio-page";
 import { RangeVisual } from "./range-visual";
@@ -33,17 +33,97 @@ import { RangeVisual } from "./range-visual";
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
 type SortDir = "asc" | "desc";
 
-function copy(text: string, label: string) {
-	navigator.clipboard?.writeText(text).catch(() => {});
-	toast.success(`${label} copied`);
+async function copy(text: string, label: string): Promise<boolean> {
+	if (!navigator.clipboard) {
+		toast.error(`Failed to copy ${label}`);
+		return false;
+	}
+	try {
+		await navigator.clipboard.writeText(text);
+		toast.success(`${label} copied`);
+		return true;
+	} catch {
+		toast.error(`Failed to copy ${label}`);
+		return false;
+	}
 }
 
-function PoolCell({ pool }: { pool: OpenPool }) {
+function CopyButton({
+	text,
+	label,
+	className,
+}: {
+	text: string;
+	label: string;
+	className?: string;
+}) {
+	const [copied, setCopied] = useState(false);
+	return (
+		<Button
+			variant="ghost"
+			size="icon-sm"
+			className={cn(
+				"text-muted-foreground",
+				copied && "text-emerald-500",
+				className,
+			)}
+			onClick={async (e) => {
+				e.preventDefault();
+				if (await copy(text, label)) {
+					setCopied(true);
+					setTimeout(() => setCopied(false), 2000);
+				}
+			}}
+			aria-label={`Copy ${label}`}
+		>
+			{copied ? (
+				<CheckIcon className="size-3" />
+			) : (
+				<CopyIcon className="size-3" />
+			)}
+		</Button>
+	);
+}
+
+function TokenIcon({
+	icon,
+	symbol,
+	className,
+}: {
+	icon?: string | null;
+	symbol: string;
+	className?: string;
+}) {
+	if (!icon) return null;
+	return (
+		<img
+			src={icon}
+			alt={symbol}
+			className={cn("h-4 w-4 shrink-0 rounded-full object-cover", className)}
+			onError={(e) => {
+				(e.currentTarget as HTMLImageElement).style.display = "none";
+			}}
+		/>
+	);
+}
+
+function PoolCell({ pool }: { pool: OpenPoolWithIcons }) {
 	const p = pair(pool.tokenX, pool.tokenY);
 	return (
 		<div className="flex items-center gap-3">
-			<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold">
-				{p.split("/")[0].slice(0, 2).toUpperCase()}
+			<div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-xs font-bold">
+				{pool.tokenXIcon ? (
+					<img
+						src={pool.tokenXIcon}
+						alt={pool.tokenX}
+						className="h-full w-full object-cover"
+						onError={(e) => {
+							(e.currentTarget as HTMLImageElement).style.display = "none";
+						}}
+					/>
+				) : (
+					p.split("/")[0].slice(0, 2).toUpperCase()
+				)}
 			</div>
 			<div className="flex flex-col">
 				<div className="flex items-center gap-1.5">
@@ -55,18 +135,11 @@ function PoolCell({ pool }: { pool: OpenPool }) {
 					>
 						{p}
 					</a>
-					<Button
-						variant="ghost"
-						size="icon-sm"
-						className="size-5 text-muted-foreground"
-						onClick={(e) => {
-							e.preventDefault();
-							copy(pool.poolAddress, "Pool address");
-						}}
-						aria-label="Copy pool address"
-					>
-						<CopyIcon className="size-3" />
-					</Button>
+					<CopyButton
+						text={pool.poolAddress}
+						label="Pool address"
+						className="size-5"
+					/>
 				</div>
 				<span className="font-mono text-xs text-muted-foreground">
 					{shortAddr(pool.poolAddress, 5)}
@@ -76,11 +149,38 @@ function PoolCell({ pool }: { pool: OpenPool }) {
 	);
 }
 
-function PositionsDetail({ pool }: { pool: OpenPool }) {
+function TokenLink({
+	pool,
+	symbol,
+	mint,
+}: {
+	pool: OpenPoolWithIcons;
+	symbol: string;
+	mint: string;
+}) {
+	return (
+		<span className="inline-flex items-center gap-1">
+			<TokenIcon
+				icon={symbol === pool.tokenX ? pool.tokenXIcon : pool.tokenYIcon}
+				symbol={symbol}
+			/>
+			<a
+				href={meteoraUrl(pool.poolAddress)}
+				target="_blank"
+				rel="noopener noreferrer"
+				className="font-medium hover:underline"
+			>
+				{symbol}
+			</a>
+			<CopyButton text={mint} label={`${symbol} mint`} className="size-4" />
+		</span>
+	);
+}
+
+function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
 		range: pool.positionsRange?.[i],
-		pnl: pool.positionsPnl?.[i],
 	}));
 	if (positions.length === 0) {
 		return (
@@ -90,53 +190,74 @@ function PositionsDetail({ pool }: { pool: OpenPool }) {
 		);
 	}
 	return (
-		<div className="grid gap-2 px-4 py-4 @4xl/main:grid-cols-2">
-			{positions.map(({ live, range, pnl }) => (
-				<div
-					key={live.address}
-					className="flex flex-col gap-1.5 rounded-lg border bg-muted/30 p-3 text-sm"
-				>
-					<div className="flex items-center justify-between gap-2">
-						<a
-							href={solscanUrl(live.address)}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="font-mono text-xs text-muted-foreground hover:underline"
-						>
-							{shortAddr(live.address, 6)}
-						</a>
-						{pnl ? (
-							<span
-								className={cn(
-									"text-xs tabular-nums",
-									pnlClass(pnlSign(pnl.pnlUsd)),
-								)}
-							>
-								{fmtUsd(pnl.pnlUsd)}
-								<span className="ml-1 text-muted-foreground">
-									({fmtPct(pnl.pnlPctChange)})
-								</span>
-							</span>
-						) : null}
-					</div>
-					{range ? (
-						<span className="text-xs text-muted-foreground">
-							Range {Number(range.minPrice).toFixed(5)} –{" "}
-							{Number(range.maxPrice).toFixed(5)}
-						</span>
-					) : null}
-					<span className="text-xs text-muted-foreground">
-						X: {Number(live.amountX).toFixed(4)} · Y:{" "}
-						{Number(live.amountY).toFixed(4)}
-					</span>
-					{(Number(live.feeX) > 0 || Number(live.feeY) > 0) && (
-						<span className="text-xs text-muted-foreground">
-							Fees: X {Number(live.feeX).toFixed(4)} · Y{" "}
-							{Number(live.feeY).toFixed(4)}
-						</span>
-					)}
-				</div>
-			))}
+		<div className="overflow-x-auto">
+			<Table>
+				<TableHeader className="bg-muted/30">
+					<TableRow>
+						<TableHead>Position / Range</TableHead>
+						<TableHead>Amount</TableHead>
+						<TableHead>Fees</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{positions.map(({ live, range }) => (
+						<TableRow key={live.address}>
+							<TableCell>
+								<a
+									href={solscanUrl(live.address)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="font-mono text-xs text-muted-foreground hover:underline"
+								>
+									{shortAddr(live.address, 6)}
+								</a>
+								{range ? (
+									<div className="mt-1 text-xs text-muted-foreground">
+										{Number(range.minPrice).toFixed(5)} –{" "}
+										{Number(range.maxPrice).toFixed(5)}
+									</div>
+								) : null}
+							</TableCell>
+							<TableCell className="min-w-44 tabular-nums">
+								<div>
+									{Number(live.amountX).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenX}
+										mint={pool.tokenXMint}
+									/>
+								</div>
+								<div className="text-xs text-muted-foreground">
+									{Number(live.amountY).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenY}
+										mint={pool.tokenYMint}
+									/>
+								</div>
+							</TableCell>
+							<TableCell className="min-w-44 tabular-nums">
+								<div>
+									{Number(live.feeX).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenX}
+										mint={pool.tokenXMint}
+									/>
+								</div>
+								<div className="text-xs text-muted-foreground">
+									{Number(live.feeY).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenY}
+										mint={pool.tokenYMint}
+									/>
+								</div>
+							</TableCell>
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }
@@ -146,7 +267,7 @@ export function PositionsTable({
 	rangeFilter,
 	onRangeFilterChange,
 }: {
-	pools: readonly OpenPool[];
+	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
 }) {

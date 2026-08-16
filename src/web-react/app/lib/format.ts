@@ -44,9 +44,35 @@ export function pair(
 
 export function tsLocal(timestamp: string | number | null | undefined): string {
 	if (timestamp === null || timestamp === undefined) return "-";
-	const n = typeof timestamp === "number" ? timestamp : Number(timestamp);
-	if (Number.isNaN(n)) return "-";
-	return new Date(n * 1000).toLocaleString();
+	const milliseconds =
+		typeof timestamp === "number" ? timestamp * 1000 : Date.parse(timestamp);
+	if (Number.isNaN(milliseconds)) return "-";
+	const date = new Date(milliseconds);
+	const diffMs = Date.now() - milliseconds;
+	if (diffMs >= 0 && diffMs < 24 * 3600 * 1000) {
+		const seconds = Math.floor(diffMs / 1000);
+		if (seconds < 60) return "just now";
+		const minutes = Math.floor(seconds / 60);
+		if (minutes < 60) return `${minutes}m ago`;
+		return `${Math.floor(minutes / 60)}h ago`;
+	}
+	const months = [
+		"Jan",
+		"Feb",
+		"Mar",
+		"Apr",
+		"May",
+		"Jun",
+		"Jul",
+		"Aug",
+		"Sep",
+		"Oct",
+		"Nov",
+		"Dec",
+	];
+	const pad = (value: number) => String(value).padStart(2, "0");
+	const sameYear = date.getFullYear() === new Date().getFullYear();
+	return `${date.getDate()} ${months[date.getMonth()]}${sameYear ? "" : ` ${date.getFullYear()}`}, ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
 export function timeAgo(unixSeconds: number | null | undefined): string {

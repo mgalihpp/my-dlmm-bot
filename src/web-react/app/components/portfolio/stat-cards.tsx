@@ -92,14 +92,6 @@ export function StatCards({
 					<CardTitle className="text-2xl font-semibold tabular-nums">
 						{isUsd ? fmtUsd(equity) : fmtSol(equity)}
 					</CardTitle>
-					<CardAction>
-						<Badge
-							variant="outline"
-							className={equityPositive ? "text-emerald-500" : "text-red-500"}
-						>
-							{balanceHistory.length > 0 ? "24 snapshots" : "—"}
-						</Badge>
-					</CardAction>
 				</CardHeader>
 				<CardFooter className="flex-col items-start gap-1">
 					<Sparkline values={balanceHistory} positive={equityPositive} />

@@ -320,6 +320,7 @@ section > * + *:not(h2) { margin-top: 16px; }
 .pool-identity { display: flex; align-items: center; gap: 12px; min-width: 0; }
 .pool-identity > span:last-child { min-width: 0; }
 .pool-avatar { display: grid; flex: 0 0 42px; width: 42px; height: 42px; place-items: center; border: 1px solid color-mix(in srgb, var(--blue) 35%, transparent); border-radius: 50%; background: radial-gradient(circle at 35% 25%, var(--blue), var(--panel-2) 68%); color: var(--foreground); font: 700 11px monospace; box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 8%, transparent); }
+.token-icon { width: 20px; height: 20px; margin-right: 8px; border-radius: 50%; vertical-align: middle; object-fit: cover; }
 .pool-identity a { color: var(--blue); font-weight: 600; }
 .copy-mark { margin-left: 3px; color: var(--muted); font-size: 11px; }
 .range-status { text-align: left; }

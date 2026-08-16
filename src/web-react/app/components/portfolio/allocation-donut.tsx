@@ -13,7 +13,7 @@ import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
 
 const chartConfig = {
-	balance: { label: "Balance", color: "var(--chart-2)" },
+	balance: { label: "Balance", color: "var(--chart-3)" },
 	fees: { label: "Unclaimed fees", color: "var(--chart-1)" },
 } satisfies ChartConfig;
 
@@ -26,12 +26,14 @@ export function AllocationDonut({
 	summary: PortfolioSummary;
 	currency: Currency;
 }) {
-	const balanceUsd = summary.openBalanceUsd;
-	const feesUsd = summary.openFeesUsd;
-	const total = balanceUsd + feesUsd;
+	const isUsd = currency === "usd";
+	const balance = isUsd ? summary.openBalanceUsd : summary.openBalanceSol;
+	const fees = isUsd ? summary.openFeesUsd : summary.openFeesSol;
+	const total = balance + fees;
+	const fmt = isUsd ? fmtUsd : fmtSol;
 	const chartData = [
-		{ name: "balance", value: balanceUsd },
-		{ name: "fees", value: feesUsd },
+		{ name: "balance", value: balance },
+		{ name: "fees", value: fees },
 	];
 
 	const poolRows = pools
@@ -59,12 +61,27 @@ export function AllocationDonut({
 			</CardHeader>
 			<CardContent className="flex flex-col gap-4">
 				<div className="relative mx-auto h-44 w-44">
-					<ChartContainer config={chartConfig} className="h-full w-full">
+					<ChartContainer
+						config={chartConfig}
+						className="relative z-10 h-full w-full"
+					>
 						<PieChart>
 							<ChartTooltip
 								content={
 									<ChartTooltipContent
-										formatter={(value) => fmtUsd(Number(value))}
+										formatter={(value, name) => (
+											<div className="flex w-full flex-col gap-0.5">
+												<span className="text-muted-foreground">
+													{
+														chartConfig[name === "balance" ? "balance" : "fees"]
+															.label
+													}
+												</span>
+												<b className="font-mono font-medium tabular-nums">
+													{fmt(Number(value))}
+												</b>
+											</div>
+										)}
 									/>
 								}
 							/>
@@ -84,7 +101,7 @@ export function AllocationDonut({
 					</ChartContainer>
 					<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
 						<span className="text-lg font-semibold tabular-nums">
-							{fmtUsd(total)}
+							{fmt(total)}
 						</span>
 						<span className="text-xs text-muted-foreground">
 							POSITION VALUE
@@ -94,12 +111,12 @@ export function AllocationDonut({
 
 				<div className="flex justify-center gap-4 text-xs">
 					<span className="flex items-center gap-1.5">
-						<i className="size-2.5 rounded-full bg-(--chart-2)" />
-						Balance <b className="tabular-nums">{fmtUsd(balanceUsd)}</b>
+						<i className="size-2.5 rounded-full bg-emerald-500" />
+						Balance <b className="tabular-nums">{fmt(balance)}</b>
 					</span>
 					<span className="flex items-center gap-1.5">
-						<i className="size-2.5 rounded-full bg-(--chart-1)" />
-						Unclaimed fees <b className="tabular-nums">{fmtUsd(feesUsd)}</b>
+						<i className="size-2.5 rounded-full bg-red-500" />
+						Unclaimed fees <b className="tabular-nums">{fmt(fees)}</b>
 					</span>
 				</div>
 

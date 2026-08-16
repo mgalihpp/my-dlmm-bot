@@ -3,7 +3,9 @@ export interface ScreenedPool {
 	name: string;
 	baseSymbol: string;
 	baseMint: string;
+	baseIcon: string | null;
 	quoteSymbol: string;
+	quoteIcon: string | null;
 	tvl: number;
 	activeTvl: number;
 	mcap: number;

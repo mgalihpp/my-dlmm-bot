@@ -12,7 +12,10 @@ import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
 import { Dlmm } from "@vexis/services/Dlmm.js";
-import { MeteoraApi } from "@vexis/services/MeteoraApi.js";
+import {
+	MeteoraApi,
+	type MeteoraApiService,
+} from "@vexis/services/MeteoraApi.js";
 import { resolveWebConfig } from "@vexis/web/config.js";
 import {
 	type PortfolioSnapshot,
@@ -23,6 +26,14 @@ import { Effect } from "effect";
 import { repoRoot } from "./env.server";
 
 const HISTORY_FILE = join(repoRoot(), ".vexis-portfolio-history.json");
+
+export type OpenPoolWithIcons = OpenPool & {
+	readonly tokenXIcon?: string | null;
+	readonly tokenYIcon?: string | null;
+};
+
+const iconCache = new Map<string, { x?: string; y?: string; at: number }>();
+const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
 export type { PortfolioSnapshot, PortfolioTotal };
 
@@ -137,7 +148,7 @@ export interface PortfolioPayload {
 	readonly rpc?: string;
 	readonly total?: PortfolioTotal;
 	readonly summary?: PortfolioSummary;
-	readonly pools?: readonly OpenPool[];
+	readonly pools?: readonly OpenPoolWithIcons[];
 	readonly history?: readonly PortfolioSnapshot[];
 	readonly closed?: {
 		readonly pools: readonly ClosedPool[];
@@ -145,6 +156,52 @@ export interface PortfolioPayload {
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
+}
+
+function enrichWithIcons(
+	pools: readonly OpenPool[],
+	api: MeteoraApiService,
+): Effect.Effect<OpenPoolWithIcons[]> {
+	return Effect.gen(function* () {
+		const now = Date.now();
+		const out: OpenPoolWithIcons[] = [];
+		yield* Effect.forEach(
+			pools,
+			(pool) =>
+				Effect.gen(function* () {
+					const cached = iconCache.get(pool.poolAddress);
+					if (cached && now - cached.at < ICON_CACHE_TTL_MS) {
+						out.push({
+							...pool,
+							tokenXIcon: cached.x ?? null,
+							tokenYIcon: cached.y ?? null,
+						});
+						return;
+					}
+					const discovery = yield* api
+						.discoveryPoolByAddress(pool.poolAddress)
+						.pipe(Effect.either);
+					if (discovery._tag === "Left") {
+						iconCache.set(pool.poolAddress, { at: now });
+						out.push({ ...pool, tokenXIcon: null, tokenYIcon: null });
+						return;
+					}
+					const d = discovery.right;
+					iconCache.set(pool.poolAddress, {
+						x: d.token_x?.icon ?? undefined,
+						y: d.token_y?.icon ?? undefined,
+						at: now,
+					});
+					out.push({
+						...pool,
+						tokenXIcon: d.token_x?.icon ?? null,
+						tokenYIcon: d.token_y?.icon ?? null,
+					});
+				}),
+			{ concurrency: 5 },
+		);
+		return out;
+	});
 }
 
 export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
@@ -165,7 +222,8 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 				Effect.flatMap((enriched) =>
 					dlmm.attachLivePositions(enriched, wallet),
 				),
-				Effect.catchAll(() => Effect.succeed([] as OpenPool[])),
+				Effect.flatMap((enriched) => enrichWithIcons(enriched, api)),
+				Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
 			);
 
 		const closedRes = yield* api

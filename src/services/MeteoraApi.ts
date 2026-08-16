@@ -15,6 +15,7 @@ import {
 } from "effect";
 import {
 	ClosedPortfolioResponse,
+	type DiscoveryPool,
 	DiscoveryPoolsResponse,
 	DlmmPool,
 	DlmmPoolsResponse,
@@ -94,6 +95,9 @@ export interface MeteoraApiService {
 		timeframe?: string;
 		category?: string;
 	}) => Effect.Effect<DiscoveryPoolsResponse, MeteoraApiError | DecodeError>;
+	readonly discoveryPoolByAddress: (
+		address: string,
+	) => Effect.Effect<DiscoveryPool, MeteoraApiError | DecodeError>;
 }
 
 export class MeteoraApi extends Context.Tag("MeteoraApi")<
@@ -309,6 +313,25 @@ const make = Effect.gen(function* () {
 					category: opts?.category,
 				},
 				DiscoveryPoolsResponse,
+			),
+		discoveryPoolByAddress: (address) =>
+			getJson(
+				DISCOVERY_API,
+				"/pools",
+				{ page_size: 1, query: address },
+				DiscoveryPoolsResponse,
+			).pipe(
+				Effect.flatMap((res) => {
+					const pool = res.data[0];
+					return pool
+						? Effect.succeed(pool)
+						: Effect.fail(
+								new MeteoraApiError({
+									path: `/pools?query=${address}`,
+									message: `Pool ${address} not found in discovery API`,
+								}),
+							);
+				}),
 			),
 	};
 	return service;
