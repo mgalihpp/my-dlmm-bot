@@ -1,6 +1,6 @@
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { useEffect, useState } from "react";
-import { useLoaderData, useRevalidator } from "react-router";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -28,7 +28,10 @@ function greeting() {
 export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
-	const [currency, setCurrency] = useState<Currency>("usd");
+	const [searchParams, setSearchParams] = useSearchParams();
+	const currency = searchParams.get("currency") === "sol" ? "sol" : "usd";
+	const setCurrency = (v: Currency) =>
+		setSearchParams(v === "usd" ? {} : { currency: v });
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 
 	useEffect(() => {

@@ -93,7 +93,7 @@ export function StatCards({
 						{isUsd ? fmtUsd(equity) : fmtSol(equity)}
 					</CardTitle>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1">
+				<CardFooter className="mt-auto flex-col items-start gap-1">
 					<Sparkline values={balanceHistory} positive={equityPositive} />
 					<span className="text-xs text-muted-foreground">
 						{summary.openPositionCount} active positions
@@ -126,7 +126,7 @@ export function StatCards({
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1.5 text-sm">
+				<CardFooter className="mt-auto flex-col items-start gap-1.5 text-sm">
 					<div className="text-xs text-muted-foreground">
 						Lifetime across all pools
 					</div>
@@ -160,8 +160,8 @@ export function StatCards({
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1.5 text-sm">
-					<div className="text-muted-foreground">
+				<CardFooter className="mt-auto flex-col items-start gap-1.5 text-sm">
+					<div className="text-xs text-muted-foreground">
 						{isUsd
 							? fmtUsd(summary.openBalanceUsd)
 							: fmtSol(summary.openBalanceSol)}{" "}
@@ -185,8 +185,8 @@ export function StatCards({
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1.5 text-sm">
-					<div className="text-muted-foreground">
+				<CardFooter className="mt-auto flex-col items-start gap-1.5 text-sm">
+					<div className="text-xs text-muted-foreground">
 						Fees waiting to be claimed
 					</div>
 				</CardFooter>
@@ -217,8 +217,8 @@ export function StatCards({
 						</Badge>
 					</CardAction>
 				</CardHeader>
-				<CardFooter className="flex-col items-start gap-1.5 text-sm">
-					<div className="text-muted-foreground">
+				<CardFooter className="mt-auto flex-col items-start gap-1.5 text-sm">
+					<div className="text-xs text-muted-foreground">
 						Click to {rangeFilter === "all" ? "filter" : "clear"} the positions
 						table
 					</div>
