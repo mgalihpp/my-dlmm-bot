@@ -1,5 +1,4 @@
-import { passwordMatches } from "@vexis/web/auth.js";
-import { Form, redirect, useActionData, useNavigation } from "react-router";
+import { Form, redirect, useNavigation } from "react-router";
 import { Button } from "~/components/ui/button";
 import {
 	Field,
@@ -9,6 +8,7 @@ import {
 	FieldLabel,
 } from "~/components/ui/field";
 import { Input } from "~/components/ui/input";
+import { passwordMatches } from "~/lib/server/auth";
 import { getWebPassword } from "~/lib/server/portfolio.server";
 import { sessionCookieHeader } from "~/lib/server/session.server";
 import { cn } from "~/lib/utils";

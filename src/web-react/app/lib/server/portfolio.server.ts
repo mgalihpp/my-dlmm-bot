@@ -16,14 +16,14 @@ import {
 	MeteoraApi,
 	type MeteoraApiService,
 } from "@vexis/services/MeteoraApi.js";
-import { resolveWebConfig } from "@vexis/web/config.js";
+import { Effect } from "effect";
+import { resolveWebConfig } from "./config";
+import { repoRoot } from "./env.server";
 import {
 	type PortfolioSnapshot,
 	readHistory,
 	recordSnapshot,
-} from "@vexis/web/portfolio-history.js";
-import { Effect } from "effect";
-import { repoRoot } from "./env.server";
+} from "./portfolio-history";
 
 const HISTORY_FILE = join(repoRoot(), ".vexis-portfolio-history.json");
 

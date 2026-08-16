@@ -3,7 +3,7 @@ import {
 	SESSION_COOKIE,
 	sessionCookieHeader,
 	verifySessionCookie,
-} from "@vexis/web/auth.js";
+} from "./auth";
 
 export function readSessionCookie(request: Request): string | null {
 	const header = request.headers.get("cookie");
