@@ -37,3 +37,18 @@ export function tpslAction(
 	if (slPct != null && pnlPct <= slPct) return "sl";
 	return "hold";
 }
+
+/**
+ * True when a plan's position is younger than minAgeMs. The Meteora PnL API
+ * reports pnl=-100% for positions its indexer has not settled yet (seconds
+ * after open), which would trigger a false TP/SL. Plans with no openedAt
+ * (adopted on-chain) are treated as mature.
+ */
+export function positionTooYoung(
+	plan: { openedAt: string | null },
+	minAgeMs: number,
+	nowMs: number,
+): boolean {
+	if (plan.openedAt == null) return false;
+	return nowMs - Date.parse(plan.openedAt) < minAgeMs;
+}

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	positionTooYoung,
 	tpslAction,
 	validateOpenDecisions,
 } from "../src/telegram/agent/decision.js";
@@ -53,5 +54,24 @@ describe("tpslAction", () => {
 		expect(tpslAction(-12, 25, -10)).toBe("sl");
 		expect(tpslAction(30, 25, -10)).toBe("tp");
 		expect(tpslAction(5, 25, -10)).toBe("hold");
+	});
+});
+
+describe("positionTooYoung", () => {
+	const now = Date.parse("2026-08-16T05:05:25.000Z");
+	const opened = "2026-08-16T05:05:16.000Z";
+
+	it("blocks positions younger than minAgeMs (fresh Meteora PnL is unreliable)", () => {
+		expect(positionTooYoung({ openedAt: opened }, 90_000, now)).toBe(true);
+	});
+
+	it("allows positions older than minAgeMs", () => {
+		expect(positionTooYoung({ openedAt: opened }, 5_000, now + 10_000)).toBe(
+			false,
+		);
+	});
+
+	it("allows plans without openedAt (adopted on-chain)", () => {
+		expect(positionTooYoung({ openedAt: null }, 90_000, now)).toBe(false);
 	});
 });

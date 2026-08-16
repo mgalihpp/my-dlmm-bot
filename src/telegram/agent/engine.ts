@@ -18,7 +18,11 @@ import {
 import { runtime } from "../runtime.js";
 import { MD } from "../utils.js";
 import { runBriefing as runBriefingJob } from "./briefing.js";
-import { tpslAction, validateOpenDecisions } from "./decision.js";
+import {
+	positionTooYoung,
+	tpslAction,
+	validateOpenDecisions,
+} from "./decision.js";
 import {
 	formatAction,
 	formatCycleSummary,
@@ -75,6 +79,13 @@ import {
 import { pnlPctValue } from "./stats.js";
 
 const WSOL_MINT = "So11111111111111111111111111111111111111112";
+
+/**
+ * Positions younger than this are never TP/SL'd or OOR-evaluated: Meteora's
+ * PnL API reports pnl=-100% for deposits its indexer has not settled yet
+ * (observed ~4s after open), which would falsely trigger the stop loss.
+ */
+const MIN_POSITION_AGE_MS = 90_000;
 
 /** Positions with a close transaction currently in flight (one per position). */
 const closeInFlight = new Set<string>();
@@ -658,6 +669,12 @@ async function evaluateTpSl(
 	for (const plan of [...rt.state.plans]) {
 		if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 		if (!plan.positionAddress) continue;
+		if (positionTooYoung(plan, MIN_POSITION_AGE_MS, Date.now())) {
+			logInfo(
+				`position check: ${plan.poolName} → too young, skipping TP/SL/OOR`,
+			);
+			continue;
+		}
 		const pdata = pnlByPool.get(plan.pool) ?? null;
 		if (pdata === null) continue;
 		const pos = pdata.positions.find(
