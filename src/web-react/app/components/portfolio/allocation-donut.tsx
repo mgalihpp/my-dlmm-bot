@@ -1,4 +1,5 @@
 import type { OpenPool } from "@vexis/domain/portfolio.js";
+import { useMemo } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -36,18 +37,22 @@ export function AllocationDonut({
 		{ name: "fees", value: fees },
 	];
 
-	const poolRows = pools
-		.map((pool) => ({
-			pair: pair(pool.tokenX, pool.tokenY),
-			pnlUsd: parseFloat(pool.pnl),
-			pnlSol: pool.pnlSol != null ? parseFloat(pool.pnlSol) : null,
-			address: pool.poolAddress,
-		}))
-		.sort((a, b) => (b.pnlSol ?? 0) - (a.pnlSol ?? 0))
-		.slice(0, 8);
+	const { poolRows, totalUsd, totalSol } = useMemo(() => {
+		const poolRows = pools
+			.map((pool) => ({
+				pair: pair(pool.tokenX, pool.tokenY),
+				pnlUsd: parseFloat(pool.pnl),
+				pnlSol: pool.pnlSol != null ? parseFloat(pool.pnlSol) : null,
+				address: pool.poolAddress,
+			}))
+			.sort((a, b) => (b.pnlSol ?? 0) - (a.pnlSol ?? 0))
+			.slice(0, 8);
 
-	const totalUsd = poolRows.reduce((sum, r) => sum + r.pnlUsd, 0);
-	const totalSol = poolRows.reduce((sum, r) => sum + (r.pnlSol ?? 0), 0);
+		const totalUsd = poolRows.reduce((sum, r) => sum + r.pnlUsd, 0);
+		const totalSol = poolRows.reduce((sum, r) => sum + (r.pnlSol ?? 0), 0);
+
+		return { poolRows, totalUsd, totalSol };
+	}, [pools]);
 
 	return (
 		<Card className="h-full">

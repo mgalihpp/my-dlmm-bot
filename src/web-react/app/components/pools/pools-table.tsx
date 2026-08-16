@@ -72,6 +72,35 @@ function badgeVariant(kind: "pass" | "review" | "blocked" | "na") {
 	}
 }
 
+function SortableHead({
+	label,
+	k,
+	sortKey,
+	sortDir,
+	onToggle,
+}: {
+	label: string;
+	k: PoolSortKey;
+	sortKey: PoolSortKey;
+	sortDir: SortDir;
+	onToggle: (k: PoolSortKey) => void;
+}) {
+	return (
+		<TableHead>
+			<button
+				type="button"
+				className="inline-flex items-center gap-1 hover:text-foreground"
+				onClick={() => onToggle(k)}
+			>
+				{label}
+				<span className="text-[10px] text-muted-foreground">
+					{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+				</span>
+			</button>
+		</TableHead>
+	);
+}
+
 export function PoolsTable({
 	pools,
 	currency,
@@ -103,21 +132,6 @@ export function PoolsTable({
 			setSortDir("desc");
 		}
 	};
-
-	const SortableHead = ({ label, k }: { label: string; k: PoolSortKey }) => (
-		<TableHead>
-			<button
-				type="button"
-				className="inline-flex items-center gap-1 hover:text-foreground"
-				onClick={() => toggleSort(k)}
-			>
-				{label}
-				<span className="text-[10px] text-muted-foreground">
-					{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
-				</span>
-			</button>
-		</TableHead>
-	);
 
 	return (
 		<Card className="mx-4 lg:mx-6">
@@ -164,17 +178,83 @@ export function PoolsTable({
 						<Table>
 							<TableHeader className="bg-muted/50">
 								<TableRow>
-									<SortableHead label="Pool" k="pool" />
-									<SortableHead label="Price" k="price" />
-									<SortableHead label="MC" k="mcap" />
-									<SortableHead label="TVL" k="tvl" />
-									<SortableHead label="Volume" k="volume" />
-									<SortableHead label="Fee" k="fee" />
-									<SortableHead label="Bin" k="binStep" />
-									<SortableHead label="Organic" k="organicScore" />
-									<SortableHead label="Rug" k="rugScore" />
-									<SortableHead label="From ATH" k="fromAthPct" />
-									<SortableHead label="Trend" k="priceChangePct" />
+									<SortableHead
+										label="Pool"
+										k="pool"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Price"
+										k="price"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="MC"
+										k="mcap"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="TVL"
+										k="tvl"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Volume"
+										k="volume"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Fee"
+										k="fee"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Bin"
+										k="binStep"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Organic"
+										k="organicScore"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Rug"
+										k="rugScore"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="From ATH"
+										k="fromAthPct"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
+									<SortableHead
+										label="Trend"
+										k="priceChangePct"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onToggle={toggleSort}
+									/>
 								</TableRow>
 							</TableHeader>
 							<TableBody>

@@ -29,7 +29,7 @@ export function NavMain({
 								tooltip={item.title}
 								isActive={pathname === item.url}
 							>
-								<NavLink to={item.url}>
+								<NavLink to={item.url} prefetch="intent">
 									{item.icon}
 									<span>{item.title}</span>
 								</NavLink>

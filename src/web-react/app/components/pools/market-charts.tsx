@@ -1,4 +1,5 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
+import { useMemo } from "react";
 import {
 	Bar,
 	BarChart,
@@ -35,21 +36,25 @@ export function MarketCharts({
 	currency: Currency;
 	solPrice: number | null;
 }) {
-	const top = [...pools]
-		.sort((a, b) => b.tvl - a.tvl)
-		.slice(0, 10)
-		.map((p) => ({
-			name: p.name || p.baseSymbol || p.pool.slice(0, 8),
-			tvl: p.tvl,
-		}));
+	const { top, scatter } = useMemo(() => {
+		const top = [...pools]
+			.sort((a, b) => b.tvl - a.tvl)
+			.slice(0, 10)
+			.map((p) => ({
+				name: p.name || p.baseSymbol || p.pool.slice(0, 8),
+				tvl: p.tvl,
+			}));
 
-	const scatter = pools
-		.filter((p) => p.mcap > 0 && p.volume > 0)
-		.map((p) => ({
-			name: p.name || p.baseSymbol || p.pool.slice(0, 8),
-			mcap: p.mcap,
-			volume: p.volume,
-		}));
+		const scatter = pools
+			.filter((p) => p.mcap > 0 && p.volume > 0)
+			.map((p) => ({
+				name: p.name || p.baseSymbol || p.pool.slice(0, 8),
+				mcap: p.mcap,
+				volume: p.volume,
+			}));
+
+		return { top, scatter };
+	}, [pools]);
 
 	return (
 		<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @4xl/main:grid-cols-2">

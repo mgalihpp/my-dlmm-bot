@@ -1,6 +1,7 @@
 "use client";
 
 import type * as React from "react";
+import { NavLink } from "react-router";
 
 import {
 	SidebarGroup,
@@ -27,10 +28,17 @@ export function NavSecondary({
 					{items.map((item) => (
 						<SidebarMenuItem key={item.title}>
 							<SidebarMenuButton asChild>
-								<a href={item.url}>
-									{item.icon}
-									<span>{item.title}</span>
-								</a>
+								{item.url.startsWith("#") ? (
+									<a href={item.url}>
+										{item.icon}
+										<span>{item.title}</span>
+									</a>
+								) : (
+									<NavLink to={item.url} prefetch="intent">
+										{item.icon}
+										<span>{item.title}</span>
+									</NavLink>
+								)}
 							</SidebarMenuButton>
 						</SidebarMenuItem>
 					))}

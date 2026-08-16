@@ -1,3 +1,4 @@
+import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -17,50 +18,57 @@ export function EquityChart({
 	history: readonly PortfolioSnapshot[];
 	currency: Currency;
 }) {
-	const points = history
-		.filter((s) => (currency === "sol" ? s.pnlSol !== null : s.pnlUsd !== null))
-		.slice(-48)
-		.map((s) => ({
-			label: tsLocal(s.ts),
-			value: currency === "sol" ? (s.pnlSol as number) : (s.pnlUsd as number),
-		}));
+	const { points, stops, positive, chartConfig } = useMemo(() => {
+		const points = history
+			.filter((s) =>
+				currency === "sol" ? s.pnlSol !== null : s.pnlUsd !== null,
+			)
+			.slice(-48)
+			.map((s) => ({
+				label: tsLocal(s.ts),
+				value: currency === "sol" ? (s.pnlSol as number) : (s.pnlUsd as number),
+			}));
+
+		const lastValue = points.at(-1)?.value ?? 0;
+		const positive = lastValue >= 0;
+		const colorFor = (v: number) =>
+			v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
+
+		const stops: { offset: string; color: string }[] = [];
+		if (points.length > 0) {
+			stops.push({ offset: "0%", color: colorFor(points[0].value) });
+		}
+		for (let i = 1; i < points.length; i++) {
+			const previous = points[i - 1].value;
+			const current = points[i].value;
+			const previousColor = colorFor(previous);
+			const currentColor = colorFor(current);
+			if (previousColor !== currentColor) {
+				const ratio =
+					Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
+				const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
+				const offset = `${crossing}%`;
+				stops.push({ offset, color: previousColor });
+				stops.push({ offset, color: currentColor });
+			}
+		}
+		if (points.length > 1) {
+			stops.push({
+				offset: "100%",
+				color: colorFor(points.at(-1)?.value ?? 0),
+			});
+		}
+		const chartConfig = {
+			value: {
+				label: "PnL",
+				color: colorFor(lastValue),
+			},
+		} satisfies ChartConfig;
+
+		return { points, stops, positive, chartConfig };
+	}, [history, currency]);
 
 	const last = points.at(-1);
-	const lastValue = last?.value ?? 0;
-	const positive = lastValue >= 0;
-	const colorFor = (v: number) =>
-		v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
-
-	const stops: { offset: string; color: string }[] = [];
-	if (points.length > 0) {
-		stops.push({ offset: "0%", color: colorFor(points[0].value) });
-	}
-	for (let i = 1; i < points.length; i++) {
-		const previous = points[i - 1].value;
-		const current = points[i].value;
-		const previousColor = colorFor(previous);
-		const currentColor = colorFor(current);
-		if (previousColor !== currentColor) {
-			const ratio =
-				Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
-			const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
-			const offset = `${crossing}%`;
-			stops.push({ offset, color: previousColor });
-			stops.push({ offset, color: currentColor });
-		}
-	}
-	if (points.length > 1) {
-		stops.push({
-			offset: "100%",
-			color: colorFor(points.at(-1)?.value ?? 0),
-		});
-	}
-	const chartConfig = {
-		value: {
-			label: "PnL",
-			color: colorFor(lastValue),
-		},
-	} satisfies ChartConfig;
 
 	return (
 		<Card className="h-full">
