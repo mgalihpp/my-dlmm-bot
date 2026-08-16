@@ -35,6 +35,16 @@ export function reloadConfigFile(path: string): VexisConfig {
 	return JSON.parse(readFileSync(path, "utf8")) as VexisConfig;
 }
 
+export function agentEnabledTransition(
+	prev: VexisConfig,
+	next: VexisConfig,
+): "start" | "stop" | null {
+	const before = prev.agent?.enabled ?? false;
+	const after = next.agent?.enabled ?? false;
+	if (before === after) return null;
+	return after ? "start" : "stop";
+}
+
 export interface AppConfigService {
 	readonly get: Effect.Effect<VexisConfig>;
 	readonly path: string | null;
@@ -47,6 +57,9 @@ export interface AppConfigService {
 	readonly rpcUrl: Effect.Effect<string>;
 	readonly botToken: Effect.Effect<string, ConfigError>;
 	readonly chatId: Effect.Effect<string | undefined>;
+	readonly onChange: (
+		cb: (prev: VexisConfig, next: VexisConfig) => void,
+	) => Effect.Effect<() => void>;
 }
 
 export class AppConfig extends Context.Tag("AppConfig")<
@@ -198,6 +211,10 @@ const make = (
 ): Effect.Effect<AppConfigService> =>
 	Effect.gen(function* () {
 		const ref = yield* Ref.make(initial);
+		const listeners = new Set<(prev: VexisConfig, next: VexisConfig) => void>();
+		const notify = (prev: VexisConfig, next: VexisConfig) => {
+			for (const cb of listeners) cb(prev, next);
+		};
 
 		if (path !== null && watchFile) {
 			let timer: NodeJS.Timeout | null = null;
@@ -206,7 +223,10 @@ const make = (
 				timer = setTimeout(() => {
 					timer = null;
 					try {
-						Effect.runSync(Ref.set(ref, reloadConfigFile(path)));
+						const prev = Effect.runSync(Ref.get(ref));
+						const next = reloadConfigFile(path);
+						Effect.runSync(Ref.set(ref, next));
+						notify(prev, next);
 					} catch (e) {
 						console.error(
 							`[config] reload failed, keeping previous config: ${
@@ -240,8 +260,19 @@ const make = (
 			get: Ref.get(ref),
 			path,
 			update: (patch) =>
-				Ref.updateAndGet(ref, patch).pipe(Effect.tap((c) => persist(c))),
+				Effect.gen(function* () {
+					const prev = yield* Ref.get(ref);
+					const next = yield* Ref.updateAndGet(ref, patch);
+					yield* persist(next);
+					yield* Effect.sync(() => notify(prev, next));
+					return next;
+				}),
 			save: Ref.get(ref).pipe(Effect.flatMap(persist)),
+			onChange: (cb) =>
+				Effect.sync(() => {
+					listeners.add(cb);
+					return () => listeners.delete(cb);
+				}),
 			wallet: (arg?: string) =>
 				Ref.get(ref).pipe(
 					Effect.flatMap((c) => {

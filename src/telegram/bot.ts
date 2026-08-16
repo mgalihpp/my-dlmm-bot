@@ -3,7 +3,11 @@
 import { Effect } from "effect";
 import { Bot } from "grammy";
 import { errorMessage } from "../errors.js";
-import { AppConfig, resolveAgentConfigFrom } from "../services/Config.js";
+import {
+	AppConfig,
+	agentEnabledTransition,
+	resolveAgentConfigFrom,
+} from "../services/Config.js";
 import { registerAgentCommands, registerMenuSpokes } from "./agent/commands.js";
 import { createAgent, type RuntimeAgent } from "./agent/engine.js";
 import { createAlerts, registerAlertCommands } from "./alerts.js";
@@ -133,7 +137,17 @@ async function main() {
 		registerDashboard(bot, null); // idle header fallback
 	}
 
-	registerConfigEditor(bot, rtAgent);
+	registerConfigEditor(bot);
+
+	runtime.runPromise(
+		Effect.flatMap(AppConfig, (c) =>
+			c.onChange((prev, next) => {
+				const action = agentEnabledTransition(prev, next);
+				if (action === "start") rtAgent?.start();
+				else if (action === "stop") rtAgent?.stop();
+			}),
+		),
+	);
 
 	bot.catch((err) => {
 		console.error("Bot error:", err.error);

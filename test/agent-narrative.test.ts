@@ -2,12 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
-import type {
-	AgentJournalEntry,
-	JournalCandidate,
-} from "../src/telegram/agent/journal.js";
-import type { AgentState } from "../src/telegram/agent/state.js";
-import type { NarrativeCache } from "../src/web/agent-narrative.js";
+import type { NarrativeCache } from "../src/shared/agent-narrative.js";
 import {
 	buildNarrativePrompt,
 	buildRunSummary,
@@ -21,7 +16,12 @@ import {
 	readNarrativeCache,
 	windowEntries,
 	writeNarrativeCache,
-} from "../src/web/agent-narrative.js";
+} from "../src/shared/agent-narrative.js";
+import type {
+	AgentJournalEntry,
+	JournalCandidate,
+} from "../src/telegram/agent/journal.js";
+import type { AgentState } from "../src/telegram/agent/state.js";
 
 const LLM = {
 	baseUrl: "http://localhost",

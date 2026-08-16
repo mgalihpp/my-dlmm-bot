@@ -208,13 +208,13 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			case "start": {
 				rt.start();
 				await syncEnabledConfig(true);
-				await ctx.reply("🤖 DLMM Agent started.", MD);
+				await ctx.reply(escapeMarkdown("🤖 DLMM Agent started."), MD);
 				break;
 			}
 			case "stop": {
 				rt.stop();
 				await syncEnabledConfig(false);
-				await ctx.reply("🛑 DLMM Agent stopped.", MD);
+				await ctx.reply(escapeMarkdown("🛑 DLMM Agent stopped."), MD);
 				break;
 			}
 			case "clear-cooldowns": {
@@ -272,7 +272,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 
 	bot.command("briefing", async (ctx) => {
 		await rt.runBriefing();
-		await ctx.reply("📋 Briefing sent.", MD);
+		await ctx.reply(escapeMarkdown("📋 Briefing sent."), MD);
 	});
 
 	// ─── Interactive menu ────────────────────────────────────────────────────
@@ -557,7 +557,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 	bot.callbackQuery("notif:clear", async (ctx) => {
 		await ctx.answerCallbackQuery();
 		rt.stop();
-		await ctx.editMessageText("🧼 Agent stopped.", {
+		await ctx.editMessageText(escapeMarkdown("🧼 Agent stopped."), {
 			...MD,
 			reply_markup: agentKeyboard(false),
 		});

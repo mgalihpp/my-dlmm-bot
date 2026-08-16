@@ -314,15 +314,18 @@ Enable it in `vexis.config.json`:
 `VEXIS_WEB_PASSWORD` overrides the config password. The dashboard is disabled by default.
 
 ```bash
-npm run web        # dev mode (tsx)
-npm run web:start  # compiled mode (after npm run build)
+cd src/web-react
+npm install && npm run build   # build (react-router)
+npm run dev                    # dev mode
+PORT=8080 npm run start        # compiled mode
 ```
 
-Portfolio and agent pages refresh every 30 seconds through htmx. Pool screening refreshes when a timeframe is submitted. For pm2:
+The React dashboard refreshes through its own server loaders. For pm2:
 
 ```bash
-npm run build
-pm2 start "npm run web:start" --name vexis-web
+cd src/web-react
+npm install && npm run build
+PORT=8080 pm2 start "npm run start" --name vexis-web
 pm2 save
 ```
 

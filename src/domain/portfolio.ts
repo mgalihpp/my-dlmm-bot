@@ -25,6 +25,7 @@ export type OpenPortfolioTotals = Schema.Schema.Type<
 
 export const PositionLiveEntry = Schema.Struct({
 	address: Schema.String,
+	createdAt: Schema.optional(Schema.NullOr(Schema.Number)),
 	amountX: Schema.String,
 	amountY: Schema.String,
 	feeX: Schema.String,
@@ -34,6 +35,7 @@ export type PositionLiveEntry = Schema.Schema.Type<typeof PositionLiveEntry>;
 
 export const PositionPnlEntry = Schema.Struct({
 	address: Schema.String,
+	createdAt: Schema.NullOr(Schema.Number),
 	pnlUsd: Schema.String,
 	pnlPctChange: Schema.String,
 	pnlSol: Schema.NullOr(Schema.String),

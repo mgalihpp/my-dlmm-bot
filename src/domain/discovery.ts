@@ -4,6 +4,7 @@ export const DiscoveryTokenInfo = Schema.Struct({
 	address: Schema.String,
 	symbol: Schema.String,
 	name: Schema.String,
+	icon: Schema.optionalWith(Schema.NullOr(Schema.String), { exact: true }),
 	decimals: Schema.Number,
 	price: Schema.Number,
 	market_cap: Schema.Number,
