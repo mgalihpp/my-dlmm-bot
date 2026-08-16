@@ -10,9 +10,20 @@ import {
 import { Input } from "~/components/ui/input";
 import { passwordMatches } from "~/lib/server/auth";
 import { getWebPassword } from "~/lib/server/portfolio.server";
-import { sessionCookieHeader } from "~/lib/server/session.server";
+import {
+	hasValidSession,
+	sessionCookieHeader,
+} from "~/lib/server/session.server";
 import { cn } from "~/lib/utils";
 import type { Route } from "./+types/login";
+
+export async function loader({ request }: Route.LoaderArgs) {
+	const password = await getWebPassword();
+	if (password.length > 0 && hasValidSession(request, password)) {
+		throw redirect("/portfolio");
+	}
+	return null;
+}
 
 export async function action({ request }: Route.ActionArgs) {
 	const formData = await request.formData();
