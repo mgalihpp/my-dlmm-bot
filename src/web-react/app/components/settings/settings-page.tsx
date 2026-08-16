@@ -2,17 +2,27 @@ import { AlertCircleIcon, CheckIcon } from "lucide-react";
 import { useActionData, useLoaderData } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { AgentStatusCard } from "~/components/settings/agent-status-card";
+import { PreferencesCard } from "~/components/settings/preferences-card";
 import { SettingsSection } from "~/components/settings/settings-section";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { Section, SettingsPayload } from "~/lib/settings";
 
-const SECTIONS: readonly { id: Section; title: string }[] = [
-	{ id: "general", title: "General" },
-	{ id: "agent", title: "Agent" },
-	{ id: "create", title: "Create" },
-	{ id: "pools", title: "Pools" },
+const SECTIONS: readonly (Section | "preferences")[] = [
+	"general",
+	"agent",
+	"create",
+	"pools",
+	"preferences",
 ];
+
+const TITLES: Record<(typeof SECTIONS)[number], string> = {
+	general: "General",
+	agent: "Agent",
+	create: "Create",
+	pools: "Pools",
+	preferences: "Preferences",
+};
 
 export function SettingsPage() {
 	const data = useLoaderData<SettingsPayload>();
@@ -69,14 +79,22 @@ export function SettingsPage() {
 				<Tabs defaultValue="general" orientation="vertical">
 					<TabsList variant="line" className="h-fit shrink-0 gap-1">
 						{SECTIONS.map((s) => (
-							<TabsTrigger key={s.id} value={s.id}>
-								{s.title}
+							<TabsTrigger key={s} value={s}>
+								{TITLES[s]}
 							</TabsTrigger>
 						))}
 					</TabsList>
 					{SECTIONS.map((s) => (
-						<TabsContent key={s.id} value={s.id}>
-							<SettingsSection section={s.id} title={s.title} values={values} />
+						<TabsContent key={s} value={s}>
+							{s === "preferences" ? (
+								<PreferencesCard />
+							) : (
+								<SettingsSection
+									section={s}
+									title={TITLES[s]}
+									values={values}
+								/>
+							)}
 						</TabsContent>
 					))}
 				</Tabs>

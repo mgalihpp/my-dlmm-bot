@@ -8,6 +8,7 @@ import {
 } from "react-router";
 import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
+import { useTheme } from "~/hooks/use-theme";
 import type { Route } from "./+types/root";
 import "./app.css";
 
@@ -19,6 +20,13 @@ export function Layout({ children }: { children: React.ReactNode }) {
 				<meta name="viewport" content="width=device-width, initial-scale=1" />
 				<Meta />
 				<Links />
+				<script
+					suppressHydrationWarning
+					// biome-ignore lint/security/noDangerouslySetInnerHtml: static string, no user input — applies saved theme before hydration
+					dangerouslySetInnerHTML={{
+						__html: `(()=>{try{const t=localStorage.getItem("vexis-theme");const d=t==="dark"||(t==null&&matchMedia("(prefers-color-scheme: dark)").matches);if(d)document.documentElement.classList.add("dark");}catch(e){}})();`,
+					}}
+				/>
 			</head>
 			<body>
 				{children}
@@ -30,6 +38,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+	useTheme();
 	return (
 		<TooltipProvider delayDuration={0}>
 			<Outlet />
