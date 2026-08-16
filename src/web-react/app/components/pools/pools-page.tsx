@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { MarketCharts } from "~/components/pools/market-charts";
+import { PoolsTable } from "~/components/pools/pools-table";
 import { StatCards } from "~/components/pools/stat-cards";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -112,6 +113,12 @@ export function PoolsPage() {
 							pools={data.pools}
 							currency={currency}
 							solPrice={data.solPrice}
+						/>
+						<PoolsTable
+							pools={data.pools}
+							currency={currency}
+							solPrice={data.solPrice}
+							onSelect={() => {}}
 						/>
 					</>
 				)}
