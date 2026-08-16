@@ -1,8 +1,8 @@
 import {
 	type AgentJournalEntry,
 	type JournalCandidate,
-} from "../../telegram/agent/journal.js";
-import { type LlmStatus } from "../../telegram/agent/state.js";
+} from "../telegram/agent/journal.js";
+import { type LlmStatus } from "../telegram/agent/state.js";
 
 export interface AgentStats {
 	readonly cycles: number;

@@ -18,8 +18,4 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return fetchAgent(page, url.searchParams.get("action"));
 }
 
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	return serverLoader();
-}
-
 export default AgentPage;

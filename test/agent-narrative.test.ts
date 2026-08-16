@@ -7,7 +7,7 @@ import type {
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
-import type { NarrativeCache } from "../src/web/agent-narrative.js";
+import type { NarrativeCache } from "../src/shared/agent-narrative.js";
 import {
 	buildNarrativePrompt,
 	buildRunSummary,
@@ -21,7 +21,7 @@ import {
 	readNarrativeCache,
 	windowEntries,
 	writeNarrativeCache,
-} from "../src/web/agent-narrative.js";
+} from "../src/shared/agent-narrative.js";
 
 const LLM = {
 	baseUrl: "http://localhost",

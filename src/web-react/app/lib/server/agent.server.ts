@@ -9,7 +9,7 @@ import { loadState } from "@vexis/telegram/agent/state.js";
 import {
 	type NarrativeResult,
 	narrativeSnapshot,
-} from "@vexis/web/agent-narrative.js";
+} from "@vexis/shared/agent-narrative.js";
 import {
 	type AgentStats,
 	agentStats,
@@ -20,7 +20,7 @@ import {
 	parseJournalFilter,
 	type TimelineGroup,
 	timelineGroups,
-} from "@vexis/web/pages/agent.js";
+} from "@vexis/shared/agent-journal.js";
 import { repoRoot } from "./env.server";
 
 export interface AgentStateSummary {

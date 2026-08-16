@@ -17,8 +17,4 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return fetchPortfolio(closedPage);
 }
 
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	return serverLoader();
-}
-
 export default PortfolioPage;

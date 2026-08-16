@@ -1,4 +1,4 @@
-import type { AgentStats } from "@vexis/web/pages/agent.js";
+import type { AgentStats } from "@vexis/shared/agent-journal.js";
 import {
 	BanIcon,
 	CircleCheckBigIcon,

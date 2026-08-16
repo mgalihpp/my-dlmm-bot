@@ -14,8 +14,4 @@ export async function loader({ request }: Route.LoaderArgs) {
 	return fetchPools(url.searchParams.get("timeframe"));
 }
 
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	return serverLoader();
-}
-
 export default PoolsPage;

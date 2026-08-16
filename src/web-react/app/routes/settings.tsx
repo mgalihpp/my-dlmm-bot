@@ -69,8 +69,4 @@ function errorResult(
 	};
 }
 
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	return serverLoader();
-}
-
 export default SettingsPage;

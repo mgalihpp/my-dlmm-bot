@@ -1,5 +1,5 @@
 import type { JournalCandidate } from "@vexis/telegram/agent/journal.js";
-import type { JournalFilter, TimelineGroup } from "@vexis/web/pages/agent.js";
+import type { JournalFilter, TimelineGroup } from "@vexis/shared/agent-journal.js";
 import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
