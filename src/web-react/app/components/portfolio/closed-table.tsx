@@ -4,12 +4,12 @@ import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
-	LoaderIcon,
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useFetcher, useSearchParams } from "react-router";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
 	Table,
 	TableBody,
@@ -46,6 +46,52 @@ interface DetailPayload {
 	readonly positions?: readonly PositionPnLData[];
 }
 
+const DETAIL_COLUMNS = [
+	"Position",
+	"Deposit",
+	"Withdraw",
+	"Fees",
+	"PnL USD",
+	"PnL SOL",
+	"Closed",
+];
+
+function ClosedDetailSkeleton() {
+	return (
+		<div className="px-4 py-4">
+			<Skeleton className="mb-2 h-3 w-48" />
+			<div className="overflow-x-auto rounded-md border">
+				<Table>
+					<TableHeader className="bg-muted/50">
+						<TableRow>
+							{DETAIL_COLUMNS.map((col) => (
+								<TableHead key={col}>
+									<Skeleton className="h-4 w-14" />
+								</TableHead>
+							))}
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{[0, 1, 2].map((n) => (
+							<TableRow key={n}>
+								{DETAIL_COLUMNS.map((col) => (
+									<TableCell key={col}>
+										<Skeleton
+											className={
+												col === "Position" ? "h-4 w-24" : "h-4 w-full max-w-16"
+											}
+										/>
+									</TableCell>
+								))}
+							</TableRow>
+						))}
+					</TableBody>
+				</Table>
+			</div>
+		</div>
+	);
+}
+
 function ClosedDetail({
 	pool,
 	pairLabel,
@@ -62,15 +108,10 @@ function ClosedDetail({
 	}, [pool]);
 
 	const data = fetcher.data;
-	if (fetcher.state === "loading" && data === undefined) {
-		return (
-			<div className="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
-				<LoaderIcon className="size-4 animate-spin" />
-				Loading closed positions…
-			</div>
-		);
+	if (data === undefined) {
+		return <ClosedDetailSkeleton />;
 	}
-	if (!data || !data.ok) {
+	if (!data.ok) {
 		return (
 			<div className="py-6 text-center text-sm text-destructive">
 				{data?.error ?? "Failed to load closed positions"}
@@ -142,6 +183,9 @@ function ClosedDetail({
 										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
 									>
 										{fmtSol(pnlSol)}
+										<div className="text-xs text-muted-foreground">
+											{fmtPct(pos.pnlSolPctChange ?? null)}
+										</div>
 									</TableCell>
 									<TableCell className="text-xs text-muted-foreground">
 										{tsLocal(pos.closedAt)}
