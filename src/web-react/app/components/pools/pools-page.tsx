@@ -2,6 +2,7 @@ import type { ScreenedPool } from "@vexis/domain/index.js";
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
 import { lazy, Suspense, useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { CurrencyIcon } from "~/components/currency-icon";
 import { DashboardShell } from "~/components/dashboard-shell";
 import {
 	ChartGridSkeleton,
@@ -70,8 +71,12 @@ export function PoolsPage() {
 								onValueChange={(v) => setCurrency(v as Currency)}
 							>
 								<TabsList>
-									<TabsTrigger value="usd">USD</TabsTrigger>
-									<TabsTrigger value="sol">SOL</TabsTrigger>
+									<TabsTrigger value="usd" aria-label="USD / USDC">
+										<CurrencyIcon currency="usd" decorative />
+									</TabsTrigger>
+									<TabsTrigger value="sol" aria-label="SOL / Solana">
+										<CurrencyIcon currency="sol" decorative />
+									</TabsTrigger>
 								</TabsList>
 							</Tabs>
 							<Select value={timeframe} onValueChange={onTimeframeChange}>

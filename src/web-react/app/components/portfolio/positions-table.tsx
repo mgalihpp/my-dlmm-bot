@@ -1,6 +1,7 @@
 import { CheckIcon, ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
 import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -16,8 +17,6 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import {
 	fmtPct,
-	fmtSol,
-	fmtUsd,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -469,10 +468,13 @@ export function PositionsTable({
 													{pool.binStep}
 												</TableCell>
 												<TableCell className="tabular-nums">
-													{fmtUsd(pool.balances)}
+													<CurrencyValue currency="usd" value={pool.balances} />
 												</TableCell>
 												<TableCell className="tabular-nums">
-													{fmtUsd(pool.unclaimedFees)}
+													<CurrencyValue
+														currency="usd"
+														value={pool.unclaimedFees}
+													/>
 												</TableCell>
 												<TableCell
 													className={cn(
@@ -480,7 +482,7 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlUsd)),
 													)}
 												>
-													{fmtUsd(pool.pnl)}
+													<CurrencyValue currency="usd" value={pool.pnl} />
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pnlPct)}
 													</div>
@@ -491,7 +493,7 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlSolVal)),
 													)}
 												>
-													{fmtSol(pool.pnlSol)}
+													<CurrencyValue currency="sol" value={pool.pnlSol} />
 													<div className="text-xs text-muted-foreground">
 														{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
 													</div>

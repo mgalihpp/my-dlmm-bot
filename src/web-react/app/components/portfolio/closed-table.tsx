@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useFetcher, useSearchParams } from "react-router";
+import { CurrencyValue } from "~/components/currency-value";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -20,8 +21,6 @@ import {
 } from "~/components/ui/table";
 import {
 	fmtPct,
-	fmtSol,
-	fmtUsd,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -163,18 +162,27 @@ function ClosedDetail({
 										</a>
 									</TableCell>
 									<TableCell className="tabular-nums">
-										{fmtUsd(pos.allTimeDeposits.total.usd)}
+										<CurrencyValue
+											currency="usd"
+											value={pos.allTimeDeposits.total.usd}
+										/>
 									</TableCell>
 									<TableCell className="tabular-nums">
-										{fmtUsd(pos.allTimeWithdrawals.total.usd)}
+										<CurrencyValue
+											currency="usd"
+											value={pos.allTimeWithdrawals.total.usd}
+										/>
 									</TableCell>
 									<TableCell className="tabular-nums">
-										{fmtUsd(pos.allTimeFees.total.usd)}
+										<CurrencyValue
+											currency="usd"
+											value={pos.allTimeFees.total.usd}
+										/>
 									</TableCell>
 									<TableCell
 										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
 									>
-										{fmtUsd(pos.pnlUsd)}
+										<CurrencyValue currency="usd" value={pos.pnlUsd} />
 										<div className="text-xs text-muted-foreground">
 											{fmtPct(pnlPct)}
 										</div>
@@ -182,7 +190,7 @@ function ClosedDetail({
 									<TableCell
 										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
 									>
-										{fmtSol(pnlSol)}
+										<CurrencyValue currency="sol" value={pnlSol} />
 										<div className="text-xs text-muted-foreground">
 											{fmtPct(pos.pnlSolPctChange ?? null)}
 										</div>
@@ -277,13 +285,22 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 														</div>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														{fmtUsd(pool.totalDeposit)}
+														<CurrencyValue
+															currency="usd"
+															value={pool.totalDeposit}
+														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														{fmtUsd(pool.totalWithdrawal)}
+														<CurrencyValue
+															currency="usd"
+															value={pool.totalWithdrawal}
+														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														{fmtUsd(pool.totalFee)}
+														<CurrencyValue
+															currency="usd"
+															value={pool.totalFee}
+														/>
 													</TableCell>
 													<TableCell
 														className={cn(
@@ -291,7 +308,7 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 															pnlClass(pnlSign(pnlUsd)),
 														)}
 													>
-														{fmtUsd(pool.pnlUsd)}
+														<CurrencyValue currency="usd" value={pool.pnlUsd} />
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlPctChange)}
 														</div>
@@ -302,7 +319,7 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 															pnlClass(pnlSign(pnlSol)),
 														)}
 													>
-														{fmtSol(pool.pnlSol)}
+														<CurrencyValue currency="sol" value={pool.pnlSol} />
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlSolPctChange)}
 														</div>
