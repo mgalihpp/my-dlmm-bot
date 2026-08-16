@@ -2,14 +2,6 @@ import "~/lib/server/env.server";
 
 import { join } from "node:path";
 import { loadConfigSync } from "@vexis/services/Config.js";
-import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
-import { readJournalAll } from "@vexis/telegram/agent/journal.js";
-import type { AgentState } from "@vexis/telegram/agent/state.js";
-import { loadState } from "@vexis/telegram/agent/state.js";
-import {
-	type NarrativeResult,
-	narrativeSnapshot,
-} from "@vexis/shared/agent-narrative.js";
 import {
 	type AgentStats,
 	agentStats,
@@ -21,6 +13,14 @@ import {
 	type TimelineGroup,
 	timelineGroups,
 } from "@vexis/shared/agent-journal.js";
+import {
+	type NarrativeResult,
+	narrativeSnapshot,
+} from "@vexis/shared/agent-narrative.js";
+import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
+import { readJournalAll } from "@vexis/telegram/agent/journal.js";
+import type { AgentState } from "@vexis/telegram/agent/state.js";
+import { loadState } from "@vexis/telegram/agent/state.js";
 import { repoRoot } from "./env.server";
 
 export interface AgentStateSummary {

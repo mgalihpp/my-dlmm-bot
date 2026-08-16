@@ -1,5 +1,5 @@
-import type { NarrativeResult } from "@vexis/shared/agent-narrative.js";
 import type { AgentStats } from "@vexis/shared/agent-journal.js";
+import type { NarrativeResult } from "@vexis/shared/agent-narrative.js";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
