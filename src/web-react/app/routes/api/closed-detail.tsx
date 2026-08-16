@@ -1,16 +1,10 @@
-import { redirect } from "react-router";
-import {
-	fetchClosedPositionDetail,
-	getWebPassword,
-} from "~/lib/server/portfolio.server";
-import { hasValidSession } from "~/lib/server/session.server";
+import { fetchClosedPositionDetail } from "~/lib/server/portfolio.server";
+import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/closed-detail";
 
-export async function loader({ request, params }: Route.LoaderArgs) {
-	const password = await getWebPassword();
-	if (password.length === 0 || !hasValidSession(request, password)) {
-		throw redirect("/");
-	}
+export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
+
+export async function loader({ params }: Route.LoaderArgs) {
 	return fetchClosedPositionDetail(params.pool ?? "");
 }
 

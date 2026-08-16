@@ -1,17 +1,12 @@
-import { redirect } from "react-router";
 import { AgentPage } from "~/components/agent/agent-page";
 import { fetchAgent } from "~/lib/server/agent.server";
-import { getWebPassword } from "~/lib/server/portfolio.server";
-import { hasValidSession } from "~/lib/server/session.server";
+import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/agent";
 
 export const meta: Route.MetaFunction = () => [{ title: "Agent | Vexis" }];
+export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
 export async function loader({ request }: Route.LoaderArgs) {
-	const password = await getWebPassword();
-	if (password.length === 0 || !hasValidSession(request, password)) {
-		throw redirect("/");
-	}
 	const url = new URL(request.url);
 	const rawPage = url.searchParams.get("page");
 	const parsedPage = rawPage === null ? 1 : Number(rawPage);

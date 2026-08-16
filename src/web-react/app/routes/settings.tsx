@@ -1,7 +1,4 @@
-import { redirect } from "react-router";
 import { SettingsPage } from "~/components/settings/settings-page";
-import { getWebPassword } from "~/lib/server/portfolio.server";
-import { hasValidSession } from "~/lib/server/session.server";
 import {
 	EDITABLE_FIELDS,
 	fetchSettings,
@@ -11,23 +8,17 @@ import {
 	saveField,
 	setAgentEnabled,
 } from "~/lib/server/settings.server";
+import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/settings";
 
 export const meta: Route.MetaFunction = () => [{ title: "Settings | Vexis" }];
+export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
-export async function loader({ request }: Route.LoaderArgs) {
-	const password = await getWebPassword();
-	if (password.length === 0 || !hasValidSession(request, password)) {
-		throw redirect("/");
-	}
+export async function loader() {
 	return fetchSettings();
 }
 
 export async function action({ request }: Route.ActionArgs) {
-	const password = await getWebPassword();
-	if (password.length === 0 || !hasValidSession(request, password)) {
-		throw redirect("/");
-	}
 	const form = await request.formData();
 	const op = String(form.get("op") ?? "");
 	const configPath = fetchSettings().configPath;
