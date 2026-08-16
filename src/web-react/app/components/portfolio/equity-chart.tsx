@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis } from "recharts";
+import { CurrencyValue } from "~/components/currency-value";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	type ChartConfig,
@@ -7,7 +8,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
-import { fmtSol, fmtUsd, tsLocal } from "~/lib/format";
+import { tsLocal } from "~/lib/format";
 import type { PortfolioSnapshot } from "~/lib/server/portfolio.server";
 import type { Currency } from "./portfolio-page";
 
@@ -78,11 +79,11 @@ export function EquityChart({
 					<span
 						className={`text-xl font-semibold tabular-nums ${positive ? "text-emerald-500" : "text-red-500"}`}
 					>
-						{last
-							? currency === "sol"
-								? fmtSol(last.value)
-								: fmtUsd(last.value)
-							: "—"}
+						{last ? (
+							<CurrencyValue currency={currency} value={last.value} />
+						) : (
+							"—"
+						)}
 					</span>
 				</div>
 			</CardHeader>
@@ -112,11 +113,12 @@ export function EquityChart({
 									<ChartTooltipContent
 										className="font-mono font-medium tabular-nums"
 										indicator="dot"
-										formatter={(value) =>
-											currency === "sol"
-												? fmtSol(Number(value))
-												: fmtUsd(Number(value))
-										}
+										formatter={(value) => (
+											<CurrencyValue
+												currency={currency}
+												value={Number(value)}
+											/>
+										)}
 									/>
 								}
 							/>

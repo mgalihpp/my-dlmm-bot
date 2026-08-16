@@ -5,6 +5,7 @@ import {
 	TrendingUpIcon,
 	WalletIcon,
 } from "lucide-react";
+import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import {
 	Card,
@@ -14,7 +15,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
-import { fmtPct, fmtSol, fmtUsd } from "~/lib/format";
+import { fmtPct } from "~/lib/format";
 import type {
 	PortfolioSnapshot,
 	PortfolioSummary,
@@ -90,7 +91,7 @@ export function StatCards({
 						Total equity
 					</CardDescription>
 					<CardTitle className="text-2xl font-semibold tabular-nums">
-						{isUsd ? fmtUsd(equity) : fmtSol(equity)}
+						<CurrencyValue currency={currency} value={equity} />
 					</CardTitle>
 				</CardHeader>
 				<CardFooter className="mt-auto flex-col items-start gap-1">
@@ -116,7 +117,10 @@ export function StatCards({
 							!isUsd && Number(total.totalPnlSol) < 0 && "text-red-500",
 						)}
 					>
-						{isUsd ? fmtUsd(total.totalPnlUsd) : fmtSol(total.totalPnlSol)}
+						<CurrencyValue
+							currency={currency}
+							value={isUsd ? total.totalPnlUsd : total.totalPnlSol}
+						/>
 					</CardTitle>
 					<CardAction>
 						<Badge variant="outline">
@@ -148,9 +152,10 @@ export function StatCards({
 								"text-red-500",
 						)}
 					>
-						{isUsd
-							? fmtUsd(summary.unrealizedUsd)
-							: fmtSol(summary.unrealizedSol)}
+						<CurrencyValue
+							currency={currency}
+							value={isUsd ? summary.unrealizedUsd : summary.unrealizedSol}
+						/>
 					</CardTitle>
 					<CardAction>
 						<Badge variant="outline">
@@ -162,9 +167,10 @@ export function StatCards({
 				</CardHeader>
 				<CardFooter className="mt-auto flex-col items-start gap-1.5 text-sm">
 					<div className="text-xs text-muted-foreground">
-						{isUsd
-							? fmtUsd(summary.openBalanceUsd)
-							: fmtSol(summary.openBalanceSol)}{" "}
+						<CurrencyValue
+							currency={currency}
+							value={isUsd ? summary.openBalanceUsd : summary.openBalanceSol}
+						/>{" "}
 						in pool balances
 					</div>
 				</CardFooter>
@@ -177,7 +183,10 @@ export function StatCards({
 						Unclaimed fees
 					</CardDescription>
 					<CardTitle className="text-2xl font-semibold tabular-nums">
-						{isUsd ? fmtUsd(summary.openFeesUsd) : fmtSol(summary.openFeesSol)}
+						<CurrencyValue
+							currency={currency}
+							value={isUsd ? summary.openFeesUsd : summary.openFeesSol}
+						/>
 					</CardTitle>
 					<CardAction>
 						<Badge variant="outline">

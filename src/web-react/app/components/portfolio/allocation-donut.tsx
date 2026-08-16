@@ -1,6 +1,7 @@
 import type { OpenPool } from "@vexis/domain/portfolio.js";
 import { useMemo } from "react";
 import { Cell, Pie, PieChart } from "recharts";
+import { CurrencyValue } from "~/components/currency-value";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	type ChartConfig,
@@ -8,7 +9,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
-import { fmtSol, fmtUsd, pair, pnlClass, pnlSign } from "~/lib/format";
+import { pair, pnlClass, pnlSign } from "~/lib/format";
 import type { PortfolioSummary } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
@@ -31,7 +32,6 @@ export function AllocationDonut({
 	const balance = isUsd ? summary.openBalanceUsd : summary.openBalanceSol;
 	const fees = isUsd ? summary.openFeesUsd : summary.openFeesSol;
 	const total = balance + fees;
-	const fmt = isUsd ? fmtUsd : fmtSol;
 	const chartData = [
 		{ name: "balance", value: balance },
 		{ name: "fees", value: fees },
@@ -83,7 +83,10 @@ export function AllocationDonut({
 													}
 												</span>
 												<b className="font-mono font-medium tabular-nums">
-													{fmt(Number(value))}
+													<CurrencyValue
+														currency={currency}
+														value={Number(value)}
+													/>
 												</b>
 											</div>
 										)}
@@ -106,7 +109,7 @@ export function AllocationDonut({
 					</ChartContainer>
 					<div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
 						<span className="text-lg font-semibold tabular-nums">
-							{fmt(total)}
+							<CurrencyValue currency={currency} value={total} />
 						</span>
 						<span className="text-xs text-muted-foreground">
 							POSITION VALUE
@@ -117,11 +120,11 @@ export function AllocationDonut({
 				<div className="flex justify-center gap-4 text-xs">
 					<span className="flex items-center gap-1.5">
 						<i className="size-2.5 rounded-full bg-chart-1" />
-						Balance <b className="tabular-nums">{fmt(balance)}</b>
+						Balance <CurrencyValue currency={currency} value={balance} />
 					</span>
 					<span className="flex items-center gap-1.5">
 						<i className="size-2.5 rounded-full bg-chart-5" />
-						Unclaimed fees <b className="tabular-nums">{fmt(fees)}</b>
+						Unclaimed fees <CurrencyValue currency={currency} value={fees} />
 					</span>
 				</div>
 
@@ -140,7 +143,10 @@ export function AllocationDonut({
 									),
 								)}
 							>
-								{currency === "sol" ? fmtSol(row.pnlSol) : fmtUsd(row.pnlUsd)}
+								<CurrencyValue
+									currency={currency}
+									value={currency === "sol" ? row.pnlSol : row.pnlUsd}
+								/>
 							</span>
 						</div>
 					))}
@@ -154,7 +160,10 @@ export function AllocationDonut({
 							pnlClass(pnlSign(currency === "sol" ? totalSol : totalUsd)),
 						)}
 					>
-						{currency === "sol" ? fmtSol(totalSol) : fmtUsd(totalUsd)}
+						<CurrencyValue
+							currency={currency}
+							value={currency === "sol" ? totalSol : totalUsd}
+						/>
 					</b>
 				</div>
 			</CardContent>
