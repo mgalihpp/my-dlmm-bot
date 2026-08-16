@@ -57,6 +57,8 @@ function BreadcrumbLink({
 
 function BreadcrumbPage({ className, ...props }: React.ComponentProps<"span">) {
 	return (
+		// biome-ignore lint/a11y/useSemanticElements: current page, intentionally not a link.
+		// biome-ignore lint/a11y/useFocusableInteractive: aria-disabled page marker, not an interactive element.
 		<span
 			data-slot="breadcrumb-page"
 			role="link"

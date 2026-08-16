@@ -17,6 +17,8 @@ import {
 import { cn } from "~/lib/utils";
 import type { Route } from "./+types/login";
 
+export const meta: Route.MetaFunction = () => [{ title: "Login | Vexis" }];
+
 export async function loader({ request }: Route.LoaderArgs) {
 	const password = await getWebPassword();
 	if (password.length > 0 && hasValidSession(request, password)) {

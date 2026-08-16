@@ -13,6 +13,8 @@ import {
 } from "~/lib/server/settings.server";
 import type { Route } from "./+types/settings";
 
+export const meta: Route.MetaFunction = () => [{ title: "Settings | Vexis" }];
+
 export async function loader({ request }: Route.LoaderArgs) {
 	const password = await getWebPassword();
 	if (password.length === 0 || !hasValidSession(request, password)) {

@@ -66,9 +66,9 @@ export function RangeVisual({
 			role="img"
 			aria-label={`Position range ${formatPrice(min)} to ${formatPrice(max)}`}
 		>
-			{bars.map((bar, i) => (
+			{bars.map((bar) => (
 				<div
-					key={i}
+					key={bar.left}
 					className={`absolute rounded-[1px] ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
 					style={{
 						left: `${bar.left}%`,

@@ -76,9 +76,9 @@ describe("buildSettingsPayload", () => {
 		expect(p.configPath).toBe("/x/vexis.config.json");
 		expect(p.agent.enabled).toBe(true);
 		expect(p.agent.running).toBe(true);
-		expect(p.values["wallet"]).toBe("wallet1");
+		expect(p.values.wallet).toBe("wallet1");
 		expect(p.values["agent.enabled"]).toBe(true);
-		expect(p.values["privateKey"]).toBeUndefined();
+		expect(p.values.privateKey).toBeUndefined();
 		expect(p.values["agent.llm.apiKey"]).toBeUndefined();
 	});
 });

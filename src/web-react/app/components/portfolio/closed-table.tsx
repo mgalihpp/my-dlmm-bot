@@ -105,7 +105,7 @@ function ClosedDetail({
 		if (fetcher.state === "idle" && fetcher.data === undefined) {
 			fetcher.load(`/api/closed-detail/${encodeURIComponent(pool)}`);
 		}
-	}, [pool]);
+	}, [pool, fetcher.state, fetcher.data, fetcher.load]);
 
 	const data = fetcher.data;
 	if (data === undefined) {
@@ -202,7 +202,7 @@ function ClosedDetail({
 
 export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 	const [expanded, setExpanded] = useState<string | null>(null);
-	const [searchParams, setSearchParams] = useSearchParams();
+	const [, setSearchParams] = useSearchParams();
 	const { pools, page, pageSize, totalCount } = closed;
 	const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
 	const from = (page - 1) * pageSize + 1;
