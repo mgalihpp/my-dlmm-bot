@@ -18,6 +18,8 @@ import { ClosedTable } from "./closed-table";
 import { PositionsTable } from "./positions-table";
 import { StatCards } from "./stat-cards";
 
+export type { Currency } from "~/lib/currency";
+
 const EquityChart = lazy(() =>
 	import("./equity-chart").then((m) => ({ default: m.EquityChart })),
 );
