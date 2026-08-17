@@ -69,10 +69,10 @@ export function RangeVisual({
 			{bars.map((bar) => (
 				<div
 					key={bar.left}
-					className={`absolute rounded-[1px] ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
+					className={`absolute ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
 					style={{
 						left: `${bar.left}%`,
-						width: `${bar.width}%`,
+						width: `calc(${bar.width}% + 1px)`,
 						bottom: `${baselinePct}%`,
 						height: `${bar.height}%`,
 					}}
