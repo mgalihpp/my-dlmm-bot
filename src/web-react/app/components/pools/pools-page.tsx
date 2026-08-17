@@ -22,7 +22,8 @@ import {
 	SelectValue,
 } from "~/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { type Currency, type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
+import { resolveCurrency } from "~/lib/currency";
+import { type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
 
 const MarketCharts = lazy(() =>
 	import("~/components/pools/market-charts").then((m) => ({
@@ -36,7 +37,7 @@ export function PoolsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();
 	const timeframe = searchParams.get("timeframe") ?? data.timeframe;
-	const [currency, setCurrency] = useState<Currency>("usd");
+	const currency = resolveCurrency(searchParams.get("currency"), null);
 	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
 
 	useEffect(() => {
@@ -48,7 +49,19 @@ export function PoolsPage() {
 	}, [revalidate]);
 
 	const onTimeframeChange = (value: string) =>
-		setSearchParams(value === data.timeframe ? {} : { timeframe: value });
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			if (value === data.timeframe) next.delete("timeframe");
+			else next.set("timeframe", value);
+			return next;
+		});
+	const onCurrencyChange = (value: string) =>
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			if (value === "usd") next.delete("currency");
+			else next.set("currency", value);
+			return next;
+		});
 
 	return (
 		<DashboardShell title="Pool Radar" wallet={data.wallet} rpc={data.rpc}>
@@ -66,10 +79,7 @@ export function PoolsPage() {
 							</p>
 						</div>
 						<div className="flex items-center gap-2">
-							<Tabs
-								value={currency}
-								onValueChange={(v) => setCurrency(v as Currency)}
-							>
+							<Tabs value={currency} onValueChange={onCurrencyChange}>
 								<TabsList>
 									<TabsTrigger value="usd" aria-label="USD / USDC">
 										<CurrencyIcon currency="usd" decorative />

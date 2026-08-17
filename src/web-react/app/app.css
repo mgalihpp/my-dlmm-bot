@@ -5,6 +5,51 @@
 
 @custom-variant dark (&:is(.dark *));
 
+::view-transition-old(root),
+::view-transition-new(root) {
+	animation: none;
+}
+
+.top-loading-indicator {
+	position: fixed;
+	top: 0;
+	left: 0;
+	width: 0;
+	z-index: 9999;
+	height: 4px;
+	background: var(--primary);
+	overflow: hidden;
+}
+
+.top-loading-indicator--loading {
+	animation: top-loading 2s ease-out forwards;
+}
+
+.top-loading-indicator--finishing {
+	width: 85%;
+	animation: top-loading-finish 220ms ease-out forwards;
+}
+
+@keyframes top-loading {
+	to {
+		width: 85%;
+	}
+}
+
+@keyframes top-loading-finish {
+	to {
+		width: 100%;
+		opacity: 0;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.top-loading-indicator {
+		animation: none;
+		width: 100%;
+	}
+}
+
 @theme inline {
 	--font-heading: var(--font-sans);
 	--font-sans: "Geist Variable", sans-serif;

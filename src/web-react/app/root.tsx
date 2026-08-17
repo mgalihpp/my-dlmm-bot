@@ -6,6 +6,7 @@ import {
 	Scripts,
 	ScrollRestoration,
 } from "react-router";
+import { TopLoadingIndicator } from "~/components/top-loading-indicator";
 import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { useTheme } from "~/hooks/use-theme";
@@ -42,6 +43,7 @@ export default function App() {
 	useTheme();
 	return (
 		<TooltipProvider delayDuration={0}>
+			<TopLoadingIndicator />
 			<Outlet />
 			<Toaster />
 		</TooltipProvider>

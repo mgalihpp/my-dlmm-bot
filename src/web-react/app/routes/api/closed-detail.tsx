@@ -7,7 +7,3 @@ export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 export async function loader({ params }: Route.LoaderArgs) {
 	return fetchClosedPositionDetail(params.pool ?? "");
 }
-
-export async function clientLoader({ serverLoader }: Route.ClientLoaderArgs) {
-	return serverLoader();
-}

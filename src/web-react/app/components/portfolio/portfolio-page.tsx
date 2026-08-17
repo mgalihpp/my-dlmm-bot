@@ -43,21 +43,17 @@ export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [currency, setCurrencyState] = useState<Currency>(() =>
-		resolveCurrency(searchParams.get("currency"), null),
-	);
+	const currency = resolveCurrency(searchParams.get("currency"), null);
 	const setCurrency = (v: Currency) =>
-		setSearchParams(v === "usd" ? {} : { currency: v });
+		setSearchParams((current) => {
+			const next = new URLSearchParams(current);
+			if (v === "usd") next.delete("currency");
+			else next.set("currency", v);
+			return next;
+		});
 	const [greetingText, setGreetingText] = useState("");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
-
-	useEffect(() => {
-		const stored = window.localStorage.getItem("vexis-currency");
-		const next = resolveCurrency(searchParams.get("currency"), stored);
-		setCurrencyState(next);
-		window.localStorage.setItem("vexis-currency", next);
-	}, [searchParams]);
 
 	useEffect(() => {
 		setGreetingText(greeting());
