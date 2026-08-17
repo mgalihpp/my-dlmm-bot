@@ -138,6 +138,9 @@ export function MarketCharts({
 								cursor={{ strokeDasharray: "3 3" }}
 								content={
 									<ChartTooltipContent
+										labelFormatter={(_, payload) =>
+											String(payload[0]?.payload?.name ?? "Pool")
+										}
 										formatter={(value, name) =>
 											`${name}: ${fmtAmount(Number(value), currency, solPrice)}`
 										}

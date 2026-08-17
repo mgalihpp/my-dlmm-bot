@@ -266,22 +266,21 @@ export function PoolsTable({
 									>
 										<TableCell>
 											<div className="flex items-center gap-3">
-												{pool.baseIcon ? (
-													<img
-														src={pool.baseIcon}
-														alt={pool.baseSymbol}
-														className="h-8 w-8 shrink-0 rounded-md bg-muted object-cover"
-														onError={(e) => {
-															(
-																e.currentTarget as HTMLImageElement
-															).style.display = "none";
-														}}
-													/>
-												) : (
-													<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-muted text-xs font-bold">
+												<div className="relative h-8 w-8 shrink-0 overflow-hidden rounded-md bg-muted">
+													<div className="flex h-full w-full items-center justify-center text-xs font-bold">
 														{pool.baseSymbol.slice(0, 2).toUpperCase()}
 													</div>
-												)}
+													{pool.baseIcon ? (
+														<img
+															src={pool.baseIcon}
+															alt={pool.baseSymbol}
+															className="absolute inset-0 h-full w-full rounded-md object-cover"
+															onError={(e) => {
+																e.currentTarget.style.display = "none";
+															}}
+														/>
+													) : null}
+												</div>
 												<div className="flex flex-col">
 													<a
 														href={meteoraUrl(pool.pool)}

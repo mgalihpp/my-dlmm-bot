@@ -103,20 +103,21 @@ export function PoolDetailSheet({
 			<SheetContent className="sm:max-w-md">
 				<SheetHeader>
 					<div className="flex items-center gap-3">
-						{pool.baseIcon ? (
-							<img
-								src={pool.baseIcon}
-								alt={pool.baseSymbol}
-								className="h-10 w-10 rounded-md bg-muted object-cover"
-								onError={(e) => {
-									(e.currentTarget as HTMLImageElement).style.display = "none";
-								}}
-							/>
-						) : (
-							<div className="flex h-10 w-10 items-center justify-center rounded-md bg-muted text-sm font-bold">
+						<div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">
+							<div className="flex h-full w-full items-center justify-center text-sm font-bold">
 								{pool.baseSymbol.slice(0, 2).toUpperCase()}
 							</div>
-						)}
+							{pool.baseIcon ? (
+								<img
+									src={pool.baseIcon}
+									alt={pool.baseSymbol}
+									className="absolute inset-0 h-full w-full rounded-md object-cover"
+									onError={(e) => {
+										e.currentTarget.style.display = "none";
+									}}
+								/>
+							) : null}
+						</div>
 						<div>
 							<SheetTitle>
 								{pool.name || `${pool.baseSymbol}/${pool.quoteSymbol}`}

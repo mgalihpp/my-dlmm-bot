@@ -1,7 +1,7 @@
 import { CurrencyIcon } from "~/components/currency-icon";
+import type { Currency } from "~/lib/currency";
 import { fmtSol, fmtUsd } from "~/lib/format";
 import { cn } from "~/lib/utils";
-import type { Currency } from "./portfolio/portfolio-page";
 
 export function CurrencyValue({
 	currency,

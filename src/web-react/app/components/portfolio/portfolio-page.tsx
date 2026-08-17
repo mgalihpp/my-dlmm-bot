@@ -12,6 +12,7 @@ import {
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { type Currency, resolveCurrency } from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { ClosedTable } from "./closed-table";
 import { PositionsTable } from "./positions-table";
@@ -26,7 +27,6 @@ const AllocationDonut = lazy(() =>
 
 const REFRESH_MS = 30_000;
 
-export type Currency = "usd" | "sol";
 export type RangeFilter = "all" | "in-range" | "oor";
 
 function greeting() {
@@ -41,11 +41,22 @@ export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const currency = searchParams.get("currency") === "sol" ? "sol" : "usd";
+	const storedCurrency =
+		typeof window === "undefined"
+			? null
+			: window.localStorage.getItem("vexis-currency");
+	const currency = resolveCurrency(
+		searchParams.get("currency"),
+		storedCurrency,
+	);
 	const setCurrency = (v: Currency) =>
 		setSearchParams(v === "usd" ? {} : { currency: v });
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
+
+	useEffect(() => {
+		window.localStorage.setItem("vexis-currency", currency);
+	}, [currency]);
 
 	useEffect(() => {
 		const timer = setInterval(() => {
