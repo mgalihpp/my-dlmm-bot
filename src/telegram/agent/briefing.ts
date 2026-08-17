@@ -1,3 +1,5 @@
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { Bot } from "grammy";
@@ -47,6 +49,47 @@ export interface BriefingData {
 	stats: TradeStats;
 	activity: ActionCounts;
 	market: readonly BriefingMarketLine[];
+}
+
+export interface BriefingCache {
+	readonly at: string;
+	readonly text: string;
+	readonly source: "llm" | "fallback";
+}
+
+const DEFAULT_CACHE_FILE = join(process.cwd(), ".vexis-agent-briefing.json");
+
+export function readBriefingCache(
+	file: string = DEFAULT_CACHE_FILE,
+): BriefingCache | null {
+	if (!existsSync(file)) return null;
+	try {
+		const value = JSON.parse(readFileSync(file, "utf8")) as Record<
+			string,
+			unknown
+		>;
+		if (
+			typeof value.at !== "string" ||
+			typeof value.text !== "string" ||
+			(value.source !== "llm" && value.source !== "fallback")
+		) {
+			return null;
+		}
+		return { at: value.at, text: value.text, source: value.source };
+	} catch {
+		return null;
+	}
+}
+
+export function writeBriefingCache(
+	cache: BriefingCache,
+	file: string = DEFAULT_CACHE_FILE,
+): void {
+	try {
+		writeFileSync(file, JSON.stringify(cache, null, 2), "utf8");
+	} catch (e) {
+		console.warn("[agent] briefing cache write failed:", e);
+	}
 }
 
 export function buildBriefingPrompt(data: BriefingData): string {
@@ -147,6 +190,28 @@ export function formatBriefingFallback(
 		}
 	}
 	return lines.join("\n");
+}
+
+export function briefingFallbackText(data: BriefingData): string {
+	const portfolio =
+		data.portfolio.length === 0
+			? "No open positions."
+			: data.portfolio
+					.map(
+						(p) =>
+							`${p.poolName}: ${p.amountSol} SOL, PnL ${p.pnlPct == null ? "n/a" : `${p.pnlPct.toFixed(2)}%`}`,
+					)
+					.join("; ");
+	const market =
+		data.market.length === 0
+			? "No pools screened."
+			: data.market
+					.map(
+						(m) =>
+							`${m.name}: heuristic ${m.heuristic}, fee/TVL ${m.feeActiveTvlRatio.toFixed(4)}${m.priceVsAthPct != null ? `, ATH ${m.priceVsAthPct}%` : ""}`,
+					)
+					.join("; ");
+	return `Portfolio (${data.portfolio.length} open): ${portfolio}\nDeployed ${data.deployedSol} SOL.\nLast 24h: ${data.activity.open} open, ${data.activity.tp + data.activity.sl + data.activity.close} TP/SL/close, ${data.activity.blocked} blocked, ${data.activity.failed} failed.\nTop pools: ${market}`;
 }
 
 const DAY_MS = 24 * 3_600_000;
@@ -270,6 +335,11 @@ export async function runBriefing(
 		const { text, failed } = await requestBriefing(cfg, data);
 		const msg = failed ? formatBriefingFallback(data) : formatBriefing(text!);
 		await bot.api.sendMessage(chatId, msg, MD);
+		writeBriefingCache({
+			at: new Date().toISOString(),
+			text: failed ? briefingFallbackText(data) : text!,
+			source: failed ? "fallback" : "llm",
+		});
 	} catch (e) {
 		const msg = e instanceof Error ? e.message : String(e);
 		await bot.api

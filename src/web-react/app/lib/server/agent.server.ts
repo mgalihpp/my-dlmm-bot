@@ -13,10 +13,8 @@ import {
 	type TimelineGroup,
 	timelineGroups,
 } from "@vexis/shared/agent-journal.js";
-import {
-	type NarrativeResult,
-	narrativeSnapshot,
-} from "@vexis/shared/agent-narrative.js";
+import type { NarrativeResult } from "@vexis/shared/agent-narrative.js";
+import { readBriefingCache } from "@vexis/telegram/agent/briefing.js";
 import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
 import { readJournalAll } from "@vexis/telegram/agent/journal.js";
 import type { AgentState } from "@vexis/telegram/agent/state.js";
@@ -110,11 +108,12 @@ export function fetchAgent(
 	const root = repoRoot();
 	const journal = readJournalAll(join(root, ".vexis-agent-journal.jsonl"));
 	const state = loadState(join(root, ".vexis-agent.json"));
-	const narrative = narrativeSnapshot(
-		journal,
-		Date.now(),
-		join(root, ".vexis-agent-narrative.json"),
+	const cachedBriefing = readBriefingCache(
+		join(root, ".vexis-agent-briefing.json"),
 	);
+	const narrative = cachedBriefing
+		? { text: cachedBriefing.text, source: cachedBriefing.source }
+		: { text: "Belum ada briefing Telegram.", source: "fallback" as const };
 	const payload = buildAgentPayload(journal, state, narrative, rawAction, page);
 	const { config } = loadConfigSync();
 	return { ...payload, wallet: config.wallet, rpc: config.rpcUrl };
