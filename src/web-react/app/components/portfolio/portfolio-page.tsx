@@ -43,22 +43,25 @@ export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const storedCurrency =
-		typeof window === "undefined"
-			? null
-			: window.localStorage.getItem("vexis-currency");
-	const currency = resolveCurrency(
-		searchParams.get("currency"),
-		storedCurrency,
+	const [currency, setCurrencyState] = useState<Currency>(() =>
+		resolveCurrency(searchParams.get("currency"), null),
 	);
 	const setCurrency = (v: Currency) =>
 		setSearchParams(v === "usd" ? {} : { currency: v });
+	const [greetingText, setGreetingText] = useState("");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
 
 	useEffect(() => {
-		window.localStorage.setItem("vexis-currency", currency);
-	}, [currency]);
+		const stored = window.localStorage.getItem("vexis-currency");
+		const next = resolveCurrency(searchParams.get("currency"), stored);
+		setCurrencyState(next);
+		window.localStorage.setItem("vexis-currency", next);
+	}, [searchParams]);
+
+	useEffect(() => {
+		setGreetingText(greeting());
+	}, []);
 
 	useEffect(() => {
 		const timer = setInterval(() => {
@@ -81,7 +84,7 @@ export function PortfolioPage() {
 			) : (
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
-						<h1 className="text-2xl font-bold tracking-tight">{greeting()}</h1>
+						<h1 className="text-2xl font-bold tracking-tight">{greetingText}</h1>
 						<div className="flex items-center gap-2">
 							<Tabs
 								value={currency}
