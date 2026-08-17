@@ -6,6 +6,9 @@ dist/
 # personal config (may contain wallet addresses) — keep the example tracked
 vexis.config.json
 
+# personal deploy script (contains VPS address) — keep server info out of the repo
+scripts/deploy.sh
+
 # telegram alert state (per-machine runtime state)
 .vexis-alerts.json
 
