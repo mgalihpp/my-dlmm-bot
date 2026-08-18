@@ -12,7 +12,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
-import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ViewSwitcher } from "~/components/view-switcher";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
 import {
@@ -288,18 +288,17 @@ export function PoolsTable({
 						onValueChange={changeViewMode}
 						label="Pool results view"
 					/>
-					<ToggleGroup
-						type="single"
+					<Tabs
 						value={bucket}
 						onValueChange={(v) => v && setBucket(v as OrganicBucket)}
-						variant="outline"
-						size="sm"
 					>
-						<ToggleGroupItem value="all">All</ToggleGroupItem>
-						<ToggleGroupItem value="pass">Pass</ToggleGroupItem>
-						<ToggleGroupItem value="review">Review</ToggleGroupItem>
-						<ToggleGroupItem value="blocked">Blocked</ToggleGroupItem>
-					</ToggleGroup>
+						<TabsList aria-label="Pool screening filter">
+							<TabsTrigger value="all">All</TabsTrigger>
+							<TabsTrigger value="pass">Pass</TabsTrigger>
+							<TabsTrigger value="review">Review</TabsTrigger>
+							<TabsTrigger value="blocked">Blocked</TabsTrigger>
+						</TabsList>
+					</Tabs>
 					<label className="relative" htmlFor="pools-search">
 						<SearchIcon className="absolute top-1/2 left-2.5 size-4 -translate-y-1/2 text-muted-foreground" />
 						<Input
