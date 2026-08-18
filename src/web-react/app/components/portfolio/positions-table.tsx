@@ -1,5 +1,5 @@
 import { CheckIcon, ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
@@ -15,6 +15,7 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ViewSwitcher } from "~/components/view-switcher";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -26,6 +27,12 @@ import {
 } from "~/lib/format";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
+import {
+	getDefaultViewMode,
+	readViewPreference,
+	type ViewMode,
+	writeViewPreference,
+} from "~/lib/view-preference";
 import type { RangeFilter } from "./portfolio-page";
 import { RangeVisual } from "./range-visual";
 
@@ -276,6 +283,89 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 	);
 }
 
+function OpenPositionCard({
+	pool,
+	expanded,
+	onToggle,
+}: {
+	pool: OpenPoolWithIcons;
+	expanded: boolean;
+	onToggle: () => void;
+}) {
+	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+	const pnlUsd = parseFloat(pool.pnl);
+	return (
+		<div className="rounded-xl border bg-card p-4 shadow-sm">
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-3">
+					<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
+						{pool.tokenXIcon ? (
+							<img
+								src={pool.tokenXIcon}
+								alt={pool.tokenX}
+								className="size-full object-cover"
+								onError={(e) => {
+									(e.currentTarget as HTMLImageElement).style.display = "none";
+								}}
+							/>
+						) : (
+							pool.tokenX.slice(0, 2).toUpperCase()
+						)}
+					</div>
+					<div className="min-w-0">
+						<a
+							href={meteoraUrl(pool.poolAddress)}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="block truncate font-semibold hover:underline"
+						>
+							{pair(pool.tokenX, pool.tokenY)}
+						</a>
+						<span className="font-mono text-xs text-muted-foreground">
+							{shortAddr(pool.poolAddress, 5)}
+						</span>
+					</div>
+				</div>
+				<Badge variant={oor ? "destructive" : "secondary"}>
+					{oor ? "OOR" : "In range"}
+				</Badge>
+			</div>
+			<div className="mt-5 grid grid-cols-3 gap-3">
+				<div>
+					<p className="text-xs text-muted-foreground">Balance</p>
+					<CurrencyValue currency="usd" value={pool.balances} />
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fees</p>
+					<CurrencyValue currency="usd" value={pool.unclaimedFees} />
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+						<CurrencyValue currency="usd" value={pool.pnl} />
+					</span>
+				</div>
+			</div>
+			<div className="mt-4">
+				<RangeVisual
+					ranges={pool.positionsRange ?? []}
+					current={pool.poolPrice}
+				/>
+			</div>
+			<div className="mt-3 flex items-center justify-between">
+				<span className="text-xs text-muted-foreground">
+					{pool.openPositionCount} position
+					{pool.openPositionCount === 1 ? "" : "s"}
+				</span>
+				<Button variant="ghost" size="sm" onClick={onToggle}>
+					{expanded ? "Hide details" : "Details"}
+				</Button>
+			</div>
+			{expanded ? <PositionsDetail pool={pool} /> : null}
+		</div>
+	);
+}
+
 export function PositionsTable({
 	pools,
 	rangeFilter,
@@ -289,6 +379,22 @@ export function PositionsTable({
 	const [sortKey, setSortKey] = useState<SortKey>("balances");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
 	const [expanded, setExpanded] = useState<string | null>(null);
+	const [viewMode, setViewMode] = useState<ViewMode>("table");
+
+	useEffect(() => {
+		setViewMode(
+			readViewPreference(
+				window.localStorage,
+				"vexis:portfolio:open-view",
+				getDefaultViewMode(window.innerWidth),
+			),
+		);
+	}, []);
+
+	const changeViewMode = (mode: ViewMode) => {
+		setViewMode(mode);
+		writeViewPreference(window.localStorage, "vexis:portfolio:open-view", mode);
+	};
 
 	const filtered = useMemo(() => {
 		let rows = pools;
@@ -380,6 +486,11 @@ export function PositionsTable({
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
+					<ViewSwitcher
+						value={viewMode}
+						onValueChange={changeViewMode}
+						label="Open positions view"
+					/>
 					<Tabs
 						value={rangeFilter}
 						onValueChange={(v) => onRangeFilterChange(v as RangeFilter)}
@@ -413,6 +524,21 @@ export function PositionsTable({
 				{filtered.length === 0 ? (
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No open positions{search ? " matching the search" : ""}.
+					</div>
+				) : viewMode === "card" ? (
+					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
+						{filtered.map((pool) => (
+							<OpenPositionCard
+								key={pool.poolAddress}
+								pool={pool}
+								expanded={expanded === pool.poolAddress}
+								onToggle={() =>
+									setExpanded((current) =>
+										current === pool.poolAddress ? null : pool.poolAddress,
+									)
+								}
+							/>
+						))}
 					</div>
 				) : (
 					<div className="overflow-x-auto">

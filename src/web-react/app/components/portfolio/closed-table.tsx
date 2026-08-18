@@ -19,6 +19,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
+import { ViewSwitcher } from "~/components/view-switcher";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -31,6 +32,12 @@ import {
 	tsLocal,
 } from "~/lib/format";
 import { cn } from "~/lib/utils";
+import {
+	getDefaultViewMode,
+	readViewPreference,
+	type ViewMode,
+	writeViewPreference,
+} from "~/lib/view-preference";
 
 interface ClosedPayload {
 	readonly pools: readonly ClosedPool[];
@@ -208,8 +215,85 @@ function ClosedDetail({
 	);
 }
 
+function ClosedPoolCard({
+	pool,
+	expanded,
+	onToggle,
+}: {
+	pool: ClosedPool;
+	expanded: boolean;
+	onToggle: () => void;
+}) {
+	const p = pair(pool.tokenX, pool.tokenY);
+	const pnlUsd = parseFloat(pool.pnlUsd);
+	const pnlSol = parseFloat(pool.pnlSol);
+	return (
+		<div className="rounded-xl border bg-card p-4 shadow-sm">
+			<div className="flex items-start justify-between gap-3">
+				<div className="min-w-0">
+					<a
+						href={meteoraUrl(pool.poolAddress)}
+						target="_blank"
+						rel="noopener noreferrer"
+						className="block truncate font-semibold hover:underline"
+					>
+						{p}
+					</a>
+					<p className="text-xs text-muted-foreground">
+						Closed {timeAgo(pool.lastClosedAt)}
+					</p>
+				</div>
+				<span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+					Closed
+				</span>
+			</div>
+			<div className="mt-5 grid grid-cols-3 gap-3">
+				<div>
+					<p className="text-xs text-muted-foreground">Deposit</p>
+					<CurrencyValue currency="usd" value={pool.totalDeposit} />
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Withdraw</p>
+					<CurrencyValue currency="usd" value={pool.totalWithdrawal} />
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fees</p>
+					<CurrencyValue currency="usd" value={pool.totalFee} />
+				</div>
+			</div>
+			<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
+				<div>
+					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+						<CurrencyValue currency="usd" value={pool.pnlUsd} />
+					</span>
+					<p className="text-xs text-muted-foreground">
+						{fmtPct(pool.pnlPctChange)}
+					</p>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">PnL SOL</p>
+					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+						<CurrencyValue currency="sol" value={pool.pnlSol} />
+					</span>
+					<p className="text-xs text-muted-foreground">
+						{fmtPct(pool.pnlSolPctChange)}
+					</p>
+				</div>
+			</div>
+			<div className="mt-3 flex justify-end">
+				<Button variant="ghost" size="sm" onClick={onToggle}>
+					{expanded ? "Hide details" : "Details"}
+				</Button>
+			</div>
+			{expanded ? <ClosedDetail pool={pool.poolAddress} pairLabel={p} /> : null}
+		</div>
+	);
+}
+
 export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 	const [expanded, setExpanded] = useState<string | null>(null);
+	const [viewMode, setViewMode] = useState<ViewMode>("table");
 	const [, setSearchParams] = useSearchParams();
 	const { pools, page, pageSize, totalCount } = closed;
 	const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -218,20 +302,59 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 	const goToPage = (next: number) =>
 		setSearchParams(next > 1 ? { closedPage: String(next) } : {});
 
+	useEffect(() => {
+		setViewMode(
+			readViewPreference(
+				window.localStorage,
+				"vexis:portfolio:closed-view",
+				getDefaultViewMode(window.innerWidth),
+			),
+		);
+	}, []);
+
+	const changeViewMode = (mode: ViewMode) => {
+		setViewMode(mode);
+		writeViewPreference(
+			window.localStorage,
+			"vexis:portfolio:closed-view",
+			mode,
+		);
+	};
+
 	return (
 		<Card className="mx-4 lg:mx-6">
-			<CardHeader className="flex flex-row items-center justify-between">
+			<CardHeader className="flex flex-row items-center justify-between gap-3">
 				<div>
 					<CardTitle>Closed Positions</CardTitle>
 					<p className="text-sm text-muted-foreground">
 						{totalCount} pools closed in total
 					</p>
 				</div>
+				<ViewSwitcher
+					value={viewMode}
+					onValueChange={changeViewMode}
+					label="Closed positions view"
+				/>
 			</CardHeader>
 			<CardContent className="px-0 pb-0">
 				{pools.length === 0 ? (
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No closed positions.
+					</div>
+				) : viewMode === "card" ? (
+					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
+						{pools.map((pool) => (
+							<ClosedPoolCard
+								key={pool.poolAddress}
+								pool={pool}
+								expanded={expanded === pool.poolAddress}
+								onToggle={() =>
+									setExpanded((current) =>
+										current === pool.poolAddress ? null : pool.poolAddress,
+									)
+								}
+							/>
+						))}
 					</div>
 				) : (
 					<>

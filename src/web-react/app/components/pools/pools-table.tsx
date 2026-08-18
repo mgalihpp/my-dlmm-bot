@@ -1,6 +1,6 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import { SearchIcon } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -13,6 +13,7 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import { ViewSwitcher } from "~/components/view-switcher";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
 import {
 	type Currency,
@@ -27,6 +28,12 @@ import {
 	sortPools,
 } from "~/lib/pools";
 import { cn } from "~/lib/utils";
+import {
+	getDefaultViewMode,
+	readViewPreference,
+	type ViewMode,
+	writeViewPreference,
+} from "~/lib/view-preference";
 
 function Sparkline({ values }: { values: readonly number[] }) {
 	const points = values.filter((v) => Number.isFinite(v));
@@ -101,6 +108,114 @@ function SortableHead({
 	);
 }
 
+function PoolCard({
+	pool,
+	currency,
+	solPrice,
+	onSelect,
+}: {
+	pool: ScreenedPool;
+	currency: Currency;
+	solPrice: number | null;
+	onSelect: () => void;
+}) {
+	const organic = organicBucket(pool.organicScore);
+	const rug = rugBucket(pool.rugScore);
+	return (
+		<article className="rounded-xl border bg-card p-4 shadow-sm">
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-3">
+					<div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
+						{pool.baseSymbol.slice(0, 2).toUpperCase()}
+						{pool.baseIcon ? (
+							<img
+								src={pool.baseIcon}
+								alt={pool.baseSymbol}
+								className="absolute inset-0 size-full object-cover"
+								onError={(e) => {
+									e.currentTarget.style.display = "none";
+								}}
+							/>
+						) : null}
+					</div>
+					<div className="min-w-0">
+						<a
+							href={meteoraUrl(pool.pool)}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="block truncate font-semibold hover:underline"
+							onClick={(event) => event.stopPropagation()}
+						>
+							{pool.name || `${pool.baseSymbol}/${pool.quoteSymbol}`}
+						</a>
+						<span className="font-mono text-xs text-muted-foreground">
+							{shortAddr(pool.pool, 5)}
+						</span>
+					</div>
+				</div>
+				<div className="flex shrink-0 gap-1.5">
+					<Badge variant={badgeVariant(organic)}>{pool.organicScore}</Badge>
+					<Badge variant={badgeVariant(rug)}>{pool.rugScore ?? "N/A"}</Badge>
+				</div>
+			</div>
+			<div className="mt-5 grid grid-cols-3 gap-3">
+				<div>
+					<p className="text-xs text-muted-foreground">Price</p>
+					<p className="tabular-nums">
+						{pool.price >= 1 ? pool.price.toFixed(3) : pool.price.toFixed(5)}
+					</p>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">TVL</p>
+					<p className="tabular-nums">
+						{fmtAmount(pool.tvl, currency, solPrice)}
+					</p>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Volume</p>
+					<p className="tabular-nums">
+						{fmtAmount(pool.volume, currency, solPrice)}
+					</p>
+				</div>
+			</div>
+			<div className="mt-4 grid grid-cols-3 gap-3 border-t pt-3 text-sm">
+				<div>
+					<p className="text-xs text-muted-foreground">MC</p>
+					<p className="tabular-nums">
+						{fmtAmount(pool.mcap, currency, solPrice)}
+					</p>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fee</p>
+					<p className="tabular-nums">
+						{fmtAmount(pool.fee, currency, solPrice)}
+					</p>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Trend</p>
+					<div className="flex items-center gap-1.5">
+						<Sparkline values={pool.priceSeries ?? []} />
+						<span
+							className={cn("tabular-nums", pnlClass(pool.priceChangePct ?? 0))}
+						>
+							{fmtPct(pool.priceChangePct)}
+						</span>
+					</div>
+				</div>
+			</div>
+			<div className="mt-3 flex justify-end">
+				<button
+					type="button"
+					className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					onClick={onSelect}
+				>
+					View details
+				</button>
+			</div>
+		</article>
+	);
+}
+
 export function PoolsTable({
 	pools,
 	currency,
@@ -116,6 +231,22 @@ export function PoolsTable({
 	const [bucket, setBucket] = useState<OrganicBucket>("all");
 	const [sortKey, setSortKey] = useState<PoolSortKey>("tvl");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
+	const [viewMode, setViewMode] = useState<ViewMode>("table");
+
+	useEffect(() => {
+		setViewMode(
+			readViewPreference(
+				window.localStorage,
+				"vexis:pools:results-view",
+				getDefaultViewMode(window.innerWidth),
+			),
+		);
+	}, []);
+
+	const changeViewMode = (mode: ViewMode) => {
+		setViewMode(mode);
+		writeViewPreference(window.localStorage, "vexis:pools:results-view", mode);
+	};
 
 	const rows = useMemo(() => {
 		const filtered = pools.filter(
@@ -143,6 +274,11 @@ export function PoolsTable({
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
+					<ViewSwitcher
+						value={viewMode}
+						onValueChange={changeViewMode}
+						label="Pool results view"
+					/>
 					<ToggleGroup
 						type="single"
 						value={bucket}
@@ -172,6 +308,18 @@ export function PoolsTable({
 				{rows.length === 0 ? (
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No pools{search ? " matching the search" : ""}.
+					</div>
+				) : viewMode === "card" ? (
+					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
+						{rows.map((pool) => (
+							<PoolCard
+								key={pool.pool}
+								pool={pool}
+								currency={currency}
+								solPrice={solPrice}
+								onSelect={() => onSelect(pool)}
+							/>
+						))}
 					</div>
 				) : (
 					<div className="overflow-x-auto">
