@@ -10,6 +10,13 @@ import { useFetcher, useSearchParams } from "react-router";
 import { CurrencyValue } from "~/components/currency-value";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "~/components/ui/sheet";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
 	Table,
@@ -217,12 +224,10 @@ function ClosedDetail({
 
 function ClosedPoolCard({
 	pool,
-	expanded,
-	onToggle,
+	onDetails,
 }: {
 	pool: ClosedPool;
-	expanded: boolean;
-	onToggle: () => void;
+	onDetails: () => void;
 }) {
 	const p = pair(pool.tokenX, pool.tokenY);
 	const pnlUsd = parseFloat(pool.pnlUsd);
@@ -282,11 +287,10 @@ function ClosedPoolCard({
 				</div>
 			</div>
 			<div className="mt-3 flex justify-end">
-				<Button variant="ghost" size="sm" onClick={onToggle}>
-					{expanded ? "Hide details" : "Details"}
+				<Button variant="ghost" size="sm" onClick={onDetails}>
+					Details
 				</Button>
 			</div>
-			{expanded ? <ClosedDetail pool={pool.poolAddress} pairLabel={p} /> : null}
 		</div>
 	);
 }
@@ -294,6 +298,7 @@ function ClosedPoolCard({
 export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
+	const [selectedCard, setSelectedCard] = useState<ClosedPool | null>(null);
 	const [, setSearchParams] = useSearchParams();
 	const { pools, page, pageSize, totalCount } = closed;
 	const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -347,12 +352,7 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 							<ClosedPoolCard
 								key={pool.poolAddress}
 								pool={pool}
-								expanded={expanded === pool.poolAddress}
-								onToggle={() =>
-									setExpanded((current) =>
-										current === pool.poolAddress ? null : pool.poolAddress,
-									)
-								}
+								onDetails={() => setSelectedCard(pool)}
 							/>
 						))}
 					</div>
@@ -500,6 +500,31 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 					</>
 				)}
 			</CardContent>
+			<Sheet
+				open={selectedCard !== null}
+				onOpenChange={(open) => !open && setSelectedCard(null)}
+			>
+				<SheetContent>
+					<SheetHeader>
+						<SheetTitle>
+							{selectedCard
+								? pair(selectedCard.tokenX, selectedCard.tokenY)
+								: "Closed position details"}
+						</SheetTitle>
+						<SheetDescription>
+							{selectedCard
+								? shortAddr(selectedCard.poolAddress, 6)
+								: "Closed position details"}
+						</SheetDescription>
+					</SheetHeader>
+					{selectedCard ? (
+						<ClosedDetail
+							pool={selectedCard.poolAddress}
+							pairLabel={pair(selectedCard.tokenX, selectedCard.tokenY)}
+						/>
+					) : null}
+				</SheetContent>
+			</Sheet>
 		</Card>
 	);
 }

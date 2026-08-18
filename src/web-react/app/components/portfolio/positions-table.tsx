@@ -7,6 +7,13 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "~/components/ui/sheet";
+import {
 	Table,
 	TableBody,
 	TableCell,
@@ -285,12 +292,10 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 
 function OpenPositionCard({
 	pool,
-	expanded,
-	onToggle,
+	onDetails,
 }: {
 	pool: OpenPoolWithIcons;
-	expanded: boolean;
-	onToggle: () => void;
+	onDetails: () => void;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 	const pnlUsd = parseFloat(pool.pnl);
@@ -357,11 +362,10 @@ function OpenPositionCard({
 					{pool.openPositionCount} position
 					{pool.openPositionCount === 1 ? "" : "s"}
 				</span>
-				<Button variant="ghost" size="sm" onClick={onToggle}>
-					{expanded ? "Hide details" : "Details"}
+				<Button variant="ghost" size="sm" onClick={onDetails}>
+					Details
 				</Button>
 			</div>
-			{expanded ? <PositionsDetail pool={pool} /> : null}
 		</div>
 	);
 }
@@ -379,6 +383,9 @@ export function PositionsTable({
 	const [sortKey, setSortKey] = useState<SortKey>("balances");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
 	const [expanded, setExpanded] = useState<string | null>(null);
+	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
+		null,
+	);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
 
 	useEffect(() => {
@@ -531,12 +538,7 @@ export function PositionsTable({
 							<OpenPositionCard
 								key={pool.poolAddress}
 								pool={pool}
-								expanded={expanded === pool.poolAddress}
-								onToggle={() =>
-									setExpanded((current) =>
-										current === pool.poolAddress ? null : pool.poolAddress,
-									)
-								}
+								onDetails={() => setSelectedCard(pool)}
 							/>
 						))}
 					</div>
@@ -658,6 +660,26 @@ export function PositionsTable({
 					</div>
 				)}
 			</CardContent>
+			<Sheet
+				open={selectedCard !== null}
+				onOpenChange={(open) => !open && setSelectedCard(null)}
+			>
+				<SheetContent>
+					<SheetHeader>
+						<SheetTitle>
+							{selectedCard
+								? pair(selectedCard.tokenX, selectedCard.tokenY)
+								: "Position details"}
+						</SheetTitle>
+						<SheetDescription>
+							{selectedCard
+								? shortAddr(selectedCard.poolAddress, 6)
+								: "Open position details"}
+						</SheetDescription>
+					</SheetHeader>
+					{selectedCard ? <PositionsDetail pool={selectedCard} /> : null}
+				</SheetContent>
+			</Sheet>
 		</Card>
 	);
 }
