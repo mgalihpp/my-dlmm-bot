@@ -30,6 +30,14 @@ export function fmtSol(value: string | number | null | undefined): string {
 	return `${formatNum(n, decimals)} SOL`;
 }
 
+export function fmtPnl(
+	usd: string | number | null | undefined,
+	sol: string | number | null | undefined,
+	currency: "usd" | "sol",
+): string {
+	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol);
+}
+
 export function shortAddr(addr: string, len = 4): string {
 	if (!addr || addr.length <= len * 2 + 2) return addr;
 	return `${addr.slice(0, len)}…${addr.slice(-len)}`;

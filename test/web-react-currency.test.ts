@@ -4,6 +4,14 @@ import {
 	resolveCurrency,
 	writeStoredCurrency,
 } from "../src/web-react/app/lib/currency.js";
+import { fmtPnl } from "../src/web-react/app/lib/format.js";
+
+describe("fmtPnl", () => {
+	it("keeps each PnL column in its own unit", () => {
+		expect(fmtPnl("12", "0.1", "usd")).toBe("$12.00");
+		expect(fmtPnl("12", "0.1", "sol")).toBe("0.1000 SOL");
+	});
+});
 
 describe("resolveCurrency", () => {
 	it("keeps the stored SOL preference when the URL has no currency", () => {
