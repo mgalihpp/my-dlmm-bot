@@ -27,6 +27,7 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { ViewSwitcher } from "~/components/view-switcher";
+import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -296,6 +297,7 @@ function ClosedPoolCard({
 }
 
 export function ClosedTable({ closed }: { closed: ClosedPayload }) {
+	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
 	const [selectedCard, setSelectedCard] = useState<ClosedPool | null>(null);
@@ -504,7 +506,10 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 				open={selectedCard !== null}
 				onOpenChange={(open) => !open && setSelectedCard(null)}
 			>
-				<SheetContent>
+				<SheetContent
+					side={isMobile ? "bottom" : "right"}
+					className="h-[90dvh] max-h-[90dvh] overflow-y-auto sm:h-auto sm:max-h-none"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							{selectedCard

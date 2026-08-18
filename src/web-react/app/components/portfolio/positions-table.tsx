@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ViewSwitcher } from "~/components/view-switcher";
+import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -379,6 +380,7 @@ export function PositionsTable({
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
 }) {
+	const isMobile = useIsMobile();
 	const [search, setSearch] = useState("");
 	const [sortKey, setSortKey] = useState<SortKey>("balances");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
@@ -664,7 +666,10 @@ export function PositionsTable({
 				open={selectedCard !== null}
 				onOpenChange={(open) => !open && setSelectedCard(null)}
 			>
-				<SheetContent>
+				<SheetContent
+					side={isMobile ? "bottom" : "right"}
+					className="h-[90dvh] max-h-[90dvh] overflow-y-auto sm:h-auto sm:max-h-none"
+				>
 					<SheetHeader>
 						<SheetTitle>
 							{selectedCard
