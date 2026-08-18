@@ -62,7 +62,7 @@ export function RangeVisual({
 
 	return (
 		<div
-			className={`relative h-16 w-full min-w-32 overflow-hidden rounded-md border bg-muted/40 ${className ?? ""}`}
+			className={`relative h-16 w-full min-w-32 overflow-hidden rounded-md bg-muted/40 ${className ?? ""}`}
 			role="img"
 			aria-label={`Position range ${formatPrice(min)} to ${formatPrice(max)}`}
 		>
@@ -79,7 +79,7 @@ export function RangeVisual({
 				/>
 			))}
 			<div
-				className="absolute inset-x-0 border-t border-border/60"
+				className="absolute inset-x-0"
 				style={{ bottom: `${baselinePct}%` }}
 			/>
 			{currentX !== null ? (
@@ -89,7 +89,7 @@ export function RangeVisual({
 						style={{ left: `${currentX}%` }}
 					/>
 					<span
-						className="absolute top-0.5 -translate-x-1/2 rounded-sm border bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
+						className="absolute top-0.5 -translate-x-1/2 rounded-sm bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
 						style={{ left: `${labelX}%` }}
 					>
 						<span className="block text-muted-foreground">Pool Price</span>

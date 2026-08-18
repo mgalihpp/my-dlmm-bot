@@ -1,6 +1,7 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import { ChevronRightIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
@@ -17,7 +18,6 @@ import { ViewSwitcher } from "~/components/view-switcher";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
 import {
 	type Currency,
-	fmtAmount,
 	matchesSearch,
 	type OrganicBucket,
 	organicBucket,
@@ -180,13 +180,27 @@ function PoolCard({
 				<div>
 					<p className="text-xs text-muted-foreground">TVL</p>
 					<p className="tabular-nums">
-						{fmtAmount(pool.tvl, currency, solPrice)}
+						<CurrencyValue
+							currency={currency}
+							value={
+								currency === "sol"
+									? Number(pool.tvl) / (solPrice ?? 1)
+									: pool.tvl
+							}
+						/>
 					</p>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Volume</p>
 					<p className="tabular-nums">
-						{fmtAmount(pool.volume, currency, solPrice)}
+						<CurrencyValue
+							currency={currency}
+							value={
+								currency === "sol"
+									? Number(pool.volume) / (solPrice ?? 1)
+									: pool.volume
+							}
+						/>
 					</p>
 				</div>
 			</div>
@@ -194,13 +208,27 @@ function PoolCard({
 				<div>
 					<p className="text-xs text-muted-foreground">MC</p>
 					<p className="tabular-nums">
-						{fmtAmount(pool.mcap, currency, solPrice)}
+						<CurrencyValue
+							currency={currency}
+							value={
+								currency === "sol"
+									? Number(pool.mcap) / (solPrice ?? 1)
+									: pool.mcap
+							}
+						/>
 					</p>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Fee</p>
 					<p className="tabular-nums">
-						{fmtAmount(pool.fee, currency, solPrice)}
+						<CurrencyValue
+							currency={currency}
+							value={
+								currency === "sol"
+									? Number(pool.fee) / (solPrice ?? 1)
+									: pool.fee
+							}
+						/>
 					</p>
 				</div>
 				<div>
@@ -460,16 +488,44 @@ export function PoolsTable({
 												: pool.price.toFixed(5)}
 										</TableCell>
 										<TableCell className="tabular-nums">
-											{fmtAmount(pool.mcap, currency, solPrice)}
+											<CurrencyValue
+												currency={currency}
+												value={
+													currency === "sol"
+														? Number(pool.mcap) / (solPrice ?? 1)
+														: pool.mcap
+												}
+											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
-											{fmtAmount(pool.tvl, currency, solPrice)}
+											<CurrencyValue
+												currency={currency}
+												value={
+													currency === "sol"
+														? Number(pool.tvl) / (solPrice ?? 1)
+														: pool.tvl
+												}
+											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
-											{fmtAmount(pool.volume, currency, solPrice)}
+											<CurrencyValue
+												currency={currency}
+												value={
+													currency === "sol"
+														? Number(pool.volume) / (solPrice ?? 1)
+														: pool.volume
+												}
+											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
-											{fmtAmount(pool.fee, currency, solPrice)}
+											<CurrencyValue
+												currency={currency}
+												value={
+													currency === "sol"
+														? Number(pool.fee) / (solPrice ?? 1)
+														: pool.fee
+												}
+											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
 											{pool.binStep}

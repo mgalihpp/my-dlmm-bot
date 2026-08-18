@@ -1,4 +1,6 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
+import type { ReactNode } from "react";
+import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -11,14 +13,9 @@ import {
 } from "~/components/ui/sheet";
 import { useIsMobile } from "~/hooks/use-mobile";
 import { fmtPct, meteoraUrl, solscanUrl } from "~/lib/format";
-import {
-	type Currency,
-	fmtAmount,
-	organicBucket,
-	rugBucket,
-} from "~/lib/pools";
+import { type Currency, organicBucket, rugBucket } from "~/lib/pools";
 
-function Metric({ label, value }: { label: string; value: string }) {
+function Metric({ label, value }: { label: string; value: ReactNode }) {
 	return (
 		<div>
 			<div className="text-xs text-muted-foreground">{label}</div>
@@ -41,15 +38,21 @@ export function PoolDetailSheet({
 	const isMobile = useIsMobile();
 	if (!pool) return null;
 	const price = pool.price >= 1 ? pool.price.toFixed(3) : pool.price.toFixed(5);
-	const metrics: { label: string; value: string }[] = [
-		{ label: "Market cap", value: fmtAmount(pool.mcap, currency, solPrice) },
-		{ label: "TVL", value: fmtAmount(pool.tvl, currency, solPrice) },
+	const amount = (value: number) => (
+		<CurrencyValue
+			currency={currency}
+			value={currency === "sol" ? value / (solPrice ?? 1) : value}
+		/>
+	);
+	const metrics: { label: string; value: ReactNode }[] = [
+		{ label: "Market cap", value: amount(pool.mcap) },
+		{ label: "TVL", value: amount(pool.tvl) },
 		{
 			label: "Active TVL",
-			value: fmtAmount(pool.activeTvl, currency, solPrice),
+			value: amount(pool.activeTvl),
 		},
-		{ label: "Volume", value: fmtAmount(pool.volume, currency, solPrice) },
-		{ label: "Fees", value: fmtAmount(pool.fee, currency, solPrice) },
+		{ label: "Volume", value: amount(pool.volume) },
+		{ label: "Fees", value: amount(pool.fee) },
 		{ label: "Holders", value: String(pool.holders) },
 		{
 			label: "Organic score",

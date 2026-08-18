@@ -123,11 +123,13 @@ function ClosedDetail({
 	pairLabel,
 	currency,
 	solPrice,
+	layout = "card",
 }: {
 	pool: string;
 	pairLabel: string;
 	currency: Currency;
 	solPrice: number | null;
+	layout?: "card" | "table";
 }) {
 	const fetcher = useFetcher<DetailPayload>();
 
@@ -153,6 +155,91 @@ function ClosedDetail({
 		return (
 			<div className="py-6 text-center text-sm text-muted-foreground">
 				No closed positions for {pairLabel}.
+			</div>
+		);
+	}
+	if (layout === "table") {
+		return (
+			<div className="overflow-x-auto px-4 py-4">
+				<Table className="min-w-[760px] rounded-md border">
+					<TableHeader className="bg-muted/50">
+						<TableRow>
+							{DETAIL_COLUMNS.map((column) => (
+								<TableHead key={column}>{column}</TableHead>
+							))}
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{closed.map((pos) => {
+							const pnlUsd = parseFloat(pos.pnlUsd);
+							const pnlSol =
+								pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
+							return (
+								<TableRow key={pos.positionAddress}>
+									<TableCell>
+										<a
+											href={solscanUrl(pos.positionAddress)}
+											target="_blank"
+											rel="noopener noreferrer"
+											className="font-mono text-xs text-muted-foreground hover:underline"
+										>
+											{shortAddr(pos.positionAddress, 6)}
+										</a>
+									</TableCell>
+									<TableCell className="tabular-nums">
+										<PortfolioAmount
+											usd={pos.allTimeDeposits.total.usd}
+											currency={currency}
+											solPrice={solPrice}
+										/>
+									</TableCell>
+									<TableCell className="tabular-nums">
+										<PortfolioAmount
+											usd={pos.allTimeWithdrawals.total.usd}
+											currency={currency}
+											solPrice={solPrice}
+										/>
+									</TableCell>
+									<TableCell className="tabular-nums">
+										<PortfolioAmount
+											usd={pos.allTimeFees.total.usd}
+											currency={currency}
+											solPrice={solPrice}
+										/>
+									</TableCell>
+									<TableCell
+										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
+									>
+										<PortfolioAmount
+											usd={pos.pnlUsd}
+											currency="usd"
+											solPrice={solPrice}
+										/>
+										<div className="text-xs text-muted-foreground">
+											{fmtPct(pos.pnlPctChange)}
+										</div>
+									</TableCell>
+									<TableCell
+										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
+									>
+										<PortfolioAmount
+											usd={pos.pnlSol}
+											sol={pnlSol}
+											currency="sol"
+											solPrice={solPrice}
+										/>
+										<div className="text-xs text-muted-foreground">
+											{fmtPct(pos.pnlSolPctChange ?? null)}
+										</div>
+									</TableCell>
+									<TableCell className="text-xs text-muted-foreground">
+										{tsLocal(pos.closedAt)}
+									</TableCell>
+								</TableRow>
+							);
+						})}
+					</TableBody>
+				</Table>
 			</div>
 		);
 	}
@@ -365,6 +452,7 @@ export function ClosedTable({
 	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
+	const [viewReady, setViewReady] = useState(false);
 	const [selectedCard, setSelectedCard] = useState<ClosedPool | null>(null);
 	const [, setSearchParams] = useSearchParams();
 	const { pools, page, pageSize, totalCount } = closed;
@@ -382,6 +470,7 @@ export function ClosedTable({
 				getDefaultViewMode(window.innerWidth),
 			),
 		);
+		setViewReady(true);
 	}, []);
 
 	const changeViewMode = (mode: ViewMode) => {
@@ -413,7 +502,7 @@ export function ClosedTable({
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No closed positions.
 					</div>
-				) : viewMode === "card" ? (
+				) : !viewReady ? null : viewMode === "card" ? (
 					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
 						{pools.map((pool) => (
 							<ClosedPoolCard
@@ -539,6 +628,9 @@ export function ClosedTable({
 															<ClosedDetail
 																pool={pool.poolAddress}
 																pairLabel={p}
+																currency={currency}
+																solPrice={solPrice}
+																layout="table"
 															/>
 														</TableCell>
 													</TableRow>

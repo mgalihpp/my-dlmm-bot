@@ -6,7 +6,8 @@ import {
 	ShieldAlertIcon,
 	WalletIcon,
 } from "lucide-react";
-import type { ComponentType } from "react";
+import type { ComponentType, ReactNode } from "react";
+import { CurrencyIcon } from "~/components/currency-icon";
 import {
 	Card,
 	CardDescription,
@@ -16,6 +17,24 @@ import {
 } from "~/components/ui/card";
 import { type Currency, fmtAmount } from "~/lib/pools";
 
+function CurrencyAmount({
+	value,
+	currency,
+}: {
+	value: string;
+	currency: Currency;
+}) {
+	const amount = currency === "sol" ? value.replace(/ SOL$/, "") : value;
+	return amount === "-" ? (
+		amount
+	) : (
+		<span className="inline-flex items-center gap-1">
+			<span>{amount}</span>
+			<CurrencyIcon currency={currency} decorative />
+		</span>
+	);
+}
+
 function StatCard({
 	icon: Icon,
 	label,
@@ -24,7 +43,7 @@ function StatCard({
 }: {
 	icon: ComponentType<{ className?: string }>;
 	label: string;
-	value: string;
+	value: ReactNode;
 	sub: string;
 }) {
 	return (
@@ -72,19 +91,34 @@ export function StatCards({
 			<StatCard
 				icon={LayersIcon}
 				label="Combined TVL"
-				value={fmtAmount(tvl, currency, solPrice)}
+				value={
+					<CurrencyAmount
+						value={fmtAmount(tvl, currency, solPrice)}
+						currency={currency}
+					/>
+				}
 				sub="across shown pools"
 			/>
 			<StatCard
 				icon={WalletIcon}
 				label="Volume"
-				value={fmtAmount(volume, currency, solPrice)}
+				value={
+					<CurrencyAmount
+						value={fmtAmount(volume, currency, solPrice)}
+						currency={currency}
+					/>
+				}
 				sub="in the selected timeframe"
 			/>
 			<StatCard
 				icon={CircleDollarSignIcon}
 				label="Fees"
-				value={fmtAmount(fees, currency, solPrice)}
+				value={
+					<CurrencyAmount
+						value={fmtAmount(fees, currency, solPrice)}
+						currency={currency}
+					/>
+				}
 				sub="accrued by LPs"
 			/>
 			<StatCard

@@ -228,14 +228,14 @@ function PortfolioAmount({
 			: fmtAmount(usd, currency, solPrice);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
-		<span className="inline-flex items-center gap-1 tabular-nums">
+		<span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums">
 			<span>{value}</span>
 			{value !== "-" ? <CurrencyIcon currency={currency} decorative /> : null}
 		</span>
 	);
 }
 
-function PositionsDetail({
+function PositionsCardDetail({
 	pool,
 	currency,
 	solPrice,
@@ -262,7 +262,7 @@ function PositionsDetail({
 	}
 	return (
 		<div className="space-y-4 px-4 py-4">
-			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-4">
+			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3">
 				<div>
 					<p className="text-xs text-muted-foreground">Balance</p>
 					<PortfolioAmount
@@ -321,10 +321,15 @@ function PositionsDetail({
 							</span>
 						</div>
 						{range ? (
-							<div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
-								<span className="text-muted-foreground">Price range </span>
-								{Number(range.minPrice).toFixed(5)} –{" "}
-								{Number(range.maxPrice).toFixed(5)}
+							<div className="rounded-md bg-muted/40 px-3 py-2">
+								<p className="mb-1 text-xs text-muted-foreground">
+									Range visual
+								</p>
+								<RangeVisual
+									ranges={[range]}
+									current={pool.poolPrice}
+									className="border-0 [&_*]:border-0"
+								/>
 							</div>
 						) : null}
 						<div className="grid grid-cols-2 gap-3 text-sm">
@@ -370,6 +375,94 @@ function PositionsDetail({
 					</div>
 				))}
 			</div>
+		</div>
+	);
+}
+
+function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
+	const positions = (pool.positionsLive ?? []).map((live, i) => ({
+		live,
+		range: pool.positionsRange?.[i],
+	}));
+	if (positions.length === 0)
+		return (
+			<div className="px-4 py-6 text-center text-sm text-muted-foreground">
+				No live position data for this pool.
+			</div>
+		);
+	return (
+		<div className="overflow-x-auto">
+			<Table>
+				<TableHeader className="bg-muted/30">
+					<TableRow>
+						<TableHead>Position / Range</TableHead>
+						<TableHead>Age</TableHead>
+						<TableHead>Amount</TableHead>
+						<TableHead>Fees</TableHead>
+					</TableRow>
+				</TableHeader>
+				<TableBody>
+					{positions.map(({ live, range }) => (
+						<TableRow key={live.address}>
+							<TableCell>
+								<a
+									href={solscanUrl(live.address)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="font-mono text-xs text-muted-foreground hover:underline"
+								>
+									{shortAddr(live.address, 6)}
+								</a>
+								{range ? (
+									<div className="mt-1 text-xs text-muted-foreground">
+										{Number(range.minPrice).toFixed(5)} –{" "}
+										{Number(range.maxPrice).toFixed(5)}
+									</div>
+								) : null}
+							</TableCell>
+							<TableCell className="whitespace-nowrap text-muted-foreground">
+								{formatAge(live.createdAt)}
+							</TableCell>
+							<TableCell className="min-w-44 tabular-nums">
+								<div>
+									{Number(live.amountX).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenX}
+										mint={pool.tokenXMint}
+									/>
+								</div>
+								<div className="text-xs text-muted-foreground">
+									{Number(live.amountY).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenY}
+										mint={pool.tokenYMint}
+									/>
+								</div>
+							</TableCell>
+							<TableCell className="min-w-44 tabular-nums">
+								<div>
+									{Number(live.feeX).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenX}
+										mint={pool.tokenXMint}
+									/>
+								</div>
+								<div className="text-xs text-muted-foreground">
+									{Number(live.feeY).toFixed(4)}{" "}
+									<TokenLink
+										pool={pool}
+										symbol={pool.tokenY}
+										mint={pool.tokenYMint}
+									/>
+								</div>
+							</TableCell>
+						</TableRow>
+					))}
+				</TableBody>
+			</Table>
 		</div>
 	);
 }
@@ -509,6 +602,7 @@ export function PositionsTable({
 		null,
 	);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
+	const [viewReady, setViewReady] = useState(false);
 
 	useEffect(() => {
 		setViewMode(
@@ -518,6 +612,7 @@ export function PositionsTable({
 				getDefaultViewMode(window.innerWidth),
 			),
 		);
+		setViewReady(true);
 	}, []);
 
 	const changeViewMode = (mode: ViewMode) => {
@@ -654,7 +749,7 @@ export function PositionsTable({
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No open positions{search ? " matching the search" : ""}.
 					</div>
-				) : viewMode === "card" ? (
+				) : !viewReady ? null : viewMode === "card" ? (
 					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
 						{filtered.map((pool) => (
 							<OpenPositionCard
@@ -787,11 +882,7 @@ export function PositionsTable({
 											{isOpen ? (
 												<TableRow key={`${pool.poolAddress}-detail`}>
 													<TableCell colSpan={9} className="bg-muted/20 p-0">
-														<PositionsDetail
-															pool={pool}
-															currency={currency}
-															solPrice={solPrice}
-														/>
+														<PositionsDetail pool={pool} />
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -824,7 +915,7 @@ export function PositionsTable({
 						</SheetDescription>
 					</SheetHeader>
 					{selectedCard ? (
-						<PositionsDetail
+						<PositionsCardDetail
 							pool={selectedCard}
 							currency={currency}
 							solPrice={solPrice}
