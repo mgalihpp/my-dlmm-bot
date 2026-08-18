@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CurrencyValue } from "~/components/currency-value";
+import { CurrencyIcon } from "~/components/currency-icon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -32,6 +32,7 @@ import { ViewSwitcher } from "~/components/view-switcher";
 import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
+	fmtSol,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -39,6 +40,7 @@ import {
 	shortAddr,
 	solscanUrl,
 } from "~/lib/format";
+import { fmtAmount } from "~/lib/pools";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import {
@@ -47,7 +49,7 @@ import {
 	type ViewMode,
 	writeViewPreference,
 } from "~/lib/view-preference";
-import type { RangeFilter } from "./portfolio-page";
+import type { Currency, RangeFilter } from "./portfolio-page";
 import { RangeVisual } from "./range-visual";
 
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
@@ -209,7 +211,39 @@ function formatAge(createdAt: number | null | undefined): string {
 	return `${days}d ${hours % 24}h`;
 }
 
-function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
+function PortfolioAmount({
+	usd,
+	sol,
+	currency,
+	solPrice,
+}: {
+	usd: string | number | null | undefined;
+	sol?: string | number | null;
+	currency: Currency;
+	solPrice: number | null;
+}) {
+	const formatted =
+		currency === "sol" && sol != null
+			? fmtSol(sol)
+			: fmtAmount(usd, currency, solPrice);
+	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
+	return (
+		<span className="inline-flex items-center gap-1 tabular-nums">
+			<span>{value}</span>
+			{value !== "-" ? <CurrencyIcon currency={currency} decorative /> : null}
+		</span>
+	);
+}
+
+function PositionsDetail({
+	pool,
+	currency,
+	solPrice,
+}: {
+	pool: OpenPoolWithIcons;
+	currency: Currency;
+	solPrice: number | null;
+}) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
 		range: pool.positionsRange?.[i],
@@ -231,20 +265,38 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-4">
 				<div>
 					<p className="text-xs text-muted-foreground">Balance</p>
-					<CurrencyValue currency="usd" value={pool.balances} />
+					<PortfolioAmount
+						usd={pool.balances}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Fees</p>
-					<CurrencyValue currency="usd" value={pool.unclaimedFees} />
+					<PortfolioAmount
+						usd={pool.unclaimedFees}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 					<p className="text-xs text-muted-foreground">PnL USD</p>
-					<CurrencyValue currency="usd" value={pool.pnl} />
+					<PortfolioAmount
+						usd={pool.pnl}
+						sol={pool.pnlSol}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
 					<p className="text-xs text-muted-foreground">PnL SOL</p>
-					<CurrencyValue currency="sol" value={pool.pnlSol} />
+					<PortfolioAmount
+						usd={pool.pnl}
+						sol={pool.pnlSol}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 					<p className="text-xs text-muted-foreground">
 						{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
 					</p>
@@ -330,9 +382,13 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 function OpenPositionCard({
 	pool,
 	onDetails,
+	currency,
+	solPrice,
 }: {
 	pool: OpenPoolWithIcons;
 	onDetails: () => void;
+	currency: Currency;
+	solPrice: number | null;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 	const pnlUsd = parseFloat(pool.pnl);
@@ -388,16 +444,29 @@ function OpenPositionCard({
 			<div className="mt-5 grid grid-cols-3 gap-3">
 				<div>
 					<p className="text-xs text-muted-foreground">Balance</p>
-					<CurrencyValue currency="usd" value={pool.balances} />
+					<PortfolioAmount
+						usd={pool.balances}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Fees</p>
-					<CurrencyValue currency="usd" value={pool.unclaimedFees} />
+					<PortfolioAmount
+						usd={pool.unclaimedFees}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">PnL USD</p>
 					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-						<CurrencyValue currency="usd" value={pool.pnl} />
+						<PortfolioAmount
+							usd={pool.pnl}
+							sol={pool.pnlSol}
+							currency={currency}
+							solPrice={solPrice}
+						/>
 					</span>
 				</div>
 			</div>
@@ -425,10 +494,14 @@ export function PositionsTable({
 	pools,
 	rangeFilter,
 	onRangeFilterChange,
+	currency,
+	solPrice,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
+	currency: Currency;
+	solPrice: number | null;
 }) {
 	const isMobile = useIsMobile();
 	const [search, setSearch] = useState("");
@@ -590,6 +663,8 @@ export function PositionsTable({
 							<OpenPositionCard
 								key={pool.poolAddress}
 								pool={pool}
+								currency={currency}
+								solPrice={solPrice}
 								onDetails={() => setSelectedCard(pool)}
 							/>
 						))}
@@ -648,12 +723,17 @@ export function PositionsTable({
 													{pool.binStep}
 												</TableCell>
 												<TableCell className="tabular-nums">
-													<CurrencyValue currency="usd" value={pool.balances} />
+													<PortfolioAmount
+														usd={pool.balances}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
-													<CurrencyValue
-														currency="usd"
-														value={pool.unclaimedFees}
+													<PortfolioAmount
+														usd={pool.unclaimedFees}
+														currency={currency}
+														solPrice={solPrice}
 													/>
 												</TableCell>
 												<TableCell
@@ -662,7 +742,12 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlUsd)),
 													)}
 												>
-													<CurrencyValue currency="usd" value={pool.pnl} />
+													<PortfolioAmount
+														usd={pool.pnl}
+														sol={pool.pnlSol}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pnlPct)}
 													</div>
@@ -673,7 +758,12 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlSolVal)),
 													)}
 												>
-													<CurrencyValue currency="sol" value={pool.pnlSol} />
+													<PortfolioAmount
+														usd={pool.pnl}
+														sol={pool.pnlSol}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 													<div className="text-xs text-muted-foreground">
 														{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
 													</div>
@@ -700,7 +790,11 @@ export function PositionsTable({
 											{isOpen ? (
 												<TableRow key={`${pool.poolAddress}-detail`}>
 													<TableCell colSpan={9} className="bg-muted/20 p-0">
-														<PositionsDetail pool={pool} />
+														<PositionsDetail
+															pool={pool}
+															currency={currency}
+															solPrice={solPrice}
+														/>
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -732,7 +826,13 @@ export function PositionsTable({
 								: "Open position details"}
 						</SheetDescription>
 					</SheetHeader>
-					{selectedCard ? <PositionsDetail pool={selectedCard} /> : null}
+					{selectedCard ? (
+						<PositionsDetail
+							pool={selectedCard}
+							currency={currency}
+							solPrice={solPrice}
+						/>
+					) : null}
 				</SheetContent>
 			</Sheet>
 		</Card>

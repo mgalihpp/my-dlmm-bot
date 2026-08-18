@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import { Fragment, useEffect, useState } from "react";
 import { useFetcher, useSearchParams } from "react-router";
-import { CurrencyValue } from "~/components/currency-value";
+import { CurrencyIcon } from "~/components/currency-icon";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -30,6 +30,7 @@ import { ViewSwitcher } from "~/components/view-switcher";
 import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
+	fmtSol,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -39,6 +40,7 @@ import {
 	timeAgo,
 	tsLocal,
 } from "~/lib/format";
+import { fmtAmount } from "~/lib/pools";
 import { cn } from "~/lib/utils";
 import {
 	getDefaultViewMode,
@@ -46,6 +48,7 @@ import {
 	type ViewMode,
 	writeViewPreference,
 } from "~/lib/view-preference";
+import type { Currency } from "./portfolio-page";
 
 interface ClosedPayload {
 	readonly pools: readonly ClosedPool[];
@@ -58,6 +61,30 @@ interface DetailPayload {
 	readonly ok: boolean;
 	readonly error?: string;
 	readonly positions?: readonly PositionPnLData[];
+}
+
+function PortfolioAmount({
+	usd,
+	sol,
+	currency,
+	solPrice,
+}: {
+	usd: string | number | null | undefined;
+	sol?: string | number | null;
+	currency: Currency;
+	solPrice: number | null;
+}) {
+	const formatted =
+		currency === "sol" && sol != null
+			? fmtSol(sol)
+			: fmtAmount(usd, currency, solPrice);
+	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
+	return (
+		<span className="inline-flex items-center gap-1 tabular-nums">
+			<span>{value}</span>
+			{value !== "-" ? <CurrencyIcon currency={currency} decorative /> : null}
+		</span>
+	);
 }
 
 const DETAIL_COLUMNS = [
@@ -94,9 +121,13 @@ function ClosedDetailSkeleton() {
 function ClosedDetail({
 	pool,
 	pairLabel,
+	currency,
+	solPrice,
 }: {
 	pool: string;
 	pairLabel: string;
+	currency: Currency;
+	solPrice: number | null;
 }) {
 	const fetcher = useFetcher<DetailPayload>();
 
@@ -156,35 +187,48 @@ function ClosedDetail({
 						<div className="grid grid-cols-2 gap-3 text-sm">
 							<div>
 								<p className="text-xs text-muted-foreground">Deposit</p>
-								<CurrencyValue
-									currency="usd"
-									value={pos.allTimeDeposits.total.usd}
+								<PortfolioAmount
+									usd={pos.allTimeDeposits.total.usd}
+									currency={currency}
+									solPrice={solPrice}
 								/>
 							</div>
 							<div>
 								<p className="text-xs text-muted-foreground">Withdraw</p>
-								<CurrencyValue
-									currency="usd"
-									value={pos.allTimeWithdrawals.total.usd}
+								<PortfolioAmount
+									usd={pos.allTimeWithdrawals.total.usd}
+									currency={currency}
+									solPrice={solPrice}
 								/>
 							</div>
 							<div>
 								<p className="text-xs text-muted-foreground">Fees</p>
-								<CurrencyValue
-									currency="usd"
-									value={pos.allTimeFees.total.usd}
+								<PortfolioAmount
+									usd={pos.allTimeFees.total.usd}
+									currency={currency}
+									solPrice={solPrice}
 								/>
 							</div>
 							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 								<p className="text-xs text-muted-foreground">PnL USD</p>
-								<CurrencyValue currency="usd" value={pos.pnlUsd} />
+								<PortfolioAmount
+									usd={pos.pnlUsd}
+									sol={pos.pnlSol}
+									currency={currency}
+									solPrice={solPrice}
+								/>
 								<p className="text-xs text-muted-foreground">
 									{fmtPct(pnlPct)}
 								</p>
 							</div>
 							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
 								<p className="text-xs text-muted-foreground">PnL SOL</p>
-								<CurrencyValue currency="sol" value={pnlSol} />
+								<PortfolioAmount
+									usd={pos.pnlUsd}
+									sol={pnlSol}
+									currency={currency}
+									solPrice={solPrice}
+								/>
 								<p className="text-xs text-muted-foreground">
 									{fmtPct(pos.pnlSolPctChange ?? null)}
 								</p>
@@ -200,9 +244,13 @@ function ClosedDetail({
 function ClosedPoolCard({
 	pool,
 	onDetails,
+	currency,
+	solPrice,
 }: {
 	pool: ClosedPool;
 	onDetails: () => void;
+	currency: Currency;
+	solPrice: number | null;
 }) {
 	const p = pair(pool.tokenX, pool.tokenY);
 	const pnlUsd = parseFloat(pool.pnlUsd);
@@ -243,22 +291,39 @@ function ClosedPoolCard({
 			<div className="mt-5 grid grid-cols-3 gap-3">
 				<div>
 					<p className="text-xs text-muted-foreground">Deposit</p>
-					<CurrencyValue currency="usd" value={pool.totalDeposit} />
+					<PortfolioAmount
+						usd={pool.totalDeposit}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Withdraw</p>
-					<CurrencyValue currency="usd" value={pool.totalWithdrawal} />
+					<PortfolioAmount
+						usd={pool.totalWithdrawal}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Fees</p>
-					<CurrencyValue currency="usd" value={pool.totalFee} />
+					<PortfolioAmount
+						usd={pool.totalFee}
+						currency={currency}
+						solPrice={solPrice}
+					/>
 				</div>
 			</div>
 			<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
 				<div>
 					<p className="text-xs text-muted-foreground">PnL USD</p>
 					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-						<CurrencyValue currency="usd" value={pool.pnlUsd} />
+						<PortfolioAmount
+							usd={pool.pnlUsd}
+							sol={pool.pnlSol}
+							currency={currency}
+							solPrice={solPrice}
+						/>
 					</span>
 					<p className="text-xs text-muted-foreground">
 						{fmtPct(pool.pnlPctChange)}
@@ -267,7 +332,12 @@ function ClosedPoolCard({
 				<div>
 					<p className="text-xs text-muted-foreground">PnL SOL</p>
 					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
-						<CurrencyValue currency="sol" value={pool.pnlSol} />
+						<PortfolioAmount
+							usd={pool.pnlUsd}
+							sol={pool.pnlSol}
+							currency={currency}
+							solPrice={solPrice}
+						/>
 					</span>
 					<p className="text-xs text-muted-foreground">
 						{fmtPct(pool.pnlSolPctChange)}
@@ -284,7 +354,15 @@ function ClosedPoolCard({
 	);
 }
 
-export function ClosedTable({ closed }: { closed: ClosedPayload }) {
+export function ClosedTable({
+	closed,
+	currency,
+	solPrice,
+}: {
+	closed: ClosedPayload;
+	currency: Currency;
+	solPrice: number | null;
+}) {
 	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
@@ -342,6 +420,8 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 							<ClosedPoolCard
 								key={pool.poolAddress}
 								pool={pool}
+								currency={currency}
+								solPrice={solPrice}
 								onDetails={() => setSelectedCard(pool)}
 							/>
 						))}
@@ -398,21 +478,24 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 														</div>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														<CurrencyValue
-															currency="usd"
-															value={pool.totalDeposit}
+														<PortfolioAmount
+															usd={pool.totalDeposit}
+															currency={currency}
+															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														<CurrencyValue
-															currency="usd"
-															value={pool.totalWithdrawal}
+														<PortfolioAmount
+															usd={pool.totalWithdrawal}
+															currency={currency}
+															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
-														<CurrencyValue
-															currency="usd"
-															value={pool.totalFee}
+														<PortfolioAmount
+															usd={pool.totalFee}
+															currency={currency}
+															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell
@@ -421,7 +504,12 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 															pnlClass(pnlSign(pnlUsd)),
 														)}
 													>
-														<CurrencyValue currency="usd" value={pool.pnlUsd} />
+														<PortfolioAmount
+															usd={pool.pnlUsd}
+															sol={pool.pnlSol}
+															currency={currency}
+															solPrice={solPrice}
+														/>
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlPctChange)}
 														</div>
@@ -432,7 +520,12 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 															pnlClass(pnlSign(pnlSol)),
 														)}
 													>
-														<CurrencyValue currency="sol" value={pool.pnlSol} />
+														<PortfolioAmount
+															usd={pool.pnlUsd}
+															sol={pool.pnlSol}
+															currency={currency}
+															solPrice={solPrice}
+														/>
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlSolPctChange)}
 														</div>
@@ -514,6 +607,8 @@ export function ClosedTable({ closed }: { closed: ClosedPayload }) {
 						<ClosedDetail
 							pool={selectedCard.poolAddress}
 							pairLabel={pair(selectedCard.tokenX, selectedCard.tokenY)}
+							currency={currency}
+							solPrice={solPrice}
 						/>
 					) : null}
 				</SheetContent>
