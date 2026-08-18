@@ -9,13 +9,15 @@ describe("validateCloseInput", () => {
 		expect(validateCloseInput("pool1", "pos1")).toBeNull();
 	});
 	it("returns an error when pool or position is missing/empty", () => {
-		expect(validateCloseInput("", "pos1")).toBe("pool and position are required");
-		expect(
-			validateCloseInput("pool1", ""),
-		).toBe("pool and position are required");
-		expect(
-			validateCloseInput("pool1", "  "),
-		).toBe("pool and position are required");
+		expect(validateCloseInput("", "pos1")).toBe(
+			"pool and position are required",
+		);
+		expect(validateCloseInput("pool1", "")).toBe(
+			"pool and position are required",
+		);
+		expect(validateCloseInput("pool1", "  ")).toBe(
+			"pool and position are required",
+		);
 	});
 });
 

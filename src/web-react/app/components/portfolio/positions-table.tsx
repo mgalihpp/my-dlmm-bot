@@ -9,6 +9,7 @@ import {
 import {
 	Fragment,
 	memo,
+	type ReactNode,
 	useCallback,
 	useEffect,
 	useMemo,
@@ -21,6 +22,11 @@ import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "~/components/ui/popover";
 import {
 	Sheet,
 	SheetContent,
@@ -128,16 +134,21 @@ function CopyButton({
 	);
 }
 
-function CloseConfirmSheet({
-	target,
+function CloseConfirmPopover({
+	pool,
+	position,
 	poolName,
-	onOpenChange,
+	side,
+	children,
 }: {
-	target: { pool: string; position: string } | null;
+	pool: string;
+	position: string;
 	poolName: string;
-	onOpenChange: (open: boolean) => void;
+	side: "left" | "right";
+	children: ReactNode;
 }) {
 	const fetcher = useFetcher<CloseResult>();
+	const [open, setOpen] = useState(false);
 	const submitting = fetcher.state !== "idle";
 
 	useEffect(() => {
@@ -147,26 +158,25 @@ function CloseConfirmSheet({
 	}, [fetcher.data]);
 
 	return (
-		<Sheet open={target !== null} onOpenChange={onOpenChange}>
-			<SheetContent side="bottom" className="sm:!h-auto">
-				<SheetHeader>
-					<SheetTitle>Close &amp; Zap Out</SheetTitle>
-					<SheetDescription>
+		<Popover open={open} onOpenChange={setOpen}>
+			<PopoverTrigger asChild>{children}</PopoverTrigger>
+			<PopoverContent side={side}>
+				<div className="space-y-1">
+					<h3 className="font-semibold text-sm">Close &amp; Zap Out</h3>
+					<p className="text-muted-foreground text-sm">
 						{poolName}
-						{target ? ` · Position ${shortAddr(target.position, 6)}` : ""}
-					</SheetDescription>
-				</SheetHeader>
+						{` · Position ${shortAddr(position, 6)}`}
+					</p>
+				</div>
 				<div className="space-y-4">
 					<p className="flex items-start gap-2 text-sm text-muted-foreground">
 						<AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
-						Remove all liquidity, claim fees, then swap to SOL via Jupiter.
-						This action is irreversible.
+						Remove all liquidity, claim fees, then swap to SOL via Jupiter. This
+						action is irreversible.
 					</p>
 					{fetcher.data?.ok && fetcher.data.sig ? (
 						<div className="space-y-2 text-sm">
-							<p className="font-medium text-emerald-500">
-								Position closed
-							</p>
+							<p className="font-medium text-emerald-500">Position closed</p>
 							<a
 								href={solscanUrl(fetcher.data.sig)}
 								target="_blank"
@@ -179,32 +189,24 @@ function CloseConfirmSheet({
 					) : (
 						<fetcher.Form method="post" className="flex justify-end gap-2">
 							<input type="hidden" name="op" value="close" />
-							<input type="hidden" name="pool" value={target?.pool ?? ""} />
-							<input
-								type="hidden"
-								name="position"
-								value={target?.position ?? ""}
-							/>
+							<input type="hidden" name="pool" value={pool} />
+							<input type="hidden" name="position" value={position} />
 							<Button
 								type="button"
 								variant="outline"
 								disabled={submitting}
-								onClick={() => onOpenChange(false)}
+								onClick={() => setOpen(false)}
 							>
 								Cancel
 							</Button>
-							<Button
-								type="submit"
-								variant="destructive"
-								disabled={submitting}
-							>
+							<Button type="submit" variant="destructive" disabled={submitting}>
 								{submitting ? "Closing…" : "Close & Zap Out"}
 							</Button>
 						</fetcher.Form>
 					)}
 				</div>
-			</SheetContent>
-		</Sheet>
+			</PopoverContent>
+		</Popover>
 	);
 }
 
@@ -339,12 +341,10 @@ function PositionsCardDetail({
 	pool,
 	currency,
 	solPrice,
-	onClose,
 }: {
 	pool: OpenPoolWithIcons;
 	currency: Currency;
 	solPrice: number | null;
-	onClose: (position: string) => void;
 }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
@@ -418,21 +418,25 @@ function PositionsCardDetail({
 									className="ml-1 size-5"
 								/>
 							</div>
-						<span className="flex items-center gap-2 text-xs text-muted-foreground">
-							Age {formatAge(live.createdAt)}
-							<Button
-								type="button"
-								variant="outline"
-								size="sm"
-								className="h-7 px-2 text-xs"
-								onClick={(e) => {
-									e.stopPropagation();
-									onClose(live.address);
-								}}
-							>
-								Close
-							</Button>
-						</span>
+							<span className="flex items-center gap-2 text-xs text-muted-foreground">
+								Age {formatAge(live.createdAt)}
+								<CloseConfirmPopover
+									pool={pool.poolAddress}
+									position={live.address}
+									poolName={pair(pool.tokenX, pool.tokenY)}
+									side="left"
+								>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-7 px-2 text-xs"
+										onClick={(e) => e.stopPropagation()}
+									>
+										Close
+									</Button>
+								</CloseConfirmPopover>
+							</span>
 						</div>
 						{range ? (
 							<div className="rounded-md bg-muted/40 px-3 py-2">
@@ -493,13 +497,7 @@ function PositionsCardDetail({
 	);
 }
 
-function PositionsDetail({
-	pool,
-	onClose,
-}: {
-	pool: OpenPoolWithIcons;
-	onClose: (position: string) => void;
-}) {
+function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
 		range: pool.positionsRange?.[i],
@@ -533,15 +531,21 @@ function PositionsDetail({
 								>
 									{shortAddr(live.address, 6)}
 								</a>
-								<Button
-									type="button"
-									variant="outline"
-									size="sm"
-									className="ml-2 h-6 px-2 text-xs"
-									onClick={() => onClose(live.address)}
+								<CloseConfirmPopover
+									pool={pool.poolAddress}
+									position={live.address}
+									poolName={pair(pool.tokenX, pool.tokenY)}
+									side="right"
 								>
-									Close
-								</Button>
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="ml-2 h-6 px-2 text-xs"
+									>
+										Close
+									</Button>
+								</CloseConfirmPopover>
 								{range ? (
 									<div className="mt-1 text-xs text-muted-foreground">
 										{Number(range.minPrice).toFixed(5)} –{" "}
@@ -766,10 +770,6 @@ function PositionsTableView({
 	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
 		null,
 	);
-	const [closeTarget, setCloseTarget] = useState<{
-		pool: string;
-		position: string;
-	} | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
 	const [viewReady, setViewReady] = useState(false);
 
@@ -1066,15 +1066,7 @@ function PositionsTableView({
 											{isOpen ? (
 												<TableRow key={`${pool.poolAddress}-detail`}>
 													<TableCell colSpan={9} className="bg-muted/20 p-0">
-														<PositionsDetail
-															pool={pool}
-															onClose={(pos) =>
-																setCloseTarget({
-																	pool: pool.poolAddress,
-																	position: pos,
-																})
-															}
-														/>
+														<PositionsDetail pool={pool} />
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -1111,32 +1103,10 @@ function PositionsTableView({
 							pool={selectedCard}
 							currency={currency}
 							solPrice={solPrice}
-							onClose={(pos) =>
-								setCloseTarget({
-									pool: selectedCard.poolAddress,
-									position: pos,
-								})
-							}
 						/>
 					) : null}
 				</SheetContent>
 			</Sheet>
-			<CloseConfirmSheet
-				target={closeTarget}
-				poolName={
-					closeTarget
-						? pair(
-								pools.find(
-									(p) => p.poolAddress === closeTarget.pool,
-								)?.tokenX ?? "",
-								pools.find(
-									(p) => p.poolAddress === closeTarget.pool,
-								)?.tokenY ?? "",
-							)
-						: ""
-				}
-				onOpenChange={(open) => !open && setCloseTarget(null)}
-			/>
 		</Card>
 	);
 }

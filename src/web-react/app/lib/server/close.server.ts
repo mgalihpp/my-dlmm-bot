@@ -4,9 +4,14 @@ import { Zap } from "@vexis/services/Zap.js";
 import { Effect } from "effect";
 import { recordManualClose } from "../../../../telegram/agent/manual-close.js";
 
-export type CloseResult = { ok: true; sig: string } | { ok: false; error: string };
+export type CloseResult =
+	| { ok: true; sig: string }
+	| { ok: false; error: string };
 
-export function validateCloseInput(pool: string, position: string): string | null {
+export function validateCloseInput(
+	pool: string,
+	position: string,
+): string | null {
 	if (!pool.trim() || !position.trim()) {
 		return "pool and position are required";
 	}
@@ -20,7 +25,10 @@ export function pickCloseSig(result: {
 	return result.zapSig || result.closeSig || "";
 }
 
-export function closePosition(pool: string, position: string): Promise<CloseResult> {
+export function closePosition(
+	pool: string,
+	position: string,
+): Promise<CloseResult> {
 	const invalid = validateCloseInput(pool, position);
 	if (invalid) return Promise.resolve({ ok: false, error: invalid });
 
@@ -29,9 +37,7 @@ export function closePosition(pool: string, position: string): Promise<CloseResu
 		const res = yield* zap.closeAndZapOut(pool, position);
 		const sig = pickCloseSig(res);
 		if (!sig) throw new Error("Close produced no transaction signature");
-		yield* Effect.promise(() =>
-			recordManualClose(() => null, pool, "", null),
-		);
+		yield* Effect.promise(() => recordManualClose(() => null, pool, "", null));
 		return { ok: true, sig } as const;
 	}).pipe(
 		Effect.provide(AppLayer),
