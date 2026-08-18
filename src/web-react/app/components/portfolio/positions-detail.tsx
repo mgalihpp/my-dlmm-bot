@@ -87,7 +87,7 @@ function CopyButton({
 	);
 }
 
-function CloseConfirmPopover({
+export function CloseConfirmPopover({
 	pool,
 	position,
 	poolName,
@@ -484,21 +484,6 @@ export function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 								>
 									{shortAddr(live.address, 6)}
 								</a>
-								<CloseConfirmPopover
-									pool={pool.poolAddress}
-									position={live.address}
-									poolName={pair(pool.tokenX, pool.tokenY)}
-									side="right"
-								>
-									<Button
-										type="button"
-										variant="outline"
-										size="sm"
-										className="ml-2 h-6 px-2 text-xs"
-									>
-										Close
-									</Button>
-								</CloseConfirmPopover>
 								{range ? (
 									<div className="mt-1 text-xs text-muted-foreground">
 										{Number(range.minPrice).toFixed(5)} –{" "}

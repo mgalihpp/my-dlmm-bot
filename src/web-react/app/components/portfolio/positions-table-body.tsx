@@ -1,6 +1,7 @@
 import { ChevronDownIcon } from "lucide-react";
 import { Fragment } from "react";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import {
 	Table,
 	TableBody,
@@ -13,7 +14,12 @@ import { fmtPct, pnlClass, pnlSign } from "~/lib/format";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
-import { PoolCell, PortfolioAmount, PositionsDetail } from "./positions-detail";
+import {
+	CloseConfirmPopover,
+	PoolCell,
+	PortfolioAmount,
+	PositionsDetail,
+} from "./positions-detail";
 import { RangeVisual } from "./range-visual";
 
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
@@ -101,6 +107,7 @@ export function PositionsTableBody({
 						/>
 						<TableHead>Range</TableHead>
 						<TableHead className="min-w-40">Visual Range</TableHead>
+						<TableHead>Close</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -190,10 +197,33 @@ export function PositionsTableBody({
 											current={pool.poolPrice}
 										/>
 									</TableCell>
+									<TableCell>
+										<div className="flex flex-wrap gap-1">
+											{(pool.positionsLive ?? []).map((position) => (
+												<CloseConfirmPopover
+													key={position.address}
+													pool={pool.poolAddress}
+													position={position.address}
+													poolName={`${pool.tokenX}/${pool.tokenY}`}
+													side="right"
+												>
+													<Button
+														type="button"
+														variant="outline"
+														size="sm"
+														className="h-7 px-2 text-xs"
+														onClick={(event) => event.stopPropagation()}
+													>
+														Close
+													</Button>
+												</CloseConfirmPopover>
+											))}
+										</div>
+									</TableCell>
 								</TableRow>
 								{isOpen ? (
 									<TableRow>
-										<TableCell colSpan={9} className="bg-muted/20 p-0">
+										<TableCell colSpan={10} className="bg-muted/20 p-0">
 											<PositionsDetail pool={pool} />
 										</TableCell>
 									</TableRow>
