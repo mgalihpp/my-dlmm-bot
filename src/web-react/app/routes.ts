@@ -11,4 +11,5 @@ export default [
 	]),
 	route("logout", "routes/logout.tsx"),
 	route("api/closed-detail/:pool", "routes/api/closed-detail.tsx"),
+	route("api/live", "routes/api/live.tsx"),
 ] satisfies RouteConfig;
