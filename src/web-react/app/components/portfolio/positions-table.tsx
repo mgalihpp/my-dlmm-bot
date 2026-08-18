@@ -1,4 +1,5 @@
 import {
+	AlertTriangleIcon,
 	CheckIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
@@ -13,7 +14,9 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { useFetcher } from "react-router";
 import { toast } from "sonner";
+import type { CloseResult } from "~/lib/server/close.server";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -122,6 +125,86 @@ function CopyButton({
 				<CopyIcon className="size-3" />
 			)}
 		</Button>
+	);
+}
+
+function CloseConfirmSheet({
+	target,
+	poolName,
+	onOpenChange,
+}: {
+	target: { pool: string; position: string } | null;
+	poolName: string;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const fetcher = useFetcher<CloseResult>();
+	const submitting = fetcher.state !== "idle";
+
+	useEffect(() => {
+		if (fetcher.data?.ok) toast.success("Position closed");
+		else if (fetcher.data && !fetcher.data.ok)
+			toast.error(fetcher.data.error ?? "Failed to close position");
+	}, [fetcher.data]);
+
+	return (
+		<Sheet open={target !== null} onOpenChange={onOpenChange}>
+			<SheetContent side="bottom" className="sm:!h-auto">
+				<SheetHeader>
+					<SheetTitle>Close &amp; Zap Out</SheetTitle>
+					<SheetDescription>
+						{poolName}
+						{target ? ` · Position ${shortAddr(target.position, 6)}` : ""}
+					</SheetDescription>
+				</SheetHeader>
+				<div className="space-y-4">
+					<p className="flex items-start gap-2 text-sm text-muted-foreground">
+						<AlertTriangleIcon className="mt-0.5 size-4 shrink-0 text-destructive" />
+						Remove all liquidity, claim fees, then swap to SOL via Jupiter.
+						This action is irreversible.
+					</p>
+					{fetcher.data?.ok && fetcher.data.sig ? (
+						<div className="space-y-2 text-sm">
+							<p className="font-medium text-emerald-500">
+								Position closed
+							</p>
+							<a
+								href={solscanUrl(fetcher.data.sig)}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="font-mono text-xs text-muted-foreground underline"
+							>
+								{shortAddr(fetcher.data.sig, 12)}
+							</a>
+						</div>
+					) : (
+						<fetcher.Form method="post" className="flex justify-end gap-2">
+							<input type="hidden" name="op" value="close" />
+							<input type="hidden" name="pool" value={target?.pool ?? ""} />
+							<input
+								type="hidden"
+								name="position"
+								value={target?.position ?? ""}
+							/>
+							<Button
+								type="button"
+								variant="outline"
+								disabled={submitting}
+								onClick={() => onOpenChange(false)}
+							>
+								Cancel
+							</Button>
+							<Button
+								type="submit"
+								variant="destructive"
+								disabled={submitting}
+							>
+								{submitting ? "Closing…" : "Close & Zap Out"}
+							</Button>
+						</fetcher.Form>
+					)}
+				</div>
+			</SheetContent>
+		</Sheet>
 	);
 }
 
@@ -256,10 +339,12 @@ function PositionsCardDetail({
 	pool,
 	currency,
 	solPrice,
+	onClose,
 }: {
 	pool: OpenPoolWithIcons;
 	currency: Currency;
 	solPrice: number | null;
+	onClose: (position: string) => void;
 }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
@@ -333,9 +418,21 @@ function PositionsCardDetail({
 									className="ml-1 size-5"
 								/>
 							</div>
-							<span className="text-xs text-muted-foreground">
-								Age {formatAge(live.createdAt)}
-							</span>
+						<span className="flex items-center gap-2 text-xs text-muted-foreground">
+							Age {formatAge(live.createdAt)}
+							<Button
+								type="button"
+								variant="outline"
+								size="sm"
+								className="h-7 px-2 text-xs"
+								onClick={(e) => {
+									e.stopPropagation();
+									onClose(live.address);
+								}}
+							>
+								Close
+							</Button>
+						</span>
 						</div>
 						{range ? (
 							<div className="rounded-md bg-muted/40 px-3 py-2">
@@ -396,7 +493,13 @@ function PositionsCardDetail({
 	);
 }
 
-function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
+function PositionsDetail({
+	pool,
+	onClose,
+}: {
+	pool: OpenPoolWithIcons;
+	onClose: (position: string) => void;
+}) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
 		range: pool.positionsRange?.[i],
@@ -430,6 +533,15 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 								>
 									{shortAddr(live.address, 6)}
 								</a>
+								<Button
+									type="button"
+									variant="outline"
+									size="sm"
+									className="ml-2 h-6 px-2 text-xs"
+									onClick={() => onClose(live.address)}
+								>
+									Close
+								</Button>
 								{range ? (
 									<div className="mt-1 text-xs text-muted-foreground">
 										{Number(range.minPrice).toFixed(5)} –{" "}
@@ -654,6 +766,10 @@ function PositionsTableView({
 	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
 		null,
 	);
+	const [closeTarget, setCloseTarget] = useState<{
+		pool: string;
+		position: string;
+	} | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
 	const [viewReady, setViewReady] = useState(false);
 
@@ -950,7 +1066,15 @@ function PositionsTableView({
 											{isOpen ? (
 												<TableRow key={`${pool.poolAddress}-detail`}>
 													<TableCell colSpan={9} className="bg-muted/20 p-0">
-														<PositionsDetail pool={pool} />
+														<PositionsDetail
+															pool={pool}
+															onClose={(pos) =>
+																setCloseTarget({
+																	pool: pool.poolAddress,
+																	position: pos,
+																})
+															}
+														/>
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -987,10 +1111,32 @@ function PositionsTableView({
 							pool={selectedCard}
 							currency={currency}
 							solPrice={solPrice}
+							onClose={(pos) =>
+								setCloseTarget({
+									pool: selectedCard.poolAddress,
+									position: pos,
+								})
+							}
 						/>
 					) : null}
 				</SheetContent>
 			</Sheet>
+			<CloseConfirmSheet
+				target={closeTarget}
+				poolName={
+					closeTarget
+						? pair(
+								pools.find(
+									(p) => p.poolAddress === closeTarget.pool,
+								)?.tokenX ?? "",
+								pools.find(
+									(p) => p.poolAddress === closeTarget.pool,
+								)?.tokenY ?? "",
+							)
+						: ""
+				}
+				onOpenChange={(open) => !open && setCloseTarget(null)}
+			/>
 		</Card>
 	);
 }
