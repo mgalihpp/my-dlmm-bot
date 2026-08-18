@@ -104,7 +104,7 @@ export function PoolDetailSheet({
 		<Sheet open onOpenChange={onOpenChange}>
 			<SheetContent
 				side={isMobile ? "bottom" : "right"}
-				className="h-[90dvh] max-h-[90dvh] overflow-y-auto sm:h-auto sm:max-h-none sm:max-w-md"
+				className="!h-[90dvh] !max-h-[90dvh] overflow-y-auto sm:!h-auto sm:!max-h-none sm:max-w-md"
 			>
 				<SheetHeader>
 					<div className="flex items-center gap-3">

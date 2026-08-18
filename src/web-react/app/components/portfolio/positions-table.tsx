@@ -668,7 +668,7 @@ export function PositionsTable({
 			>
 				<SheetContent
 					side={isMobile ? "bottom" : "right"}
-					className="h-[90dvh] max-h-[90dvh] overflow-y-auto sm:h-auto sm:max-h-none"
+					className="!h-[90dvh] !max-h-[90dvh] overflow-y-auto sm:!h-auto sm:!max-h-none"
 				>
 					<SheetHeader>
 						<SheetTitle>
