@@ -280,7 +280,9 @@ function PositionsDetail({
 					/>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<p className="text-xs text-muted-foreground">
+						PnL {currency.toUpperCase()}
+					</p>
 					<PortfolioAmount usd={pool.pnl} currency="usd" solPrice={solPrice} />
 					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
 				</div>
@@ -454,7 +456,9 @@ function OpenPositionCard({
 					/>
 				</div>
 				<div>
-					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<p className="text-xs text-muted-foreground">
+						PnL {currency.toUpperCase()}
+					</p>
 					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 						<PortfolioAmount
 							usd={pool.pnl}
