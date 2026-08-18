@@ -84,7 +84,7 @@ describe("fmtAmount", () => {
 	it("formats usd or converted sol", () => {
 		expect(fmtAmount(200, "usd", 100)).toBe("$200.00");
 		expect(fmtAmount(200, "sol", 100)).toContain("2");
-		expect(fmtAmount(200, "sol", null)).toBe("$200.00");
+		expect(fmtAmount(200, "sol", null)).toBe("-");
 	});
 });
 
