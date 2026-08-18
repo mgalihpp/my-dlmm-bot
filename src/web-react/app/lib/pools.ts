@@ -73,6 +73,7 @@ export function fmtAmount(
 ): string {
 	const sol = toSol(usd, solPrice);
 	if (currency === "sol" && sol !== null) return fmtSol(sol);
+	if (currency === "sol") return "-";
 	return fmtUsd(usd);
 }
 

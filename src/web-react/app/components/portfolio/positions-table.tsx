@@ -1,11 +1,24 @@
-import { CheckIcon, ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
-import { Fragment, useMemo, useState } from "react";
+import {
+	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	CopyIcon,
+	SearchIcon,
+} from "lucide-react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CurrencyValue } from "~/components/currency-value";
+import { CurrencyIcon } from "~/components/currency-icon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "~/components/ui/sheet";
 import {
 	Table,
 	TableBody,
@@ -15,8 +28,11 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
+import { ViewSwitcher } from "~/components/view-switcher";
+import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
+	fmtSol,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -24,9 +40,16 @@ import {
 	shortAddr,
 	solscanUrl,
 } from "~/lib/format";
+import { fmtAmount } from "~/lib/pools";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
-import type { RangeFilter } from "./portfolio-page";
+import {
+	getDefaultViewMode,
+	readViewPreference,
+	type ViewMode,
+	writeViewPreference,
+} from "~/lib/view-preference";
+import type { Currency, RangeFilter } from "./portfolio-page";
 import { RangeVisual } from "./range-visual";
 
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
@@ -68,6 +91,7 @@ function CopyButton({
 			)}
 			onClick={async (e) => {
 				e.preventDefault();
+				e.stopPropagation();
 				if (await copy(text, label)) {
 					setCopied(true);
 					setTimeout(() => setCopied(false), 2000);
@@ -187,11 +211,48 @@ function formatAge(createdAt: number | null | undefined): string {
 	return `${days}d ${hours % 24}h`;
 }
 
-function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
+function PortfolioAmount({
+	usd,
+	sol,
+	currency,
+	solPrice,
+}: {
+	usd: string | number | null | undefined;
+	sol?: string | number | null;
+	currency: Currency;
+	solPrice: number | null;
+}) {
+	const formatted =
+		currency === "sol" && sol != null
+			? fmtSol(sol)
+			: fmtAmount(usd, currency, solPrice);
+	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
+	return (
+		<span className="inline-flex items-center gap-1 tabular-nums">
+			<span>{value}</span>
+			{value !== "-" ? <CurrencyIcon currency={currency} decorative /> : null}
+		</span>
+	);
+}
+
+function PositionsDetail({
+	pool,
+	currency,
+	solPrice,
+}: {
+	pool: OpenPoolWithIcons;
+	currency: Currency;
+	solPrice: number | null;
+}) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
 		range: pool.positionsRange?.[i],
 	}));
+	const pnlUsd = parseFloat(pool.pnl);
+	const pnlSol = pool.pnlSol != null ? parseFloat(pool.pnlSol) : null;
+	const pnlPct = parseFloat(pool.pnlPctChange);
+	const pnlSolPct =
+		pool.pnlSolPctChange != null ? parseFloat(pool.pnlSolPctChange) : null;
 	if (positions.length === 0) {
 		return (
 			<div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -200,20 +261,47 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 		);
 	}
 	return (
-		<div className="overflow-x-auto">
-			<Table>
-				<TableHeader className="bg-muted/30">
-					<TableRow>
-						<TableHead>Position / Range</TableHead>
-						<TableHead>Age</TableHead>
-						<TableHead>Amount</TableHead>
-						<TableHead>Fees</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{positions.map(({ live, range }) => (
-						<TableRow key={live.address}>
-							<TableCell>
+		<div className="space-y-4 px-4 py-4">
+			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-4">
+				<div>
+					<p className="text-xs text-muted-foreground">Balance</p>
+					<PortfolioAmount
+						usd={pool.balances}
+						currency={currency}
+						solPrice={solPrice}
+					/>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fees</p>
+					<PortfolioAmount
+						usd={pool.unclaimedFees}
+						currency={currency}
+						solPrice={solPrice}
+					/>
+				</div>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<PortfolioAmount usd={pool.pnl} currency="usd" solPrice={solPrice} />
+					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
+				</div>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+					<p className="text-xs text-muted-foreground">PnL SOL</p>
+					<PortfolioAmount
+						usd={pool.pnlSol}
+						sol={pool.pnlSol}
+						currency="sol"
+						solPrice={solPrice}
+					/>
+					<p className="text-xs text-muted-foreground">
+						{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
+					</p>
+				</div>
+			</div>
+			<div className="space-y-3">
+				{positions.map(({ live, range }) => (
+					<div key={live.address} className="space-y-3 rounded-lg border p-3">
+						<div className="flex items-start justify-between gap-3">
+							<div>
 								<a
 									href={solscanUrl(live.address)}
 									target="_blank"
@@ -222,18 +310,27 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 								>
 									{shortAddr(live.address, 6)}
 								</a>
-								{range ? (
-									<div className="mt-1 text-xs text-muted-foreground">
-										{Number(range.minPrice).toFixed(5)} –{" "}
-										{Number(range.maxPrice).toFixed(5)}
-									</div>
-								) : null}
-							</TableCell>
-							<TableCell className="whitespace-nowrap text-muted-foreground">
-								{formatAge(live.createdAt)}
-							</TableCell>
-							<TableCell className="min-w-44 tabular-nums">
-								<div>
+								<CopyButton
+									text={live.address}
+									label="Position address"
+									className="ml-1 size-5"
+								/>
+							</div>
+							<span className="text-xs text-muted-foreground">
+								Age {formatAge(live.createdAt)}
+							</span>
+						</div>
+						{range ? (
+							<div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+								<span className="text-muted-foreground">Price range </span>
+								{Number(range.minPrice).toFixed(5)} –{" "}
+								{Number(range.maxPrice).toFixed(5)}
+							</div>
+						) : null}
+						<div className="grid grid-cols-2 gap-3 text-sm">
+							<div>
+								<p className="text-xs text-muted-foreground">Amount</p>
+								<div className="tabular-nums">
 									{Number(live.amountX).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -241,7 +338,7 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenXMint}
 									/>
 								</div>
-								<div className="text-xs text-muted-foreground">
+								<div className="tabular-nums text-muted-foreground">
 									{Number(live.amountY).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -249,9 +346,10 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenYMint}
 									/>
 								</div>
-							</TableCell>
-							<TableCell className="min-w-44 tabular-nums">
-								<div>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Fees</p>
+								<div className="tabular-nums">
 									{Number(live.feeX).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -259,7 +357,7 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenXMint}
 									/>
 								</div>
-								<div className="text-xs text-muted-foreground">
+								<div className="tabular-nums text-muted-foreground">
 									{Number(live.feeY).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -267,11 +365,124 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenYMint}
 									/>
 								</div>
-							</TableCell>
-						</TableRow>
-					))}
-				</TableBody>
-			</Table>
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function OpenPositionCard({
+	pool,
+	onDetails,
+	currency,
+	solPrice,
+}: {
+	pool: OpenPoolWithIcons;
+	onDetails: () => void;
+	currency: Currency;
+	solPrice: number | null;
+}) {
+	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+	const pnlUsd = parseFloat(pool.pnl);
+	return (
+		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
+		<div
+			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+			role="button"
+			tabIndex={0}
+			onClick={onDetails}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onDetails();
+				}
+			}}
+		>
+			<div className="flex items-start justify-between gap-3">
+				<div className="flex min-w-0 items-center gap-3">
+					<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
+						{pool.tokenXIcon ? (
+							<img
+								src={pool.tokenXIcon}
+								alt={pool.tokenX}
+								className="size-full object-cover"
+								onError={(e) => {
+									(e.currentTarget as HTMLImageElement).style.display = "none";
+								}}
+							/>
+						) : (
+							pool.tokenX.slice(0, 2).toUpperCase()
+						)}
+					</div>
+					<div className="min-w-0">
+						<a
+							href={meteoraUrl(pool.poolAddress)}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="block truncate font-semibold hover:underline"
+							onClick={(event) => event.stopPropagation()}
+						>
+							{pair(pool.tokenX, pool.tokenY)}
+						</a>
+						<span className="font-mono text-xs text-muted-foreground">
+							{shortAddr(pool.poolAddress, 5)}
+						</span>
+					</div>
+				</div>
+				<Badge variant={oor ? "destructive" : "secondary"}>
+					{oor ? "OOR" : "In range"}
+				</Badge>
+			</div>
+			<div className="mt-5 grid grid-cols-3 gap-3">
+				<div>
+					<p className="text-xs text-muted-foreground">Balance</p>
+					<PortfolioAmount
+						usd={pool.balances}
+						currency={currency}
+						solPrice={solPrice}
+					/>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fees</p>
+					<PortfolioAmount
+						usd={pool.unclaimedFees}
+						currency={currency}
+						solPrice={solPrice}
+					/>
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">
+						PnL {currency.toUpperCase()}
+					</p>
+					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+						<PortfolioAmount
+							usd={pool.pnl}
+							sol={pool.pnlSol}
+							currency={currency}
+							solPrice={solPrice}
+						/>
+					</span>
+				</div>
+			</div>
+			<div className="mt-4">
+				<RangeVisual
+					ranges={pool.positionsRange ?? []}
+					current={pool.poolPrice}
+				/>
+			</div>
+			<div className="mt-3 flex items-center justify-between">
+				<span className="text-xs text-muted-foreground">
+					{pool.openPositionCount} position
+					{pool.openPositionCount === 1 ? "" : "s"}
+				</span>
+				<ChevronRightIcon
+					className="size-5 text-muted-foreground"
+					aria-hidden="true"
+				/>
+			</div>
 		</div>
 	);
 }
@@ -280,15 +491,39 @@ export function PositionsTable({
 	pools,
 	rangeFilter,
 	onRangeFilterChange,
+	currency,
+	solPrice,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (f: RangeFilter) => void;
+	currency: Currency;
+	solPrice: number | null;
 }) {
+	const isMobile = useIsMobile();
 	const [search, setSearch] = useState("");
 	const [sortKey, setSortKey] = useState<SortKey>("balances");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
 	const [expanded, setExpanded] = useState<string | null>(null);
+	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
+		null,
+	);
+	const [viewMode, setViewMode] = useState<ViewMode>("table");
+
+	useEffect(() => {
+		setViewMode(
+			readViewPreference(
+				window.localStorage,
+				"vexis:portfolio:open-view",
+				getDefaultViewMode(window.innerWidth),
+			),
+		);
+	}, []);
+
+	const changeViewMode = (mode: ViewMode) => {
+		setViewMode(mode);
+		writeViewPreference(window.localStorage, "vexis:portfolio:open-view", mode);
+	};
 
 	const filtered = useMemo(() => {
 		let rows = pools;
@@ -380,6 +615,11 @@ export function PositionsTable({
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-2">
+					<ViewSwitcher
+						value={viewMode}
+						onValueChange={changeViewMode}
+						label="Open positions view"
+					/>
 					<Tabs
 						value={rangeFilter}
 						onValueChange={(v) => onRangeFilterChange(v as RangeFilter)}
@@ -413,6 +653,18 @@ export function PositionsTable({
 				{filtered.length === 0 ? (
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No open positions{search ? " matching the search" : ""}.
+					</div>
+				) : viewMode === "card" ? (
+					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
+						{filtered.map((pool) => (
+							<OpenPositionCard
+								key={pool.poolAddress}
+								pool={pool}
+								currency={currency}
+								solPrice={solPrice}
+								onDetails={() => setSelectedCard(pool)}
+							/>
+						))}
 					</div>
 				) : (
 					<div className="overflow-x-auto">
@@ -468,12 +720,17 @@ export function PositionsTable({
 													{pool.binStep}
 												</TableCell>
 												<TableCell className="tabular-nums">
-													<CurrencyValue currency="usd" value={pool.balances} />
+													<PortfolioAmount
+														usd={pool.balances}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
-													<CurrencyValue
-														currency="usd"
-														value={pool.unclaimedFees}
+													<PortfolioAmount
+														usd={pool.unclaimedFees}
+														currency={currency}
+														solPrice={solPrice}
 													/>
 												</TableCell>
 												<TableCell
@@ -482,7 +739,12 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlUsd)),
 													)}
 												>
-													<CurrencyValue currency="usd" value={pool.pnl} />
+													<PortfolioAmount
+														usd={pool.pnl}
+														sol={pool.pnlSol}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pnlPct)}
 													</div>
@@ -493,7 +755,12 @@ export function PositionsTable({
 														pnlClass(pnlSign(pnlSolVal)),
 													)}
 												>
-													<CurrencyValue currency="sol" value={pool.pnlSol} />
+													<PortfolioAmount
+														usd={pool.pnl}
+														sol={pool.pnlSol}
+														currency={currency}
+														solPrice={solPrice}
+													/>
 													<div className="text-xs text-muted-foreground">
 														{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
 													</div>
@@ -520,7 +787,11 @@ export function PositionsTable({
 											{isOpen ? (
 												<TableRow key={`${pool.poolAddress}-detail`}>
 													<TableCell colSpan={9} className="bg-muted/20 p-0">
-														<PositionsDetail pool={pool} />
+														<PositionsDetail
+															pool={pool}
+															currency={currency}
+															solPrice={solPrice}
+														/>
 													</TableCell>
 												</TableRow>
 											) : null}
@@ -532,6 +803,35 @@ export function PositionsTable({
 					</div>
 				)}
 			</CardContent>
+			<Sheet
+				open={selectedCard !== null}
+				onOpenChange={(open) => !open && setSelectedCard(null)}
+			>
+				<SheetContent
+					side={isMobile ? "bottom" : "right"}
+					className="!h-[90dvh] !max-h-[90dvh] overflow-y-auto sm:!h-auto sm:!max-h-none"
+				>
+					<SheetHeader>
+						<SheetTitle>
+							{selectedCard
+								? pair(selectedCard.tokenX, selectedCard.tokenY)
+								: "Position details"}
+						</SheetTitle>
+						<SheetDescription>
+							{selectedCard
+								? shortAddr(selectedCard.poolAddress, 6)
+								: "Open position details"}
+						</SheetDescription>
+					</SheetHeader>
+					{selectedCard ? (
+						<PositionsDetail
+							pool={selectedCard}
+							currency={currency}
+							solPrice={solPrice}
+						/>
+					) : null}
+				</SheetContent>
+			</Sheet>
 		</Card>
 	);
 }

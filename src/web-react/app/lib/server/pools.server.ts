@@ -24,6 +24,25 @@ const PriceResponse = Schema.Struct({
 	}),
 });
 
+const CoinGeckoPriceResponse = Schema.Struct({
+	solana: Schema.Struct({ usd: Schema.Number }),
+});
+
+function fetchCoinGeckoSolPrice(): Effect.Effect<number | null, never, never> {
+	return Effect.gen(function* () {
+		const client = yield* HttpClient.HttpClient;
+		const res = yield* HttpClientRequest.get(
+			"https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd",
+		).pipe(
+			client.execute,
+			Effect.flatMap((r) =>
+				HttpClientResponse.schemaBodyJson(CoinGeckoPriceResponse)(r),
+			),
+		);
+		return res.solana.usd;
+	}).pipe(Effect.catchAll(() => Effect.succeed(null)));
+}
+
 function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 	return Effect.gen(function* () {
 		const client = yield* HttpClient.HttpClient;
@@ -37,8 +56,8 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 		);
 		return res.data[SOL_MINT]?.price ?? null;
 	}).pipe(
+		Effect.catchAll(() => fetchCoinGeckoSolPrice()),
 		Effect.provide(FetchHttpClient.layer),
-		Effect.catchAll(() => Effect.succeed(null)),
 	);
 }
 

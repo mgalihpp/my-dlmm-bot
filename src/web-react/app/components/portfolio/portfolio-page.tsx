@@ -172,8 +172,14 @@ export function PortfolioPage() {
 								pools={data.pools!}
 								rangeFilter={rangeFilter}
 								onRangeFilterChange={setRangeFilter}
+								currency={currency}
+								solPrice={data.solPrice}
 							/>
-							<ClosedTable closed={data.closed!} />
+							<ClosedTable
+								closed={data.closed!}
+								currency={currency}
+								solPrice={data.solPrice}
+							/>
 						</>
 					)}
 				</div>

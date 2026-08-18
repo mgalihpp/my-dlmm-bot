@@ -9,6 +9,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "~/components/ui/sheet";
+import { useIsMobile } from "~/hooks/use-mobile";
 import { fmtPct, meteoraUrl, solscanUrl } from "~/lib/format";
 import {
 	type Currency,
@@ -37,6 +38,7 @@ export function PoolDetailSheet({
 	solPrice: number | null;
 	onOpenChange: (open: boolean) => void;
 }) {
+	const isMobile = useIsMobile();
 	if (!pool) return null;
 	const price = pool.price >= 1 ? pool.price.toFixed(3) : pool.price.toFixed(5);
 	const metrics: { label: string; value: string }[] = [
@@ -100,7 +102,10 @@ export function PoolDetailSheet({
 
 	return (
 		<Sheet open onOpenChange={onOpenChange}>
-			<SheetContent className="sm:max-w-md">
+			<SheetContent
+				side={isMobile ? "bottom" : "right"}
+				className="!h-[90dvh] !max-h-[90dvh] overflow-y-auto sm:!h-auto sm:!max-h-none sm:max-w-md"
+			>
 				<SheetHeader>
 					<div className="flex items-center gap-3">
 						<div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-md bg-muted">

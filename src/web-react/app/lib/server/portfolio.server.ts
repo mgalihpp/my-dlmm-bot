@@ -146,6 +146,7 @@ export interface PortfolioPayload {
 	readonly error?: string;
 	readonly wallet?: string;
 	readonly rpc?: string;
+	readonly solPrice: number | null;
 	readonly total?: PortfolioTotal;
 	readonly summary?: PortfolioSummary;
 	readonly pools?: readonly OpenPoolWithIcons[];
@@ -268,6 +269,7 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			ok: true,
 			wallet,
 			rpc: current.rpcUrl ?? "rpc not configured",
+			solPrice: parseNum(res.solPrice),
 			total,
 			summary,
 			pools: open,
@@ -288,6 +290,7 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			Effect.succeed({
 				ok: false,
 				error: errorMessage(error),
+				solPrice: null,
 			} satisfies PortfolioPayload),
 		),
 	);
