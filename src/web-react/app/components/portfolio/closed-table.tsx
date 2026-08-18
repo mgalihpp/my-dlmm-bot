@@ -72,36 +72,21 @@ const DETAIL_COLUMNS = [
 
 function ClosedDetailSkeleton() {
 	return (
-		<div className="px-4 py-4">
+		<div className="space-y-3 px-4 py-4">
 			<Skeleton className="mb-2 h-3 w-48" />
-			<div className="overflow-x-auto rounded-md border">
-				<Table>
-					<TableHeader className="bg-muted/50">
-						<TableRow>
-							{DETAIL_COLUMNS.map((col) => (
-								<TableHead key={col}>
-									<Skeleton className="h-4 w-14" />
-								</TableHead>
-							))}
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{[0, 1, 2].map((n) => (
-							<TableRow key={n}>
-								{DETAIL_COLUMNS.map((col) => (
-									<TableCell key={col}>
-										<Skeleton
-											className={
-												col === "Position" ? "h-4 w-24" : "h-4 w-full max-w-16"
-											}
-										/>
-									</TableCell>
-								))}
-							</TableRow>
+			{[0, 1, 2].map((n) => (
+				<div key={n} className="space-y-3 rounded-lg border p-3">
+					<Skeleton className="h-4 w-24" />
+					<div className="grid grid-cols-2 gap-3">
+						{DETAIL_COLUMNS.slice(1).map((col) => (
+							<div key={col} className="space-y-1">
+								<Skeleton className="h-3 w-16" />
+								<Skeleton className="h-4 w-24" />
+							</div>
 						))}
-					</TableBody>
-				</Table>
-			</div>
+					</div>
+				</div>
+			))}
 		</div>
 	);
 }
@@ -141,84 +126,73 @@ function ClosedDetail({
 		);
 	}
 	return (
-		<div className="px-4 py-4">
+		<div className="space-y-3 px-4 py-4">
 			<p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
 				CLOSED POSITIONS · {pairLabel.toUpperCase()}
 			</p>
-			<div className="overflow-x-auto rounded-md border">
-				<Table>
-					<TableHeader className="bg-muted/50">
-						<TableRow>
-							<TableHead>Position</TableHead>
-							<TableHead>Deposit</TableHead>
-							<TableHead>Withdraw</TableHead>
-							<TableHead>Fees</TableHead>
-							<TableHead>PnL USD</TableHead>
-							<TableHead>PnL SOL</TableHead>
-							<TableHead>Closed</TableHead>
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{closed.map((pos) => {
-							const pnlUsd = parseFloat(pos.pnlUsd);
-							const pnlSol =
-								pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
-							const pnlPct = parseFloat(pos.pnlPctChange);
-							return (
-								<TableRow key={pos.positionAddress}>
-									<TableCell>
-										<a
-											href={solscanUrl(pos.positionAddress)}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="font-mono text-xs text-muted-foreground hover:underline"
-										>
-											{shortAddr(pos.positionAddress, 6)}
-										</a>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<CurrencyValue
-											currency="usd"
-											value={pos.allTimeDeposits.total.usd}
-										/>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<CurrencyValue
-											currency="usd"
-											value={pos.allTimeWithdrawals.total.usd}
-										/>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<CurrencyValue
-											currency="usd"
-											value={pos.allTimeFees.total.usd}
-										/>
-									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
-									>
-										<CurrencyValue currency="usd" value={pos.pnlUsd} />
-										<div className="text-xs text-muted-foreground">
-											{fmtPct(pnlPct)}
-										</div>
-									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
-									>
-										<CurrencyValue currency="sol" value={pnlSol} />
-										<div className="text-xs text-muted-foreground">
-											{fmtPct(pos.pnlSolPctChange ?? null)}
-										</div>
-									</TableCell>
-									<TableCell className="text-xs text-muted-foreground">
-										{tsLocal(pos.closedAt)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
-					</TableBody>
-				</Table>
-			</div>
+			{closed.map((pos) => {
+				const pnlUsd = parseFloat(pos.pnlUsd);
+				const pnlSol =
+					pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
+				const pnlPct = parseFloat(pos.pnlPctChange);
+				return (
+					<div
+						key={pos.positionAddress}
+						className="space-y-3 rounded-lg border p-3"
+					>
+						<div className="flex items-center justify-between gap-3">
+							<a
+								href={solscanUrl(pos.positionAddress)}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="font-mono text-xs text-muted-foreground hover:underline"
+							>
+								{shortAddr(pos.positionAddress, 6)}
+							</a>
+							<span className="text-xs text-muted-foreground">
+								{tsLocal(pos.closedAt)}
+							</span>
+						</div>
+						<div className="grid grid-cols-2 gap-3 text-sm">
+							<div>
+								<p className="text-xs text-muted-foreground">Deposit</p>
+								<CurrencyValue
+									currency="usd"
+									value={pos.allTimeDeposits.total.usd}
+								/>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Withdraw</p>
+								<CurrencyValue
+									currency="usd"
+									value={pos.allTimeWithdrawals.total.usd}
+								/>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Fees</p>
+								<CurrencyValue
+									currency="usd"
+									value={pos.allTimeFees.total.usd}
+								/>
+							</div>
+							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+								<p className="text-xs text-muted-foreground">PnL USD</p>
+								<CurrencyValue currency="usd" value={pos.pnlUsd} />
+								<p className="text-xs text-muted-foreground">
+									{fmtPct(pnlPct)}
+								</p>
+							</div>
+							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+								<p className="text-xs text-muted-foreground">PnL SOL</p>
+								<CurrencyValue currency="sol" value={pnlSol} />
+								<p className="text-xs text-muted-foreground">
+									{fmtPct(pos.pnlSolPctChange ?? null)}
+								</p>
+							</div>
+						</div>
+					</div>
+				);
+			})}
 		</div>
 	);
 }

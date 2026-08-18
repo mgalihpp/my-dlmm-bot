@@ -207,6 +207,11 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 		live,
 		range: pool.positionsRange?.[i],
 	}));
+	const pnlUsd = parseFloat(pool.pnl);
+	const pnlSol = pool.pnlSol != null ? parseFloat(pool.pnlSol) : null;
+	const pnlPct = parseFloat(pool.pnlPctChange);
+	const pnlSolPct =
+		pool.pnlSolPctChange != null ? parseFloat(pool.pnlSolPctChange) : null;
 	if (positions.length === 0) {
 		return (
 			<div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -215,20 +220,34 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 		);
 	}
 	return (
-		<div className="overflow-x-auto">
-			<Table>
-				<TableHeader className="bg-muted/30">
-					<TableRow>
-						<TableHead>Position / Range</TableHead>
-						<TableHead>Age</TableHead>
-						<TableHead>Amount</TableHead>
-						<TableHead>Fees</TableHead>
-					</TableRow>
-				</TableHeader>
-				<TableBody>
-					{positions.map(({ live, range }) => (
-						<TableRow key={live.address}>
-							<TableCell>
+		<div className="space-y-4 px-4 py-4">
+			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-4">
+				<div>
+					<p className="text-xs text-muted-foreground">Balance</p>
+					<CurrencyValue currency="usd" value={pool.balances} />
+				</div>
+				<div>
+					<p className="text-xs text-muted-foreground">Fees</p>
+					<CurrencyValue currency="usd" value={pool.unclaimedFees} />
+				</div>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<CurrencyValue currency="usd" value={pool.pnl} />
+					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
+				</div>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+					<p className="text-xs text-muted-foreground">PnL SOL</p>
+					<CurrencyValue currency="sol" value={pool.pnlSol} />
+					<p className="text-xs text-muted-foreground">
+						{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
+					</p>
+				</div>
+			</div>
+			<div className="space-y-3">
+				{positions.map(({ live, range }) => (
+					<div key={live.address} className="space-y-3 rounded-lg border p-3">
+						<div className="flex items-start justify-between gap-3">
+							<div>
 								<a
 									href={solscanUrl(live.address)}
 									target="_blank"
@@ -237,18 +256,27 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 								>
 									{shortAddr(live.address, 6)}
 								</a>
-								{range ? (
-									<div className="mt-1 text-xs text-muted-foreground">
-										{Number(range.minPrice).toFixed(5)} –{" "}
-										{Number(range.maxPrice).toFixed(5)}
-									</div>
-								) : null}
-							</TableCell>
-							<TableCell className="whitespace-nowrap text-muted-foreground">
-								{formatAge(live.createdAt)}
-							</TableCell>
-							<TableCell className="min-w-44 tabular-nums">
-								<div>
+								<CopyButton
+									text={live.address}
+									label="Position address"
+									className="ml-1 size-5"
+								/>
+							</div>
+							<span className="text-xs text-muted-foreground">
+								Age {formatAge(live.createdAt)}
+							</span>
+						</div>
+						{range ? (
+							<div className="rounded-md bg-muted/40 px-3 py-2 text-xs">
+								<span className="text-muted-foreground">Price range </span>
+								{Number(range.minPrice).toFixed(5)} –{" "}
+								{Number(range.maxPrice).toFixed(5)}
+							</div>
+						) : null}
+						<div className="grid grid-cols-2 gap-3 text-sm">
+							<div>
+								<p className="text-xs text-muted-foreground">Amount</p>
+								<div className="tabular-nums">
 									{Number(live.amountX).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -256,7 +284,7 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenXMint}
 									/>
 								</div>
-								<div className="text-xs text-muted-foreground">
+								<div className="tabular-nums text-muted-foreground">
 									{Number(live.amountY).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -264,9 +292,10 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenYMint}
 									/>
 								</div>
-							</TableCell>
-							<TableCell className="min-w-44 tabular-nums">
-								<div>
+							</div>
+							<div>
+								<p className="text-xs text-muted-foreground">Fees</p>
+								<div className="tabular-nums">
 									{Number(live.feeX).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -274,7 +303,7 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenXMint}
 									/>
 								</div>
-								<div className="text-xs text-muted-foreground">
+								<div className="tabular-nums text-muted-foreground">
 									{Number(live.feeY).toFixed(4)}{" "}
 									<TokenLink
 										pool={pool}
@@ -282,11 +311,11 @@ function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 										mint={pool.tokenYMint}
 									/>
 								</div>
-							</TableCell>
-						</TableRow>
-					))}
-				</TableBody>
-			</Table>
+							</div>
+						</div>
+					</div>
+				))}
+			</div>
 		</div>
 	);
 }
