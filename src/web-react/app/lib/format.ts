@@ -134,7 +134,7 @@ export function meteoraUrl(poolAddress: string): string {
 }
 
 export function solscanUrl(address: string): string {
-	return `https://solscan.io/account/${address}`;
+	return `https://solscan.io/tx/${address}`;
 }
 
 export function formatPrice(price: number): string {
