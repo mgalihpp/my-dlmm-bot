@@ -90,7 +90,10 @@ When modifying the web UI:
 
 - Follow existing component patterns and shadcn conventions.
 - Use Tailwind CSS utility classes; avoid custom CSS unless necessary.
-- Keep the dashboard read-only — never expose on-chain controls or private keys.
+- Keep the dashboard read-only for data, and never expose private keys.
+- The dashboard may expose authenticated on-chain actions (e.g. closing a
+  position). Such actions run server-side only; the client sends only the
+  target addresses and never keys.
 - Reuse existing components from `src/web-react/app/components/ui/`.
 - Data fetching uses React Router loaders; keep server-side logic in loaders.
 - Format with Prettier (`npm run format` in `src/web-react/`).
