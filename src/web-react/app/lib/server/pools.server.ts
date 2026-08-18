@@ -15,12 +15,10 @@ import { buildPoolsPayload, type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
-const PriceResponse = Schema.Struct({
-	data: Schema.Record({
-		key: Schema.String,
-		value: Schema.Struct({
-			price: Schema.NumberFromString,
-		}),
+const PriceResponse = Schema.Record({
+	key: Schema.String,
+	value: Schema.Struct({
+		usdPrice: Schema.Number,
 	}),
 });
 
@@ -50,14 +48,14 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 	return Effect.gen(function* () {
 		const client = yield* HttpClient.HttpClient;
 		const res = yield* HttpClientRequest.get(
-			`https://price.jup.ag/v6/price?ids=${SOL_MINT}`,
+			`https://api.jup.ag/price/v3?ids=${SOL_MINT}`,
 		).pipe(
 			client.execute,
 			Effect.flatMap((r) =>
 				HttpClientResponse.schemaBodyJson(PriceResponse)(r),
 			),
 		);
-		return res.data[SOL_MINT]?.price ?? null;
+		return res[SOL_MINT]?.usdPrice ?? null;
 	}).pipe(
 		Effect.catchAll(() => fetchCoinGeckoSolPrice()),
 		Effect.provide(FetchHttpClient.layer),

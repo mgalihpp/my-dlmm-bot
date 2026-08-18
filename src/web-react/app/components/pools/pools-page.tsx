@@ -74,7 +74,12 @@ export function PoolsPage() {
 	};
 
 	return (
-		<DashboardShell title="Pool Radar" wallet={data.wallet} rpc={data.rpc}>
+		<DashboardShell
+			title="Pool Radar"
+			wallet={data.wallet}
+			rpc={data.rpc}
+			realtimeMs={60_000}
+		>
 			{isNavigating ? (
 				<PageSkeleton />
 			) : (

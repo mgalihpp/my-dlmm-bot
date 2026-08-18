@@ -9,14 +9,16 @@ export function DashboardShell({
 	title = "Documents",
 	wallet,
 	rpc,
+	realtimeMs = 10_000,
 	children,
 }: {
 	title?: string;
 	wallet?: string;
 	rpc?: string;
+	realtimeMs?: number;
 	children: ReactNode;
 }) {
-	useRealtimeRevalidate();
+	useRealtimeRevalidate(realtimeMs);
 	return (
 		<SidebarProvider
 			style={
