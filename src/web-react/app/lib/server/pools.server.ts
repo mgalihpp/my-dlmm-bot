@@ -56,8 +56,8 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 		);
 		return res.data[SOL_MINT]?.price ?? null;
 	}).pipe(
-		Effect.provide(FetchHttpClient.layer),
 		Effect.catchAll(() => fetchCoinGeckoSolPrice()),
+		Effect.provide(FetchHttpClient.layer),
 	);
 }
 
