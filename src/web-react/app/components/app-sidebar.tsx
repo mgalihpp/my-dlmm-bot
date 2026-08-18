@@ -19,6 +19,7 @@ import {
 	SidebarMenu,
 	SidebarMenuButton,
 	SidebarMenuItem,
+	useSidebar,
 } from "~/components/ui/sidebar";
 
 const data = {
@@ -71,6 +72,10 @@ export function AppSidebar({
 	wallet?: string;
 	rpc?: string;
 }) {
+	const { isMobile } = useSidebar();
+
+	if (isMobile) return null;
+
 	return (
 		<Sidebar collapsible="offcanvas" {...props}>
 			<SidebarHeader className="border-b border-sidebar-border">

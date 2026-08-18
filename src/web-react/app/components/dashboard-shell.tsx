@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { AppSidebar } from "~/components/app-sidebar";
+import { MobileBottomNav } from "~/components/mobile-bottom-nav";
 import { SiteHeader } from "~/components/site-header";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
 
@@ -26,12 +27,13 @@ export function DashboardShell({
 			<AppSidebar wallet={wallet} rpc={rpc} />
 			<SidebarInset>
 				<SiteHeader title={title} />
-				<div className="flex flex-1 flex-col">
+				<div className="flex flex-1 flex-col pb-20 md:pb-0">
 					<div className="@container/main flex flex-1 flex-col gap-2">
 						{children}
 					</div>
 				</div>
 			</SidebarInset>
+			<MobileBottomNav />
 		</SidebarProvider>
 	);
 }
