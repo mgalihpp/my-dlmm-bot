@@ -213,8 +213,7 @@ function ClosedDetail({
 								<p className="text-xs text-muted-foreground">PnL USD</p>
 								<PortfolioAmount
 									usd={pos.pnlUsd}
-									sol={pos.pnlSol}
-									currency={currency}
+									currency="usd"
 									solPrice={solPrice}
 								/>
 								<p className="text-xs text-muted-foreground">
@@ -224,9 +223,9 @@ function ClosedDetail({
 							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
 								<p className="text-xs text-muted-foreground">PnL SOL</p>
 								<PortfolioAmount
-									usd={pos.pnlUsd}
+									usd={pos.pnlSol}
 									sol={pnlSol}
-									currency={currency}
+									currency="sol"
 									solPrice={solPrice}
 								/>
 								<p className="text-xs text-muted-foreground">

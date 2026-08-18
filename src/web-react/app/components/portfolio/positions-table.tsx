@@ -281,20 +281,15 @@ function PositionsDetail({
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 					<p className="text-xs text-muted-foreground">PnL USD</p>
-					<PortfolioAmount
-						usd={pool.pnl}
-						sol={pool.pnlSol}
-						currency={currency}
-						solPrice={solPrice}
-					/>
+					<PortfolioAmount usd={pool.pnl} currency="usd" solPrice={solPrice} />
 					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
 					<p className="text-xs text-muted-foreground">PnL SOL</p>
 					<PortfolioAmount
-						usd={pool.pnl}
+						usd={pool.pnlSol}
 						sol={pool.pnlSol}
-						currency={currency}
+						currency="sol"
 						solPrice={solPrice}
 					/>
 					<p className="text-xs text-muted-foreground">
