@@ -13,17 +13,18 @@ export function storedTheme(): Theme | null {
 	return saved === "light" || saved === "dark" ? saved : null;
 }
 
-export function useTheme(): [Theme, (t: Theme) => void] {
-	const [theme, setTheme] = useState<Theme>("light");
+export function resolveTheme(saved: Theme | null, prefersDark: boolean): Theme {
+	return saved ?? (prefersDark ? "dark" : "light");
+}
 
-	useEffect(() => {
-		setTheme(
-			storedTheme() ??
-				(window.matchMedia("(prefers-color-scheme: dark)").matches
-					? "dark"
-					: "light"),
+export function useTheme(): [Theme, (t: Theme) => void] {
+	const [theme, setTheme] = useState<Theme>(() => {
+		if (typeof window === "undefined") return "light";
+		return resolveTheme(
+			storedTheme(),
+			window.matchMedia("(prefers-color-scheme: dark)").matches,
 		);
-	}, []);
+	});
 
 	useEffect(() => {
 		applyTheme(theme);
