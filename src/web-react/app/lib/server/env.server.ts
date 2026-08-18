@@ -3,7 +3,9 @@ import { join } from "node:path";
 
 /** Repo root = two levels above src/web-react (dev cwd) — or cwd when run from the repo root. */
 export function repoRoot(): string {
-	return join(process.cwd(), "..", "..");
+	return existsSync(join(process.cwd(), "src", "web-react"))
+		? process.cwd()
+		: join(process.cwd(), "..", "..");
 }
 
 /**
