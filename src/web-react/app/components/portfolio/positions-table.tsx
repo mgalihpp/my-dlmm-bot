@@ -253,8 +253,6 @@ function PositionsDetail({
 	const pnlPct = parseFloat(pool.pnlPctChange);
 	const pnlSolPct =
 		pool.pnlSolPctChange != null ? parseFloat(pool.pnlSolPctChange) : null;
-	const selectedPnl = currency === "sol" ? pnlSol : pnlUsd;
-	const selectedPnlPct = currency === "sol" ? pnlSolPct : pnlPct;
 	if (positions.length === 0) {
 		return (
 			<div className="px-4 py-6 text-center text-sm text-muted-foreground">
@@ -264,7 +262,7 @@ function PositionsDetail({
 	}
 	return (
 		<div className="space-y-4 px-4 py-4">
-			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-3">
+			<div className="grid grid-cols-2 gap-3 rounded-lg border bg-muted/20 p-3 sm:grid-cols-4">
 				<div>
 					<p className="text-xs text-muted-foreground">Balance</p>
 					<PortfolioAmount
@@ -281,18 +279,21 @@ function PositionsDetail({
 						solPrice={solPrice}
 					/>
 				</div>
-				<div className={cn("tabular-nums", pnlClass(pnlSign(selectedPnl)))}>
-					<p className="text-xs text-muted-foreground">
-						PnL {currency.toUpperCase()}
-					</p>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<PortfolioAmount usd={pool.pnl} currency="usd" solPrice={solPrice} />
+					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
+				</div>
+				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+					<p className="text-xs text-muted-foreground">PnL SOL</p>
 					<PortfolioAmount
-						usd={pool.pnl}
+						usd={pool.pnlSol}
 						sol={pool.pnlSol}
-						currency={currency}
+						currency="sol"
 						solPrice={solPrice}
 					/>
 					<p className="text-xs text-muted-foreground">
-						{selectedPnlPct !== null ? fmtPct(selectedPnlPct) : "-"}
+						{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}
 					</p>
 				</div>
 			</div>
