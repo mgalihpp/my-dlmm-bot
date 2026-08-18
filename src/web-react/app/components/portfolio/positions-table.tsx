@@ -16,7 +16,6 @@ import {
 } from "react";
 import { useFetcher } from "react-router";
 import { toast } from "sonner";
-import type { CloseResult } from "~/lib/server/close.server";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
@@ -53,6 +52,7 @@ import {
 	solscanUrl,
 } from "~/lib/format";
 import { fmtAmount } from "~/lib/pools";
+import type { CloseResult } from "~/lib/server/close.server";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import {

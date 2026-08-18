@@ -1,7 +1,7 @@
-import { Effect } from "effect";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { Zap } from "@vexis/services/Zap.js";
+import { Effect } from "effect";
 import { recordManualClose } from "../../../../telegram/agent/manual-close.js";
 
 export type CloseResult = { ok: true; sig: string } | { ok: false; error: string };
