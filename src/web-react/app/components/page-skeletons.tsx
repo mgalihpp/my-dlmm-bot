@@ -14,6 +14,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "~/components/ui/table";
+import { EDITABLE_FIELDS } from "~/lib/settings";
 
 export function useIsNavigating(): boolean {
 	const navigation = useNavigation();
@@ -265,42 +266,104 @@ export function AgentPageSkeleton() {
 
 export function SettingsPageSkeleton() {
 	return (
-		<div className="mx-auto flex w-full max-w-4xl flex-col gap-4 py-4 md:gap-6 md:py-6">
-			<div className="px-4 lg:px-6">
-				<Skeleton className="h-8 w-32" />
+		<div className="mx-auto flex w-full max-w-2xl flex-col gap-6 px-4 py-6 md:py-8">
+			<div className="space-y-2">
+				<Skeleton className="h-9 w-32" />
+				<Skeleton className="h-4 w-52" />
 			</div>
-			<div className="px-4 lg:px-6">
-				<Card>
-					<CardContent className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between md:p-6">
-						<div className="space-y-2">
-							<Skeleton className="h-4 w-28" />
-							<Skeleton className="h-5 w-40" />
-							<Skeleton className="h-4 w-48" />
+			<div className="flex flex-col items-center gap-4 py-2">
+				<Skeleton className="size-24 rounded-full" />
+				<div className="flex w-full flex-col items-center gap-2">
+					<Skeleton className="h-6 w-32" />
+					<Skeleton className="h-5 w-48" />
+				</div>
+			</div>
+			<div className="flex flex-col gap-6">
+				{keys(4).map((group) => (
+					<section key={group}>
+						<Skeleton className="mb-2 ml-1 h-4 w-20" />
+						<div className="overflow-hidden rounded-2xl border border-border/70 bg-card shadow-sm">
+							{keys(group === 2 ? 2 : 1).map((row) => (
+								<div
+									key={row}
+									className="flex h-[73px] items-center gap-3 border-b border-border/60 px-4 last:border-b-0"
+								>
+									<Skeleton className="size-9 rounded-xl" />
+									<div className="flex min-w-0 flex-1 flex-col gap-2">
+										<Skeleton className="h-4 w-24" />
+										<Skeleton className="h-3 w-44" />
+									</div>
+									<Skeleton className="size-5" />
+								</div>
+							))}
 						</div>
+					</section>
+				))}
+				<Skeleton className="h-14 w-full rounded-2xl" />
+			</div>
+		</div>
+	);
+}
+
+export function SettingsCategoryPageSkeleton() {
+	const pathname = useLocation().pathname;
+	const category = pathname.split("/").filter(Boolean).at(-1);
+	const isAgent = category === "agent";
+	const isPreferences = category === "preferences";
+	const fieldCount = EDITABLE_FIELDS.filter(
+		(field) => field.section === category,
+	).length;
+
+	return (
+		<div className="mx-auto flex w-full max-w-2xl flex-col gap-4 px-4 py-6 md:py-8">
+			<div className="space-y-3">
+				<Skeleton className="h-4 w-24" />
+				<Skeleton className="h-9 w-36" />
+			</div>
+			{isAgent && (
+				<Card>
+					<CardHeader className="flex-row items-center justify-between gap-3">
+						<Skeleton className="h-5 w-28" />
+						<Skeleton className="h-6 w-16 rounded-full" />
+					</CardHeader>
+					<CardContent className="flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+						<Skeleton className="h-4 w-64" />
 						<Skeleton className="h-9 w-28" />
 					</CardContent>
 				</Card>
-			</div>
-			<div className="grid gap-4 px-4 md:grid-cols-[220px_1fr] lg:px-6">
-				<div className="space-y-1">
-					{keys(5).map((k) => (
-						<Skeleton key={k} className="h-9 w-full" />
-					))}
-				</div>
+			)}
+			{isPreferences ? (
 				<Card>
-					<CardContent className="space-y-4 p-4 md:p-6">
-						{keys(5).map((k) => (
-							<div key={k} className="flex items-center justify-between gap-4">
-								<div className="space-y-1.5">
-									<Skeleton className="h-4 w-32" />
-									<Skeleton className="h-4 w-48" />
-								</div>
-								<Skeleton className="h-9 w-20" />
+					<CardHeader className="border-b">
+						<Skeleton className="h-5 w-24" />
+						<Skeleton className="h-4 w-56" />
+					</CardHeader>
+					<CardContent className="space-y-4 pt-5">
+						<Skeleton className="h-4 w-16" />
+						<div className="grid gap-2 sm:grid-cols-2">
+							<Skeleton className="h-24 rounded-lg" />
+							<Skeleton className="h-24 rounded-lg" />
+						</div>
+					</CardContent>
+				</Card>
+			) : (
+				<Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
+					<CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-3">
+						<Skeleton className="h-5 w-28" />
+					</CardHeader>
+					<CardContent className="space-y-0 p-0">
+						{keys(Math.max(fieldCount, 3)).map((field) => (
+							<div
+								key={field}
+								className="flex min-h-14 items-center gap-4 border-b border-border/60 px-4 last:border-b-0"
+							>
+								<Skeleton className="h-4 w-32" />
+								<Skeleton className="ml-auto h-9 w-[42%]" />
 							</div>
 						))}
 					</CardContent>
 				</Card>
-			</div>
+			)}
 		</div>
 	);
 }
@@ -335,6 +398,9 @@ export function PageSkeleton() {
 		case "/settings":
 			return <SettingsPageSkeleton />;
 		default:
+			if (navigation.location?.pathname.startsWith("/settings/")) {
+				return <SettingsCategoryPageSkeleton />;
+			}
 			return <GenericPageSkeleton />;
 	}
 }
