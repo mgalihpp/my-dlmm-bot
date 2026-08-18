@@ -33,10 +33,12 @@ import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
 	fmtPnl,
+	fmtPnlPct,
 	meteoraUrl,
 	pair,
 	pnlClass,
 	pnlSign,
+	pnlSignForCurrency,
 	shortAddr,
 	solscanUrl,
 } from "~/lib/format";
@@ -487,7 +489,6 @@ function OpenPositionCard({
 	solPrice: number | null;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
-	const pnlUsd = parseFloat(pool.pnl);
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
 		<div
@@ -558,13 +559,21 @@ function OpenPositionCard({
 					<p className="text-xs text-muted-foreground">
 						PnL {currency.toUpperCase()}
 					</p>
-					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+					<span
+						className={cn(
+							"tabular-nums",
+							pnlClass(pnlSignForCurrency(pool.pnl, pool.pnlSol, currency)),
+						)}
+					>
 						<PortfolioAmount
 							usd={pool.pnl}
 							sol={pool.pnlSol}
 							currency={currency}
 							solPrice={solPrice}
 						/>
+						<p className="text-xs text-muted-foreground">
+							{fmtPnlPct(pool.pnlPctChange, pool.pnlSolPctChange, currency)}
+						</p>
 					</span>
 				</div>
 			</div>

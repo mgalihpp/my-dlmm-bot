@@ -38,6 +38,22 @@ export function fmtPnl(
 	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol);
 }
 
+export function fmtPnlPct(
+	usd: string | number | null | undefined,
+	sol: string | number | null | undefined,
+	currency: "usd" | "sol",
+): string {
+	return fmtPct(currency === "usd" ? usd : sol);
+}
+
+export function pnlSignForCurrency(
+	usd: string | number | null | undefined,
+	sol: string | number | null | undefined,
+	currency: "usd" | "sol",
+): number {
+	return pnlSign(currency === "usd" ? usd : sol);
+}
+
 export function shortAddr(addr: string, len = 4): string {
 	if (!addr || addr.length <= len * 2 + 2) return addr;
 	return `${addr.slice(0, len)}…${addr.slice(-len)}`;
