@@ -1,5 +1,6 @@
 import { fileURLToPath } from "node:url";
 import { reactRouter } from "@react-router/dev/vite";
+import babel from "@rolldown/plugin-babel";
 import tailwindcss from "@tailwindcss/vite";
 import { defineConfig } from "vite";
 import devtoolsJson from "vite-plugin-devtools-json";
@@ -9,5 +10,13 @@ export default defineConfig({
 	// into the SSR server bundle.
 	server: { fs: { allow: [fileURLToPath(new URL("../..", import.meta.url))] } },
 	resolve: { tsconfigPaths: true },
-	plugins: [tailwindcss(), reactRouter(), devtoolsJson()],
+	plugins: [
+		tailwindcss(),
+		reactRouter(),
+		babel({
+			include: /\.[jt]sx?$/,
+			plugins: ["babel-plugin-react-compiler"],
+		} as Parameters<typeof babel>[0]),
+		devtoolsJson(),
+	],
 });
