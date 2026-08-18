@@ -86,7 +86,7 @@ export function NavUser({
 								<DropdownMenuSeparator />
 							</>
 						) : null}
-						<DropdownMenuItem asChild>
+						<DropdownMenuItem asChild variant="destructive">
 							<a href="/logout">
 								<LogOutIcon />
 								Log out
