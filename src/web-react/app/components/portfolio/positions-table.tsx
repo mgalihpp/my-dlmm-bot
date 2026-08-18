@@ -55,6 +55,14 @@ import { RangeVisual } from "./range-visual";
 type SortKey = "pair" | "balances" | "fees" | "pnl" | "pnlSol";
 type SortDir = "asc" | "desc";
 
+export function matchesRangeFilter(
+	pool: Pick<OpenPoolWithIcons, "outOfRange" | "positionsOutOfRange">,
+	filter: RangeFilter,
+): boolean {
+	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+	return filter === "all" || (filter === "oor" ? oor : !oor);
+}
+
 async function copy(text: string, label: string): Promise<boolean> {
 	if (!navigator.clipboard) {
 		toast.error(`Failed to copy ${label}`);
@@ -622,11 +630,8 @@ export function PositionsTable({
 
 	const filtered = useMemo(() => {
 		let rows = pools;
-		if (rangeFilter === "oor") {
-			rows = rows.filter(
-				(pool) =>
-					pool.outOfRange === true || pool.positionsOutOfRange.length > 0,
-			);
+		if (rangeFilter !== "all") {
+			rows = rows.filter((pool) => matchesRangeFilter(pool, rangeFilter));
 		}
 		if (search.trim().length > 0) {
 			const q = search.trim().toLowerCase();
