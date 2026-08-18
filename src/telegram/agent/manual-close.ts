@@ -46,6 +46,7 @@ export async function recordManualClose(
 	pool: string,
 	poolName: string,
 	baseMint: string | null,
+	file?: string,
 ): Promise<void> {
 	try {
 		const cfg = resolveAgentConfigFrom(await getConfig());
@@ -54,6 +55,7 @@ export async function recordManualClose(
 			getRt(),
 			{ pool, poolName, baseMint },
 			cfg.poolCooldownMs,
+			file,
 		);
 	} catch (e) {
 		console.warn("[agent] manual close cooldown record failed:", e);
