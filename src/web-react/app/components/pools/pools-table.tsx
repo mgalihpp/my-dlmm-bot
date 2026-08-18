@@ -1,5 +1,5 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
-import { SearchIcon } from "lucide-react";
+import { ChevronRightIcon, SearchIcon } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -122,7 +122,19 @@ function PoolCard({
 	const organic = organicBucket(pool.organicScore);
 	const rug = rugBucket(pool.rugScore);
 	return (
-		<article className="rounded-xl border bg-card p-4 shadow-sm">
+		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
+		<div
+			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+			role="button"
+			tabIndex={0}
+			onClick={onSelect}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onSelect();
+				}
+			}}
+		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
@@ -204,15 +216,12 @@ function PoolCard({
 				</div>
 			</div>
 			<div className="mt-3 flex justify-end">
-				<button
-					type="button"
-					className="text-sm font-medium text-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-					onClick={onSelect}
-				>
-					View details
-				</button>
+				<ChevronRightIcon
+					className="size-5 text-muted-foreground"
+					aria-hidden="true"
+				/>
 			</div>
-		</article>
+		</div>
 	);
 }
 

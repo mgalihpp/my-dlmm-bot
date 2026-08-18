@@ -1,4 +1,10 @@
-import { CheckIcon, ChevronDownIcon, CopyIcon, SearchIcon } from "lucide-react";
+import {
+	CheckIcon,
+	ChevronDownIcon,
+	ChevronRightIcon,
+	CopyIcon,
+	SearchIcon,
+} from "lucide-react";
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { CurrencyValue } from "~/components/currency-value";
@@ -83,6 +89,7 @@ function CopyButton({
 			)}
 			onClick={async (e) => {
 				e.preventDefault();
+				e.stopPropagation();
 				if (await copy(text, label)) {
 					setCopied(true);
 					setTimeout(() => setCopied(false), 2000);
@@ -330,7 +337,19 @@ function OpenPositionCard({
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 	const pnlUsd = parseFloat(pool.pnl);
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
+		<div
+			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+			role="button"
+			tabIndex={0}
+			onClick={onDetails}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onDetails();
+				}
+			}}
+		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
@@ -353,6 +372,7 @@ function OpenPositionCard({
 							target="_blank"
 							rel="noopener noreferrer"
 							className="block truncate font-semibold hover:underline"
+							onClick={(event) => event.stopPropagation()}
 						>
 							{pair(pool.tokenX, pool.tokenY)}
 						</a>
@@ -392,9 +412,10 @@ function OpenPositionCard({
 					{pool.openPositionCount} position
 					{pool.openPositionCount === 1 ? "" : "s"}
 				</span>
-				<Button variant="ghost" size="sm" onClick={onDetails}>
-					Details
-				</Button>
+				<ChevronRightIcon
+					className="size-5 text-muted-foreground"
+					aria-hidden="true"
+				/>
 			</div>
 		</div>
 	);

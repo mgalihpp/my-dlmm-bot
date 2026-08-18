@@ -208,7 +208,19 @@ function ClosedPoolCard({
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
 	return (
-		<div className="rounded-xl border bg-card p-4 shadow-sm">
+		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
+		<div
+			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+			role="button"
+			tabIndex={0}
+			onClick={onDetails}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" || event.key === " ") {
+					event.preventDefault();
+					onDetails();
+				}
+			}}
+		>
 			<div className="flex items-start justify-between gap-3">
 				<div className="min-w-0">
 					<a
@@ -216,6 +228,7 @@ function ClosedPoolCard({
 						target="_blank"
 						rel="noopener noreferrer"
 						className="block truncate font-semibold hover:underline"
+						onClick={(event) => event.stopPropagation()}
 					>
 						{p}
 					</a>
@@ -262,9 +275,10 @@ function ClosedPoolCard({
 				</div>
 			</div>
 			<div className="mt-3 flex justify-end">
-				<Button variant="ghost" size="sm" onClick={onDetails}>
-					Details
-				</Button>
+				<ChevronRightIcon
+					className="size-5 text-muted-foreground"
+					aria-hidden="true"
+				/>
 			</div>
 		</div>
 	);
