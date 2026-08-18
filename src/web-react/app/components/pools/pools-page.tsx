@@ -54,14 +54,6 @@ export function PoolsPage() {
 		setStoredCurrency(readStoredCurrency(window.localStorage));
 	}, []);
 
-	useEffect(() => {
-		const onVisibility = () => {
-			if (!document.hidden) revalidate();
-		};
-		document.addEventListener("visibilitychange", onVisibility);
-		return () => document.removeEventListener("visibilitychange", onVisibility);
-	}, [revalidate]);
-
 	const onTimeframeChange = (value: string) =>
 		setSearchParams((current) => {
 			const next = new URLSearchParams(current);

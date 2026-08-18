@@ -32,8 +32,6 @@ const AllocationDonut = lazy(() =>
 	import("./allocation-donut").then((m) => ({ default: m.AllocationDonut })),
 );
 
-const REFRESH_MS = 30_000;
-
 export type RangeFilter = "all" | "in-range" | "oor";
 
 function greeting() {
@@ -74,20 +72,6 @@ export function PortfolioPage() {
 	useEffect(() => {
 		setStoredCurrency(readStoredCurrency(window.localStorage));
 	}, []);
-
-	useEffect(() => {
-		const timer = setInterval(() => {
-			if (!document.hidden) revalidate();
-		}, REFRESH_MS);
-		const onVisibility = () => {
-			if (!document.hidden) revalidate();
-		};
-		document.addEventListener("visibilitychange", onVisibility);
-		return () => {
-			clearInterval(timer);
-			document.removeEventListener("visibilitychange", onVisibility);
-		};
-	}, [revalidate]);
 
 	return (
 		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>

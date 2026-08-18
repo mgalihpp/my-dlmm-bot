@@ -1,5 +1,5 @@
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
-import { lazy, Suspense, useEffect } from "react";
+import { lazy, Suspense } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { DashboardShell } from "~/components/dashboard-shell";
 import {
@@ -19,27 +19,11 @@ const CycleChart = lazy(() =>
 	import("./cycle-chart").then((m) => ({ default: m.CycleChart })),
 );
 
-const REFRESH_MS = 30_000;
-
 export function AgentPage() {
 	const data = useLoaderData<AgentPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();
-
-	useEffect(() => {
-		const timer = setInterval(() => {
-			if (!document.hidden) revalidate();
-		}, REFRESH_MS);
-		const onVisibility = () => {
-			if (!document.hidden) revalidate();
-		};
-		document.addEventListener("visibilitychange", onVisibility);
-		return () => {
-			clearInterval(timer);
-			document.removeEventListener("visibilitychange", onVisibility);
-		};
-	}, [revalidate]);
 
 	const onFilterChange = (value: string) =>
 		setSearchParams(value === "all" ? {} : { action: value });
