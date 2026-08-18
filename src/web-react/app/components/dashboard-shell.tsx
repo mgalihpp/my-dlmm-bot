@@ -3,6 +3,7 @@ import { AppSidebar } from "~/components/app-sidebar";
 import { MobileBottomNav } from "~/components/mobile-bottom-nav";
 import { SiteHeader } from "~/components/site-header";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
+import { useRealtimeRevalidate } from "~/hooks/use-realtime";
 
 export function DashboardShell({
 	title = "Documents",
@@ -15,6 +16,7 @@ export function DashboardShell({
 	rpc?: string;
 	children: ReactNode;
 }) {
+	useRealtimeRevalidate();
 	return (
 		<SidebarProvider
 			style={

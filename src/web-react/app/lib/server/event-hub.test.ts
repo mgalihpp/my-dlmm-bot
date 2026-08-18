@@ -1,10 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventHub } from "./event-hub";
 
-function fakeController() {
+type MockController = ReadableStreamDefaultController<Uint8Array> & {
+	enqueue: ReturnType<typeof vi.fn>;
+};
+
+function fakeController(): MockController {
 	return {
 		enqueue: vi.fn(),
-	} as unknown as ReadableStreamDefaultController<Uint8Array>;
+	} as unknown as MockController;
 }
 
 describe("EventHub", () => {

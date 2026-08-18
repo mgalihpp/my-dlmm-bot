@@ -1,6 +1,7 @@
 export class EventHub {
-	private readonly clients =
-		new Set<ReadableStreamDefaultController<Uint8Array>>();
+	private readonly clients = new Set<
+		ReadableStreamDefaultController<Uint8Array>
+	>();
 	private timer: ReturnType<typeof setInterval> | null = null;
 
 	add(client: ReadableStreamDefaultController<Uint8Array>): () => void {
