@@ -12,7 +12,12 @@ import {
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { type Currency, resolveCurrency } from "~/lib/currency";
+import {
+	type Currency,
+	readStoredCurrency,
+	resolveCurrency,
+	writeStoredCurrency,
+} from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { ClosedTable } from "./closed-table";
 import { PositionsTable } from "./positions-table";
@@ -43,20 +48,31 @@ export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const currency = resolveCurrency(searchParams.get("currency"), null);
-	const setCurrency = (v: Currency) =>
+	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
+	const currency = resolveCurrency(
+		searchParams.get("currency"),
+		storedCurrency,
+	);
+	const setCurrency = (v: Currency) => {
+		writeStoredCurrency(window.localStorage, v);
+		setStoredCurrency(v);
 		setSearchParams((current) => {
 			const next = new URLSearchParams(current);
 			if (v === "usd") next.delete("currency");
 			else next.set("currency", v);
 			return next;
 		});
+	};
 	const [greetingText, setGreetingText] = useState("");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
 
 	useEffect(() => {
 		setGreetingText(greeting());
+	}, []);
+
+	useEffect(() => {
+		setStoredCurrency(readStoredCurrency(window.localStorage));
 	}, []);
 
 	useEffect(() => {

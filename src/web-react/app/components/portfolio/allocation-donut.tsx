@@ -16,7 +16,13 @@ import type { Currency } from "./portfolio-page";
 
 const chartConfig = {
 	balance: { label: "Balance", color: "var(--chart-1)" },
-	fees: { label: "Unclaimed fees", color: "var(--chart-5)" },
+	fees: {
+		label: "Unclaimed fees",
+		theme: {
+			light: "var(--chart-5)",
+			dark: "var(--chart-2)",
+		},
+	},
 } satisfies ChartConfig;
 
 export function AllocationDonut({
@@ -123,7 +129,7 @@ export function AllocationDonut({
 						Balance <CurrencyValue currency={currency} value={balance} />
 					</span>
 					<span className="flex items-center gap-1.5">
-						<i className="size-2.5 rounded-full bg-chart-5" />
+						<i className="size-2.5 rounded-full bg-chart-5 dark:bg-chart-2" />
 						Unclaimed fees <CurrencyValue currency={currency} value={fees} />
 					</span>
 				</div>
