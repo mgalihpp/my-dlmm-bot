@@ -1,4 +1,4 @@
 export {
 	matchesRangeFilter,
 	PositionsTable,
-} from "./positions-table-view";
+} from "./positions-table-grid";
