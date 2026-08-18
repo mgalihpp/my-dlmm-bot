@@ -5,7 +5,14 @@ import {
 	CopyIcon,
 	SearchIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useMemo, useState } from "react";
+import {
+	Fragment,
+	memo,
+	useCallback,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { toast } from "sonner";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { Badge } from "~/components/ui/badge";
@@ -597,7 +604,36 @@ function OpenPositionCard({
 	);
 }
 
-export function PositionsTable({
+function SortableHead({
+	label,
+	k,
+	sortKey,
+	sortDir,
+	onSort,
+}: {
+	label: string;
+	k: SortKey;
+	sortKey: SortKey;
+	sortDir: SortDir;
+	onSort: (key: SortKey) => void;
+}) {
+	return (
+		<TableHead>
+			<button
+				type="button"
+				className="inline-flex items-center gap-1 hover:text-foreground"
+				onClick={() => onSort(k)}
+			>
+				{label}
+				<span className="text-[10px] text-muted-foreground">
+					{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
+				</span>
+			</button>
+		</TableHead>
+	);
+}
+
+function PositionsTableView({
 	pools,
 	rangeFilter,
 	onRangeFilterChange,
@@ -677,14 +713,17 @@ export function PositionsTable({
 		});
 	}, [pools, rangeFilter, search, sortKey, sortDir]);
 
-	const toggleSort = (key: SortKey) => {
-		if (sortKey === key) {
-			setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-		} else {
-			setSortKey(key);
-			setSortDir("desc");
-		}
-	};
+	const toggleSort = useCallback(
+		(key: SortKey) => {
+			if (sortKey === key) {
+				setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+			} else {
+				setSortKey(key);
+				setSortDir("desc");
+			}
+		},
+		[sortKey],
+	);
 
 	const rangeCounts = useMemo(
 		() => ({
@@ -697,21 +736,6 @@ export function PositionsTable({
 			).length,
 		}),
 		[pools],
-	);
-
-	const SortableHead = ({ label, k }: { label: string; k: SortKey }) => (
-		<TableHead>
-			<button
-				type="button"
-				className="inline-flex items-center gap-1 hover:text-foreground"
-				onClick={() => toggleSort(k)}
-			>
-				{label}
-				<span className="text-[10px] text-muted-foreground">
-					{sortKey === k ? (sortDir === "asc" ? "▲" : "▼") : "↕"}
-				</span>
-			</button>
-		</TableHead>
 	);
 
 	return (
@@ -781,12 +805,42 @@ export function PositionsTable({
 							<TableHeader className="bg-muted/50">
 								<TableRow>
 									<TableHead className="w-8" />
-									<SortableHead label="Pool" k="pair" />
+									<SortableHead
+										label="Pool"
+										k="pair"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onSort={toggleSort}
+									/>
 									<TableHead>Bin</TableHead>
-									<SortableHead label="Balance" k="balances" />
-									<SortableHead label="Fees" k="fees" />
-									<SortableHead label="PnL USD" k="pnl" />
-									<SortableHead label="PnL SOL" k="pnlSol" />
+									<SortableHead
+										label="Balance"
+										k="balances"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onSort={toggleSort}
+									/>
+									<SortableHead
+										label="Fees"
+										k="fees"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onSort={toggleSort}
+									/>
+									<SortableHead
+										label="PnL USD"
+										k="pnl"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onSort={toggleSort}
+									/>
+									<SortableHead
+										label="PnL SOL"
+										k="pnlSol"
+										sortKey={sortKey}
+										sortDir={sortDir}
+										onSort={toggleSort}
+									/>
 									<TableHead>Range</TableHead>
 									<TableHead className="min-w-40">Visual Range</TableHead>
 								</TableRow>
@@ -940,3 +994,5 @@ export function PositionsTable({
 		</Card>
 	);
 }
+
+export const PositionsTable = memo(PositionsTableView);

@@ -1,5 +1,5 @@
 import { AlertCircleIcon, RefreshCwIcon } from "lucide-react";
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { DashboardShell } from "~/components/dashboard-shell";
@@ -51,16 +51,24 @@ export function PortfolioPage() {
 		searchParams.get("currency"),
 		storedCurrency,
 	);
-	const setCurrency = (v: Currency) => {
-		writeStoredCurrency(window.localStorage, v);
-		setStoredCurrency(v);
-		setSearchParams((current) => {
-			const next = new URLSearchParams(current);
-			if (v === "usd") next.delete("currency");
-			else next.set("currency", v);
-			return next;
-		});
-	};
+	const setCurrency = useCallback(
+		(v: Currency) => {
+			writeStoredCurrency(window.localStorage, v);
+			setStoredCurrency(v);
+			setSearchParams((current) => {
+				const next = new URLSearchParams(current);
+				if (v === "usd") next.delete("currency");
+				else next.set("currency", v);
+				return next;
+			});
+		},
+		[setSearchParams],
+	);
+	const onClosedPageChange = useCallback(
+		(next: number) =>
+			setSearchParams(next > 1 ? { closedPage: String(next) } : {}),
+		[setSearchParams],
+	);
 	const [greetingText, setGreetingText] = useState("");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
@@ -163,6 +171,7 @@ export function PortfolioPage() {
 								closed={data.closed!}
 								currency={currency}
 								solPrice={data.solPrice}
+								onPageChange={onClosedPageChange}
 							/>
 						</>
 					)}

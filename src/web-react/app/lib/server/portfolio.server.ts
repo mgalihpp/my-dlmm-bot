@@ -32,6 +32,11 @@ export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenYIcon?: string | null;
 };
 
+export type ClosedPoolWithIcons = ClosedPool & {
+	readonly tokenXIcon?: string | null;
+	readonly tokenYIcon?: string | null;
+};
+
 const iconCache = new Map<string, { x?: string; y?: string; at: number }>();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
@@ -152,20 +157,24 @@ export interface PortfolioPayload {
 	readonly pools?: readonly OpenPoolWithIcons[];
 	readonly history?: readonly PortfolioSnapshot[];
 	readonly closed?: {
-		readonly pools: readonly ClosedPool[];
+		readonly pools: readonly ClosedPoolWithIcons[];
 		readonly page: number;
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
 }
 
-function enrichWithIcons(
-	pools: readonly OpenPool[],
+function enrichWithIcons<T extends { readonly poolAddress: string }>(
+	pools: readonly T[],
 	api: MeteoraApiService,
-): Effect.Effect<OpenPoolWithIcons[]> {
+): Effect.Effect<
+	Array<T & { tokenXIcon: string | null; tokenYIcon: string | null }>
+> {
 	return Effect.gen(function* () {
 		const now = Date.now();
-		const out: OpenPoolWithIcons[] = [];
+		const out: Array<
+			T & { tokenXIcon: string | null; tokenYIcon: string | null }
+		> = [];
 		yield* Effect.forEach(
 			pools,
 			(pool) =>
@@ -248,6 +257,8 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 		const closedRes = yield* api
 			.closedPortfolio(wallet, closedPage, 10)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
+		const closed =
+			closedRes === null ? null : yield* enrichWithIcons(closedRes.pools, api);
 
 		const total = yield* api
 			.totalPnl(wallet)
@@ -275,12 +286,12 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			pools: open,
 			history: readHistory(HISTORY_FILE),
 			closed:
-				closedRes !== null
+				closed !== null
 					? {
-							pools: closedRes.pools,
-							page: closedRes.page,
-							pageSize: closedRes.pageSize,
-							totalCount: closedRes.totalCount,
+							pools: closed,
+							page: closedRes!.page,
+							pageSize: closedRes!.pageSize,
+							totalCount: closedRes!.totalCount,
 						}
 					: { pools: [], page: closedPage, pageSize: 10, totalCount: 0 },
 		} satisfies PortfolioPayload;

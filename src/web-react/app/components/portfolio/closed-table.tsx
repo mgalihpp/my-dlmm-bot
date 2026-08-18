@@ -1,12 +1,11 @@
-import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import {
 	ChevronDownIcon,
 	ChevronLeftIcon,
 	ChevronRightIcon,
 } from "lucide-react";
-import { Fragment, useEffect, useState } from "react";
-import { useFetcher, useSearchParams } from "react-router";
+import { Fragment, memo, useCallback, useEffect, useState } from "react";
+import { useFetcher } from "react-router";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -41,6 +40,7 @@ import {
 	tsLocal,
 } from "~/lib/format";
 import { fmtAmount } from "~/lib/pools";
+import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import {
 	getDefaultViewMode,
@@ -50,11 +50,45 @@ import {
 } from "~/lib/view-preference";
 import type { Currency } from "./portfolio-page";
 
+type ClosedPool = ClosedPoolWithIcons;
+
 interface ClosedPayload {
 	readonly pools: readonly ClosedPool[];
 	readonly page: number;
 	readonly pageSize: number;
 	readonly totalCount: number;
+}
+
+function TokenIcon({ icon, symbol }: { icon?: string | null; symbol: string }) {
+	if (icon) {
+		return (
+			<img
+				src={icon}
+				alt={symbol}
+				className="size-5 rounded-full object-cover"
+				onError={(event) => {
+					event.currentTarget.style.display = "none";
+				}}
+			/>
+		);
+	}
+	return (
+		<span className="flex size-5 items-center justify-center rounded-full bg-muted text-[9px] font-semibold">
+			{symbol.slice(0, 2).toUpperCase()}
+		</span>
+	);
+}
+
+function ClosedPair({ pool }: { pool: ClosedPool }) {
+	return (
+		<span className="inline-flex items-center gap-1.5">
+			<span className="flex -space-x-1">
+				<TokenIcon icon={pool.tokenXIcon} symbol={pool.tokenX} />
+				<TokenIcon icon={pool.tokenYIcon} symbol={pool.tokenY} />
+			</span>
+			{pair(pool.tokenX, pool.tokenY)}
+		</span>
+	);
 }
 
 interface DetailPayload {
@@ -327,18 +361,17 @@ function ClosedDetail({
 	);
 }
 
-function ClosedPoolCard({
+const ClosedPoolCard = memo(function ClosedPoolCard({
 	pool,
 	onDetails,
 	currency,
 	solPrice,
 }: {
 	pool: ClosedPool;
-	onDetails: () => void;
+	onDetails: (pool: ClosedPool) => void;
 	currency: Currency;
 	solPrice: number | null;
 }) {
-	const p = pair(pool.tokenX, pool.tokenY);
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
 	return (
@@ -347,11 +380,11 @@ function ClosedPoolCard({
 			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
 			role="button"
 			tabIndex={0}
-			onClick={onDetails}
+			onClick={() => onDetails(pool)}
 			onKeyDown={(event) => {
 				if (event.key === "Enter" || event.key === " ") {
 					event.preventDefault();
-					onDetails();
+					onDetails(pool);
 				}
 			}}
 		>
@@ -364,7 +397,7 @@ function ClosedPoolCard({
 						className="block truncate font-semibold hover:underline"
 						onClick={(event) => event.stopPropagation()}
 					>
-						{p}
+						<ClosedPair pool={pool} />
 					</a>
 					<p className="text-xs text-muted-foreground">
 						Closed {timeAgo(pool.lastClosedAt)}
@@ -438,29 +471,31 @@ function ClosedPoolCard({
 			</div>
 		</div>
 	);
-}
+});
 
-export function ClosedTable({
+function ClosedTableView({
 	closed,
 	currency,
 	solPrice,
+	onPageChange,
 }: {
 	closed: ClosedPayload;
 	currency: Currency;
 	solPrice: number | null;
+	onPageChange: (page: number) => void;
 }) {
 	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [viewMode, setViewMode] = useState<ViewMode>("table");
 	const [viewReady, setViewReady] = useState(false);
 	const [selectedCard, setSelectedCard] = useState<ClosedPool | null>(null);
-	const [, setSearchParams] = useSearchParams();
 	const { pools, page, pageSize, totalCount } = closed;
 	const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
 	const from = (page - 1) * pageSize + 1;
 	const to = from + pools.length - 1;
-	const goToPage = (next: number) =>
-		setSearchParams(next > 1 ? { closedPage: String(next) } : {});
+	const selectCard = useCallback((pool: ClosedPool) => {
+		setSelectedCard(pool);
+	}, []);
 
 	useEffect(() => {
 		setViewMode(
@@ -510,7 +545,7 @@ export function ClosedTable({
 								pool={pool}
 								currency={currency}
 								solPrice={solPrice}
-								onDetails={() => setSelectedCard(pool)}
+								onDetails={selectCard}
 							/>
 						))}
 					</div>
@@ -561,7 +596,7 @@ export function ClosedTable({
 																rel="noopener noreferrer"
 																className="hover:underline"
 															>
-																{p}
+																<ClosedPair pool={pool} />
 															</a>
 														</div>
 													</TableCell>
@@ -651,7 +686,7 @@ export function ClosedTable({
 										variant="outline"
 										size="sm"
 										disabled={page <= 1}
-										onClick={() => goToPage(page - 1)}
+										onClick={() => onPageChange(page - 1)}
 									>
 										<ChevronLeftIcon />
 										Prev
@@ -663,7 +698,7 @@ export function ClosedTable({
 										variant="outline"
 										size="sm"
 										disabled={page >= lastPage}
-										onClick={() => goToPage(page + 1)}
+										onClick={() => onPageChange(page + 1)}
 									>
 										Next
 										<ChevronRightIcon />
@@ -707,3 +742,12 @@ export function ClosedTable({
 		</Card>
 	);
 }
+
+export const ClosedTable = memo(
+	ClosedTableView,
+	(prev, next) =>
+		prev.currency === next.currency &&
+		(prev.currency === "usd" || prev.solPrice === next.solPrice) &&
+		prev.onPageChange === next.onPageChange &&
+		JSON.stringify(prev.closed) === JSON.stringify(next.closed),
+);

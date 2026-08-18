@@ -5,6 +5,7 @@ import {
 	TrendingUpIcon,
 	WalletIcon,
 } from "lucide-react";
+import { memo } from "react";
 import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import {
@@ -59,7 +60,7 @@ function Sparkline({
 	);
 }
 
-export function StatCards({
+export const StatCards = memo(function StatCards({
 	summary,
 	total,
 	history,
@@ -235,4 +236,4 @@ export function StatCards({
 			</Card>
 		</div>
 	);
-}
+});

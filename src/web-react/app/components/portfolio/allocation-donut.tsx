@@ -1,5 +1,5 @@
 import type { OpenPool } from "@vexis/domain/portfolio.js";
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Cell, Pie, PieChart } from "recharts";
 import { CurrencyValue } from "~/components/currency-value";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -25,7 +25,7 @@ const chartConfig = {
 	},
 } satisfies ChartConfig;
 
-export function AllocationDonut({
+export const AllocationDonut = memo(function AllocationDonut({
 	pools,
 	summary,
 	currency,
@@ -175,4 +175,4 @@ export function AllocationDonut({
 			</CardContent>
 		</Card>
 	);
-}
+});

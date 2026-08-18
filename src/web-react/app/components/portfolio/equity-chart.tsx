@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis } from "recharts";
 import { CurrencyValue } from "~/components/currency-value";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -12,7 +12,7 @@ import { tsLocal } from "~/lib/format";
 import type { PortfolioSnapshot } from "~/lib/server/portfolio.server";
 import type { Currency } from "./portfolio-page";
 
-export function EquityChart({
+export const EquityChart = memo(function EquityChart({
 	history,
 	currency,
 }: {
@@ -148,4 +148,4 @@ export function EquityChart({
 			</CardContent>
 		</Card>
 	);
-}
+});

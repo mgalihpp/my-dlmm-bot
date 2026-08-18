@@ -1,6 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useRevalidator } from "react-router";
 
+export function shouldRevalidate(state: string): boolean {
+	return state !== "loading" && state !== "revalidating";
+}
+
 export function useRealtimeRevalidate(cadenceMs = 10_000): void {
 	const { revalidate, state } = useRevalidator();
 	const stateRef = useRef(state);
@@ -13,7 +17,7 @@ export function useRealtimeRevalidate(cadenceMs = 10_000): void {
 			const now = Date.now();
 			if (now - lastRef.current < cadenceMs) return;
 			lastRef.current = now;
-			if (stateRef.current !== "loading") revalidate();
+			if (shouldRevalidate(stateRef.current)) revalidate();
 		};
 		return () => events.close();
 	}, [revalidate, cadenceMs]);
