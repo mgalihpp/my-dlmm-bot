@@ -7,7 +7,6 @@ import type { SettingsPayload } from "~/lib/settings";
 export default function SettingsIndex() {
 	const { data } = useOutletContext<{
 		data: SettingsPayload;
-		actionData?: SettingsPayload;
 	}>();
 	const groups = [...new Set(SECTIONS.map((section) => section.group))];
 	return (

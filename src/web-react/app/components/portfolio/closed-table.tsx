@@ -30,7 +30,7 @@ import { ViewSwitcher } from "~/components/view-switcher";
 import { useIsMobile } from "~/hooks/use-mobile";
 import {
 	fmtPct,
-	fmtSol,
+	fmtPnl,
 	meteoraUrl,
 	pair,
 	pnlClass,
@@ -75,8 +75,8 @@ function PortfolioAmount({
 	solPrice: number | null;
 }) {
 	const formatted =
-		currency === "sol" && sol != null
-			? fmtSol(sol)
+		sol != null
+			? fmtPnl(usd, sol, currency)
 			: fmtAmount(usd, currency, solPrice);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
@@ -320,7 +320,7 @@ function ClosedPoolCard({
 						<PortfolioAmount
 							usd={pool.pnlUsd}
 							sol={pool.pnlSol}
-							currency={currency}
+							currency="usd"
 							solPrice={solPrice}
 						/>
 					</span>
@@ -334,7 +334,7 @@ function ClosedPoolCard({
 						<PortfolioAmount
 							usd={pool.pnlUsd}
 							sol={pool.pnlSol}
-							currency={currency}
+							currency="sol"
 							solPrice={solPrice}
 						/>
 					</span>
@@ -506,7 +506,7 @@ export function ClosedTable({
 														<PortfolioAmount
 															usd={pool.pnlUsd}
 															sol={pool.pnlSol}
-															currency={currency}
+															currency="usd"
 															solPrice={solPrice}
 														/>
 														<div className="text-xs text-muted-foreground">
@@ -522,7 +522,7 @@ export function ClosedTable({
 														<PortfolioAmount
 															usd={pool.pnlUsd}
 															sol={pool.pnlSol}
-															currency={currency}
+															currency="sol"
 															solPrice={solPrice}
 														/>
 														<div className="text-xs text-muted-foreground">
