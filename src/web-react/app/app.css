@@ -21,8 +21,25 @@
 	overflow: hidden;
 }
 
+.top-loading-indicator::after {
+	content: "";
+	position: absolute;
+	inset: 0;
+	transform: translateX(-100%);
+	background: linear-gradient(
+		105deg,
+		transparent 40%,
+		color-mix(in oklch, var(--primary-foreground) 25%, transparent) 50%,
+		transparent 60%
+	);
+}
+
 .top-loading-indicator--loading {
-	animation: top-loading 2s ease-out forwards;
+	animation: top-loading 4s ease-out forwards;
+}
+
+.top-loading-indicator--loading::after {
+	animation: top-loading-shimmer 1.4s ease-in-out infinite;
 }
 
 .top-loading-indicator--finishing {
@@ -33,6 +50,12 @@
 @keyframes top-loading {
 	to {
 		width: 85%;
+	}
+}
+
+@keyframes top-loading-shimmer {
+	to {
+		transform: translateX(100%);
 	}
 }
 
@@ -47,6 +70,10 @@
 	.top-loading-indicator {
 		animation: none;
 		width: 100%;
+	}
+
+	.top-loading-indicator::after {
+		animation: none;
 	}
 }
 

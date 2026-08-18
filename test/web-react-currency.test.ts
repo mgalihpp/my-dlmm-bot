@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { resolveCurrency } from "../src/web-react/app/lib/currency.js";
+import {
+	readStoredCurrency,
+	resolveCurrency,
+	writeStoredCurrency,
+} from "../src/web-react/app/lib/currency.js";
 
 describe("resolveCurrency", () => {
 	it("keeps the stored SOL preference when the URL has no currency", () => {
@@ -12,5 +16,28 @@ describe("resolveCurrency", () => {
 
 	it("defaults to USD for unknown values", () => {
 		expect(resolveCurrency("eur", "eur")).toBe("usd");
+	});
+});
+
+describe("currency preference storage", () => {
+	it("persists and reads a valid currency preference", () => {
+		const storage = new Map<string, string>();
+		const adapter = {
+			getItem: (key: string) => storage.get(key) ?? null,
+			setItem: (key: string, value: string) => storage.set(key, value),
+		};
+
+		writeStoredCurrency(adapter, "sol");
+
+		expect(readStoredCurrency(adapter)).toBe("sol");
+	});
+
+	it("ignores invalid stored preferences", () => {
+		const adapter = {
+			getItem: () => "eur",
+			setItem: () => {},
+		};
+
+		expect(readStoredCurrency(adapter)).toBeNull();
 	});
 });

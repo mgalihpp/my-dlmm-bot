@@ -22,7 +22,11 @@ import {
 	SelectValue,
 } from "~/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import { resolveCurrency } from "~/lib/currency";
+import {
+	readStoredCurrency,
+	resolveCurrency,
+	writeStoredCurrency,
+} from "~/lib/currency";
 import { type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
 
 const MarketCharts = lazy(() =>
@@ -37,8 +41,18 @@ export function PoolsPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();
 	const timeframe = searchParams.get("timeframe") ?? data.timeframe;
-	const currency = resolveCurrency(searchParams.get("currency"), null);
+	const [storedCurrency, setStoredCurrency] = useState<"usd" | "sol" | null>(
+		null,
+	);
+	const currency = resolveCurrency(
+		searchParams.get("currency"),
+		storedCurrency,
+	);
 	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
+
+	useEffect(() => {
+		setStoredCurrency(readStoredCurrency(window.localStorage));
+	}, []);
 
 	useEffect(() => {
 		const onVisibility = () => {
@@ -55,13 +69,17 @@ export function PoolsPage() {
 			else next.set("timeframe", value);
 			return next;
 		});
-	const onCurrencyChange = (value: string) =>
+	const onCurrencyChange = (value: string) => {
+		const currency = value as "usd" | "sol";
+		writeStoredCurrency(window.localStorage, currency);
+		setStoredCurrency(currency);
 		setSearchParams((current) => {
 			const next = new URLSearchParams(current);
 			if (value === "usd") next.delete("currency");
 			else next.set("currency", value);
 			return next;
 		});
+	};
 
 	return (
 		<DashboardShell title="Pool Radar" wallet={data.wallet} rpc={data.rpc}>
