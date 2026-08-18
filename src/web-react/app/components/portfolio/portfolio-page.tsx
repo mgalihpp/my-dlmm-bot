@@ -69,13 +69,9 @@ export function PortfolioPage() {
 			setSearchParams(next > 1 ? { closedPage: String(next) } : {}),
 		[setSearchParams],
 	);
-	const [greetingText, setGreetingText] = useState("");
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const isNavigating = useIsNavigating();
-
-	useEffect(() => {
-		setGreetingText(greeting());
-	}, []);
+	const greetingText = greeting();
 
 	useEffect(() => {
 		setStoredCurrency(readStoredCurrency(window.localStorage));
