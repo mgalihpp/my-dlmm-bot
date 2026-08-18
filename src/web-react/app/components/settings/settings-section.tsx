@@ -13,11 +13,11 @@ export function SettingsSection({
 }) {
 	const fields = EDITABLE_FIELDS.filter((f) => f.section === section);
 	return (
-		<Card>
-			<CardHeader>
-				<CardTitle>{title}</CardTitle>
+		<Card className="overflow-hidden rounded-2xl border-border/70 shadow-sm">
+			<CardHeader className="border-b border-border/60 bg-muted/20 px-4 py-3">
+				<CardTitle className="text-base">{title}</CardTitle>
 			</CardHeader>
-			<CardContent className="grid gap-4 @container/main lg:grid-cols-2">
+			<CardContent className="p-0">
 				{fields.map((field) => (
 					<FieldRow key={field.path} field={field} value={values[field.path]} />
 				))}
