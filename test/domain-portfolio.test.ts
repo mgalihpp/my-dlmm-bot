@@ -1,6 +1,6 @@
 import { Schema } from "effect";
 import { describe, expect, it } from "vitest";
-import { OpenPool } from "../src/domain/portfolio.js";
+import { ClosedPool, OpenPool } from "../src/domain/portfolio.js";
 
 const basePool = {
 	poolAddress: "Pool1",
@@ -48,5 +48,31 @@ describe("OpenPool schema", () => {
 	it("decodes a pool without positionsRange", () => {
 		const decoded = Schema.decodeUnknownSync(OpenPool)({ ...basePool });
 		expect(decoded.positionsRange).toBeUndefined();
+	});
+});
+
+describe("ClosedPool schema", () => {
+	it("accepts historical SOL totals", () => {
+		const decoded = Schema.decodeUnknownSync(ClosedPool)({
+			poolAddress: "Pool1",
+			binStep: 25,
+			baseFee: 0.25,
+			lastClosedAt: null,
+			tokenX: "JUP",
+			tokenY: "SOL",
+			tokenXMint: "MintX",
+			tokenYMint: "MintY",
+			totalDeposit: "100",
+			totalWithdrawal: "101",
+			totalFee: "1",
+			totalDepositSol: "0.66",
+			totalWithdrawalSol: "0.67",
+			totalFeeSol: "0.006",
+			pnlUsd: "2",
+			pnlSol: "0.013",
+			pnlSolPctChange: "2",
+			pnlPctChange: "2",
+		});
+		expect(decoded.totalDepositSol).toBe("0.66");
 	});
 });

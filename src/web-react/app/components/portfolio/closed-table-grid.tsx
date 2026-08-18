@@ -55,12 +55,10 @@ interface ClosedPayload {
 function ClosedTableView({
 	closed,
 	currency,
-	solPrice,
 	onPageChange,
 }: {
 	closed: ClosedPayload;
 	currency: Currency;
-	solPrice: number | null;
 	onPageChange: (page: number) => void;
 }) {
 	const isMobile = useIsMobile();
@@ -122,7 +120,6 @@ function ClosedTableView({
 								key={pool.poolAddress}
 								pool={pool}
 								currency={currency}
-								solPrice={solPrice}
 								onDetails={selectCard}
 							/>
 						))}
@@ -178,22 +175,22 @@ function ClosedTableView({
 													<TableCell className="tabular-nums">
 														<PortfolioAmount
 															usd={pool.totalDeposit}
+															sol={pool.totalDepositSol}
 															currency={currency}
-															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
 														<PortfolioAmount
 															usd={pool.totalWithdrawal}
+															sol={pool.totalWithdrawalSol}
 															currency={currency}
-															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell className="tabular-nums">
 														<PortfolioAmount
 															usd={pool.totalFee}
+															sol={pool.totalFeeSol}
 															currency={currency}
-															solPrice={solPrice}
 														/>
 													</TableCell>
 													<TableCell
@@ -206,7 +203,6 @@ function ClosedTableView({
 															usd={pool.pnlUsd}
 															sol={pool.pnlSol}
 															currency="usd"
-															solPrice={solPrice}
 														/>
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlPctChange)}
@@ -222,7 +218,6 @@ function ClosedTableView({
 															usd={pool.pnlUsd}
 															sol={pool.pnlSol}
 															currency="sol"
-															solPrice={solPrice}
 														/>
 														<div className="text-xs text-muted-foreground">
 															{fmtPct(pool.pnlSolPctChange)}
@@ -239,7 +234,6 @@ function ClosedTableView({
 																pool={pool.poolAddress}
 																pairLabel={p}
 																currency={currency}
-																solPrice={solPrice}
 																layout="table"
 															/>
 														</TableCell>
@@ -309,7 +303,6 @@ function ClosedTableView({
 							pool={selectedCard.poolAddress}
 							pairLabel={pair(selectedCard.tokenX, selectedCard.tokenY)}
 							currency={currency}
-							solPrice={solPrice}
 						/>
 					) : null}
 				</SheetContent>
@@ -322,7 +315,6 @@ export const ClosedTable = memo(
 	ClosedTableView,
 	(prev, next) =>
 		prev.currency === next.currency &&
-		(prev.currency === "usd" || prev.solPrice === next.solPrice) &&
 		prev.onPageChange === next.onPageChange &&
 		JSON.stringify(prev.closed) === JSON.stringify(next.closed),
 );

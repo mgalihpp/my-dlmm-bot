@@ -14,13 +14,13 @@ import {
 import {
 	fmtPct,
 	fmtPnl,
+	fmtUsd,
 	pnlClass,
 	pnlSign,
 	shortAddr,
 	solscanUrl,
 	tsLocal,
 } from "~/lib/format";
-import { fmtAmount } from "~/lib/pools";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
 
@@ -34,17 +34,17 @@ export function PortfolioAmount({
 	usd,
 	sol,
 	currency,
-	solPrice,
 }: {
 	usd: string | number | null | undefined;
 	sol?: string | number | null;
 	currency: Currency;
-	solPrice: number | null;
 }) {
 	const formatted =
 		sol != null
 			? fmtPnl(usd, sol, currency)
-			: fmtAmount(usd, currency, solPrice);
+			: currency === "usd"
+				? fmtUsd(usd)
+				: "-";
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
 		<span className="inline-flex items-center gap-1 tabular-nums">
@@ -89,13 +89,11 @@ export function ClosedDetail({
 	pool,
 	pairLabel,
 	currency,
-	solPrice,
 	layout = "card",
 }: {
 	pool: string;
 	pairLabel: string;
 	currency: Currency;
-	solPrice: number | null;
 	layout?: "card" | "table";
 }) {
 	const fetcher = useFetcher<DetailPayload>();
@@ -149,32 +147,28 @@ export function ClosedDetail({
 									<TableCell className="tabular-nums">
 										<PortfolioAmount
 											usd={pos.allTimeDeposits.total.usd}
+											sol={pos.allTimeDeposits.total.sol}
 											currency={currency}
-											solPrice={solPrice}
 										/>
 									</TableCell>
 									<TableCell className="tabular-nums">
 										<PortfolioAmount
 											usd={pos.allTimeWithdrawals.total.usd}
+											sol={pos.allTimeWithdrawals.total.sol}
 											currency={currency}
-											solPrice={solPrice}
 										/>
 									</TableCell>
 									<TableCell className="tabular-nums">
 										<PortfolioAmount
 											usd={pos.allTimeFees.total.usd}
+											sol={pos.allTimeFees.total.sol}
 											currency={currency}
-											solPrice={solPrice}
 										/>
 									</TableCell>
 									<TableCell
 										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
 									>
-										<PortfolioAmount
-											usd={pos.pnlUsd}
-											currency="usd"
-											solPrice={solPrice}
-										/>
+										<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
 										<div className="text-xs text-muted-foreground">
 											{fmtPct(pos.pnlPctChange)}
 										</div>
@@ -186,7 +180,6 @@ export function ClosedDetail({
 											usd={pos.pnlSol}
 											sol={pnlSol}
 											currency="sol"
-											solPrice={solPrice}
 										/>
 										<div className="text-xs text-muted-foreground">
 											{fmtPct(pos.pnlSolPctChange ?? null)}
@@ -235,45 +228,36 @@ export function ClosedDetail({
 								<p className="text-xs text-muted-foreground">Deposit</p>
 								<PortfolioAmount
 									usd={pos.allTimeDeposits.total.usd}
+									sol={pos.allTimeDeposits.total.sol}
 									currency={currency}
-									solPrice={solPrice}
 								/>
 							</div>
 							<div>
 								<p className="text-xs text-muted-foreground">Withdraw</p>
 								<PortfolioAmount
 									usd={pos.allTimeWithdrawals.total.usd}
+									sol={pos.allTimeWithdrawals.total.sol}
 									currency={currency}
-									solPrice={solPrice}
 								/>
 							</div>
 							<div>
 								<p className="text-xs text-muted-foreground">Fees</p>
 								<PortfolioAmount
 									usd={pos.allTimeFees.total.usd}
+									sol={pos.allTimeFees.total.sol}
 									currency={currency}
-									solPrice={solPrice}
 								/>
 							</div>
 							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 								<p className="text-xs text-muted-foreground">PnL USD</p>
-								<PortfolioAmount
-									usd={pos.pnlUsd}
-									currency="usd"
-									solPrice={solPrice}
-								/>
+								<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
 								<p className="text-xs text-muted-foreground">
 									{fmtPct(pnlPct)}
 								</p>
 							</div>
 							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
 								<p className="text-xs text-muted-foreground">PnL SOL</p>
-								<PortfolioAmount
-									usd={pos.pnlSol}
-									sol={pnlSol}
-									currency="sol"
-									solPrice={solPrice}
-								/>
+								<PortfolioAmount usd={pos.pnlSol} sol={pnlSol} currency="sol" />
 								<p className="text-xs text-muted-foreground">
 									{fmtPct(pos.pnlSolPctChange ?? null)}
 								</p>

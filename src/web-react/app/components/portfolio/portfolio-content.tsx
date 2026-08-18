@@ -77,7 +77,6 @@ export function PortfolioContent({
 				<ClosedTable
 					closed={data.closed!}
 					currency={currency}
-					solPrice={data.solPrice}
 					onPageChange={onClosedPageChange}
 				/>
 			</Suspense>

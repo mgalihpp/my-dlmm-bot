@@ -50,12 +50,10 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 	pool,
 	onDetails,
 	currency,
-	solPrice,
 }: {
 	pool: ClosedPool;
 	onDetails: (pool: ClosedPool) => void;
 	currency: Currency;
-	solPrice: number | null;
 }) {
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
@@ -96,24 +94,24 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 					<p className="text-xs text-muted-foreground">Deposit</p>
 					<PortfolioAmount
 						usd={pool.totalDeposit}
+						sol={pool.totalDepositSol}
 						currency={currency}
-						solPrice={solPrice}
 					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Withdraw</p>
 					<PortfolioAmount
 						usd={pool.totalWithdrawal}
+						sol={pool.totalWithdrawalSol}
 						currency={currency}
-						solPrice={solPrice}
 					/>
 				</div>
 				<div>
 					<p className="text-xs text-muted-foreground">Fees</p>
 					<PortfolioAmount
 						usd={pool.totalFee}
+						sol={pool.totalFeeSol}
 						currency={currency}
-						solPrice={solPrice}
 					/>
 				</div>
 			</div>
@@ -125,7 +123,6 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							usd={pool.pnlUsd}
 							sol={pool.pnlSol}
 							currency="usd"
-							solPrice={solPrice}
 						/>
 					</span>
 					<p className="text-xs text-muted-foreground">
@@ -139,7 +136,6 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							usd={pool.pnlUsd}
 							sol={pool.pnlSol}
 							currency="sol"
-							solPrice={solPrice}
 						/>
 					</span>
 					<p className="text-xs text-muted-foreground">
