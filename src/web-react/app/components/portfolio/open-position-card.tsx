@@ -71,7 +71,7 @@ export function OpenPositionCard({
 						</span>
 					</div>
 				</div>
-				<Badge variant={oor ? "destructive" : "secondary"}>
+				<Badge variant={oor ? "destructive" : "outline"}>
 					{oor ? "OOR" : "In range"}
 				</Badge>
 			</div>
