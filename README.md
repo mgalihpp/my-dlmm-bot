@@ -25,9 +25,9 @@ If you are an AI coding agent reading this README: the one-shot setup prompt liv
 
 ## Screenshots
 
-| | |
-|:---:|:---:|
-| ![web](docs/web.png) | ![snap7](docs/snap7.png) |
+![web](docs/web.png)
+
+![snap7](docs/snap7.png)
 
 ## Features
 
@@ -38,14 +38,15 @@ If you are an AI coding agent reading this README: the one-shot setup prompt liv
 - **Take-Profit / Stop-Loss** — Automated rules that trigger on PnL thresholds per position.
 - **Watchlist** — Track LP positions across multiple wallets in one place.
 - **Config Editor** — Edit any config value interactively from Telegram via `/config`.
+- **Web Dashboard** — Read-only neo-brutalist web UI for portfolio monitoring, pool screening, and agent history.
 - **AI Agent** — Automated position management: an LLM decides `open`/`hold` per screened pool, deterministic guardrails block unsafe opens, plus TP/SL and out-of-range handling with Darwinian weight learning. See [AI Agent](#ai-agent).
 
 ## Architecture
 
 ```
-CLI (@effect/cli)          Telegram Bot (grammY)
-        │                          │
-        └──────────┬───────────────┘
+CLI (@effect/cli)          Telegram Bot (grammY)          Web UI (React Router)
+        │                          │                           │
+        └──────────┬───────────────┴───────────────────────────┘
                    ▼
         Handlers (portfolio, pool, create, manage, onchain, watchlist, ...)
                    ▼
@@ -76,11 +77,12 @@ src/
 │   └── handlers/        # One handler per command group
 ├── services/            # Effect services (MeteoraApi, Dlmm, Screening, ...)
 ├── domain/              # Effect.Schema types (config, portfolio, pool, position)
+├── shared/              # Shared types (agent journal, narrative)
 ├── lib/                 # Pure utilities (math, screening logic)
 └── layers.ts            # Dependency injection wiring
 ```
 
-Runtime state is persisted to git-ignored JSON files: `.vexis-alerts.json`, `.vexis-tpsl.json`, `.vexis-watchlist.json`.
+Runtime state is persisted to git-ignored JSON files: `.vexis-alerts.json`, `.vexis-tpsl.json`, `.vexis-watchlist.json`, `.vexis-agent.json`, `.vexis-agent-journal.jsonl`.
 
 ## Install
 
@@ -349,6 +351,7 @@ vexis pool info <address>  # Pool detail
 ```bash
 npm run dev          # Run CLI from source
 npm run bot          # Run bot from source
+npm run web:dev      # Run web dashboard in dev mode
 npm run typecheck    # tsc --noEmit
 npm test             # vitest run
 npm run test:watch   # vitest watch mode

@@ -82,6 +82,20 @@ When modifying bot behavior:
 - Do not expose private keys, secrets, or sensitive wallet information in Telegram messages.
 - Keep Telegram responses concise and useful.
 
+## Web UI (React)
+
+The dashboard lives in `src/web-react/` — a standalone React app using React Router 8, Tailwind CSS 4, and shadcn/ui components.
+
+When modifying the web UI:
+
+- Follow existing component patterns and shadcn conventions.
+- Use Tailwind CSS utility classes; avoid custom CSS unless necessary.
+- Keep the dashboard read-only — never expose on-chain controls or private keys.
+- Reuse existing components from `src/web-react/app/components/ui/`.
+- Data fetching uses React Router loaders; keep server-side logic in loaders.
+- Format with Prettier (`npm run format` in `src/web-react/`).
+- Typecheck with `npm run typecheck` in `src/web-react/`.
+
 ## CLI
 
 The CLI uses `@effect/cli`.
