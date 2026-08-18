@@ -40,7 +40,10 @@ function fetchCoinGeckoSolPrice(): Effect.Effect<number | null, never, never> {
 			),
 		);
 		return res.solana.usd;
-	}).pipe(Effect.catchAll(() => Effect.succeed(null)));
+	}).pipe(
+		Effect.catchAll(() => Effect.succeed(null)),
+		Effect.provide(FetchHttpClient.layer),
+	);
 }
 
 function fetchSolPrice(): Effect.Effect<number | null, never, never> {

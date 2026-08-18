@@ -57,17 +57,19 @@ export function rugBucket(
 }
 
 export function toSol(
-	usd: number | null | undefined,
+	usd: string | number | null | undefined,
 	solPrice: number | null,
 ): number | null {
 	if (usd === null || usd === undefined || !solPrice || solPrice <= 0) {
 		return null;
 	}
-	return usd / solPrice;
+	const n = typeof usd === "number" ? usd : parseFloat(usd);
+	if (Number.isNaN(n)) return null;
+	return n / solPrice;
 }
 
 export function fmtAmount(
-	usd: number | null | undefined,
+	usd: string | number | null | undefined,
 	currency: Currency,
 	solPrice: number | null,
 ): string {
