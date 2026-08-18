@@ -1,5 +1,6 @@
 import { ChevronRightIcon, LogOutIcon } from "lucide-react";
 import { Link, useOutletContext } from "react-router";
+import { ProfileCard } from "~/components/settings/profile-card";
 import { SECTIONS } from "~/components/settings/settings-meta";
 import type { SettingsPayload } from "~/lib/settings";
 
@@ -17,6 +18,7 @@ export default function SettingsIndex() {
 					Manage Vexis from one place.
 				</p>
 			</div>
+			<ProfileCard wallet={data.wallet} rpc={data.rpc} />
 			<div className="flex flex-col gap-6">
 				{groups.map((group) => (
 					<section key={group}>
