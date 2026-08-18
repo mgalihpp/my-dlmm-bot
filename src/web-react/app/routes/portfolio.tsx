@@ -1,4 +1,5 @@
 import { PortfolioPage } from "~/components/portfolio/portfolio-page";
+import { closePosition } from "~/lib/server/close.server";
 import { fetchPortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/portfolio";
@@ -13,6 +14,17 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 	return fetchPortfolio(closedPage);
+}
+
+export async function action({ request }: Route.ActionArgs) {
+	const form = await request.formData();
+	const op = String(form.get("op") ?? "");
+	if (op !== "close") {
+		return { ok: false, error: "Unknown op" } as const;
+	}
+	const pool = String(form.get("pool") ?? "");
+	const position = String(form.get("position") ?? "");
+	return closePosition(pool, position);
 }
 
 export default PortfolioPage;
