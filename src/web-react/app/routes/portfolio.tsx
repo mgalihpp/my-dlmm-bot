@@ -24,7 +24,8 @@ export async function action({ request }: Route.ActionArgs) {
 	}
 	const pool = String(form.get("pool") ?? "");
 	const position = String(form.get("position") ?? "");
-	return closePosition(pool, position);
+	const poolName = String(form.get("poolName") ?? "");
+	return closePosition(pool, position, poolName);
 }
 
 export default PortfolioPage;

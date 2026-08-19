@@ -144,6 +144,7 @@ export function CloseConfirmPopover({
 							<input type="hidden" name="op" value="close" />
 							<input type="hidden" name="pool" value={pool} />
 							<input type="hidden" name="position" value={position} />
+							<input type="hidden" name="poolName" value={poolName} />
 							<Button
 								type="button"
 								variant="outline"

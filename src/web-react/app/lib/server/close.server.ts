@@ -33,6 +33,7 @@ export function pickCloseSig(result: {
 export function closePosition(
 	pool: string,
 	position: string,
+	poolName: string,
 ): Promise<CloseResult> {
 	const invalid = validateCloseInput(pool, position);
 	if (invalid) return Promise.resolve({ ok: false, error: invalid });
@@ -47,7 +48,7 @@ export function closePosition(
 			recordManualClose(
 				getBotRuntime,
 				pool,
-				"",
+				poolName.trim(),
 				null,
 				join(repoRoot(), ".vexis-agent.json"),
 			),
