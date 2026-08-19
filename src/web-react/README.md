@@ -1,21 +1,32 @@
-# React Router + shadcn/ui
+# Vexis web dashboard
 
-This is a template for a new React Router project with React, TypeScript, and shadcn/ui.
+This directory contains the React Router application used by the Vexis dashboard. The dashboard uses React, TypeScript, Tailwind CSS, and local shadcn/ui components.
 
-## Adding components
+## Development
 
-To add components to your app, run the following command:
+Run these commands from the repository root:
 
 ```bash
-npx shadcn@latest add button
+npm run dev
+npm run build
+npm run start
 ```
 
-This will place the ui components in the `components` directory.
+To work on the dashboard package directly:
 
-## Using components
-
-To use the components in your app, import them as follows:
-
-```tsx
-import { Button } from "@/components/ui/button";
+```bash
+npm run dev --prefix src/web-react
+npm run typecheck --prefix src/web-react
+npm run format --prefix src/web-react
 ```
+
+The root application starts the dashboard server and reads its port and password from `vexis.config.json`. The dashboard requires the server-side config and session environment used by the root application.
+
+## Structure
+
+- `app/routes/` contains dashboard, settings, API, and authentication routes.
+- `app/components/` contains shared UI components.
+- `app/lib/server/` contains server-only data access and session helpers.
+- `app/lib/` contains client-safe utilities.
+
+Do not put private keys in browser code. The dashboard keeps on-chain actions server-side; authenticated users can close positions from the portfolio page.

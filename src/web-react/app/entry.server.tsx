@@ -5,6 +5,10 @@ import type { RenderToPipeableStreamOptions } from "react-dom/server";
 import { renderToPipeableStream } from "react-dom/server";
 import type { EntryContext, RouterContextProvider } from "react-router";
 import { ServerRouter } from "react-router";
+import "./lib/server/env.server";
+import { ensureBotRuntime } from "../../runtime-host.js";
+
+void ensureBotRuntime();
 
 export const streamTimeout = 30_000;
 

@@ -5,6 +5,7 @@ import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { Zap } from "@vexis/services/Zap.js";
 import { Effect } from "effect";
+import { getBotRuntime } from "../../../../runtime-host.js";
 import { recordManualClose } from "../../../../telegram/agent/manual-close.js";
 import { repoRoot } from "./env.server";
 
@@ -32,6 +33,7 @@ export function pickCloseSig(result: {
 export function closePosition(
 	pool: string,
 	position: string,
+	poolName: string,
 ): Promise<CloseResult> {
 	const invalid = validateCloseInput(pool, position);
 	if (invalid) return Promise.resolve({ ok: false, error: invalid });
@@ -43,9 +45,9 @@ export function closePosition(
 		if (!sig) throw new Error("Close produced no transaction signature");
 		yield* Effect.promise(() =>
 			recordManualClose(
-				() => null,
+				getBotRuntime,
 				pool,
-				"",
+				poolName.trim(),
 				null,
 				join(repoRoot(), ".vexis-agent.json"),
 			),

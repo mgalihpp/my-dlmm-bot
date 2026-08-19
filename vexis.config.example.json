@@ -109,7 +109,6 @@
 		"displayLimit": 15
 	},
 	"web": {
-		"enabled": false,
 		"port": 8080,
 		"password": "change-me"
 	}

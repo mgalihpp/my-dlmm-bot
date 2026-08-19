@@ -127,7 +127,6 @@ export interface AgentConfig {
 }
 
 export interface WebConfig {
-	enabled?: boolean;
 	port?: number;
 	password?: string;
 }

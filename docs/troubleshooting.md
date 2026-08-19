@@ -1,68 +1,58 @@
-# Troubleshooting Vexis
+# Troubleshooting
 
-Kumpulan gejala umum → kemungkinan penyebab → solusi untuk bot Vexis dan AI agent-nya. Gunakan dokumen ini saat ada masalah; untuk kasus yang sulit, tempel output error / isi journal ke AI coding agent — lihat [Prompt untuk AI Coding Agent](coding-agent-prompt.md).
+Start with the console output, `vexis.config.json`, `.vexis-agent.json`, and `.vexis-agent-journal.jsonl`.
 
-Sumber info yang paling berguna saat debug:
+## Setup and build
 
-- Output error di konsol (server bot/web)
-- Isi journal: `.vexis-agent-journal.jsonl`
-- Isi state: `.vexis-agent.json`
-- File config: `vexis.config.json`
-
-## Setup & Build
-
-| Gejala | Penyebab | Solusi |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| `npm install` gagal / error `postinstall` (patch-cjs) | Versi Node < 20, atau `node_modules` korup | Upgrade ke Node.js 20+. Hapus `node_modules` + `package-lock.json` lama, lalu `npm ci` |
-| `npm run build` gagal dengan error TypeScript | Kode tidak kompatibel dengan TS di project ini, atau install tidak selesai | Jalankan `npm run typecheck` untuk detail error; pastikan `npm install` sukses |
-| `npm start -- <perintah>` → perintah tidak dikenal | Belum build (dist kosong) | Jalankan `npm run build` dulu |
-| Bot jalan tapi tidak memakai config yang diharapkan | Config tidak ditemukan di lokasi yang dicari | Cek search order: `$VEXIS_CONFIG` → `./vexis.config.json` → `~/.vexis/config.json`. Set `VEXIS_CONFIG` jika config di tempat lain |
+| `npm install` fails | Node is older than 20 or the install is incomplete. | Install Node.js 20+, then run `npm install` again. |
+| `npm run build` fails with TypeScript errors | Dependencies are missing or the source has a type error. | Run `npm run typecheck` and fix the first reported error. |
+| `npm start` does not start the CLI | `npm start` starts the web server, not the CLI. | Build first, then use the `vexis` binary or `npm run cli -- <command>`. |
+| The wrong config is loaded | Vexis found another config path first. | Check `VEXIS_CONFIG`, then `./vexis.config.json`, then `~/.vexis/config.json`. |
 
-## Config
+## Configuration and RPC
 
-| Gejala | Penyebab | Solusi |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Error private key invalid | `privateKey` bukan base64/base58 yang valid | Ganti dengan keypair yang benar (encode base64 atau base58). Catatan: private key hanya dibaca sekali di startup |
-| RPC timeout / rate limit / error simpang | `rpcUrl` salah, atau RPC publik penuh | Ganti `rpcUrl` ke provider lain. **Tidak ada env var `RPC_URL`** — rpcUrl hanya dari config file |
-| Transaksi selalu gagal | Saldo SOL tidak cukup | Fund wallet. Operasi on-chain butuh SOL untuk biaya transaksi |
-| Portfolio menampilkan wallet yang salah | `wallet` di config salah, atau perintah CLI menerima argumen wallet | Cek `wallet` di config; perintah CLI bisa di-override dengan argumen `<addr>` |
-| Config diedit tapi tidak berpengaruh | Bot belum di-restart | Restart bot setelah mengubah config |
+| Invalid private key | The value is not valid base64 or base58 keypair data. | Replace it with a valid key and restart the process. |
+| RPC timeout or rate limit | The endpoint is unavailable or overloaded. | Change `rpcUrl` in the config file. `RPC_URL` is not supported. |
+| Transactions fail | The signer lacks SOL or the RPC rejected the transaction. | Check the balance, RPC logs, slippage, and simulation output. |
+| Portfolio uses the wrong wallet | `wallet` is wrong or a command argument overrides it. | Check the config and the optional wallet argument. |
+| A config edit has no effect | The process has not reloaded the file or the value is overridden by an environment variable. | Restart the process and check the environment overrides. |
 
 ## Telegram
 
-| Gejala | Penyebab | Solusi |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Bot tidak merespon `/start` | `telegramBotToken` salah, atau bot belum di-start | Cek token dari @BotFather, buka chat bot dan tekan Start |
-| Notifikasi tidak terkirim | `telegramChatId` salah, atau bot belum di-start di chat itu | Verifikasi chat ID numerik via @userinfobot; pastikan bot sudah di-start di chat tujuan |
-| Tombol callback tidak bekerja | Bot di-restart / data callback tidak dipersist | Kirim pesan baru; callback lama tidak valid lagi |
-| Bot merespon tapi lambat | Network/RPC lambat | Cek koneksi server dan RPC |
+| `/start` gets no response | Invalid token or the bot is not running. | Check `telegramBotToken` or `TELEGRAM_BOT_TOKEN`, then run `npm run bot`. |
+| Notifications do not arrive | Wrong chat ID or the bot has not been started in that chat. | Check `telegramChatId` or `TELEGRAM_CHAT_ID` and send `/start` to the bot. |
+| An old button does nothing | Callback state belongs to an older process or message. | Send a new command and use the new keyboard. |
+| Responses are slow | Network, RPC, or upstream API latency. | Check server connectivity and the configured RPC endpoint. |
 
-## AI Agent
+## AI agent
 
-| Gejala | Penyebab | Solusi |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Cycle selalu di-skip, journal `llmStatus: "failed"` | LLM error: `baseUrl`/`model`/`apiKey` salah, timeout, rate limit | Cek `agent.llm.*` dan env `OPENAI_API_KEY` (fallback). Naikkan `llm.timeoutMs` jika timeout. Pastikan base URL OpenAI-compatible benar (default `https://api.openai.com/v1`) |
-| Banyak notifikasi `⛔ blocked` | Guardrail deterministik memblokir: cooldown / duplikat / risiko / budget | Baca `blockedReason` di notifikasi atau journal. Sesuaikan config: `poolCooldownMs`, `risks.*`, `maxSolPerPosition`, `maxTotalSol`, `maxOpenPositions` |
-| Agent tidak pernah open padahal `llmStatus: "ok"` | Semua keputusan LLM = `hold`, atau semua open diblokir guardrail | Cek `rationale` dan `blockedReason` di journal untuk alasan per pool |
-| `llmStatus: "skipped"` terus-terusan | Nol kandidat setelah screening — normal, bukan error | Longgarkan filter `pools.*` (mis. `minOrganic`, `minTvl`, `minMcap`, `minVolume24h`) agar lebih banyak pool lolos |
-| Eksekusi `createPosition` gagal (`execution: "failed"`) | SOL tidak cukup, slippage terlalu ketat, atau RPC error | Cek saldo wallet; naikkan `slippageBps`; cek `rpcUrl` |
-| Agent tidak berjalan setelah restart server | `enabled` masih false, atau belum di-start ulang | Jalankan `/agent start` lagi; cek `/agent status`. State (`plans`, `cooldowns`) tetap tersimpan di file JSON |
-| Agent tidak muncul notifikasi apa pun | Agent tidak aktif | Cek `enabled` dan `/agent status`. Notifikasi agent selalu terkirim **saat agent aktif** |
-| Journal menumpuk besar | Normal — JSONL per cycle/aksi | Aman dihapus? Journal adalah riwayat; menghapus tidak menghentikan agent, tapi stats/history hilang |
-| Ingin reset total | State rusak / mau mulai bersih | Hentikan agent (`/agent stop`), hapus `.vexis-agent.json` + `.vexis-agent-journal.jsonl` + `.vexis-agent-signals.json` **hanya jika yakin** — semua riwayat plans/cooldowns/signals hilang |
+| `llmStatus: "failed"` | Wrong LLM URL, model, key, timeout, rate limit, or malformed output. | Check `agent.llm.*`, `OPENAI_API_KEY`, and the provider response. |
+| Many `blocked` decisions | A deterministic cooldown, risk, duplicate, or budget rule is working. | Read `blockedReason` in the journal before changing limits. |
+| The agent never opens | The LLM returned `hold`, or every `open` was blocked. | Read each decision's `rationale` and `blockedReason`. |
+| `llmStatus: "skipped"` | Screening returned no candidates. | Review the `pools.*` filters. |
+| `execution: "failed"` | Insufficient SOL, slippage, RPC failure, or an on-chain rejection. | Check the signer balance, `slippageBps`, RPC, and transaction error. |
+| The agent stops after restart | `agent.enabled` is false or the agent was stopped. | Run `/agent start` and check `/agent status`. |
+| No agent notifications | The agent is not running or the Telegram target is wrong. | Check `/agent status` and the chat ID. |
+| Runtime files are large | The journal records every cycle and action. | Archive it if needed. Do not delete state while the agent is running. |
 
-## Web UI
+## Web dashboard
 
-| Gejala | Penyebab | Solusi |
+| Symptom | Likely cause | Fix |
 |---|---|---|
-| Halaman blank / minta password terus | Password salah | Cek `web.password` di config dan env `VEXIS_WEB_PASSWORD` (env meng-override config) |
-| Port bentrok | `web.port` sudah dipakai proses lain | Ganti `web.port` |
-| Data tidak refresh | Browser cache / halaman lama | Hard refresh (Ctrl+Shift+R). Portfolio & agent auto-refresh 30 detik; pool refresh saat timeframe di-submit |
-| Dashboard tidak aktif | `web.enabled` masih `false` | Set `web.enabled: true` (nonaktif secara default) |
+| Password is rejected | `VEXIS_WEB_PASSWORD` or `web.password` is wrong. | Check the environment variable first, then the config. |
+| Port is busy | Another process uses `web.port`. | Choose an unused port and restart. |
+| Data looks stale | The page or loader has not refreshed. | Hard-refresh the browser. Portfolio and agent data normally refresh about every 10 seconds. |
+| Dashboard is unavailable | The web server is not running. | Run `npm start` and check the configured port. |
 
-## Verifikasi Umum
-
-Setelah melakukan perubahan apa pun (terutama jika menyentuh kode):
+## Verification
 
 ```bash
 npm run check
@@ -70,4 +60,4 @@ npm run typecheck
 npm test
 ```
 
-Jika masih buntu setelah semua langkah di atas: kumpulkan output error + isi journal `.vexis-agent-journal.jsonl` + state `.vexis-agent.json`, lalu tempel ke AI coding agent — lihat [Prompt untuk AI Coding Agent](coding-agent-prompt.md).
+If the problem remains, include the first console error, the relevant config keys with secrets removed, and the relevant journal entry when asking for help.

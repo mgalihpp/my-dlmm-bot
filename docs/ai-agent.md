@@ -1,165 +1,96 @@
-# AI Agent Vexis — Panduan Coba
+# AI agent guide
 
-AI agent Vexis mengotomasi manajemen posisi DLMM Meteora di Solana: **menemukan** pool kandidat via screening deterministik, **memutuskan** `open`/`hold` per kandidat lewat LLM, lalu **membuka posisi** di belakang guardrail deterministik yang tidak bisa di-bypass. Ditambah monitoring take-profit/stop-loss (TP/SL), penanganan posisi out-of-range (OOR), learning bobot sinyal Darwinian dari PnL, dan briefing harian.
+The Vexis agent automates parts of Meteora DLMM position management on Solana. It screens pools, asks an OpenAI-compatible LLM to choose `open` or `hold`, validates the response, and applies deterministic guardrails before any new position is created.
 
-Panduan untuk mencoba agent. Detail implementasi: `docs/dev/ai-agent.md` (internal).
+The agent can also evaluate TP/SL rules, handle out-of-range positions, write a journal, and update signal weights from closed-position results. It performs real transactions, so use a dedicated wallet with limited funds.
 
 ## Requirements
 
-- Node.js 20+
-- Wallet Solana — **gunakan hot wallet khusus dengan dana terbatas**, karena agent melakukan transaksi on-chain nyata
-- API key LLM (OpenAI-compatible). Default: base URL `https://api.openai.com/v1`, model `gpt-4o-mini`
-- Bot token Telegram + chat ID (untuk notifikasi agent)
+- Node.js 20 or newer
+- A Solana wallet and RPC endpoint
+- A Telegram bot token and chat ID
+- An API key for an OpenAI-compatible LLM
 
 ## Setup
 
 ```bash
 npm install
 npm run build
-cp vexis.config.example.json vexis.config.json
-```
-
-Edit `vexis.config.json` — isi minimal:
-
-```json
-{
-  "wallet": "YourSolanaWalletAddress",
-  "privateKey": "base64-or-base58-private-key",
-  "rpcUrl": "https://api.mainnet-beta.solana.com",
-  "telegramBotToken": "123456:ABC-your-bot-token",
-  "telegramChatId": "your-numeric-chat-id",
-  "agent": {
-    "enabled": false,
-    "maxCandidates": 5,
-    "maxSolPerPosition": 0.5,
-    "maxTotalSol": 3,
-    "maxOpenPositions": 4,
-    "txCooldownMs": 300000,
-    "poolCooldownMs": 86400000,
-    "tpPct": 25,
-    "slPct": -10,
-    "llm": {
-      "baseUrl": "https://api.openai.com/v1",
-      "model": "gpt-4o-mini",
-      "apiKey": "sk-..."
-    }
-  }
-}
-```
-
-Jalankan bot:
-
-```bash
+copy vexis.config.example.json vexis.config.json
 npm run bot
 ```
 
-Mulai agent dari Telegram dengan `/agent start`. Cek status dengan `/agent status`. Daftar lengkap semua key ada di [Referensi Konfigurasi](config-reference.md).
+Use `cp` instead of `copy` on macOS or Linux. Add the wallet, private key, RPC URL, Telegram settings, and `agent` settings to the local config. The private key is required because the agent can create and close positions.
 
-> **Catatan:** `vexis.config.json` di-gitignore karena berisi secret. `rpcUrl` hanya bisa di-set dari config file — tidak ada env var `RPC_URL`.
+Start it from Telegram:
 
-## Cara Kerja
-
+```text
+/agent start
+/agent status
 ```
-Screening (deterministik) → LLM decide open/hold → validasi anti-halusinasi → guardrail (hard block) → createPosition
+
+The agent is disabled by default. See [the configuration reference](config-reference.md) for every key.
+
+## Decision flow
+
+```text
+Screen pools -> remove cooldowns and duplicates -> rank candidates
+-> ask the LLM for open/hold -> validate pool IDs and actions
+-> apply guardrails -> create the position
 ```
 
-Heuristic bukan penentu keputusan — hanya memilih pool mana yang dilihat LLM.
+The heuristic ranks candidates. It does not approve an opening. The LLM makes the open/hold choice, while deterministic checks remain the final gate.
 
-### Job terjadwal
+## Scheduled jobs
 
-| Job | Interval | Fungsi |
+| Job | Schedule | Behavior |
 |---|---|---|
-| `cycle` | `max(txCooldownMs, 60s)` | Screening + LLM decide open/hold + eksekusi posisi baru |
-| `event` | 30 detik | Cek TP/SL deterministik per posisi |
-| `oor` | `intervalMinutes` menit | Cek TP/SL + posisi out-of-range, LLM decide hold/close |
-| `briefing` | Tiap hari 09:00 lokal | Narasi LLM: portfolio health, aktivitas 24 jam, market snapshot |
+| `cycle` | `max(txCooldownMs, 60s)` | Screens pools, asks for open/hold decisions, and may create positions. |
+| `event` | Every 10 seconds | Checks TP/SL rules deterministically. |
+| `oor` | `intervalMinutes` | Checks TP/SL and asks the LLM whether out-of-range positions should be held or closed. |
+| `briefing` | First run at the next 09:00 local time, then currently about every 48 hours | Sends an LLM summary of portfolio and recent activity. |
 
-Semua job berjalan sejajar wall-clock (anti-drift) dan langsung jalan sekali saat startup.
+The first `cycle`, `event`, and `oor` runs happen on startup. Their later runs use wall-clock aligned schedules. The automatic briefing waits for the next 09:00; the current scheduler then spaces the next run by another 24 hours before calculating the next 09:00, so it currently runs about every 48 hours.
 
-### Notifikasi live
+## Guardrails
 
-Satu pesan Telegram diedit in-place selama satu cycle:
+An opening can be blocked by:
 
-```
-🔎 screening pools... → ⏳ N pools in cooldown → 🔁 N already open
-→ 🧠 LLM: thinking... → 🧠 LLM: N candidates → M decisions
-→ per keputusan: 🚀 open / ➖ hold / ⛔ blocked → summary
-```
+- An existing position in the same pool or base token
+- A pool or transaction cooldown
+- Rug-pull, wash-trading, holder-concentration, paid-promotion, developer-sold-all, or token-fee checks
+- The `maxSolPerPosition`, `maxTotalSol`, or `maxOpenPositions` limits
+- No remaining budget
 
-Status LLM (`llmStatus`):
+If the open-decision request fails, the whole cycle is skipped and no trade is made. If an out-of-range request fails, positions are held rather than closed.
 
-| Status | Arti |
+## Telegram commands
+
+| Command | Action |
 |---|---|
-| `ok` | LLM sukses; ada keputusan |
-| `skipped` | Nol kandidat setelah screening — normal, bukan error |
-| `failed` | LLM error/timeout/respons tak ter-parse → **seluruh cycle di-skip, nol trade** |
+| `/agent start` | Enable and start the agent. |
+| `/agent stop` | Stop the agent. |
+| `/agent status` | Show status and tracked positions. |
+| `/agent portfolio` | Show portfolio PnL. |
+| `/agent journal [n]` | Show the latest journal entries, up to 20. |
+| `/briefing` | Request a read-only briefing. |
 
-### Guardrail yang bisa memblokir open (`⛔`)
+Agent notifications include live cycle progress, decisions, blocked reasons, execution results, and summaries. Notification delivery failures do not stop the agent.
 
-- **Duplikat** — posisi sudah ada di pool/base token yang sama
-- **Cooldown** — pool masih dalam cooldown, atau tx-cooldown global antar OPEN
-- **Risiko** — rugpull, wash trading, bundle/bot/top-10 holders melebihi cap, global fees terlalu rendah, dex-paid, dev sold all, harga terlalu dekat ke ATH (buka hanya kalau ≥ `minFromAthPct`% di bawah ATH)
-- **Budget** — melebihi `maxSolPerPosition`, `maxTotalSol`, atau `maxOpenPositions`
+## State and journal files
 
-### Darwinian
+- `.vexis-agent.json` stores enabled state, plans, cooldowns, executions, and the latest LLM status.
+- `.vexis-agent-journal.jsonl` stores one JSON object per cycle or action.
+- `.vexis-agent-signals.json` stores Darwinian signal weights and performance samples.
 
-Bobot sinyal heuristic (fee/TVL ratio, organic, bin step, holders, volume, dll.) di-recalculate dari PnL posisi yang sudah ditutup — sinyal yang sering menang dinaikkan, yang sering kalah diturunkan.
+These files are local runtime state. Stop the agent before deleting them. Deleting them removes tracked plans, cooldowns, journal history, and learned weights.
 
-## Perintah Telegram
+## Safety limits
 
-| Perintah | Fungsi |
-|---|---|
-| `/agent start` | Mulai agent |
-| `/agent stop` | Hentikan agent |
-| `/agent status` | Status dashboard (default: `/agent`) |
-| `/agent portfolio` | Portfolio + PnL |
-| `/agent journal [n]` | Journal, n baris terakhir (maks 20) |
-| `/briefing` | Briefing harian manual (read-only) |
+- Transactions are real and cannot be undone by the bot.
+- A failed LLM open request produces zero trades for that cycle.
+- Budget and risk guardrails are hard blocks.
+- The agent only runs while the server is running.
+- Keep enough SOL in the signer wallet for transaction fees.
 
-Tombol pada notifikasi: `📊 PnL` (detail posisi), `⚠️ Retry` (re-run TP/SL), `📒 Journal`, `🧼 Clear`. Semua notifikasi agent **selalu terkirim** (termasuk saat LLM gagal).
-
-## Monitoring
-
-- **State** — `.vexis-agent.json`: `enabled`, `running`, `llmStatus`, `plans`, `cooldowns`, `executions`.
-- **Journal** — `.vexis-agent-journal.jsonl`: satu baris JSON per cycle/aksi.
-
-  ```json
-  {
-    "ts": "2026-08-13T09:00:00Z",
-    "cycle": 3,
-    "llmStatus": "ok",
-    "candidates": [
-      {
-        "pool": "SOL-USDC",
-        "poolName": "SOL/USDC",
-        "heuristicScore": 87,
-        "rationale": "Fees kuat, organik",
-        "action": "open",
-        "guardrail": "pass",
-        "blockedReason": null,
-        "execution": "ok",
-        "txSignature": "5Kt..."
-      }
-    ]
-  }
-  ```
-
-- **Web dashboard** — halaman `/agent` menampilkan narasi LLM + timeline journal, auto-refresh 30 detik.
-- File state di-gitignore — jangan dihapus saat agent sedang berjalan.
-
-## Risiko & Batasan
-
-- Agent melakukan **transaksi on-chain nyata** — gunakan hot wallet khusus dengan dana terbatas.
-- LLM bisa salah — guardrail adalah lapisan terakhir yang memblokir open tidak aman.
-- LLM gagal → cycle di-skip (zero trade) — desain fail-safe.
-- OOR: LLM gagal → semua posisi di-hold (`degraded`), **bukan** auto-close.
-- Budget caps (`maxSolPerPosition`, `maxTotalSol`, `maxOpenPositions`) adalah hard block yang tidak bisa dilewati LLM.
-- Agent hanya berjalan saat server hidup — state persisten di file JSON, bukan di memori.
-- Pastikan saldo SOL cukup untuk biaya transaksi; eksekusi `createPosition` gagal jika tidak.
-
-## Lihat Juga
-
-- [Referensi Konfigurasi](config-reference.md) — semua key dan default
-- [Troubleshooting](troubleshooting.md) — gejala → penyebab → solusi
-- [Prompt untuk AI Coding Agent](coding-agent-prompt.md) — minta Claude Code / Codex bantu setup & debug
-- [README](../README.md)
+For implementation details, see [the internal agent notes](dev/ai-agent.md). For failures, see [Troubleshooting](troubleshooting.md).
