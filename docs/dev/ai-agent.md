@@ -1,369 +1,86 @@
-# VEXIS DLMM AI Agent
+# AI agent implementation notes
 
-Agent Telegram otomatis untuk posisi DLMM (Meteora): **menemukan** pool kandidat via screening, **memutuskan** open/hold via LLM, lalu **membuka posisi** dengan guardrail deterministik. Ditambah monitoring TP/SL + posisi out-of-range (OOR).
+The agent code is under `src/telegram/agent/`. The Telegram bot starts it through `createAgent()` in `engine.ts`.
 
-Kode: `src/telegram/agent/`. Entry: `src/telegram/bot.ts` → `createAgent()` di `engine.ts`.
+## Runtime flow
 
----
-
-## Arsitektur umum
-
-```
-Screening (deterministik)  →  Kandidat (LLM)  →  Keputusan open/hold (LLM)
-        ↓                                                       ↓
-  [cooldown + dup filter]                        [validateOpenDecisions — anti-halusinasi]
-                                                             ↓
-                                              Guardrail deterministik (hard block)
-                                                             ↓
-                                              dlmm.createPosition (execution)
+```text
+screen pools -> remove cooldowns and duplicates -> rank candidates
+-> request LLM open/hold decisions -> validate decisions
+-> apply deterministic guardrails -> createPosition
 ```
 
-Tiga lapis pertahanan:
+The LLM chooses between `open` and `hold`. The guardrails are independent of the LLM and can block an opening.
 
-| Lapis | Mekanisme | Fungsi |
+## Files
+
+| File | Responsibility |
+|---|---|
+| `engine.ts` | Agent lifecycle, scheduled jobs, cycle execution, TP/SL, and out-of-range handling. |
+| `llm.ts` | Prompt construction, response parsing, and LLM requests. |
+| `decision.ts` | Open-decision validation and TP/SL action selection. |
+| `heuristic.ts` | Deterministic scoring and candidate ranking. |
+| `guardrails.ts` | Duplicate, cooldown, risk, and budget checks. |
+| `state.ts` | `.vexis-agent.json` persistence. |
+| `journal.ts` | `.vexis-agent-journal.jsonl` persistence. |
+| `signalWeights.ts` | Closed-position performance and adaptive weights. |
+| `format.ts` | Telegram status, summary, journal, and portfolio output. |
+| `commands.ts` | Telegram commands and callback actions. |
+| `schedule.ts` | Wall-clock aligned scheduling. |
+| `notify.ts` | Agent notifications and action keyboards. |
+
+## Main cycle
+
+1. Stop if the open-position limit is already reached.
+2. Screen pools through `Screening`.
+3. Remove pools in cooldown or with duplicate open positions.
+4. Rank the remaining pools and keep `maxCandidates`.
+5. Ask the LLM for JSON decisions containing a pool ID, `open` or `hold`, and a rationale.
+6. Skip the entire cycle if the open-decision request fails or cannot be parsed.
+7. Drop unknown and duplicate pool IDs from the response.
+8. For each `open`, run duplicate, pool-cooldown, risk, budget, and transaction-cooldown checks.
+9. Call `dlmm.createPosition` for decisions that pass.
+10. Append the journal entry, update state, and send the summary.
+
+The `llmStatus` values are `ok`, `skipped`, and `failed`. `skipped` means screening produced no candidates. `failed` means no trade was attempted because the LLM request failed.
+
+## Scheduled jobs
+
+| Job | Interval | Decision source |
 |---|---|---|
-| 1. Screening | `screenPools` + `filterCooldown` + `filterDuplicates` | Pilih pool mana yang dipertimbangkan |
-| 2. Keputusan | LLM (`requestOpenDecisions`) + `validateOpenDecisions` | Putuskan `open`/`hold` per pool |
-| 3. Eksekusi | Guardrail deterministik (`guardrails.ts`) | Blokir open yang melanggar aturan — tak bisa di-bypass LLM |
+| `cycle` | `max(txCooldownMs, 60s)` | Full LLM open/hold flow. |
+| `event` | 30 seconds | Deterministic TP/SL. |
+| `oor` | `intervalMinutes` | LLM hold/close decisions for out-of-range positions. |
+| `briefing` | Daily at 09:00 local time | LLM narrative with a raw-data fallback. |
 
-**Kunci desain:** heuristic bukan penentu keputusan — hanya *memilih pool mana yang dilihat LLM* (`rankPools(..., minCandidate: 0)`). LLM adalah juri; guardrail adalah polisi.
+The first three jobs run once at startup. The briefing waits for the next scheduled 09:00.
 
----
+## Guardrails
 
-## File & tanggung jawab
+`checkDuplicate` and `filterDuplicates` compare pool and base-token IDs. `checkCooldown` enforces the global transaction cooldown, while `checkPoolCooldown` handles per-pool cooldowns. `checkRisks` evaluates risk data and the configured caps. `checkOpenGuardrail` enforces per-position, total-budget, and position-count limits. `deriveOpenAmount` returns the amount that fits the remaining budget.
 
-| File | Tanggung jawab |
-|---|---|
-| `engine.ts` | Orkestrasi: 3 job terjadwal, siklus, TP/SL, OOR, execution |
-| `llm.ts` | Prompt builder, parser respons, request ke LLM (open decision + OOR) |
-| `decision.ts` | `validateOpenDecisions` (anti-halusinasi), `tpslAction` |
-| `heuristic.ts` | Skor deterministik 0-100 + `rankPools` (pemilihan kandidat) |
-| `guardrails.ts` | Semua filter/blokir: dup, cooldown, risiko, budget, tx-cooldown |
-| `state.ts` | State persist `.vexis-agent.json` (plans, cooldowns, llmStatus) |
-| `journal.ts` | Journal JSONL `.vexis-agent-journal.jsonl` |
-| `signalWeights.ts` | Bobot sinyal Darwinian (belajar dari PnL) |
-| `format.ts` | Render pesan Telegram (status, summary, journal, portfolio) |
-| `commands.ts` | Command + callback menu Telegram |
-| `stats.ts` | Trade stats & action counts dari journal |
-| `params.ts` | Build parameter `dlmm.createPosition` |
-| `schedule.ts` | Penjadwalan periodik sejajar wall-clock |
-| `notify.ts` | Level notifikasi + keyboard aksi |
-| `log.ts` | Logging konsol agent |
+The default risk values are enabled, 30 SOL minimum token fees, 30% bundle and bot-holder caps, 60% top-10-holder cap, 30% minimum distance below ATH, and enabled wash, rug-pull, paid-promotion, and developer-sold-all blocks. `maxRugScore` defaults to `1`.
 
----
+## Heuristic and adaptive weights
 
-## Siklus utama (`runCycle` → `evaluatePlans`)
+The heuristic combines fee-to-active-TVL ratio, organic score, bin step, holders, volume, price distance from ATH, RugCheck score, holder concentration, and active positions. `rankPools` uses the score for ordering and keeps `maxCandidates`; `minCandidate` is retained only for config compatibility and no longer gates LLM decisions.
 
-Alur lengkap satu cycle:
+When Darwinian learning is enabled, closed-position samples are stored in `.vexis-agent-signals.json`. After enough samples, signal lift is calculated from winning and losing positions. Stronger signals are multiplied by `boostFactor`, weaker signals by `decayFactor`, and weights stay between `weightFloor` and `weightCeiling`.
 
-1. **Guard kapasitas** — jika `openPositions >= maxOpenPositions`, screening + LLM di-skip.
-2. **Screening** — `screenPools()` (via API Meteora). Gagal → siklus batal, notif error.
-3. **Filter cooldown** — pool yang masih dalam `poolCooldown` disingkirkan (`filterCooldown`).
-4. **Filter duplikat** — pool yang sudah punya posisi terbuka (sama pool / same base token) disingkirkan (`filterDuplicates`).
-5. **Ranking** — `rankPools` sortir by `heuristicScore`, ambil `maxCandidates` teratas, `minCandidate: 0` (heuristic hanya seleksi, bukan gate).
-6. **LLM decision** — `requestOpenDecisions({ cfg, candidates, weightsSummary, portfolioContext })`.
-   - Prompt berisi tabel kandidat (heuristic, feeTvlRatio, organic, holders, volume, + field risiko: `priceVsAthPct`, `rugScore`, `top10Pct`, `bundlePct`, `botHoldersPct`, `globalFeesSol`, `activePositions`) dan konteks portfolio: `"X/Y open positions, deployed A/B SOL cap"` + ringkasan bobot Darwinian.
-   - LLM jawab JSON: `[{"pool":"...","action":"open|hold","rationale":"..."}]`.
-   - **Gagal → skip seluruh siklus.** Nol trade. Journal `llmStatus: "failed"`, log `❌ LLM failed — cycle skipped`, notif Telegram error, `return`.
-7. **Anti-halusinasi** — `validateOpenDecisions`: buang decision pool yang tak dikenal / duplikat (diukur `dropped`).
-8. **Loop keputusan** — per pool `open`:
-   - `hold` → catat journal, selesai.
-   - `open` → jalankan guardrail deterministik berurutan:
-     1. `checkDuplicate` — posisi sudah ada di pool/token sama?
-     2. `checkPoolCooldown` — pool dalam cooldown?
-     3. `checkRisks` — rugpull/wash/bundle/bot/top10/global fees/dev sold all/dex paid/price-vs-ATH.
-     4. `deriveOpenAmount` + `checkOpenGuardrail` — budget per-posisi & total, `maxOpenPositions`.
-     5. `amountSol <= 0`? → blocked "no budget remaining".
-     6. `checkCooldown` — tx-cooldown global sejak OPEN terakhir.
-   - Tiap blokir → journal `guardrail: "blocked"` + `recordCooldown` + notif live.
-5'. **Eksekusi** — `resolveCreatePresetFrom` → `buildCreateParams` → `dlmm.createPosition`. Sukses → push `rt.state.plans` + `executions`, journal `execution: "ok"` + `txSignature`, notif aksi. Gagal → journal `execution: "failed"`, notif gagal.
-9. **Penyelesaian** — `rt.state.llmStatus = journal.llmStatus`, `appendJournal`, `saveState`, `formatCycleSummary(readJournal(1), journal.llmStatus, cooldowns)` → kirim summary.
+## LLM parsing
 
-### Status LLM (`llmStatus`)
+Open decisions accept a JSON array, a fenced JSON array, or an object containing `decisions`. Invalid output returns `failed`, which skips the cycle. Actions other than `open` become `hold`; empty arrays are valid. OOR decisions use `hold` and `close`; a failed OOR request enters degraded mode and holds positions.
 
-| Nilai | Kondisi |
-|---|---|
-| `ok` | LLM sukses; ada keputusan |
-| `skipped` | Nol kandidat setelah screening — normal, bukan error |
-| `failed` | LLM error / timeout / respons tak ter-parse → siklus di-skip, nol trade |
+## State and journal
 
-### Pesan live in-cycle
+`.vexis-agent.json` contains enabled state, cycle metadata, plans, executions, and cooldowns. `.vexis-agent-journal.jsonl` records cycle and action results, including LLM status, decisions, guardrail results, blocked reasons, execution status, and transaction signatures.
 
-Satu pesan Telegram diedit in-place saat fase berjalan (`liveSend`/`liveStep`): `🔎 screening pools...` → `⏳ N pools in cooldown` → `🔁 N already open` → `🧠 LLM: thinking...` → `🧠 LLM: N candidates → M decisions` → per keputusan `🚀/➖/⛔` → final summary.
+## Verification
 
----
-
-## Job terjadwal
-
-| Job | Interval | Fungsi | Decision engine |
-|---|---|---|---|
-| `cycle` | `max(txCooldownMs, 60s)` | Buka posisi baru | **Full-LLM** (`evaluatePlans`) |
-| `event` | 30s | TP/SL check | Deterministik `tpslAction` |
-| `oor` | `intervalMinutes * 60s` | TP/SL + posisi out-of-range | LLM OOR (`requestPositionDecisions`) |
-
-Semua job dijalankan via `Effect.repeat(alignedSchedule(interval))` — menembak di **batas wall-clock** (`:00/:05/:10`), bukan dari akhir run (anti-drift). Run pertama langsung jalan saat startup.
-
-### Daily briefing
-
-- Job `briefing` — tiap hari 09:00 lokal (`delayToDaily(9)` + `Schedule.spaced(24h)`). Fire pertama di 09:00 berikutnya (bukan saat startup) via dynamic delay per-run.
-- Kirim narasi LLM: portfolio health (posisi + PnL + win rate + deployed), aktivitas 24 jam terakhir (dari journal), market snapshot (top 5 pool screening).
-- LLM gagal → fallback data mentah (`formatBriefingFallback`).
-- Selalu terkirim (semua notifikasi agent selalu terkirim).
-- Manual: `/briefing`.
-- Read-only: tidak menulis state/plans/cooldowns/journal.
-- File: `src/telegram/agent/briefing.ts`, `delayToDaily` di `schedule.ts`.
-
-### TP/SL check (`evaluateTpSl`)
-- Per plan terbuka: `api.positionPnl` → hitung `pnlPct`.
-- OOR → kumpulkan ke daftar `oorPositions` untuk LLM OOR.
-- `tpslAction(pnlPct, tpPct, slPct)`: `pnlPct >= tpPct` → `tp`; `pnlPct <= slPct` → `sl`; selain → `hold`.
-- `tp`/`sl` → `zap.closeAndZapOut` → catat perf (appendPerf + kemungkinan recalc Darwinian), update plans/cooldowns/executions, journal, notif aksi.
-- Posisi yang sudah closed on-chain → plan dihapus.
-
-### OOR check (`evaluateOor`)
-- `requestPositionDecisions({ cfg, positions })` → LLM putuskan `hold`/`close` per posisi.
-- **Bedanya dengan open path:** LLM OOR gagal (`degraded`) → semua posisi di-hold, **bukan** crash — masih pakai jalur `degraded` sendiri (fitur full-LLM hanya mengubah jalur open).
-- `close` → `zap.closeAndZapOut` → update state, journal, cooldown, notif.
-
----
-
-## Guardrails (`guardrails.ts`)
-
-Semua murni deterministik. Detail:
-
-| Fungsi | Logika |
-|---|---|
-| `checkDuplicate` | Blokir jika plan lain memakai pool yang sama **atau** base token yang sama |
-| `filterDuplicates` | Sama, untuk pre-filter kandidat sebelum LLM |
-| `checkCooldown` | Tx-cooldown global sejak OPEN terakhir (`txCooldownMs`) |
-| `checkPoolCooldown` | Cooldown per pool (address atau baseMint) |
-| `filterCooldown` | Pre-filter pool dalam cooldown |
-| `recordCooldown` | Tambah entry cooldown + prune yang expired |
-| `checkRisks` | Blokir rugpull, wash, bundle% > cap, botHolders% > cap, top10% > cap, global fees < min, dex-paid, dev-sold-all, harga < `minFromAthPct`% di bawah ATH |
-| `checkOpenGuardrail` | `amount > maxSolPerPosition`, `deployed + amount > maxTotalSol`, `openCount >= maxOpenPositions` |
-| `deriveOpenAmount` | `min(maxSolPerPosition, maxTotalSol - deployed)`; `0` kalau budget habis |
-| `lastOpenExecutionAt` | Timestamp OPEN terakhir (untuk tx-cooldown; tp/sl/close diabaikan) |
-| `adoptOnchainPlans` | Ambil posisi on-chain yang belum ditrack (buka manual / sebelum restart) |
-
-### Default risk config (bila tidak di-set)
-
-`risks.enabled: true`, `minTokenFeesSol: 30`, `maxBundlePct: 30`, `maxBotHoldersPct: 30`, `maxTop10Pct: 60`, `minFromAthPct: 30`, `blockWash/blockRugpull/blockDexScreenerPaid/blockDevSoldAll: true`.
-
----
-
-## Heuristic (`heuristic.ts`)
-
-Skor deterministik 0-100, komponen + bobot dasar:
-
-| Sinyal | Bobot |
-|---|---|
-| feeActiveTvlRatio | 0.28 |
-| organicScore | 0.20 |
-| binStep | 0.16 |
-| holders | 0.08 |
-| volume | 0.08 |
-| priceVsAthPct | 0.05 |
-| rugScore | 0.05 |
-| top10Pct | 0.03 |
-| bundlePct | 0.02 |
-| botHoldersPct | 0.02 |
-| activePositions | 0.03 |
-
-- Tiap komponen dinormalisasi ke `[0,1]` lalu rata-rata berbobot; bobot bisa di-override dari Darwinian (`weights`).
-- `heuristicScore` dipakai: (a) sortir `rankPools`, (b) kolom di prompt LLM, (c) `heuristicScore` di journal.
-- `rankPools`: sortir desc, filter `h >= minCandidate`, slice `maxCandidates`.
-
----
-
-## Bobot sinyal Darwinian (`signalWeights.ts`)
-
-- Persist: `.vexis-agent-signals.json` (default), berisi `weights`, `lastRecalc`, `recalcCount`, `closesSinceRecalc`, `history`, `perf`.
-- `signalSnapshot(pool)` — rekam nilai 12 sinyal saat posisi dibuka.
-- Saat TP/SL/OOR close: `appendPerf` catat `{closedAt, pnlPct, signals}`.
-- `recalculateWeights` (bila `darwin.enabled` & `closesSinceRecalc >= recalcEvery`):
-  - Window `windowDays`; butuh `minSamples` sample + ada win & loss.
-  - Hitung `computeLift` per sinyal: selisih mean nilai ternormalisasi (win vs loss), arah dibalik utk sinyal lower-is-better.
-  - Rank lift, kuartil teratas → `* boostFactor` (cap `weightCeiling`), kuartil terbawah → `* decayFactor` (floor `weightFloor`).
-  - Simpan `changes` ke history.
-- Default: `windowDays 60`, `recalcEvery 5`, `boostFactor 1.05`, `decayFactor 0.95`, `weightFloor 0.3`, `weightCeiling 2.5`, `minSamples 10`.
-- `weightsSummary` — ringkasan text untuk prompt LLM: bobot tersortir, label `high`/`neutral`/`low`.
-
----
-
-## LLM (`llm.ts`)
-
-- Provider: `createOpenAICompatible` (AI SDK) + `generateText`, `temperature: 0`, `maxRetries: 1`, timeout `cfg.llm.timeoutMs`. Base URL default `https://api.openai.com/v1`, model default `gpt-4o-mini`.
-- Api key: `agent.llm.apiKey` → fallback env `OPENAI_API_KEY`.
-
-### Open decision (jalur cycle)
-
-| Fungsi | Peran |
-|---|---|
-| `buildOpenDecisionPrompt(candidates, weightsSummary?, portfolioContext?)` | Bangun prompt tabel kandidat + instruksi open/hold |
-| `parseOpenDecisionResponse(content)` | Parse JSON array; **null = malformed → skip cycle** |
-| `requestOpenDecisions({cfg, candidates, weightsSummary?, portfolioContext?})` | Request + parse; kembalikan `{decisions, failed}` |
-
-Parser:
-- Terima array polos, array ber-fence markdown (` ```json `), atau object `{decisions: [...]}`.
-- `action !== "open"` → `hold`; `pool` kosong → di-skip; `rationale` non-string → `""`.
-- `"[]"` (LLM bilang open nol) → `[]` valid.
-- Garbage / bukan array → `null` → cycle di-skip.
-
-### OOR decision (jalur OOR)
-
-- `buildPositionPrompt` — instruksi hold/close, tabel posisi (pool, pnlPct, range, active price).
-- `parsePositionResponse` — `action !== "close"` → `hold`.
-- `requestPositionDecisions` — `degraded` (bukan `failed`); kandidat nol → `{decisions: [], degraded: false}`.
-
----
-
-## Decision (`decision.ts`)
-
-- `validateOpenDecisions(candidates, decisions)` → `{decisions, dropped}`:
-  - Set `known` dari pool id kandidat; hanya decision dengan `pool` yang persis cocok lolos.
-  - Duplikat pool → hanya kemunculan pertama; sisanya dihitung `dropped`.
-  - Urutan output = urutan input decision.
-- `tpslAction(pnlPct, tpPct, slPct)` → `"tp" | "sl" | "hold"`.
-
----
-
-## State & journal
-
-### State — `.vexis-agent.json`
-
-```json
-{
-  "enabled": false,
-  "running": false,
-  "lastCycleAt": null,
-  "llmStatus": "skipped",
-  "cycle": 0,
-  "plans": [],
-  "executions": [],
-  "cooldowns": []
-}
+```bash
+npm run check
+npm run typecheck
+npm test
 ```
 
-- `plans[]`: posisi yang ditrack `{pool, poolName, baseMint, amountSol, positionAddress, openedAt, signals?}`.
-- `cooldowns[]`: `{pool, poolName, baseMint, until, reason}`.
-- `executions[]`: `{at, action, pool, txSignature}`.
-
-### Journal — `.vexis-agent-journal.jsonl`
-
-Satu baris JSON per cycle (atau per aksi TP/SL/OOR):
-
-```json
-{
-  "ts": "...",
-  "cycle": 3,
-  "llmStatus": "ok | failed | skipped",
-  "candidates": [
-    {
-      "pool": "...",
-      "poolName": "A/SOL",
-      "heuristicScore": 87,
-      "rationale": "string | null",
-      "action": "open | hold | tp | sl | close",
-      "guardrail": "pass | blocked",
-      "blockedReason": "string | null",
-      "execution": "ok | failed | null",
-      "txSignature": "string | null"
-    }
-  ]
-}
-```
-
-Catatan: `favorability` dan `score` **sudah dihapus** dari journal (fitur full-LLM).
-
----
-
-## Notifikasi (`notify.ts`)
-
-Semua notifikasi selalu terkirim (live, action, summary, error).
-
-Keyboard aksi:
-- `open`/`close` → tombol `📊 PnL` (detail posisi)
-- `failed` → tombol `⚠️ Retry` (re-run TP/SL check)
-- `open/tp/sl/close` → `📒 Journal`
-- `error` → `🧼 Clear`
-- tak ada aksi → `✓ Ok`
-
-`notify` fire-and-forget — kegagalan kirim tak pernah menggagalkan logika agent.
-
----
-
-## Komunikasi Telegram (`commands.ts`)
-
-Command: `/agent` dengan argumen:
-- `/agent start` — mulai agent
-- `/agent stop` — hentikan agent
-- `/agent status` — status dashboard
-- `/agent portfolio` — portfolio + PnL
-- `/agent journal [n]` — journal, n baris (max 20)
-- `/agent` — default = status
-
-Callback menu:
-- `agent:start` / `agent:stop` — start/stop dari tombol
-- `agent:status` / `agent:main` — refresh status
-- `agent:portfolio` — portfolio
-- `agent:journal`, `agent:journal:page:N`, `agent:journal:filter:all|opens|closes|blocked` — journal + pagination/filter
-- `agent:pos:<actionId>` — detail posisi (drill-down), refresh, link Meteora
-- `notif:pnl:<actionId>` — detail posisi dari notifikasi
-- `notif:journal` — journal dari notifikasi
-- `notif:retry:<pool>` — re-run TP/SL
-- `notif:clear` — clear state
-- `menu:agent`, `menu:journal` — spokes dari menu utama
-
-Keyboard status menampilkan tombol per posisi terbuka (label `Name N SOL`).
-
----
-
-## Config agent (`vexis.config.json` → `agent`)
-
-File: `src/domain/config.ts` (schema) + `src/services/Config.ts` (resolver).
-
-| Field | Default | Keterangan |
-|---|---|---|
-| `enabled` | `false` | Aktif tak otomatis — mulai via `/agent start` |
-| `intervalMinutes` | `15` | Interval job `oor` (menit) |
-| `maxCandidates` | `5` | Berapa kandidat teratas dilihat LLM |
-| `minCandidate` | `70` | **`@deprecated`** — sudah tak men-gate keputusan (LLM yang decide). Kept utk kompatibilitas file config |
-| `maxSolPerPosition` | `0.5` | Cap SOL per posisi |
-| `maxTotalSol` | `3` | Cap SOL total deployed |
-| `maxOpenPositions` | `4` | Maks posisi terbuka |
-| `txCooldownMs` | `300000` | Cooldown antar OPEN |
-| `poolCooldownMs` | `86400000` (24h) | Cooldown per pool setelah close/block |
-| `tpPct` | `25` (atau `takeProfitPct`) | Take-profit % |
-| `slPct` | `-10` (atau `stopLossPct`) | Stop-loss % |
-| `llm.baseUrl` | `https://api.openai.com/v1` | Base URL OpenAI-compatible |
-| `llm.model` | `gpt-4o-mini` | Model |
-| `llm.apiKey` | env `OPENAI_API_KEY` | Api key |
-| `llm.timeoutMs` | `120000` | Timeout request LLM |
-| `risks.*` | lihat [Guardrails](#guardrails) | Filter risiko |
-| `darwin.*` | lihat [Darwinian](#bobot-sinyal-darwinian) | Learning bobot |
-
-Environment: `VEXIS_CONFIG` (path config), `VEXIS_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENAI_API_KEY`.
-
----
-
-## Perilaku error
-
-| Situasi | Aksi |
-|---|---|
-| Screening gagal | Cycle batal, notif error |
-| LLM open decision gagal/timeout/malformed | **Skip seluruh cycle**, nol trade, journal `llmStatus: "failed"`, notif error |
-| Nol kandidat | `llmStatus: "skipped"` — normal |
-| LLM OOR gagal | Semua posisi di-hold (`degraded`) |
-| Eksekusi `createPosition` gagal | Journal `execution: "failed"`, notif failed |
-| Notif kirim gagal | Diabaikan (fire-and-forget) |
-| Unhandled exception cycle | `catch` → notif error → cycle berikutnya jalan |
-
----
-
-## Script & verify
-
-- `npm run bot` — jalankan bot (tsx)
-- `npm run bot:start` — jalankan dari `dist`
-- Verify: `npm run check && npm run typecheck && npm test`
-
-Test terkait: `test/agent-{decision,llm,format,store,stats,guardrails,heuristic,notify,config,schedule,commands}.test.ts`.
+Agent tests are under `test/agent-*.test.ts`.
