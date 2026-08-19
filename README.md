@@ -2,7 +2,7 @@
 
 Vexis is a TypeScript CLI and Telegram bot for monitoring and managing Meteora DLMM positions on Solana. It can screen pools, track portfolio PnL, run alerts and TP/SL rules, and execute on-chain position operations when a signer is configured.
 
-The repository also contains a React Router dashboard for read-only portfolio, pool, and agent monitoring.
+The repository also contains a React Router dashboard for portfolio, pool, and agent monitoring. Portfolio data is read-only, but authenticated users can close positions from the dashboard.
 
 ## Documentation
 
@@ -115,7 +115,7 @@ Read [the AI agent guide](docs/ai-agent.md) for setup, limits, state files, and 
 
 ## Web dashboard
 
-The dashboard is served by the root application. It is read-only and does not expose private keys. Configure it with:
+The dashboard is served by the root application. It does not expose private keys. Portfolio, pool, and agent data are read-only; the authenticated portfolio page also supports closing a position and zapping the result to SOL. Configure it with:
 
 ```json
 {

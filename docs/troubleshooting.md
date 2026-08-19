@@ -49,7 +49,7 @@ Start with the console output, `vexis.config.json`, `.vexis-agent.json`, and `.v
 |---|---|---|
 | Password is rejected | `VEXIS_WEB_PASSWORD` or `web.password` is wrong. | Check the environment variable first, then the config. |
 | Port is busy | Another process uses `web.port`. | Choose an unused port and restart. |
-| Data looks stale | The page or loader has not refreshed. | Hard-refresh the browser. Portfolio and agent data refresh every 30 seconds. |
+| Data looks stale | The page or loader has not refreshed. | Hard-refresh the browser. Portfolio and agent data normally refresh about every 10 seconds. |
 | Dashboard is unavailable | The web server is not running. | Run `npm start` and check the configured port. |
 
 ## Verification

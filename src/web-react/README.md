@@ -29,4 +29,4 @@ The root application starts the dashboard server and reads its port and password
 - `app/lib/server/` contains server-only data access and session helpers.
 - `app/lib/` contains client-safe utilities.
 
-Do not put private keys in browser code. On-chain actions, where enabled by the server, must remain server-side.
+Do not put private keys in browser code. The dashboard keeps on-chain actions server-side; authenticated users can close positions from the portfolio page.

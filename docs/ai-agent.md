@@ -46,11 +46,11 @@ The heuristic ranks candidates. It does not approve an opening. The LLM makes th
 | Job | Schedule | Behavior |
 |---|---|---|
 | `cycle` | `max(txCooldownMs, 60s)` | Screens pools, asks for open/hold decisions, and may create positions. |
-| `event` | Every 30 seconds | Checks TP/SL rules deterministically. |
+| `event` | Every 10 seconds | Checks TP/SL rules deterministically. |
 | `oor` | `intervalMinutes` | Checks TP/SL and asks the LLM whether out-of-range positions should be held or closed. |
-| `briefing` | Daily at 09:00 local time | Sends an LLM summary of portfolio and recent activity. |
+| `briefing` | First run at the next 09:00 local time, then currently about every 48 hours | Sends an LLM summary of portfolio and recent activity. |
 
-The recurring jobs use wall-clock aligned schedules and run once on startup, except the daily briefing, which waits for the next 09:00.
+The first `cycle`, `event`, and `oor` runs happen on startup. Their later runs use wall-clock aligned schedules. The automatic briefing waits for the next 09:00; the current scheduler then spaces the next run by another 24 hours before calculating the next 09:00, so it currently runs about every 48 hours.
 
 ## Guardrails
 

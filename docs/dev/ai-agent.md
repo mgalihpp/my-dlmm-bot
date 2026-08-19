@@ -49,11 +49,11 @@ The `llmStatus` values are `ok`, `skipped`, and `failed`. `skipped` means screen
 | Job | Interval | Decision source |
 |---|---|---|
 | `cycle` | `max(txCooldownMs, 60s)` | Full LLM open/hold flow. |
-| `event` | 30 seconds | Deterministic TP/SL. |
+| `event` | 10 seconds | Deterministic TP/SL. |
 | `oor` | `intervalMinutes` | LLM hold/close decisions for out-of-range positions. |
-| `briefing` | Daily at 09:00 local time | LLM narrative with a raw-data fallback. |
+| `briefing` | First run at the next 09:00 local time, then currently about every 48 hours | LLM narrative with a raw-data fallback. |
 
-The first three jobs run once at startup. The briefing waits for the next scheduled 09:00.
+The first three jobs run once at startup. The briefing waits for the next 09:00, then currently runs about every 48 hours because the effect includes both the daily delay and a 24-hour spaced schedule.
 
 ## Guardrails
 

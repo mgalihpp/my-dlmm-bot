@@ -117,15 +117,15 @@ export function buildBriefingPrompt(data: BriefingData): string {
 			? `closes=${data.stats.closes} winRate=${Math.round(data.stats.winRate ?? 0)}% avg=${(data.stats.avgPnlPct ?? 0).toFixed(2)}% total=${(data.stats.totalPnlPct ?? 0).toFixed(2)}%`
 			: "no closed trades yet";
 	return [
-		"Tulis briefing harian ringkas (maks 300 kata) untuk bot LP Meteora DLMM di Solana. Plain text saja — tanpa markdown, tanpa emoji, tanpa bold.",
-		"Bahasa: Indonesia. Padat, spesifik, sebut angka. Jangan isi opini kosong.",
+		"Buat ringkasan harian untuk bot LP Meteora DLMM di Solana, maksimal 300 kata. Gunakan plain text saja, tanpa markdown, emoji, atau bold.",
+		"Tulis dalam bahasa Indonesia yang natural dan langsung. Gunakan angka yang tersedia, lalu hindari komentar umum yang tidak didukung data.",
 		"",
-		"Cover:",
-		"1. Kesehatan portfolio: posisi terbuka, PnL tiap posisi, win rate, deployed SOL vs max. Flag risiko: posisi out-of-range (OOR), posisi tua dengan fee rendah, modal terkonsentrasi.",
-		"2. Aktivitas 24 jam terakhir: apa yang OPEN, CLOSE, kena TP/SL, yang di-block guardrail, atau gagal.",
-		"3. Snapshot market: pool top hasil screening — sebut feeTvlRatio, volume, rugScore, dan fromAthPct (% harga di bawah ATH, makin besar makin jauh dari puncak).",
+		"Bahas tiga hal berikut:",
+		"1. Kondisi portofolio: posisi terbuka, PnL setiap posisi, win rate, serta deployed SOL dibanding batas maksimum. Tandai risiko seperti posisi out-of-range (OOR), posisi lama dengan fee rendah, dan modal yang terlalu terkonsentrasi.",
+		"2. Aktivitas 24 jam terakhir: posisi yang OPEN atau CLOSE, posisi yang terkena TP/SL, tindakan yang diblokir guardrail, dan kegagalan yang terjadi.",
+		"3. Kondisi market: pool teratas dari hasil screening. Sebutkan feeTvlRatio, volume, rugScore, dan fromAthPct. fromAthPct adalah persentase harga di bawah ATH; angka yang lebih besar berarti harga semakin jauh dari puncak.",
 		"",
-		"Untuk baris portfolio, flag ageHours dan feePerTvl24h saat mengindikasikan risiko (posisi tua out-of-range, fee rendah).",
+		"Pada bagian portofolio, gunakan ageHours dan feePerTvl24h untuk menjelaskan risiko jika datanya mendukung, terutama posisi lama yang OOR atau menghasilkan fee rendah.",
 		"",
 		"Portfolio:",
 		portfolioSection,

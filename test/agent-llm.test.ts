@@ -155,7 +155,7 @@ describe("buildOpenDecisionPrompt", () => {
 		expect(prompt).toContain("rugScore=1500");
 		expect(prompt).toContain("fromAthPct=40.0%");
 		expect(prompt).toContain("0-2500");
-		expect(prompt).toContain("jangan pernah OPEN");
+		expect(prompt).toContain("jangan pernah memilih OPEN");
 		expect(prompt).toContain("feeTvlRatio");
 	});
 
@@ -323,10 +323,10 @@ describe("buildPositionPrompt", () => {
 		expect(prompt).toContain("pnlUsd=-12.5");
 		expect(prompt).toContain("amountSol=0.5");
 		expect(prompt).toContain("openSignals=feeActiveTvlRatio:1.45,volume:1.1");
-		expect(prompt).toContain("umur posisi");
+		expect(prompt).toContain("positionAgeHours");
 	});
 
-	it("frames OOR-right as full SOL (idle, opportunity cost) and OOR-left as full meme token (real loss risk)", () => {
+	it("frames OOR-right as full SOL and OOR-left as full meme token", () => {
 		const prompt = buildPositionPrompt([
 			{
 				pool: "PoolA",
@@ -340,10 +340,10 @@ describe("buildPositionPrompt", () => {
 		]);
 		expect(prompt).toContain("OOR ke kanan");
 		expect(prompt).toContain("full SOL");
-		expect(prompt).toContain("opportunity cost");
+		expect(prompt).toContain("modal bisa digunakan di tempat lain");
 		expect(prompt).toContain("OOR ke kiri");
 		expect(prompt).toContain("full token meme");
-		expect(prompt).toContain("lock profit");
+		expect(prompt).toContain("mengunci keuntungan");
 	});
 });
 
