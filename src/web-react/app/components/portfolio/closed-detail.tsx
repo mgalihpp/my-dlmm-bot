@@ -18,7 +18,7 @@ import {
 	pnlClass,
 	pnlSign,
 	shortAddr,
-	solscanUrl,
+	solscanAccountUrl,
 	tsLocal,
 } from "~/lib/format";
 import { cn } from "~/lib/utils";
@@ -136,7 +136,7 @@ export function ClosedDetail({
 								<TableRow key={pos.positionAddress}>
 									<TableCell>
 										<a
-											href={solscanUrl(pos.positionAddress)}
+											href={solscanAccountUrl(pos.positionAddress)}
 											target="_blank"
 											rel="noopener noreferrer"
 											className="font-mono text-xs text-muted-foreground hover:underline"
@@ -212,7 +212,7 @@ export function ClosedDetail({
 					>
 						<div className="flex items-center justify-between gap-3">
 							<a
-								href={solscanUrl(pos.positionAddress)}
+								href={solscanAccountUrl(pos.positionAddress)}
 								target="_blank"
 								rel="noopener noreferrer"
 								className="font-mono text-xs text-muted-foreground hover:underline"

@@ -137,6 +137,10 @@ export function solscanUrl(address: string): string {
 	return `https://solscan.io/tx/${address}`;
 }
 
+export function solscanAccountUrl(address: string): string {
+	return `https://solscan.io/account/${address}`;
+}
+
 export function formatPrice(price: number): string {
 	return price >= 1 ? price.toFixed(3) : price.toFixed(5);
 }

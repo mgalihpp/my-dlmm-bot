@@ -25,6 +25,7 @@ import {
 	pnlClass,
 	pnlSign,
 	shortAddr,
+	solscanAccountUrl,
 	solscanUrl,
 } from "~/lib/format";
 import { fmtAmount } from "~/lib/pools";
@@ -359,7 +360,7 @@ export function PositionsCardDetail({
 						<div className="flex items-start justify-between gap-3">
 							<div>
 								<a
-									href={solscanUrl(live.address)}
+									href={solscanAccountUrl(live.address)}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="font-mono text-xs text-muted-foreground hover:underline"
@@ -478,7 +479,7 @@ export function PositionsDetail({ pool }: { pool: OpenPoolWithIcons }) {
 						<TableRow key={live.address}>
 							<TableCell>
 								<a
-									href={solscanUrl(live.address)}
+									href={solscanAccountUrl(live.address)}
 									target="_blank"
 									rel="noopener noreferrer"
 									className="font-mono text-xs text-muted-foreground hover:underline"

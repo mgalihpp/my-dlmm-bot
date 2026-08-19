@@ -12,7 +12,7 @@ import {
 	SheetTitle,
 } from "~/components/ui/sheet";
 import { useIsMobile } from "~/hooks/use-mobile";
-import { fmtPct, meteoraUrl, solscanUrl } from "~/lib/format";
+import { fmtPct, meteoraUrl, solscanAccountUrl } from "~/lib/format";
 import { type Currency, organicBucket, rugBucket } from "~/lib/pools";
 
 function Metric({ label, value }: { label: string; value: ReactNode }) {
@@ -195,7 +195,7 @@ export function PoolDetailSheet({
 					</Button>
 					<Button asChild variant="outline">
 						<a
-							href={solscanUrl(pool.pool)}
+							href={solscanAccountUrl(pool.pool)}
 							target="_blank"
 							rel="noopener noreferrer"
 						>
