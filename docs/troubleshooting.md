@@ -58,7 +58,7 @@ Sumber info yang paling berguna saat debug:
 | Halaman blank / minta password terus | Password salah | Cek `web.password` di config dan env `VEXIS_WEB_PASSWORD` (env meng-override config) |
 | Port bentrok | `web.port` sudah dipakai proses lain | Ganti `web.port` |
 | Data tidak refresh | Browser cache / halaman lama | Hard refresh (Ctrl+Shift+R). Portfolio & agent auto-refresh 30 detik; pool refresh saat timeframe di-submit |
-| Dashboard tidak aktif | `web.enabled` masih `false` | Set `web.enabled: true` (nonaktif secara default) |
+| Dashboard tidak aktif | Web server belum dijalankan | Jalankan `npm start` dan pastikan port `web.port` tersedia |
 
 ## Verifikasi Umum
 

@@ -148,7 +148,6 @@ Filter pool dari Meteora Pool Discovery API. **Set `null` untuk melewati filter.
 
 | Key | Default | Deskripsi |
 |---|---|---|
-| `web.enabled` | `false` | Aktifkan dashboard (nonaktif secara default) |
 | `web.port` | `8080` | Port server |
 | `web.password` | — | Password login; bisa di-override `VEXIS_WEB_PASSWORD` |
 

@@ -299,43 +299,41 @@ With `alertInterval > 0`, the bot polls on a cron schedule and notifies you on: 
 
 ## Web UI
 
-Vexis includes a read-only neo-brutalist dashboard for portfolio monitoring, pool screening, and AI agent history. It runs as a separate process and never exposes on-chain controls or private keys.
+Vexis includes a read-only neo-brutalist dashboard for portfolio monitoring, pool screening, and AI agent history. It runs together with the Telegram bot and never exposes on-chain controls or private keys.
 
-Enable it in `vexis.config.json`:
+Configure its port and password in `vexis.config.json`:
 
 ```json
 {
   "web": {
-    "enabled": true,
     "port": 8080,
     "password": "your-dashboard-password"
   }
 }
 ```
 
-`VEXIS_WEB_PASSWORD` overrides the config password. The dashboard is disabled by default.
+`VEXIS_WEB_PASSWORD` overrides the config password. The dashboard is always enabled when the app starts.
 
 ```bash
-cd src/web-react
-npm install && npm run build   # build (react-router)
-npm run dev                    # dev mode
-PORT=8080 npm run start        # compiled mode
+npm install
+npm run build                  # build CLI + web
+npm run dev                    # web + bot development server
+npm start                      # compiled web + bot server
 ```
 
 The React dashboard refreshes through its own server loaders. For pm2:
 
 ```bash
-cd src/web-react
 npm install && npm run build
-PORT=8080 pm2 start "npm run start" --name vexis-web
+PORT=8080 pm2 start "npm start" --name vexis-app
 pm2 save
 ```
 
 ## CLI
 
 ```bash
-npm run dev -- <command>   # dev mode (tsx)
-npm start -- <command>     # compiled (after npm run build)
+npm run cli -- <command>   # dev mode (tsx)
+vexis <command>            # compiled CLI
 ```
 
 ```bash
@@ -349,9 +347,9 @@ vexis pool info <address>  # Pool detail
 ## Development
 
 ```bash
-npm run dev          # Run CLI from source
+npm run dev          # Run web + bot from source
+npm run cli -- ...   # Run CLI from source
 npm run bot          # Run bot from source
-npm run web:dev      # Run web dashboard in dev mode
 npm run typecheck    # tsc --noEmit
 npm test             # vitest run
 npm run test:watch   # vitest watch mode
