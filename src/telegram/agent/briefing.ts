@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { repoPath } from "../../paths.js";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { Bot } from "grammy";
@@ -57,7 +57,7 @@ export interface BriefingCache {
 	readonly source: "llm" | "fallback";
 }
 
-const DEFAULT_CACHE_FILE = join(process.cwd(), ".vexis-agent-briefing.json");
+const DEFAULT_CACHE_FILE = repoPath(".vexis-agent-briefing.json");
 
 export function readBriefingCache(
 	file: string = DEFAULT_CACHE_FILE,

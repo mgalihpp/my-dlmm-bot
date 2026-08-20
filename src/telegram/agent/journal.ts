@@ -5,7 +5,8 @@ import {
 	readFileSync,
 	writeFileSync,
 } from "node:fs";
-import { dirname, join } from "node:path";
+import { dirname } from "node:path";
+import { repoPath } from "../../paths.js";
 import type { LlmStatus } from "./state.js";
 
 export type JournalAction = "open" | "hold" | "tp" | "sl" | "close";
@@ -29,7 +30,7 @@ export interface AgentJournalEntry {
 	candidates: JournalCandidate[];
 }
 
-const DEFAULT_FILE = join(process.cwd(), ".vexis-agent-journal.jsonl");
+const DEFAULT_FILE = repoPath(".vexis-agent-journal.jsonl");
 
 /** Maximum journal lines kept on disk — oldest entries are pruned past this. */
 export const JOURNAL_MAX_LINES = 5000;

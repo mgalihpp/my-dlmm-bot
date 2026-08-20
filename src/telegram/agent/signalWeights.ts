@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { repoPath } from "../../paths.js";
 import type { ScreenedPool } from "../../domain/screened.js";
 import type { ResolvedAgentDarwin } from "../../services/Config.js";
 
@@ -56,10 +56,7 @@ export interface SignalWeightsFile {
 	perf: PerfRecord[];
 }
 
-export const SIGNAL_WEIGHTS_FILE = join(
-	process.cwd(),
-	".vexis-agent-signals.json",
-);
+export const SIGNAL_WEIGHTS_FILE = repoPath(".vexis-agent-signals.json");
 
 const emptyWeights = (): Record<SignalName, number> =>
 	Object.fromEntries(SIGNAL_NAMES.map((s) => [s, 1])) as Record<

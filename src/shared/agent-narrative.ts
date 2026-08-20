@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { repoPath } from "../paths.js";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { ResolvedAgentLlm } from "../services/Config.js";
@@ -193,7 +193,7 @@ export interface NarrativeResult {
 	source: "llm" | "fallback";
 }
 
-const DEFAULT_CACHE_FILE = join(process.cwd(), ".vexis-agent-narrative.json");
+const DEFAULT_CACHE_FILE = repoPath(".vexis-agent-narrative.json");
 
 export function newestEntryTs(entries: readonly AgentJournalEntry[]): string {
 	let best = 0;

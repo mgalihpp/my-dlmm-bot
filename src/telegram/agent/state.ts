@@ -1,5 +1,5 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { repoPath } from "../../paths.js";
 
 export type LlmStatus = "ok" | "failed" | "skipped";
 
@@ -41,7 +41,7 @@ export interface AgentState {
 	oorSince: Record<string, number>;
 }
 
-const DEFAULT_FILE = join(process.cwd(), ".vexis-agent.json");
+const DEFAULT_FILE = repoPath(".vexis-agent.json");
 
 const EMPTY: AgentState = {
 	enabled: false,
