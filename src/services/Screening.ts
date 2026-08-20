@@ -17,11 +17,15 @@ export interface ScreeningService {
 		category?: string;
 		displayLimit?: number;
 		poolsOverride?: PoolsConfig;
+		skipEnrich?: boolean;
 	}) => Effect.Effect<
 		ScreenResult,
 		MeteoraApiError | DecodeError,
 		Jupiter | RugCheck
 	>;
+	readonly enrichPools: (
+		pools: readonly import("../domain/screened.js").ScreenedPool[],
+	) => Effect.Effect<void, never, Jupiter | RugCheck>;
 }
 
 export class Screening extends Context.Tag("Screening")<
@@ -35,31 +39,14 @@ const make = Effect.gen(function* () {
 	const rugcheck = yield* RugCheck;
 	const jupiter = yield* Jupiter;
 
-	const service: ScreeningService = {
-		screen: (opts) =>
-			Effect.gen(function* () {
-				const cfg = yield* config.get;
-				const poolCfg = opts?.poolsOverride ?? cfg.pools ?? {};
-
-				const timeframe = opts?.timeframe ?? poolCfg.timeframe ?? "5m";
-				const category = opts?.category ?? poolCfg.category ?? "trending";
-				const pageSize = poolCfg.pageSize ?? 50;
-				const displayLimit = opts?.displayLimit ?? poolCfg.displayLimit ?? 15;
-
-				const filterBy = buildDiscoveryFilter(poolCfg, timeframe);
-				const res = yield* api.discoverPools({
-					pageSize,
-					filterBy,
-					timeframe,
-					category,
-				});
-
-				const rawPools = Array.isArray(res.data) ? res.data : [];
-				const result = finalizeScreen(rawPools, res.total, displayLimit);
-
-				yield* Effect.forEach(
-					result.pools,
-					(pool) =>
+	const enrichPools = (
+		pools: readonly import("../domain/screened.js").ScreenedPool[],
+	) =>
+		Effect.forEach(
+			pools,
+			(pool) =>
+				Effect.all(
+					[
 						api.poolOhlcv(pool.pool, { timeframe: "24h" }).pipe(
 							Effect.map((res) => {
 								const high = res.data.reduce(
@@ -69,8 +56,6 @@ const make = Effect.gen(function* () {
 								if (high > 0) {
 									const pctFromAth = 1 - pool.price / high;
 									(pool as { fromAthPct: number }).fromAthPct = pctFromAth;
-									// priceVsAthPct = price as % of peak, NOT drop %. Guardrail
-									// blocks when price is CLOSE to peak (high pct), not after a dump.
 									(pool as { priceVsAthPct: number }).priceVsAthPct =
 										(pool.price / high) * 100;
 								}
@@ -79,12 +64,6 @@ const make = Effect.gen(function* () {
 							}),
 							Effect.catchAll(() => Effect.succeed(void 0)),
 						),
-					{ concurrency: 5, discard: true },
-				);
-
-				yield* Effect.forEach(
-					result.pools,
-					(pool) =>
 						Effect.gen(function* () {
 							const mint = pool.baseMint;
 							if (!mint) return;
@@ -130,9 +109,39 @@ const make = Effect.gen(function* () {
 								s?.risks?.some(
 									(r) => /dev.*sold/i.test(r.name) && r.level === "danger",
 								) ?? null;
-						}),
-					{ concurrency: 5, discard: true },
-				);
+						}).pipe(Effect.catchAll(() => Effect.succeed(void 0))),
+					],
+					{ concurrency: 2, discard: true },
+				),
+			{ concurrency: 10, discard: true },
+		);
+
+	const service: ScreeningService = {
+		enrichPools,
+		screen: (opts) =>
+			Effect.gen(function* () {
+				const cfg = yield* config.get;
+				const poolCfg = opts?.poolsOverride ?? cfg.pools ?? {};
+
+				const timeframe = opts?.timeframe ?? poolCfg.timeframe ?? "5m";
+				const category = opts?.category ?? poolCfg.category ?? "trending";
+				const pageSize = poolCfg.pageSize ?? 50;
+				const displayLimit = opts?.displayLimit ?? poolCfg.displayLimit ?? 15;
+
+				const filterBy = buildDiscoveryFilter(poolCfg, timeframe);
+				const res = yield* api.discoverPools({
+					pageSize,
+					filterBy,
+					timeframe,
+					category,
+				});
+
+				const rawPools = Array.isArray(res.data) ? res.data : [];
+				const result = finalizeScreen(rawPools, res.total, displayLimit);
+
+				if (opts?.skipEnrich !== true) {
+					yield* enrichPools(result.pools);
+				}
 
 				return result;
 			}),

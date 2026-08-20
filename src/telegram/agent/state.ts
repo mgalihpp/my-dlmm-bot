@@ -37,6 +37,8 @@ export interface AgentState {
 	plans: AgentPlan[];
 	executions: AgentExecution[];
 	cooldowns: AgentCooldown[];
+	/** pool -> timestamp ms when OOR to the right first detected. Reset to null when back in-range. */
+	oorSince: Record<string, number>;
 }
 
 const DEFAULT_FILE = join(process.cwd(), ".vexis-agent.json");
@@ -50,6 +52,7 @@ const EMPTY: AgentState = {
 	plans: [],
 	executions: [],
 	cooldowns: [],
+	oorSince: {},
 };
 
 const LLM_STATUSES: readonly string[] = ["ok", "failed", "skipped"];
@@ -107,6 +110,12 @@ const cooldownOf = (v: unknown): AgentCooldown | null => {
 function sanitize(raw: unknown): AgentState {
 	if (!isRecord(raw)) return { ...EMPTY };
 	const llm = raw.llmStatus;
+	const oorSince: Record<string, number> = {};
+	if (isRecord(raw.oorSince)) {
+		for (const [k, v] of Object.entries(raw.oorSince)) {
+			if (typeof v === "number" && Number.isFinite(v) && v > 0) oorSince[k] = v;
+		}
+	}
 	return {
 		enabled: typeof raw.enabled === "boolean" ? raw.enabled : false,
 		running: typeof raw.running === "boolean" ? raw.running : false,
@@ -128,6 +137,7 @@ function sanitize(raw: unknown): AgentState {
 					.map(cooldownOf)
 					.filter((c): c is AgentCooldown => c !== null)
 			: [],
+		oorSince,
 	};
 }
 

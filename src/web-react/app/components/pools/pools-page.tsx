@@ -1,6 +1,11 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
-import { useEffect, useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { Suspense, useEffect, useState } from "react";
+import {
+	Await,
+	useLoaderData,
+	useRevalidator,
+	useSearchParams,
+} from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
@@ -14,12 +19,23 @@ import {
 } from "~/lib/currency";
 import type { PoolsPayload } from "~/lib/pools";
 
+type LoaderData =
+	| PoolsPayload
+	| { critical: PoolsPayload; deferred: Promise<readonly ScreenedPool[]> };
+
 export function PoolsPage() {
-	const data = useLoaderData<PoolsPayload>();
+	const data = useLoaderData<LoaderData>();
+	const isDeferred = "critical" in data;
+	const payload = isDeferred
+		? (data as { critical: PoolsPayload }).critical
+		: (data as PoolsPayload);
+	const deferred = isDeferred
+		? (data as { deferred: Promise<readonly ScreenedPool[]> }).deferred
+		: null;
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();
-	const timeframe = searchParams.get("timeframe") ?? data.timeframe;
+	const timeframe = searchParams.get("timeframe") ?? payload.timeframe;
 	const [storedCurrency, setStoredCurrency] = useState<"usd" | "sol" | null>(
 		null,
 	);
@@ -37,7 +53,7 @@ export function PoolsPage() {
 		setSearchParams(
 			(current) => {
 				const next = new URLSearchParams(current);
-				if (value === data.timeframe) next.delete("timeframe");
+				if (value === payload.timeframe) next.delete("timeframe");
 				else next.set("timeframe", value);
 				return next;
 			},
@@ -61,8 +77,8 @@ export function PoolsPage() {
 	return (
 		<DashboardShell
 			title="Pool Radar"
-			wallet={data.wallet}
-			rpc={data.rpc}
+			wallet={payload.wallet}
+			rpc={payload.rpc}
 			realtimeMs={60_000}
 		>
 			{isNavigating ? (
@@ -70,8 +86,8 @@ export function PoolsPage() {
 			) : (
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<PoolsHeader
-						total={data.total}
-						ok={data.ok}
+						total={payload.total}
+						ok={payload.ok}
 						timeframe={timeframe}
 						currency={currency}
 						onCurrencyChange={onCurrencyChange}
@@ -80,19 +96,57 @@ export function PoolsPage() {
 						refreshing={state === "loading"}
 					/>
 
-					{!data.ok ? (
-						<LoadErrorCard title="Failed to load pools" error={data.error} />
-					) : data.pools.length === 0 ? (
+					{!payload.ok ? (
+						<LoadErrorCard title="Failed to load pools" error={payload.error} />
+					) : payload.pools.length === 0 ? (
 						<Card className="mx-4 lg:mx-6">
 							<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
 								No pools found for the {timeframe} timeframe.
 							</CardContent>
 						</Card>
+					) : deferred ? (
+						<Suspense
+							fallback={
+								<PoolsContent
+									pools={payload.pools}
+									currency={currency}
+									solPrice={payload.solPrice}
+									selectedPool={selectedPool}
+									onSelect={setSelectedPool}
+									onClose={() => setSelectedPool(null)}
+								/>
+							}
+						>
+							<Await
+								resolve={deferred}
+								errorElement={
+									<PoolsContent
+										pools={payload.pools}
+										currency={currency}
+										solPrice={payload.solPrice}
+										selectedPool={selectedPool}
+										onSelect={setSelectedPool}
+										onClose={() => setSelectedPool(null)}
+									/>
+								}
+							>
+								{(enriched: readonly ScreenedPool[]) => (
+									<PoolsContent
+										pools={enriched.length > 0 ? enriched : payload.pools}
+										currency={currency}
+										solPrice={payload.solPrice}
+										selectedPool={selectedPool}
+										onSelect={setSelectedPool}
+										onClose={() => setSelectedPool(null)}
+									/>
+								)}
+							</Await>
+						</Suspense>
 					) : (
 						<PoolsContent
-							pools={data.pools}
+							pools={payload.pools}
 							currency={currency}
-							solPrice={data.solPrice}
+							solPrice={payload.solPrice}
 							selectedPool={selectedPool}
 							onSelect={setSelectedPool}
 							onClose={() => setSelectedPool(null)}

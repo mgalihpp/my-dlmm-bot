@@ -281,7 +281,7 @@ const make = Effect.gen(function* () {
 							}),
 							Effect.ignore,
 						),
-					{ concurrency: 5, discard: true },
+					{ concurrency: 10, discard: true },
 				);
 				return enriched;
 			}),

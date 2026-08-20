@@ -3,6 +3,7 @@ import { ChevronRightIcon } from "lucide-react";
 import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import { type Currency, organicBucket, rugBucket } from "~/lib/pools";
 import { cn } from "~/lib/utils";
 import { badgeVariant, Sparkline } from "./pool-table-parts";
@@ -38,10 +39,13 @@ export function PoolCard({
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="relative flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
 						{pool.baseSymbol.slice(0, 2).toUpperCase()}
-						{pool.baseIcon ? (
+						{proxiedIconUrl(pool.baseIcon) ? (
 							<img
-								src={pool.baseIcon}
+								src={proxiedIconUrl(pool.baseIcon) as string}
 								alt={pool.baseSymbol}
+								crossOrigin="anonymous"
+								referrerPolicy="no-referrer"
+								loading="lazy"
 								className="absolute inset-0 size-full object-cover"
 								onError={(e) => {
 									e.currentTarget.style.display = "none";

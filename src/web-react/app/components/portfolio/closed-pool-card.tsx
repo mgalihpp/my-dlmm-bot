@@ -8,6 +8,7 @@ import {
 	pnlSign,
 	timeAgo,
 } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import { PortfolioAmount } from "./closed-detail";
@@ -16,11 +17,15 @@ import type { Currency } from "./portfolio-page";
 type ClosedPool = ClosedPoolWithIcons;
 
 function TokenIcon({ icon, symbol }: { icon?: string | null; symbol: string }) {
-	if (icon)
+	const src = proxiedIconUrl(icon);
+	if (src)
 		return (
 			<img
-				src={icon}
+				src={src}
 				alt={symbol}
+				crossOrigin="anonymous"
+				referrerPolicy="no-referrer"
+				loading="lazy"
 				className="size-5 rounded-full object-cover"
 				onError={(event) => {
 					event.currentTarget.style.display = "none";

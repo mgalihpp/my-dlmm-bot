@@ -328,6 +328,8 @@ async function retryClose(
 		);
 		const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 		rt.state.plans = rt.state.plans.filter((p) => p !== plan);
+		if (rt.state.oorSince[cand.pool] != null)
+			delete rt.state.oorSince[cand.pool];
 		rt.state.executions.push({
 			at: new Date().toISOString(),
 			action: cand.action,
@@ -653,6 +655,9 @@ async function evaluateTpSl(
 	opts: { includeOor?: boolean; myGen: number } = { myGen: 0 },
 ) {
 	const oorPositions: OorPosition[] = [];
+	// ensure oorSince exists (migration for old state files)
+	if (!rt.state.oorSince) rt.state.oorSince = {};
+	let oorDirty = false;
 	const plansWithPosition = [...rt.state.plans].filter(
 		(p) => p.positionAddress != null,
 	);
@@ -684,28 +689,53 @@ async function evaluateTpSl(
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
+			if (rt.state.oorSince[plan.pool] != null) {
+				delete rt.state.oorSince[plan.pool];
+				oorDirty = true;
+			}
 			logInfo(`position check: ${plan.poolName} → closed, plan removed`);
 			continue;
 		}
 		const pct = pnlPctValue(pos);
-		if (pos.isOutOfRange === true) {
-			let distancePct: number | null = null;
-			if (pos.poolActivePrice != null) {
-				const active = Number(pos.poolActivePrice);
-				const min = Number(pos.minPrice);
-				const max = Number(pos.maxPrice);
-				if (
-					Number.isFinite(active) &&
-					Number.isFinite(min) &&
-					Number.isFinite(max)
-				) {
-					if (active > max && max !== 0)
-						distancePct = ((active - max) / max) * 100;
-					else if (active < min && min !== 0)
-						distancePct = ((min - active) / min) * 100;
-					else distancePct = 0;
-				}
+		// --- OOR-right duration tracking: count only when price > max, reset when back in-range ---
+		let distancePct: number | null = null;
+		let isOorRight = false;
+		if (pos.isOutOfRange === true && pos.poolActivePrice != null) {
+			const active = Number(pos.poolActivePrice);
+			const min = Number(pos.minPrice);
+			const max = Number(pos.maxPrice);
+			if (
+				Number.isFinite(active) &&
+				Number.isFinite(min) &&
+				Number.isFinite(max)
+			) {
+				if (active > max && max !== 0) {
+					distancePct = ((active - max) / max) * 100;
+					isOorRight = true;
+				} else if (active < min && min !== 0) {
+					distancePct = ((min - active) / min) * 100;
+				} else distancePct = 0;
 			}
+		} else if (pos.isOutOfRange === true) {
+			// no active price → treat as OOR but not right (don't start timer)
+			distancePct = 0;
+		}
+		const nowMs = Date.now();
+		if (isOorRight) {
+			if (rt.state.oorSince[plan.pool] == null) {
+				rt.state.oorSince[plan.pool] = nowMs;
+				oorDirty = true;
+			}
+		} else {
+			if (rt.state.oorSince[plan.pool] != null) {
+				delete rt.state.oorSince[plan.pool];
+				oorDirty = true;
+			}
+		}
+		if (pos.isOutOfRange === true) {
+			const since = rt.state.oorSince[plan.pool];
+			const oorDurationHours =
+				isOorRight && since != null ? (nowMs - since) / 3_600_000 : null;
 			oorPositions.push({
 				pool: plan.pool,
 				poolName: plan.poolName,
@@ -725,6 +755,7 @@ async function evaluateTpSl(
 							.map(([name, w]) => `${name}:${w}`)
 							.join(",")
 					: null,
+				oorDurationHours,
 			});
 		}
 		if (pct == null) continue;
@@ -779,6 +810,8 @@ async function evaluateTpSl(
 			rt.state.plans = rt.state.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
+			if (rt.state.oorSince[plan.pool] != null)
+				delete rt.state.oorSince[plan.pool];
 			rt.state.cooldowns = recordCooldown(
 				rt.state.cooldowns,
 				{
@@ -867,6 +900,14 @@ async function evaluateTpSl(
 			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
+	// prune stale oorSince entries for pools no longer tracked
+	for (const pool of Object.keys(rt.state.oorSince)) {
+		if (!rt.state.plans.some((p) => p.pool === pool)) {
+			delete rt.state.oorSince[pool];
+			oorDirty = true;
+		}
+	}
+	if (oorDirty) saveState(rt.state);
 	if (opts.includeOor && oorPositions.length > 0) {
 		await evaluateOor(rt, bot, chatId, cfg, oorPositions, opts.myGen);
 	}
@@ -962,6 +1003,8 @@ async function evaluateOor(
 				}
 			}
 			rt.state.plans = rt.state.plans.filter((x) => x !== plan);
+			if (rt.state.oorSince[pos.pool] != null)
+				delete rt.state.oorSince[pos.pool];
 			rt.state.executions.push({
 				at: new Date().toISOString(),
 				action: "close",

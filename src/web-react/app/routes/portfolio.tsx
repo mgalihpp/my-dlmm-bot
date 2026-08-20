@@ -1,6 +1,9 @@
 import { PortfolioPage } from "~/components/portfolio/portfolio-page";
 import { closePosition } from "~/lib/server/close.server";
-import { fetchPortfolio } from "~/lib/server/portfolio.server";
+import {
+	fetchPortfolioCritical,
+	fetchPortfolioDeferred,
+} from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/portfolio";
 
@@ -13,7 +16,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const parsedPage = rawPage === null ? 1 : Number(rawPage);
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-	return fetchPortfolio(closedPage);
+	const critical = await fetchPortfolioCritical();
+	if (!critical.ok) return critical;
+	const deferred = fetchPortfolioDeferred(
+		critical.wallet,
+		critical.pools,
+		closedPage,
+	);
+	return { critical, deferred };
 }
 
 export async function action({ request }: Route.ActionArgs) {

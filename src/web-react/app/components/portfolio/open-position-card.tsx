@@ -8,6 +8,7 @@ import {
 	pnlSignForCurrency,
 	shortAddr,
 } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
@@ -43,10 +44,13 @@ export function OpenPositionCard({
 			<div className="flex items-start justify-between gap-3">
 				<div className="flex min-w-0 items-center gap-3">
 					<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
-						{pool.tokenXIcon ? (
+						{proxiedIconUrl(pool.tokenXIcon) ? (
 							<img
-								src={pool.tokenXIcon}
+								src={proxiedIconUrl(pool.tokenXIcon) as string}
 								alt={pool.tokenX}
+								crossOrigin="anonymous"
+								referrerPolicy="no-referrer"
+								loading="lazy"
 								className="size-full object-cover"
 								onError={(e) => {
 									(e.currentTarget as HTMLImageElement).style.display = "none";
