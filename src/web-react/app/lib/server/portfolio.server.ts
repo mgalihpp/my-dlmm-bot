@@ -208,63 +208,45 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 						tokenYIcon: d.token_y?.icon ?? null,
 					});
 				}),
-			{ concurrency: 5 },
+			{ concurrency: 10 },
 		);
 		return out;
 	});
 }
 
-export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
+export interface PortfolioCritical {
+	readonly ok: true;
+	readonly wallet: string;
+	readonly rpc: string;
+	readonly solPrice: number | null;
+	readonly total: OpenPortfolioTotals | null;
+	readonly summary: PortfolioSummary;
+	readonly pools: readonly OpenPool[];
+	readonly history: readonly PortfolioSnapshot[];
+}
+
+export interface PortfolioDeferred {
+	readonly pools: readonly OpenPoolWithIcons[];
+	readonly closed: {
+		readonly pools: readonly ClosedPoolWithIcons[];
+		readonly page: number;
+		readonly pageSize: number;
+		readonly totalCount: number;
+	};
+	readonly total: PortfolioTotal;
+}
+
+export function fetchPortfolioCritical(): Promise<
+	PortfolioCritical | { ok: false; error: string; solPrice: null }
+> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const current = yield* config.get;
 		const wallet = yield* config.wallet();
 		const api = yield* MeteoraApi;
-		const dlmm = yield* Dlmm;
-
 		const res = yield* api.openPortfolio(wallet, 1, 10);
 		const apiTotals = res.total ?? null;
-		const open = yield* api
-			.enrichOpenPortfolioPnl(res.pools, wallet, {
-				withRanges: true,
-			})
-			.pipe(
-				Effect.flatMap((enriched) =>
-					dlmm.attachLivePositions(enriched, wallet),
-				),
-				Effect.map((enriched) => {
-					for (const pool of enriched) {
-						const createdAt = new Map(
-							(pool.positionsPnl ?? []).map((position) => [
-								position.address,
-								position.createdAt,
-							]),
-						);
-						if (pool.positionsLive) {
-							for (const position of pool.positionsLive) {
-								Object.assign(position, {
-									createdAt: createdAt.get(position.address) ?? null,
-								});
-							}
-						}
-					}
-					return enriched;
-				}),
-				Effect.flatMap((enriched) => enrichWithIcons(enriched, api)),
-				Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
-			);
-
-		const closedRes = yield* api
-			.closedPortfolio(wallet, closedPage, 10)
-			.pipe(Effect.catchAll(() => Effect.succeed(null)));
-		const closed =
-			closedRes === null ? null : yield* enrichWithIcons(closedRes.pools, api);
-
-		const total = yield* api
-			.totalPnl(wallet)
-			.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL)));
-
-		const summary = computePortfolioSummary(open, apiTotals);
+		const summary = computePortfolioSummary(res.pools, apiTotals);
 		recordSnapshot(
 			{
 				ts: Math.floor(Date.now() / 1000),
@@ -275,28 +257,171 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			},
 			HISTORY_FILE,
 		);
-
 		return {
-			ok: true,
+			ok: true as const,
 			wallet,
 			rpc: current.rpcUrl ?? "rpc not configured",
 			solPrice: parseNum(res.solPrice),
-			total,
+			total: apiTotals,
 			summary,
-			pools: open,
+			pools: res.pools,
 			history: readHistory(HISTORY_FILE),
-			closed:
-				closed !== null
-					? {
-							pools: closed,
-							page: closedRes!.page,
-							pageSize: closedRes!.pageSize,
-							totalCount: closedRes!.totalCount,
-						}
-					: { pools: [], page: closedPage, pageSize: 10, totalCount: 0 },
-		} satisfies PortfolioPayload;
+		};
 	}).pipe(
 		Effect.provide(AppLayer),
+		Effect.catchAll((error) =>
+			Effect.succeed({
+				ok: false as const,
+				error: errorMessage(error),
+				solPrice: null,
+			}),
+		),
+	);
+	return Effect.runPromise(program);
+}
+
+export function fetchPortfolioDeferred(
+	wallet: string,
+	pools: readonly OpenPool[],
+	closedPage: number,
+): Promise<PortfolioDeferred> {
+	const program = Effect.gen(function* () {
+		const api = yield* MeteoraApi;
+		const dlmm = yield* Dlmm;
+
+		const [enrichedPnl, live, closedRes, total] = yield* Effect.all(
+			[
+				api
+					.enrichOpenPortfolioPnl([...pools] as OpenPool[], wallet, {
+						withRanges: true,
+					})
+					.pipe(Effect.catchAll(() => Effect.succeed([...pools] as OpenPool[]))),
+				dlmm.fetchUserPositions(wallet).pipe(
+					Effect.catchAll(() => Effect.succeed([] as never[])),
+				),
+				api
+					.closedPortfolio(wallet, closedPage, 10)
+					.pipe(Effect.catchAll(() => Effect.succeed(null))),
+				api.totalPnl(wallet).pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL))),
+			],
+			{ concurrency: "unbounded" },
+		);
+
+		// merge live positions into enriched pools (same as Dlmm.attachLivePositions without extra RPC)
+		const byPool = new Map<string, typeof live>();
+		for (const l of live as unknown as Array<{
+			poolAddress: string;
+			positionAddress: string;
+			createdAt: number | null;
+			amountX: string;
+			amountY: string;
+			feeX: string;
+			feeY: string;
+		}>) {
+			const arr = byPool.get(l.poolAddress) ?? [];
+			(arr as unknown[]).push(l);
+			byPool.set(l.poolAddress, arr as never);
+		}
+		for (const pool of enrichedPnl) {
+			const l = byPool.get(pool.poolAddress);
+			if (l) {
+				(pool as { positionsLive?: unknown }).positionsLive = (
+					l as unknown as Array<{
+						positionAddress: string;
+						createdAt: number | null;
+						amountX: string;
+						amountY: string;
+						feeX: string;
+						feeY: string;
+					}>
+				).map((x) => ({
+					address: x.positionAddress,
+					createdAt: x.createdAt,
+					amountX: x.amountX,
+					amountY: x.amountY,
+					feeX: x.feeX,
+					feeY: x.feeY,
+				}));
+			}
+		}
+		// attach createdAt from positionsPnl to live
+		for (const pool of enrichedPnl) {
+			const createdAt = new Map(
+				(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
+			);
+			if ((pool as { positionsLive?: Array<{ address: string; createdAt?: number | null }> }).positionsLive) {
+				for (const pos of (
+					pool as { positionsLive: Array<{ address: string; createdAt?: number | null }> }
+				).positionsLive) {
+					Object.assign(pos, { createdAt: createdAt.get(pos.address) ?? null });
+				}
+			}
+		}
+
+		const [openWithIcons, closedWithIcons] = yield* Effect.all(
+			[
+				enrichWithIcons(enrichedPnl, api).pipe(
+					Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
+				),
+				closedRes === null
+					? Effect.succeed([] as ClosedPoolWithIcons[])
+					: enrichWithIcons(closedRes.pools, api).pipe(
+							Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
+						),
+			],
+			{ concurrency: "unbounded" },
+		);
+
+		return {
+			pools: openWithIcons,
+			closed:
+				closedRes === null
+					? { pools: closedWithIcons, page: closedPage, pageSize: 10, totalCount: 0 }
+					: {
+							pools: closedWithIcons,
+							page: closedRes.page,
+							pageSize: closedRes.pageSize,
+							totalCount: closedRes.totalCount,
+						},
+			total,
+		} satisfies PortfolioDeferred;
+	}).pipe(
+		Effect.provide(AppLayer),
+		Effect.catchAll(() =>
+			Effect.succeed({
+				pools: [] as OpenPoolWithIcons[],
+				closed: { pools: [] as ClosedPoolWithIcons[], page: closedPage, pageSize: 10, totalCount: 0 },
+				total: EMPTY_TOTAL,
+			} satisfies PortfolioDeferred),
+		),
+	);
+	return Effect.runPromise(program);
+}
+
+export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
+	const program = Effect.gen(function* () {
+		const critical = yield* Effect.tryPromise(() => fetchPortfolioCritical()).pipe(
+			Effect.flatMap((c) =>
+				c.ok
+					? Effect.succeed(c as PortfolioCritical)
+					: Effect.fail(new Error((c as { error: string }).error)),
+			),
+		);
+		const deferred = yield* Effect.tryPromise(() =>
+			fetchPortfolioDeferred(critical.wallet, critical.pools, closedPage),
+		);
+		return {
+			ok: true,
+			wallet: critical.wallet,
+			rpc: critical.rpc,
+			solPrice: critical.solPrice,
+			total: deferred.total,
+			summary: critical.summary,
+			pools: deferred.pools,
+			history: critical.history,
+			closed: deferred.closed,
+		} satisfies PortfolioPayload;
+	}).pipe(
 		Effect.catchAll((error) =>
 			Effect.succeed({
 				ok: false,
