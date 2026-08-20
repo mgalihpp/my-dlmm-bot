@@ -18,12 +18,8 @@ export function AgentContent({
 		<>
 			<StatusBanner state={data.state!} />
 			<StatCards stats={data.stats!} />
-			<div className="px-4 lg:px-6">
-				<NarrativeCard narrative={data.narrative!} stats={data.stats!} />
-			</div>
-			<div className="px-4 lg:px-6">
-				<PerformanceTabs analytics={data.analytics!} range={data.range!} />
-			</div>
+			<NarrativeCard narrative={data.narrative!} stats={data.stats!} />
+			<PerformanceTabs analytics={data.analytics!} range={data.range!} />
 			<DecisionJournal
 				filter={data.filter!}
 				page={data.page!}
