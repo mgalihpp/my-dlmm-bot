@@ -139,13 +139,23 @@ export function PortfolioPage() {
 					refreshing={state === "loading"}
 				/>
 
-				{/* Critical: stat + charts render instantly (<350ms), no flash */}
+				{/* Critical: stat cards render instantly; only total PnL streams */}
 				<Suspense
 					fallback={
-						<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-5">
-							{Array.from({ length: 5 }).map((_, i) => (
-								<div key={i} className="h-28 animate-pulse rounded-xl bg-muted" />
-							))}
+						<div className="opacity-60">
+							<StatCards
+								summary={critical.summary}
+								total={{
+									totalPnlUsd: "-",
+									totalPnlSol: "-",
+									totalPnlPctChange: "-",
+									totalPnlSolPctChange: "-",
+								}}
+								history={critical.history}
+								currency={currency}
+								rangeFilter={rangeFilter}
+								onRangeFilterChange={setRangeFilter}
+							/>
 						</div>
 					}
 				>
