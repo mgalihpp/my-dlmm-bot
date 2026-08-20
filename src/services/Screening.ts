@@ -113,7 +113,7 @@ const make = Effect.gen(function* () {
 					],
 					{ concurrency: 2, discard: true },
 				),
-			{ concurrency: 10, discard: true },
+			{ concurrency: 3, discard: true }, //  3 + 1.1s spaced retry respects fluxrpc.com/docs/rugcheck free 1 RPS; bump to 5+ with paid plan
 		);
 
 	const service: ScreeningService = {

@@ -21,7 +21,7 @@ const API_KEY = "3a6fc5a4-9de6-41b9-9632-6b00459d6b35";
 const TokenSummary = Schema.Struct({
 	mint: Schema.optional(Schema.String),
 	score: Schema.Number,
-	score_normalised: Schema.Number,
+	score_normalised: Schema.optional(Schema.Number),
 	risks: Schema.optional(
 		Schema.Array(
 			Schema.Struct({
@@ -32,9 +32,9 @@ const TokenSummary = Schema.Struct({
 			}),
 		),
 	),
-	lpLockedPct: Schema.Number,
-	tokenType: Schema.String,
-	tokenProgram: Schema.String,
+	lpLockedPct: Schema.optional(Schema.NullOr(Schema.Number)),
+	tokenType: Schema.optional(Schema.String),
+	tokenProgram: Schema.optional(Schema.String),
 });
 type TokenSummary = Schema.Schema.Type<typeof TokenSummary>;
 
@@ -63,17 +63,20 @@ export class RugCheck extends Context.Tag("RugCheck")<
 	RugCheckService
 >() {}
 
-const retryPolicy = Schedule.exponential(Duration.millis(400)).pipe(
-	Schedule.intersect(Schedule.recurs(2)),
-);
+const retryPolicy = Schedule.exponential(Duration.millis(500)).pipe(
+	Schedule.intersect(Schedule.recurs(3)),
+); // 500ms exp covers fluxrpc.com/docs/rugcheck free 1 RPS burst (500+1000+2000) <5s test timeout
 
 const transient = (e: RugCheckApiError): boolean =>
 	e.status === undefined || e.status === 429 || e.status >= 500;
 
 const make = Effect.gen(function* () {
 	const client = (yield* HttpClient.HttpClient).pipe(
-		HttpClient.mapRequest(
-			HttpClientRequest.setHeader("accept", "application/json"),
+		HttpClient.mapRequest((req) =>
+			req.pipe(
+				HttpClientRequest.setHeader("accept", "application/json"),
+				HttpClientRequest.setHeader("X-API-KEY", API_KEY),
+			),
 		),
 	);
 
@@ -139,7 +142,7 @@ const make = Effect.gen(function* () {
 						name: r.name,
 						level: r.level,
 					})),
-					lpLockedPct: s.lpLockedPct,
+					lpLockedPct: s.lpLockedPct ?? null,
 				})),
 				Effect.catchAll((e) =>
 					Effect.succeed(swallowToNull<RugCheckSummary>(e)),

@@ -106,13 +106,18 @@ export function fetchPoolsCritical(
 export function fetchPoolsDeferred(
 	pools: readonly import("@vexis/domain/index.js").ScreenedPool[],
 ): Promise<readonly import("@vexis/domain/index.js").ScreenedPool[]> {
+	const cloned = pools.map((p) => ({ ...p }));
 	const program = Effect.gen(function* () {
 		const screening = yield* Screening;
-		yield* screening.enrichPools(pools);
-		return pools;
+		yield* screening.enrichPools(cloned);
+		return cloned as readonly import("@vexis/domain/index.js").ScreenedPool[];
 	}).pipe(
 		Effect.provide(AppLayer),
-		Effect.catchAll(() => Effect.succeed(pools)),
+		Effect.catchAll(() =>
+			Effect.succeed(
+				cloned as readonly import("@vexis/domain/index.js").ScreenedPool[],
+			),
+		),
 	);
 	return Effect.runPromise(program);
 }
