@@ -119,6 +119,7 @@ export interface OorPosition {
 	minPrice: string;
 	maxPrice: string;
 	poolActivePrice: string | null;
+	distancePct?: number | null;
 	positionAgeHours?: number | null;
 	feePerTvl24h?: string | null;
 	pnlUsd?: string | null;
@@ -371,10 +372,13 @@ export async function requestOpenDecisions(opts: {
 
 export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	const table = positions
-		.map(
-			(p) =>
-				`- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`,
-		)
+		.map((p) => {
+			const distance =
+				p.distancePct != null
+					? ` distance=${p.distancePct > 0 ? `+${p.distancePct.toFixed(1)}%` : `${p.distancePct.toFixed(1)}%`} (${p.poolActivePrice != null && Number(p.maxPrice) !== 0 ? (Number(p.poolActivePrice) / Number(p.maxPrice)).toFixed(2) : "?"}x maxPrice)`
+					: "";
+			return `- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${distance}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`;
+		})
 		.join("\n");
 	return [
 		"Posisi DLMM di bawah sedang out-of-range (OOR). Harga aktif pool sudah keluar dari range posisi, sehingga posisi tidak menghasilkan fee sampai harga kembali ke dalam range.",
@@ -382,13 +386,13 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 		"Hal yang perlu dipertimbangkan:",
 		"- Posisi LP hanya menghasilkan fee saat harga aktif pool berada di dalam range posisi.",
 		"- Saat harga keluar dari range, posisi tetap terbuka tetapi tidak menghasilkan fee.",
-		"- OOR ke kanan (poolActivePrice > maxPrice): harga naik melewati range, sehingga posisi menjadi full SOL dan tidak lagi mengikuti kenaikan token. Jika harga sudah jauh dan tidak kunjung kembali, posisi dapat ditutup agar modal bisa digunakan di tempat lain.",
-		"- OOR ke kiri (poolActivePrice < minPrice): harga turun melewati range, sehingga posisi menjadi full token meme. Jika pnlPct negatif, kerugian dapat terus bertambah dan posisi layak ditutup. Jika pnlPct positif, posisi ikut naik dan dapat ditutup untuk mengunci keuntungan.",
-		"- Posisi yang masih baru dan berada dekat dengan range dapat dipertahankan karena harga masih mungkin kembali dan fee kembali berjalan.",
-		"- Pertimbangkan positionAgeHours dan feePerTvl24h. Posisi lama yang sudah lama OOR dan menghasilkan fee rendah lebih layak ditutup.",
+		"- OOR ke kanan (poolActivePrice > maxPrice): posisi jadi full SOL, idle tidak hasilkan fee dan tidak ikut naik token. Jika distance >15-20% di atas maxPrice (poolActivePrice >1.2x maxPrice), apalagi jika positionAgeHours >12h atau feePerTvl24h rendah, lebih baik CLOSE agar modal bisa digunakan di tempat lain. Jarak >50% hampir selalu layak CLOSE terlepas dari umur.",
+		"- OOR ke kiri (poolActivePrice < minPrice): posisi jadi full token meme. Jika pnlPct negatif, kerugian dapat terus membesar -> layak CLOSE. Jika pnlPct positif, pertimbangkan CLOSE untuk mengunci keuntungan. Jarak jauh (>15-20% di bawah minPrice) + umur lama -> CLOSE.",
+		"- Posisi yang masih baru (<6h) dan jarak dekat (<10% dari range) dapat di-HOLD karena harga masih mungkin kembali.",
+		"- Pertimbangkan positionAgeHours dan feePerTvl24h. Posisi lama yang sudah lama OOR dan fee rendah lebih layak ditutup. Sebut distance, pnlPct, dan ageHours di rationale.",
 		"- openSignals adalah snapshot sinyal saat posisi dibuka dan hanya digunakan sebagai konteks.",
 		"",
-		'Balas JSON array polos, tanpa markdown: [{"pool":"<id pool persis>","action":"hold|close","rationale":"1 kalimat spesifik, sebut angka (mis. poolActivePrice 3x maxPrice, pnlPct=-8%, ageHours=50)"}]',
+		'Balas JSON array polos, tanpa markdown: [{"pool":"<id pool persis>","action":"hold|close","rationale":"1 kalimat spesifik, sebut angka (mis. distance +108% 2.08x maxPrice, pnlPct=-8%, ageHours=50)"}]',
 		"",
 		"Positions:",
 		table,

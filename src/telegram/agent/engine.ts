@@ -689,6 +689,23 @@ async function evaluateTpSl(
 		}
 		const pct = pnlPctValue(pos);
 		if (pos.isOutOfRange === true) {
+			let distancePct: number | null = null;
+			if (pos.poolActivePrice != null) {
+				const active = Number(pos.poolActivePrice);
+				const min = Number(pos.minPrice);
+				const max = Number(pos.maxPrice);
+				if (
+					Number.isFinite(active) &&
+					Number.isFinite(min) &&
+					Number.isFinite(max)
+				) {
+					if (active > max && max !== 0)
+						distancePct = ((active - max) / max) * 100;
+					else if (active < min && min !== 0)
+						distancePct = ((min - active) / min) * 100;
+					else distancePct = 0;
+				}
+			}
 			oorPositions.push({
 				pool: plan.pool,
 				poolName: plan.poolName,
@@ -696,6 +713,7 @@ async function evaluateTpSl(
 				minPrice: pos.minPrice,
 				maxPrice: pos.maxPrice,
 				poolActivePrice: pos.poolActivePrice,
+				distancePct,
 				positionAgeHours: positionAgeHours(pos.createdAt),
 				feePerTvl24h: pos.feePerTvl24h,
 				pnlUsd: pos.pnlUsd,
