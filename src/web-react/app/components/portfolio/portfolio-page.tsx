@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import { Suspense, useCallback, useEffect, useState } from "react";
+import { Await, useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
@@ -9,16 +9,24 @@ import {
 	resolveCurrency,
 	writeStoredCurrency,
 } from "~/lib/currency";
-import type { PortfolioPayload } from "~/lib/server/portfolio.server";
+import type {
+	PortfolioCritical,
+	PortfolioDeferred,
+} from "~/lib/server/portfolio.server";
 import { PortfolioContent } from "./portfolio-content";
 import { PortfolioHeader } from "./portfolio-header";
+import { PageSkeleton as TableFallback } from "~/components/page-skeletons";
 
 export type { Currency } from "~/lib/currency";
 
 export type RangeFilter = "all" | "in-range" | "oor";
 
+type LoaderData =
+	| { ok: false; error: string; solPrice: null }
+	| { critical: PortfolioCritical; deferred: Promise<PortfolioDeferred> };
+
 export function PortfolioPage() {
-	const data = useLoaderData<PortfolioPayload>();
+	const data = useLoaderData<LoaderData>();
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
@@ -62,11 +70,17 @@ export function PortfolioPage() {
 		setStoredCurrency(readStoredCurrency(window.localStorage));
 	}, []);
 
-	return (
-		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
-			{isNavigating ? (
+	if (isNavigating) {
+		return (
+			<DashboardShell title="Portfolio" wallet={undefined} rpc={undefined}>
 				<PageSkeleton />
-			) : (
+			</DashboardShell>
+		);
+	}
+
+	if ("ok" in data && data.ok === false) {
+		return (
+			<DashboardShell title="Portfolio" wallet={undefined} rpc={undefined}>
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<PortfolioHeader
 						currency={currency}
@@ -74,23 +88,59 @@ export function PortfolioPage() {
 						onRefresh={revalidate}
 						refreshing={state === "loading"}
 					/>
-
-					{!data.ok ? (
-						<LoadErrorCard
-							title="Failed to load portfolio"
-							error={data.error}
-						/>
-					) : (
-						<PortfolioContent
-							data={data}
-							currency={currency}
-							rangeFilter={rangeFilter}
-							onRangeFilterChange={setRangeFilter}
-							onClosedPageChange={onClosedPageChange}
-						/>
-					)}
+					<LoadErrorCard title="Failed to load portfolio" error={data.error} />
 				</div>
-			)}
+			</DashboardShell>
+		);
+	}
+
+	const { critical, deferred } = data as {
+		critical: PortfolioCritical;
+		deferred: Promise<PortfolioDeferred>;
+	};
+
+	return (
+		<DashboardShell title="Portfolio" wallet={critical.wallet} rpc={critical.rpc}>
+			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<PortfolioHeader
+					currency={currency}
+					onCurrencyChange={setCurrency}
+					onRefresh={revalidate}
+					refreshing={state === "loading"}
+				/>
+
+				<Suspense fallback={<TableFallback />}>
+					<Await
+						resolve={deferred}
+						errorElement={
+							<LoadErrorCard title="Failed to load positions" error="Deferred load failed" />
+						}
+					>
+						{(d: PortfolioDeferred) => {
+							const merged = {
+								ok: true as const,
+								wallet: critical.wallet,
+								rpc: critical.rpc,
+								solPrice: critical.solPrice,
+								summary: critical.summary,
+								history: critical.history,
+								pools: d.pools,
+								closed: d.closed,
+								total: d.total,
+							};
+							return (
+								<PortfolioContent
+									data={merged}
+									currency={currency}
+									rangeFilter={rangeFilter}
+									onRangeFilterChange={setRangeFilter}
+									onClosedPageChange={onClosedPageChange}
+								/>
+							);
+						}}
+					</Await>
+				</Suspense>
+			</div>
 		</DashboardShell>
 	);
 }
