@@ -73,8 +73,10 @@ export function fetchPools(rawTimeframe: string | null): Promise<PoolsPayload> {
 				? rawTimeframe
 				: configured;
 		const screening = yield* Screening;
-		const result = yield* screening.screen({ timeframe });
-		const solPrice = yield* fetchSolPrice();
+		const [result, solPrice] = yield* Effect.all(
+			[screening.screen({ timeframe }), fetchSolPrice()],
+			{ concurrency: "unbounded" },
+		);
 		const payload = buildPoolsPayload(result, solPrice, timeframe);
 		return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
 	}).pipe(
