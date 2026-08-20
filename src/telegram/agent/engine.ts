@@ -1432,6 +1432,17 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: rent.reason,
 			});
+			rt.state.cooldowns = recordCooldown(
+				rt.state.cooldowns,
+				{
+					pool: pool.pool,
+					poolName: pool.name,
+					baseMint: pool.baseMint,
+					reason: rent.reason ?? "blocked",
+				},
+				cfg.poolCooldownMs,
+				Date.now(),
+			);
 			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${rent.reason})`);
 			await liveDecision(`⛔ ${pool.name} blocked: ${rent.reason ?? ""}`);
 			continue;
