@@ -126,6 +126,8 @@ export interface OorPosition {
 	unrealizedPnlSol?: string | null;
 	amountSol?: number | null;
 	openSignals?: string | null;
+	/** Hours continuously OOR to the right (price > max). 0 when just entered, null if not tracked. Reset to 0 when back in-range. */
+	oorDurationHours?: number | null;
 }
 
 export interface PositionDecision {
@@ -370,6 +372,9 @@ export async function requestOpenDecisions(opts: {
 	}
 }
 
+/** Threshold after which OOR-right duration is considered "lama" and LLM should lean to CLOSE. */
+export const OOR_DURATION_THRESHOLD_HOURS = 0.5;
+
 export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 	const table = positions
 		.map((p) => {
@@ -377,7 +382,11 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 				p.distancePct != null
 					? ` distance=${p.distancePct > 0 ? `+${p.distancePct.toFixed(1)}%` : `${p.distancePct.toFixed(1)}%`} (${p.poolActivePrice != null && Number(p.maxPrice) !== 0 ? (Number(p.poolActivePrice) / Number(p.maxPrice)).toFixed(2) : "?"}x maxPrice)`
 					: "";
-			return `- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${distance}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`;
+			const oorDur =
+				p.oorDurationHours != null
+					? ` oorDurationHours=${p.oorDurationHours.toFixed(1)}`
+					: "";
+			return `- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${distance}${oorDur}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`;
 		})
 		.join("\n");
 	return [
@@ -391,8 +400,9 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 		"- Posisi yang masih baru (<6h) dan jarak dekat (<10% dari range) dapat di-HOLD karena harga masih mungkin kembali.",
 		"- Pertimbangkan positionAgeHours dan feePerTvl24h. Posisi lama yang sudah lama OOR dan fee rendah lebih layak ditutup. Sebut distance, pnlPct, dan ageHours di rationale.",
 		"- openSignals adalah snapshot sinyal saat posisi dibuka dan hanya digunakan sebagai konteks.",
+		`- oorDurationHours = lama posisi OOR ke kanan secara kontinu (reset 0 saat balik in-range). Jika oorDurationHours > ${OOR_DURATION_THRESHOLD_HOURS}h, posisi sudah lama idle di kanan — sangat disarankan CLOSE agar modal tidak nganggur, kecuali ada alasan kuat untuk hold. Sebut oorDurationHours di rationale saat >${OOR_DURATION_THRESHOLD_HOURS}h.`,
 		"",
-		'Balas JSON array polos, tanpa markdown: [{"pool":"<id pool persis>","action":"hold|close","rationale":"1 kalimat spesifik, sebut angka (mis. distance +108% 2.08x maxPrice, pnlPct=-8%, ageHours=50)"}]',
+		`Balas JSON array polos, tanpa markdown: [{"pool":"<id pool persis>","action":"hold|close","rationale":"1 kalimat spesifik, sebut angka (mis. distance +108% 2.08x maxPrice, pnlPct=-8%, ageHours=50, oorDurationHours=${OOR_DURATION_THRESHOLD_HOURS + 2})"}]`,
 		"",
 		"Positions:",
 		table,
