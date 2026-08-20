@@ -1,5 +1,8 @@
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
-import type { PerfRecord, SignalName } from "../telegram/agent/signalWeights.js";
+import type {
+	PerfRecord,
+	SignalName,
+} from "../telegram/agent/signalWeights.js";
 import { computeLift, SIGNAL_NAMES } from "../telegram/agent/signalWeights.js";
 import type { LlmStatus } from "../telegram/agent/state.js";
 

@@ -1,6 +1,4 @@
 import { describe, expect, it } from "vitest";
-import type { AgentJournalEntry } from "../src/telegram/agent/journal.js";
-import type { PerfRecord } from "../src/telegram/agent/signalWeights.js";
 import {
 	buildAnalytics,
 	cumulativePnl,
@@ -11,6 +9,8 @@ import {
 	parseRange,
 	pnlDistribution,
 } from "../src/shared/agent-analytics.js";
+import type { AgentJournalEntry } from "../src/telegram/agent/journal.js";
+import type { PerfRecord } from "../src/telegram/agent/signalWeights.js";
 
 const entry = (
 	ts: string,
@@ -34,9 +34,39 @@ describe("operationalPerCycle", () => {
 	it("counts actions and computes successRate", () => {
 		const entries: AgentJournalEntry[] = [
 			entry("2026-08-19T10:00:00.000Z", 10, [
-				{ pool: "A", poolName: "SOL/USDC", heuristicScore: 0.9, rationale: "ok", action: "open", guardrail: "pass", blockedReason: null, execution: "ok", txSignature: "sig1" },
-				{ pool: "B", poolName: "", heuristicScore: 0.1, rationale: null, action: "hold", guardrail: "pass", blockedReason: null, execution: null, txSignature: null },
-				{ pool: "C", poolName: "", heuristicScore: 0.5, rationale: null, action: "open", guardrail: "blocked", blockedReason: "rug", execution: null, txSignature: null },
+				{
+					pool: "A",
+					poolName: "SOL/USDC",
+					heuristicScore: 0.9,
+					rationale: "ok",
+					action: "open",
+					guardrail: "pass",
+					blockedReason: null,
+					execution: "ok",
+					txSignature: "sig1",
+				},
+				{
+					pool: "B",
+					poolName: "",
+					heuristicScore: 0.1,
+					rationale: null,
+					action: "hold",
+					guardrail: "pass",
+					blockedReason: null,
+					execution: null,
+					txSignature: null,
+				},
+				{
+					pool: "C",
+					poolName: "",
+					heuristicScore: 0.5,
+					rationale: null,
+					action: "open",
+					guardrail: "blocked",
+					blockedReason: "rug",
+					execution: null,
+					txSignature: null,
+				},
 			]),
 		];
 		const res = operationalPerCycle(entries);
@@ -49,7 +79,17 @@ describe("operationalPerCycle", () => {
 	it("caps at 100 cycles", () => {
 		const entries = Array.from({ length: 150 }, (_, i) =>
 			entry(`2026-08-19T10:00:00.00${i % 10}Z`, i, [
-				{ pool: "A", poolName: "", heuristicScore: 1, rationale: null, action: "open", guardrail: "pass", blockedReason: null, execution: "ok", txSignature: "s" },
+				{
+					pool: "A",
+					poolName: "",
+					heuristicScore: 1,
+					rationale: null,
+					action: "open",
+					guardrail: "pass",
+					blockedReason: null,
+					execution: "ok",
+					txSignature: "s",
+				},
 			]),
 		);
 		expect(operationalPerCycle(entries)).toHaveLength(100);
@@ -59,9 +99,48 @@ describe("operationalPerCycle", () => {
 describe("operationalDaily", () => {
 	it("groups by date and averages rates", () => {
 		const perCycle = [
-			{ cycle: 1, ts: "2026-08-18T10:00:00Z", date: "2026-08-18", opens: 1, holds: 1, blocked: 0, failed: 0, tp: 0, sl: 0, closes: 0, llmStatus: "ok" as const, successRate: 50 },
-			{ cycle: 2, ts: "2026-08-18T15:00:00Z", date: "2026-08-18", opens: 2, holds: 0, blocked: 1, failed: 0, tp: 0, sl: 0, closes: 0, llmStatus: "failed" as const, successRate: 100 },
-			{ cycle: 3, ts: "2026-08-19T10:00:00Z", date: "2026-08-19", opens: 0, holds: 2, blocked: 0, failed: 1, tp: 0, sl: 0, closes: 0, llmStatus: "ok" as const, successRate: 0 },
+			{
+				cycle: 1,
+				ts: "2026-08-18T10:00:00Z",
+				date: "2026-08-18",
+				opens: 1,
+				holds: 1,
+				blocked: 0,
+				failed: 0,
+				tp: 0,
+				sl: 0,
+				closes: 0,
+				llmStatus: "ok" as const,
+				successRate: 50,
+			},
+			{
+				cycle: 2,
+				ts: "2026-08-18T15:00:00Z",
+				date: "2026-08-18",
+				opens: 2,
+				holds: 0,
+				blocked: 1,
+				failed: 0,
+				tp: 0,
+				sl: 0,
+				closes: 0,
+				llmStatus: "failed" as const,
+				successRate: 100,
+			},
+			{
+				cycle: 3,
+				ts: "2026-08-19T10:00:00Z",
+				date: "2026-08-19",
+				opens: 0,
+				holds: 2,
+				blocked: 0,
+				failed: 1,
+				tp: 0,
+				sl: 0,
+				closes: 0,
+				llmStatus: "ok" as const,
+				successRate: 0,
+			},
 		];
 		const daily = operationalDaily(perCycle);
 		expect(daily).toHaveLength(2);
@@ -120,8 +199,30 @@ describe("financialBuckets", () => {
 describe("cumulativePnl", () => {
 	it("computes running sum", () => {
 		const buckets = [
-			{ label: "a", date: "d1", closes: 1, wins: 1, losses: 0, winRate: 100, avgPnl: 5, totalPnl: 5, best: 5, worst: 5 },
-			{ label: "b", date: "d2", closes: 1, wins: 0, losses: 1, winRate: 0, avgPnl: -2, totalPnl: -2, best: -2, worst: -2 },
+			{
+				label: "a",
+				date: "d1",
+				closes: 1,
+				wins: 1,
+				losses: 0,
+				winRate: 100,
+				avgPnl: 5,
+				totalPnl: 5,
+				best: 5,
+				worst: 5,
+			},
+			{
+				label: "b",
+				date: "d2",
+				closes: 1,
+				wins: 0,
+				losses: 1,
+				winRate: 0,
+				avgPnl: -2,
+				totalPnl: -2,
+				best: -2,
+				worst: -2,
+			},
 		];
 		const cum = cumulativePnl(buckets);
 		expect(cum[0].cumPnl).toBe(5);
@@ -148,7 +249,13 @@ describe("pnlDistribution", () => {
 
 describe("buildAnalytics", () => {
 	it("returns empty payload for empty inputs", () => {
-		const a = buildAnalytics({ journal: [], perf: [], weights: {} as never, range: "30d", nowMs: Date.now() });
+		const a = buildAnalytics({
+			journal: [],
+			perf: [],
+			weights: {} as never,
+			range: "30d",
+			nowMs: Date.now(),
+		});
 		expect(a.operational.perCycle).toEqual([]);
 		expect(a.financial.distribution).toHaveLength(8);
 		expect(a.signals.lifts).toEqual([]);
@@ -158,12 +265,26 @@ describe("buildAnalytics", () => {
 		const now = Date.parse("2026-08-20T00:00:00Z");
 		const perf: PerfRecord[] = [];
 		for (let i = 0; i < 12; i++) {
-			perf.push({ closedAt: new Date(now - i * 86_400_000).toISOString(), pnlPct: 5, signals: { organicScore: 90 } as never });
+			perf.push({
+				closedAt: new Date(now - i * 86_400_000).toISOString(),
+				pnlPct: 5,
+				signals: { organicScore: 90 } as never,
+			});
 		}
 		for (let i = 0; i < 12; i++) {
-			perf.push({ closedAt: new Date(now - (12 + i) * 86_400_000).toISOString(), pnlPct: -5, signals: { organicScore: 30 } as never });
+			perf.push({
+				closedAt: new Date(now - (12 + i) * 86_400_000).toISOString(),
+				pnlPct: -5,
+				signals: { organicScore: 30 } as never,
+			});
 		}
-		const a = buildAnalytics({ journal: [], perf, weights: {} as never, range: "all", nowMs: now });
+		const a = buildAnalytics({
+			journal: [],
+			perf,
+			weights: {} as never,
+			range: "all",
+			nowMs: now,
+		});
 		expect(a.signals.perfCount).toBe(24);
 		expect(a.signals.lifts.length).toBeGreaterThan(0);
 		expect(a.signals.lifts[0].signal).toBe("organicScore");

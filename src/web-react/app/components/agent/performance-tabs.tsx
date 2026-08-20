@@ -109,6 +109,7 @@ export function PerformanceTabs({
 			</CardContent>
 			<CycleDetailSheet
 				cycle={selected}
+				points={analytics.operational.perCycle}
 				onOpenChange={(open) => {
 					if (!open) setSelected(null);
 				}}
