@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { repoPath } from "../paths.js";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
+import { repoPath } from "../paths.js";
 import type { ResolvedAgentLlm } from "../services/Config.js";
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
 import { loadSignalWeights } from "../telegram/agent/signalWeights.js";

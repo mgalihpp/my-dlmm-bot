@@ -1,6 +1,6 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { repoPath } from "../../paths.js";
 import type { ScreenedPool } from "../../domain/screened.js";
+import { repoPath } from "../../paths.js";
 import type { ResolvedAgentDarwin } from "../../services/Config.js";
 
 export type SignalName =

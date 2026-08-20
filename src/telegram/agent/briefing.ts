@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { repoPath } from "../../paths.js";
 import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
 import { generateText } from "ai";
 import type { Bot } from "grammy";
+import { repoPath } from "../../paths.js";
 import type { ResolvedAgentConfig } from "../../services/Config.js";
 import { escapeMarkdown, tgBold, tgPct, tgSolAmt } from "../format.js";
 import { api, resolveWallet, screenPools } from "../fx.js";
