@@ -139,24 +139,22 @@ export function PortfolioPage() {
 					refreshing={state === "loading"}
 				/>
 
-				{/* Critical: stat cards render instantly; only total PnL streams */}
+				{/* Critical: stat cards render instantly; only total PnL streams — fallback identical so no flash */}
 				<Suspense
 					fallback={
-						<div className="opacity-60">
-							<StatCards
-								summary={critical.summary}
-								total={{
-									totalPnlUsd: "-",
-									totalPnlSol: "-",
-									totalPnlPctChange: "-",
-									totalPnlSolPctChange: "-",
-								}}
-								history={critical.history}
-								currency={currency}
-								rangeFilter={rangeFilter}
-								onRangeFilterChange={setRangeFilter}
-							/>
-						</div>
+						<StatCards
+							summary={critical.summary}
+							total={{
+								totalPnlUsd: "-",
+								totalPnlSol: "-",
+								totalPnlPctChange: "-",
+								totalPnlSolPctChange: "-",
+							}}
+							history={critical.history}
+							currency={currency}
+							rangeFilter={rangeFilter}
+							onRangeFilterChange={setRangeFilter}
+						/>
 					}
 				>
 					<Await
