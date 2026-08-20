@@ -32,10 +32,15 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		return new Response("blocked host", { status: 400 });
 	}
 
-	const upstream = await fetch(parsed.toString(), {
-		// Don't forward cookies/auth; small timeout via AbortSignal if available
-		headers: { accept: "image/*,*/*;q=0.8" },
-	});
+	let upstream: Response;
+	try {
+		upstream = await fetch(parsed.toString(), {
+			headers: { accept: "image/*,*/*;q=0.8" },
+			signal: AbortSignal.timeout(4000),
+		});
+	} catch {
+		return new Response("upstream timeout", { status: 504 });
+	}
 	if (!upstream.ok || !upstream.body) {
 		return new Response("upstream error", { status: upstream.status || 502 });
 	}
