@@ -52,7 +52,7 @@ export function PerformanceTabs({
 	};
 
 	return (
-		<Card className="mx-4 lg:mx-6">
+		<Card>
 			<CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
 				<div>
 					<CardTitle>Performance Analytics</CardTitle>

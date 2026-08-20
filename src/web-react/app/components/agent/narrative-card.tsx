@@ -10,7 +10,7 @@ export function NarrativeCard({
 	stats: AgentStats;
 }) {
 	return (
-		<Card className="mx-4 h-full lg:mx-6">
+		<Card className="h-full">
 			<CardHeader>
 				<div>
 					<CardTitle>Decision context</CardTitle>
