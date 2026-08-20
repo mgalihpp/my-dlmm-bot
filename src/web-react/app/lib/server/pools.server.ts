@@ -66,13 +66,16 @@ export interface PoolsCritical extends PoolsPayload {
 	readonly pools: readonly import("@vexis/domain/index.js").ScreenedPool[];
 }
 
-export function fetchPoolsCritical(rawTimeframe: string | null): Promise<PoolsPayload> {
+export function fetchPoolsCritical(
+	rawTimeframe: string | null,
+): Promise<PoolsPayload> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const current = yield* config.get;
 		const configured = current.pools?.timeframe ?? "30m";
 		const timeframe =
-			rawTimeframe !== null && (TIMEFRAMES as readonly string[]).includes(rawTimeframe)
+			rawTimeframe !== null &&
+			(TIMEFRAMES as readonly string[]).includes(rawTimeframe)
 				? rawTimeframe
 				: configured;
 		const screening = yield* Screening;

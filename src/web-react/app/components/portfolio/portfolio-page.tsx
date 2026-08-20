@@ -23,12 +23,12 @@ import type {
 	PortfolioCritical,
 	PortfolioDeferred,
 } from "~/lib/server/portfolio.server";
-import { StatCards } from "./stat-cards";
 import { PortfolioHeader } from "./portfolio-header";
 import {
 	ClosedTableSkeleton,
 	PositionsTableSkeleton,
 } from "./portfolio-table-skeletons";
+import { StatCards } from "./stat-cards";
 
 const EquityChart = lazy(() =>
 	import("./equity-chart").then((m) => ({ default: m.EquityChart })),
@@ -190,7 +190,9 @@ export function PortfolioPage() {
 
 				<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @4xl/main:grid-cols-3">
 					<div className="@4xl/main:col-span-2">
-						<Suspense fallback={<ChartCardSkeleton blockClassName="h-64 w-full" />}>
+						<Suspense
+							fallback={<ChartCardSkeleton blockClassName="h-64 w-full" />}
+						>
 							<EquityChart history={critical.history} currency={currency} />
 						</Suspense>
 					</div>
@@ -208,7 +210,10 @@ export function PortfolioPage() {
 					<Await
 						resolve={deferred}
 						errorElement={
-							<LoadErrorCard title="Failed to load positions" error="Deferred load failed" />
+							<LoadErrorCard
+								title="Failed to load positions"
+								error="Deferred load failed"
+							/>
 						}
 					>
 						{(d: PortfolioDeferred) => (

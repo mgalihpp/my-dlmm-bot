@@ -1,6 +1,11 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import { Suspense, useEffect, useState } from "react";
-import { Await, useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import {
+	Await,
+	useLoaderData,
+	useRevalidator,
+	useSearchParams,
+} from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
@@ -21,8 +26,12 @@ type LoaderData =
 export function PoolsPage() {
 	const data = useLoaderData<LoaderData>();
 	const isDeferred = "critical" in data;
-	const payload = isDeferred ? (data as { critical: PoolsPayload }).critical : (data as PoolsPayload);
-	const deferred = isDeferred ? (data as { deferred: Promise<readonly ScreenedPool[]> }).deferred : null;
+	const payload = isDeferred
+		? (data as { critical: PoolsPayload }).critical
+		: (data as PoolsPayload);
+	const deferred = isDeferred
+		? (data as { deferred: Promise<readonly ScreenedPool[]> }).deferred
+		: null;
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();

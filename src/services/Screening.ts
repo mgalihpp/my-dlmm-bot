@@ -23,7 +23,9 @@ export interface ScreeningService {
 		MeteoraApiError | DecodeError,
 		Jupiter | RugCheck
 	>;
-	readonly enrichPools: (pools: readonly import("../domain/screened.js").ScreenedPool[]) => Effect.Effect<void, never, Jupiter | RugCheck>;
+	readonly enrichPools: (
+		pools: readonly import("../domain/screened.js").ScreenedPool[],
+	) => Effect.Effect<void, never, Jupiter | RugCheck>;
 }
 
 export class Screening extends Context.Tag("Screening")<
@@ -37,28 +39,31 @@ const make = Effect.gen(function* () {
 	const rugcheck = yield* RugCheck;
 	const jupiter = yield* Jupiter;
 
-	const enrichPools = (pools: readonly import("../domain/screened.js").ScreenedPool[]) =>
+	const enrichPools = (
+		pools: readonly import("../domain/screened.js").ScreenedPool[],
+	) =>
 		Effect.forEach(
 			pools,
 			(pool) =>
 				Effect.all(
 					[
-						api
-							.poolOhlcv(pool.pool, { timeframe: "24h" })
-							.pipe(
-								Effect.map((res) => {
-									const high = res.data.reduce((max, c) => Math.max(max, c.high), 0);
-									if (high > 0) {
-										const pctFromAth = 1 - pool.price / high;
-										(pool as { fromAthPct: number }).fromAthPct = pctFromAth;
-										(pool as { priceVsAthPct: number }).priceVsAthPct = (pool.price / high) * 100;
-									}
-									(pool as { priceSeries: number[] | null }).priceSeries = res.data
-										.map((c) => c.close)
-										.slice(-48);
-								}),
-								Effect.catchAll(() => Effect.succeed(void 0)),
-							),
+						api.poolOhlcv(pool.pool, { timeframe: "24h" }).pipe(
+							Effect.map((res) => {
+								const high = res.data.reduce(
+									(max, c) => Math.max(max, c.high),
+									0,
+								);
+								if (high > 0) {
+									const pctFromAth = 1 - pool.price / high;
+									(pool as { fromAthPct: number }).fromAthPct = pctFromAth;
+									(pool as { priceVsAthPct: number }).priceVsAthPct =
+										(pool.price / high) * 100;
+								}
+								(pool as { priceSeries: number[] | null }).priceSeries =
+									res.data.map((c) => c.close).slice(-48);
+							}),
+							Effect.catchAll(() => Effect.succeed(void 0)),
+						),
 						Effect.gen(function* () {
 							const mint = pool.baseMint;
 							if (!mint) return;
@@ -93,10 +98,17 @@ const make = Effect.gen(function* () {
 							poolMut.rugScore = s?.score ?? null;
 							poolMut.lpLockedPct = s?.lpLockedPct ?? null;
 							poolMut.isRugpull =
-								s?.risks?.some((r) => r.name.includes("Liquidity Removal") && r.level === "danger") ?? null;
-							poolMut.isWash = s?.risks?.some((r) => /wash/i.test(r.name)) ?? null;
+								s?.risks?.some(
+									(r) =>
+										r.name.includes("Liquidity Removal") &&
+										r.level === "danger",
+								) ?? null;
+							poolMut.isWash =
+								s?.risks?.some((r) => /wash/i.test(r.name)) ?? null;
 							poolMut.devSoldAll =
-								s?.risks?.some((r) => /dev.*sold/i.test(r.name) && r.level === "danger") ?? null;
+								s?.risks?.some(
+									(r) => /dev.*sold/i.test(r.name) && r.level === "danger",
+								) ?? null;
 						}).pipe(Effect.catchAll(() => Effect.succeed(void 0))),
 					],
 					{ concurrency: 2, discard: true },

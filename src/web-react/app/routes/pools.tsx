@@ -1,5 +1,8 @@
 import { PoolsPage } from "~/components/pools/pools-page";
-import { fetchPoolsCritical, fetchPoolsDeferred } from "~/lib/server/pools.server";
+import {
+	fetchPoolsCritical,
+	fetchPoolsDeferred,
+} from "~/lib/server/pools.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/pools";
 
