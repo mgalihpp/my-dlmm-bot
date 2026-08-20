@@ -1,10 +1,7 @@
 import type { AgentJournalEntry } from "../telegram/agent/journal.js";
-import type {
-	LlmStatus,
-	PerfRecord,
-	SignalName,
-} from "../telegram/agent/signalWeights.js";
+import type { PerfRecord, SignalName } from "../telegram/agent/signalWeights.js";
 import { computeLift, SIGNAL_NAMES } from "../telegram/agent/signalWeights.js";
+import type { LlmStatus } from "../telegram/agent/state.js";
 
 export type AnalyticsRange = "7d" | "30d" | "90d" | "all";
 
@@ -16,6 +13,17 @@ export function parseRange(raw: string | null | undefined): AnalyticsRange {
 		(RANGES as readonly string[]).includes(raw)
 		? (raw as AnalyticsRange)
 		: "30d";
+}
+
+export interface OperationalCandidate {
+	readonly pool: string;
+	readonly poolName: string;
+	readonly action: "open" | "hold" | "tp" | "sl" | "close";
+	readonly guardrail: "pass" | "blocked";
+	readonly blockedReason: string | null;
+	readonly execution: "ok" | "failed" | null;
+	readonly txSignature: string | null;
+	readonly rationale: string | null;
 }
 
 export interface OperationalPoint {
@@ -31,6 +39,7 @@ export interface OperationalPoint {
 	readonly closes: number;
 	readonly llmStatus: LlmStatus;
 	readonly successRate: number;
+	readonly candidates: readonly OperationalCandidate[];
 }
 
 export interface OperationalDaily {
@@ -111,7 +120,8 @@ function getMonday(d: Date): Date {
 
 function weekLabel(monday: Date): string {
 	const month = monday.toLocaleString("en-US", { month: "short" });
-	return `W${monday.toLocaleString("en-US", { week: "numeric" })} ${month}`;
+	const day = monday.toLocaleString("en-US", { day: "2-digit" });
+	return `Wk ${month} ${day}`;
 }
 
 export function operationalPerCycle(
@@ -163,6 +173,16 @@ export function operationalPerCycle(
 			closes,
 			llmStatus: e.llmStatus,
 			successRate,
+			candidates: e.candidates.map((c) => ({
+				pool: c.pool,
+				poolName: c.poolName,
+				action: c.action,
+				guardrail: c.guardrail,
+				blockedReason: c.blockedReason,
+				execution: c.execution,
+				txSignature: c.txSignature,
+				rationale: c.rationale,
+			})),
 		});
 	}
 	return out.slice(-MAX_CYCLES);

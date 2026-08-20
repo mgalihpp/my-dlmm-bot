@@ -2,22 +2,13 @@ import type {
 	JournalFilter,
 	TimelineGroup,
 } from "@vexis/shared/agent-journal.js";
-import type { JournalCandidate } from "@vexis/telegram/agent/journal.js";
-import {
-	ChevronLeftIcon,
-	ChevronRightIcon,
-	ExternalLinkIcon,
-} from "lucide-react";
+import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "~/components/ui/tooltip";
-import { shortAddr, solscanUrl, tsLocal } from "~/lib/format";
+import { tsLocal } from "~/lib/format";
+import { CandidateRow } from "./candidate-row";
 
 const FILTER_TABS: { value: JournalFilter; label: string }[] = [
 	{ value: "all", label: "All" },
@@ -30,70 +21,6 @@ const FILTER_TABS: { value: JournalFilter; label: string }[] = [
 ];
 
 const PAGE_SIZE = 20;
-
-function actionVariant(
-	action: JournalCandidate["action"],
-): "default" | "secondary" | "destructive" | "outline" {
-	switch (action) {
-		case "open":
-			return "default";
-		case "hold":
-			return "outline";
-		case "tp":
-			return "secondary";
-		case "sl":
-			return "destructive";
-		case "close":
-			return "secondary";
-	}
-}
-
-function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
-	const blocked = candidate.guardrail === "blocked";
-	return (
-		<div className="flex flex-col gap-1 py-2 pl-2">
-			<div className="flex flex-wrap items-center gap-1.5">
-				<span className="font-medium text-sm">
-					{candidate.poolName || candidate.pool}
-				</span>
-				<Badge variant={actionVariant(candidate.action)}>
-					{candidate.action}
-				</Badge>
-				<Badge variant={blocked ? "destructive" : "outline"}>
-					{blocked ? "BLOCKED" : "PASS"}
-				</Badge>
-				{candidate.execution === "failed" ? (
-					<Badge variant="destructive">FAILED</Badge>
-				) : candidate.execution === "ok" && candidate.txSignature ? (
-					<a
-						href={solscanUrl(candidate.txSignature)}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="inline-flex items-center gap-0.5 font-mono text-xs text-muted-foreground hover:text-foreground hover:underline"
-					>
-						{shortAddr(candidate.txSignature)}
-						<ExternalLinkIcon className="size-3" />
-					</a>
-				) : null}
-			</div>
-			{candidate.rationale ? (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<p className="line-clamp-1 cursor-help text-xs text-muted-foreground">
-							{candidate.rationale}
-						</p>
-					</TooltipTrigger>
-					<TooltipContent className="max-w-sm">
-						{candidate.rationale}
-					</TooltipContent>
-				</Tooltip>
-			) : null}
-			{candidate.blockedReason ? (
-				<p className="text-xs text-destructive">{candidate.blockedReason}</p>
-			) : null}
-		</div>
-	);
-}
 
 export function DecisionJournal({
 	filter,
