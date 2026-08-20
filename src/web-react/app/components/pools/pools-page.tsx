@@ -34,22 +34,28 @@ export function PoolsPage() {
 	}, []);
 
 	const onTimeframeChange = (value: string) =>
-		setSearchParams((current) => {
-			const next = new URLSearchParams(current);
-			if (value === data.timeframe) next.delete("timeframe");
-			else next.set("timeframe", value);
-			return next;
-		});
+		setSearchParams(
+			(current) => {
+				const next = new URLSearchParams(current);
+				if (value === data.timeframe) next.delete("timeframe");
+				else next.set("timeframe", value);
+				return next;
+			},
+			{ preventScrollReset: true },
+		);
 	const onCurrencyChange = (value: string) => {
 		const currency = value as "usd" | "sol";
 		writeStoredCurrency(window.localStorage, currency);
 		setStoredCurrency(currency);
-		setSearchParams((current) => {
-			const next = new URLSearchParams(current);
-			if (value === "usd") next.delete("currency");
-			else next.set("currency", value);
-			return next;
-		});
+		setSearchParams(
+			(current) => {
+				const next = new URLSearchParams(current);
+				if (value === "usd") next.delete("currency");
+				else next.set("currency", value);
+				return next;
+			},
+			{ preventScrollReset: true },
+		);
 	};
 
 	return (

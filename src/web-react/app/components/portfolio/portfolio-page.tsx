@@ -30,18 +30,29 @@ export function PortfolioPage() {
 		(v: Currency) => {
 			writeStoredCurrency(window.localStorage, v);
 			setStoredCurrency(v);
-			setSearchParams((current) => {
-				const next = new URLSearchParams(current);
-				if (v === "usd") next.delete("currency");
-				else next.set("currency", v);
-				return next;
-			});
+			setSearchParams(
+				(current) => {
+					const next = new URLSearchParams(current);
+					if (v === "usd") next.delete("currency");
+					else next.set("currency", v);
+					return next;
+				},
+				{ preventScrollReset: true },
+			);
 		},
 		[setSearchParams],
 	);
 	const onClosedPageChange = useCallback(
 		(next: number) =>
-			setSearchParams(next > 1 ? { closedPage: String(next) } : {}),
+			setSearchParams(
+				(current) => {
+					const sp = new URLSearchParams(current);
+					if (next > 1) sp.set("closedPage", String(next));
+					else sp.delete("closedPage");
+					return sp;
+				},
+				{ preventScrollReset: true },
+			),
 		[setSearchParams],
 	);
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");

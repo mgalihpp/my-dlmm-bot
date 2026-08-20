@@ -13,12 +13,14 @@ export function AgentPage() {
 	const isNavigating = useIsNavigating();
 
 	const onFilterChange = (value: string) =>
-		setSearchParams(value === "all" ? {} : { action: value });
+		setSearchParams(value === "all" ? {} : { action: value }, {
+			preventScrollReset: true,
+		});
 	const onPageChange = (next: number) => {
 		const params: Record<string, string> = {};
 		if (data.filter && data.filter !== "all") params.action = data.filter;
 		if (next > 1) params.page = String(next);
-		setSearchParams(params);
+		setSearchParams(params, { preventScrollReset: true });
 	};
 
 	return (
