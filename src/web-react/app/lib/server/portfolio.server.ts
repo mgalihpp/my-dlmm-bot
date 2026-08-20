@@ -349,10 +349,9 @@ export function fetchPortfolioDeferred(
 			const createdAt = new Map(
 				(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
 			);
-			if ((pool as { positionsLive?: Array<{ address: string; createdAt?: number | null }> }).positionsLive) {
-				for (const pos of (
-					pool as { positionsLive: Array<{ address: string; createdAt?: number | null }> }
-				).positionsLive) {
+			const liveArr = (pool as unknown as { positionsLive?: Array<{ address: string; createdAt?: number | null }> }).positionsLive;
+			if (liveArr) {
+				for (const pos of liveArr) {
 					Object.assign(pos, { createdAt: createdAt.get(pos.address) ?? null });
 				}
 			}
