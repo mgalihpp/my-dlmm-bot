@@ -2,7 +2,7 @@ import type {
 	AnalyticsPayload,
 	AnalyticsRange,
 } from "@vexis/shared/agent-analytics.js";
-import { lazy, Suspense, useState } from "react";
+import { lazy, memo, Suspense, useCallback, useState } from "react";
 import { useSearchParams } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -31,7 +31,7 @@ const RANGE_ITEMS: { value: AnalyticsRange; label: string }[] = [
 	{ value: "all", label: "All" },
 ];
 
-export function PerformanceTabs({
+export const PerformanceTabs = memo(function PerformanceTabs({
 	analytics,
 	range,
 }: {
@@ -41,15 +41,30 @@ export function PerformanceTabs({
 	const [, setSearchParams] = useSearchParams();
 	const [selected, setSelected] = useState<number | null>(null);
 
-	const onRangeChange = (value: string) => {
-		if (!value) return;
-		const params = new URLSearchParams(window.location.search);
-		if (value === "30d") params.delete("range");
-		else params.set("range", value);
-		setSearchParams(Object.fromEntries(params.entries()), {
-			preventScrollReset: true,
-		});
-	};
+	// rerender-defer-reads + rerender-functional-setstate: stable callback, functional updater
+	const onRangeChange = useCallback(
+		(value: string) => {
+			if (!value) return;
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (value === "30d") next.delete("range");
+					else next.set("range", value);
+					return next;
+				},
+				{ preventScrollReset: true },
+			);
+		},
+		[setSearchParams],
+	);
+
+	const handleCycleClick = useCallback(
+		(cycle: number) => setSelected(cycle),
+		[],
+	);
+	const handleSheetOpenChange = useCallback((open: boolean) => {
+		if (!open) setSelected(null);
+	}, []);
 
 	return (
 		<Card>
@@ -87,7 +102,7 @@ export function PerformanceTabs({
 						>
 							<OperationalCharts
 								data={analytics.operational}
-								onCycleClick={setSelected}
+								onCycleClick={handleCycleClick}
 							/>
 						</Suspense>
 					</TabsContent>
@@ -110,10 +125,8 @@ export function PerformanceTabs({
 			<CycleDetailSheet
 				cycle={selected}
 				points={analytics.operational.perCycle}
-				onOpenChange={(open) => {
-					if (!open) setSelected(null);
-				}}
+				onOpenChange={handleSheetOpenChange}
 			/>
 		</Card>
 	);
-}
+});

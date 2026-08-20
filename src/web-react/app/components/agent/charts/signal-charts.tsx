@@ -1,5 +1,6 @@
 import type { AnalyticsPayload } from "@vexis/shared/agent-analytics.js";
 import type { SignalName } from "@vexis/telegram/agent/signalWeights.js";
+import { memo, useMemo } from "react";
 import {
 	Bar,
 	BarChart,
@@ -31,15 +32,22 @@ function weightBadge(v: number): string {
 	return "neutral";
 }
 
-export function SignalCharts({ data }: { data: AnalyticsPayload["signals"] }) {
-	const weightsEntries = (
-		Object.entries(data.weights) as [SignalName, number][]
-	)
-		.map(([signal, weight]) => ({ signal, weight }))
-		.sort((a, b) => b.weight - a.weight);
+export const SignalCharts = memo(function SignalCharts({
+	data,
+}: {
+	data: AnalyticsPayload["signals"];
+}) {
+	// rerender-memo + js-cache-function-results: memoize derived arrays
+	const weightsEntries = useMemo(
+		() =>
+			(Object.entries(data.weights) as [SignalName, number][])
+				.map(([signal, weight]) => ({ signal, weight }))
+				.sort((a, b) => b.weight - a.weight),
+		[data.weights],
+	);
 
 	const learning = data.perfCount < data.minSamples;
-	const lifts = [...data.lifts].reverse();
+	const lifts = useMemo(() => [...data.lifts].reverse(), [data.lifts]);
 
 	return (
 		<div className="grid grid-cols-1 gap-4 @4xl/main:grid-cols-2">
@@ -168,4 +176,4 @@ export function SignalCharts({ data }: { data: AnalyticsPayload["signals"] }) {
 			</Card>
 		</div>
 	);
-}
+});

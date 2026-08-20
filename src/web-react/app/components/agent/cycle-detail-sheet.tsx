@@ -1,4 +1,5 @@
 import type { OperationalPoint } from "@vexis/shared/agent-analytics.js";
+import { memo, useMemo } from "react";
 import { Badge } from "~/components/ui/badge";
 import {
 	Sheet,
@@ -10,7 +11,7 @@ import {
 import { tsLocal } from "~/lib/format";
 import { CandidateRow } from "./candidate-row";
 
-export function CycleDetailSheet({
+export const CycleDetailSheet = memo(function CycleDetailSheet({
 	cycle,
 	points,
 	onOpenChange,
@@ -19,7 +20,12 @@ export function CycleDetailSheet({
 	points: readonly OperationalPoint[];
 	onOpenChange: (open: boolean) => void;
 }) {
-	const entry = cycle == null ? null : points.find((p) => p.cycle === cycle);
+	// rerender-derived-state-no-effect: derive entry during render with memo
+	const entry = useMemo(
+		() =>
+			cycle == null ? null : (points.find((p) => p.cycle === cycle) ?? null),
+		[cycle, points],
+	);
 	const open = cycle != null;
 
 	return (
@@ -69,4 +75,4 @@ export function CycleDetailSheet({
 			</SheetContent>
 		</Sheet>
 	);
-}
+});

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
@@ -12,16 +13,38 @@ export function AgentPage() {
 	const [, setSearchParams] = useSearchParams();
 	const isNavigating = useIsNavigating();
 
-	const onFilterChange = (value: string) =>
-		setSearchParams(value === "all" ? {} : { action: value }, {
-			preventScrollReset: true,
-		});
-	const onPageChange = (next: number) => {
-		const params: Record<string, string> = {};
-		if (data.filter && data.filter !== "all") params.action = data.filter;
-		if (next > 1) params.page = String(next);
-		setSearchParams(params, { preventScrollReset: true });
-	};
+	// rerender-defer-reads + rerender-functional-setstate: use functional
+	// updater so callbacks are stable and don't close over data.filter.
+	const onFilterChange = useCallback(
+		(value: string) => {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (value === "all") next.delete("action");
+					else next.set("action", value);
+					next.delete("page");
+					return next;
+				},
+				{ preventScrollReset: true },
+			);
+		},
+		[setSearchParams],
+	);
+
+	const onPageChange = useCallback(
+		(next: number) => {
+			setSearchParams(
+				(prev) => {
+					const p = new URLSearchParams(prev);
+					if (next > 1) p.set("page", String(next));
+					else p.delete("page");
+					return p;
+				},
+				{ preventScrollReset: true },
+			);
+		},
+		[setSearchParams],
+	);
 
 	return (
 		<DashboardShell title="Agent" wallet={data.wallet} rpc={data.rpc}>

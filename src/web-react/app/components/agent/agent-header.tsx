@@ -1,6 +1,7 @@
+import { memo } from "react";
 import { RefreshButton } from "~/components/dashboard-page-parts";
 
-export function AgentHeader({
+export const AgentHeader = memo(function AgentHeader({
 	onRefresh,
 	refreshing,
 }: {
@@ -13,4 +14,4 @@ export function AgentHeader({
 			<RefreshButton loading={refreshing} onClick={onRefresh} />
 		</div>
 	);
-}
+});

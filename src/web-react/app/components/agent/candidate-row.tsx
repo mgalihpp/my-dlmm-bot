@@ -1,5 +1,6 @@
 import type { JournalCandidate } from "@vexis/telegram/agent/journal.js";
 import { ExternalLinkIcon } from "lucide-react";
+import { memo } from "react";
 import { Badge } from "~/components/ui/badge";
 import {
 	Tooltip,
@@ -37,7 +38,11 @@ export function actionVariant(
 	}
 }
 
-export function CandidateRow({ candidate }: { candidate: CandidateLike }) {
+export const CandidateRow = memo(function CandidateRow({
+	candidate,
+}: {
+	candidate: CandidateLike;
+}) {
 	const blocked = candidate.guardrail === "blocked";
 	return (
 		<div className="flex flex-col gap-1 py-2 pl-2">
@@ -82,4 +87,4 @@ export function CandidateRow({ candidate }: { candidate: CandidateLike }) {
 			) : null}
 		</div>
 	);
-}
+});

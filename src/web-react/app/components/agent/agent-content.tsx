@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { AgentPayload } from "~/lib/server/agent.server";
 import { DecisionJournal } from "./decision-journal";
 import { NarrativeCard } from "./narrative-card";
@@ -5,7 +6,7 @@ import { PerformanceTabs } from "./performance-tabs";
 import { StatCards } from "./stat-cards";
 import { StatusBanner } from "./status-banner";
 
-export function AgentContent({
+export const AgentContent = memo(function AgentContent({
 	data,
 	onFilterChange,
 	onPageChange,
@@ -35,4 +36,4 @@ export function AgentContent({
 			/>
 		</>
 	);
-}
+});

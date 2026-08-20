@@ -3,6 +3,7 @@ import type {
 	TimelineGroup,
 } from "@vexis/shared/agent-journal.js";
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
+import { memo, useCallback, useMemo } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -22,7 +23,7 @@ const FILTER_TABS: { value: JournalFilter; label: string }[] = [
 
 const PAGE_SIZE = 20;
 
-export function DecisionJournal({
+export const DecisionJournal = memo(function DecisionJournal({
 	filter,
 	page,
 	pages,
@@ -39,8 +40,21 @@ export function DecisionJournal({
 	onFilterChange: (f: string) => void;
 	onPageChange: (p: number) => void;
 }) {
-	const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
-	const to = Math.min(page * PAGE_SIZE, total);
+	// rerender-dependencies: keep primitive deps only
+	const from = useMemo(
+		() => (total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1),
+		[total, page],
+	);
+	const to = useMemo(() => Math.min(page * PAGE_SIZE, total), [page, total]);
+
+	const handlePrev = useCallback(
+		() => onPageChange(page - 1),
+		[onPageChange, page],
+	);
+	const handleNext = useCallback(
+		() => onPageChange(page + 1),
+		[onPageChange, page],
+	);
 	return (
 		<Card className="mx-4 lg:mx-6">
 			<CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
@@ -116,7 +130,7 @@ export function DecisionJournal({
 								variant="outline"
 								size="sm"
 								disabled={page <= 1}
-								onClick={() => onPageChange(page - 1)}
+								onClick={handlePrev}
 							>
 								<ChevronLeftIcon />
 								Prev
@@ -128,7 +142,7 @@ export function DecisionJournal({
 								variant="outline"
 								size="sm"
 								disabled={page >= pages}
-								onClick={() => onPageChange(page + 1)}
+								onClick={handleNext}
 							>
 								Next
 								<ChevronRightIcon />
@@ -139,4 +153,4 @@ export function DecisionJournal({
 			</CardContent>
 		</Card>
 	);
-}
+});

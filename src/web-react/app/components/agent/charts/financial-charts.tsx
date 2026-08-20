@@ -1,4 +1,5 @@
 import type { AnalyticsPayload } from "@vexis/shared/agent-analytics.js";
+import { memo } from "react";
 import {
 	Area,
 	AreaChart,
@@ -60,7 +61,7 @@ function pnlColor(v: number): string {
 	return v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
 }
 
-export function FinancialCharts({
+export const FinancialCharts = memo(function FinancialCharts({
 	data,
 }: {
 	data: AnalyticsPayload["financial"];
@@ -83,7 +84,7 @@ export function FinancialCharts({
 						</div>
 					) : (
 						<ChartContainer config={f1Config} className="h-64 w-full">
-							<ComposedChart data={[...data.buckets]}>
+							<ComposedChart data={data.buckets}>
 								<CartesianGrid vertical={false} />
 								<XAxis
 									dataKey="label"
@@ -161,7 +162,7 @@ export function FinancialCharts({
 						<ChartContainer config={f2Config} className="h-64 w-full">
 							<AreaChart
 								accessibilityLayer
-								data={[...data.cumulative]}
+								data={data.cumulative}
 								margin={{ left: 0, right: 10 }}
 							>
 								<CartesianGrid vertical={false} />
@@ -211,7 +212,7 @@ export function FinancialCharts({
 					<ChartContainer config={f3Config} className="h-64 w-full">
 						<BarChart
 							layout="vertical"
-							data={[...data.distribution]}
+							data={data.distribution}
 							margin={{ left: 8, right: 12 }}
 						>
 							<CartesianGrid horizontal={false} />
@@ -239,4 +240,4 @@ export function FinancialCharts({
 			</Card>
 		</div>
 	);
-}
+});

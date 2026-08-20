@@ -1,4 +1,5 @@
 import type { AnalyticsPayload } from "@vexis/shared/agent-analytics.js";
+import { memo, useCallback } from "react";
 import {
 	Area,
 	AreaChart,
@@ -39,13 +40,24 @@ const o3Config = {
 	successRate: { label: "Success", color: "var(--color-emerald-500)" },
 } satisfies ChartConfig;
 
-export function OperationalCharts({
+export const OperationalCharts = memo(function OperationalCharts({
 	data,
 	onCycleClick,
 }: {
 	data: AnalyticsPayload["operational"];
 	onCycleClick: (cycle: number) => void;
 }) {
+	const handleBarClick = useCallback(
+		(state: unknown) => {
+			const idx = (state as { activeTooltipIndex?: number })
+				?.activeTooltipIndex;
+			if (typeof idx === "number" && data.perCycle[idx]) {
+				onCycleClick(data.perCycle[idx].cycle);
+			}
+		},
+		[data.perCycle, onCycleClick],
+	);
+
 	if (data.perCycle.length === 0) {
 		return (
 			<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
@@ -64,15 +76,7 @@ export function OperationalCharts({
 				</CardHeader>
 				<CardContent>
 					<ChartContainer config={o1Config} className="h-64 w-full">
-						<BarChart
-							data={[...data.perCycle]}
-							onClick={(state) => {
-								const idx = state?.activeTooltipIndex;
-								if (typeof idx === "number" && data.perCycle[idx]) {
-									onCycleClick(data.perCycle[idx].cycle);
-								}
-							}}
-						>
+						<BarChart data={data.perCycle} onClick={handleBarClick}>
 							<CartesianGrid vertical={false} />
 							<XAxis
 								dataKey="cycle"
@@ -111,7 +115,7 @@ export function OperationalCharts({
 				</CardHeader>
 				<CardContent>
 					<ChartContainer config={o2Config} className="h-64 w-full">
-						<LineChart data={[...data.daily]}>
+						<LineChart data={data.daily}>
 							<CartesianGrid vertical={false} />
 							<XAxis
 								dataKey="date"
@@ -163,7 +167,7 @@ export function OperationalCharts({
 				</CardHeader>
 				<CardContent>
 					<ChartContainer config={o3Config} className="h-64 w-full">
-						<AreaChart data={[...data.perCycle]}>
+						<AreaChart data={data.perCycle}>
 							<CartesianGrid vertical={false} />
 							<XAxis
 								dataKey="cycle"
@@ -197,4 +201,4 @@ export function OperationalCharts({
 			</Card>
 		</div>
 	);
-}
+});

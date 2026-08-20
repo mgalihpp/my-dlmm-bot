@@ -1,10 +1,15 @@
+import { memo } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Card, CardContent } from "~/components/ui/card";
 import { tsLocal } from "~/lib/format";
 import type { AgentStateSummary } from "~/lib/server/agent.server";
 import { cn } from "~/lib/utils";
 
-export function StatusBanner({ state }: { state: AgentStateSummary }) {
+export const StatusBanner = memo(function StatusBanner({
+	state,
+}: {
+	state: AgentStateSummary;
+}) {
 	const running = state.running;
 	return (
 		<Card className="mx-4 overflow-hidden lg:mx-6">
@@ -48,4 +53,4 @@ export function StatusBanner({ state }: { state: AgentStateSummary }) {
 			</CardContent>
 		</Card>
 	);
-}
+});

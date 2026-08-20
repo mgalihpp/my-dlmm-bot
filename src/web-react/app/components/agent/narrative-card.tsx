@@ -1,8 +1,9 @@
 import type { AgentStats } from "@vexis/shared/agent-journal.js";
 import type { NarrativeResult } from "@vexis/shared/agent-narrative.js";
+import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 
-export function NarrativeCard({
+export const NarrativeCard = memo(function NarrativeCard({
 	narrative,
 	stats,
 }: {
@@ -30,4 +31,4 @@ export function NarrativeCard({
 			</CardContent>
 		</Card>
 	);
-}
+});
