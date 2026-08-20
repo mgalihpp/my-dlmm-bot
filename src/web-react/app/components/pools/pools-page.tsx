@@ -8,7 +8,6 @@ import {
 } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
 import { PoolsContent } from "~/components/pools/pools-content";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
@@ -34,7 +33,6 @@ export function PoolsPage() {
 		: null;
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const isNavigating = useIsNavigating();
 	const timeframe = searchParams.get("timeframe") ?? payload.timeframe;
 	const [storedCurrency, setStoredCurrency] = useState<"usd" | "sol" | null>(
 		null,
@@ -81,32 +79,42 @@ export function PoolsPage() {
 			rpc={payload.rpc}
 			realtimeMs={60_000}
 		>
-			{isNavigating ? (
-				<PageSkeleton />
-			) : (
-				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-					<PoolsHeader
-						total={payload.total}
-						ok={payload.ok}
-						timeframe={timeframe}
-						currency={currency}
-						onCurrencyChange={onCurrencyChange}
-						onTimeframeChange={onTimeframeChange}
-						onRefresh={revalidate}
-						refreshing={state === "loading"}
-					/>
+			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<PoolsHeader
+					total={payload.total}
+					ok={payload.ok}
+					timeframe={timeframe}
+					currency={currency}
+					onCurrencyChange={onCurrencyChange}
+					onTimeframeChange={onTimeframeChange}
+					onRefresh={revalidate}
+					refreshing={state === "loading"}
+				/>
 
-					{!payload.ok ? (
-						<LoadErrorCard title="Failed to load pools" error={payload.error} />
-					) : payload.pools.length === 0 ? (
-						<Card className="mx-4 lg:mx-6">
-							<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
-								No pools found for the {timeframe} timeframe.
-							</CardContent>
-						</Card>
-					) : deferred ? (
-						<Suspense
-							fallback={
+				{!payload.ok ? (
+					<LoadErrorCard title="Failed to load pools" error={payload.error} />
+				) : payload.pools.length === 0 ? (
+					<Card className="mx-4 lg:mx-6">
+						<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
+							No pools found for the {timeframe} timeframe.
+						</CardContent>
+					</Card>
+				) : deferred ? (
+					<Suspense
+						fallback={
+							<PoolsContent
+								pools={payload.pools}
+								currency={currency}
+								solPrice={payload.solPrice}
+								selectedPool={selectedPool}
+								onSelect={setSelectedPool}
+								onClose={() => setSelectedPool(null)}
+							/>
+						}
+					>
+						<Await
+							resolve={deferred}
+							errorElement={
 								<PoolsContent
 									pools={payload.pools}
 									currency={currency}
@@ -117,43 +125,29 @@ export function PoolsPage() {
 								/>
 							}
 						>
-							<Await
-								resolve={deferred}
-								errorElement={
-									<PoolsContent
-										pools={payload.pools}
-										currency={currency}
-										solPrice={payload.solPrice}
-										selectedPool={selectedPool}
-										onSelect={setSelectedPool}
-										onClose={() => setSelectedPool(null)}
-									/>
-								}
-							>
-								{(enriched: readonly ScreenedPool[]) => (
-									<PoolsContent
-										pools={enriched.length > 0 ? enriched : payload.pools}
-										currency={currency}
-										solPrice={payload.solPrice}
-										selectedPool={selectedPool}
-										onSelect={setSelectedPool}
-										onClose={() => setSelectedPool(null)}
-									/>
-								)}
-							</Await>
-						</Suspense>
-					) : (
-						<PoolsContent
-							pools={payload.pools}
-							currency={currency}
-							solPrice={payload.solPrice}
-							selectedPool={selectedPool}
-							onSelect={setSelectedPool}
-							onClose={() => setSelectedPool(null)}
-						/>
-					)}
-				</div>
-			)}
+							{(enriched: readonly ScreenedPool[]) => (
+								<PoolsContent
+									pools={enriched.length > 0 ? enriched : payload.pools}
+									currency={currency}
+									solPrice={payload.solPrice}
+									selectedPool={selectedPool}
+									onSelect={setSelectedPool}
+									onClose={() => setSelectedPool(null)}
+								/>
+							)}
+						</Await>
+					</Suspense>
+				) : (
+					<PoolsContent
+						pools={payload.pools}
+						currency={currency}
+						solPrice={payload.solPrice}
+						selectedPool={selectedPool}
+						onSelect={setSelectedPool}
+						onClose={() => setSelectedPool(null)}
+					/>
+				)}
+			</div>
 		</DashboardShell>
 	);
 }

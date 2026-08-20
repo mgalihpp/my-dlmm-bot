@@ -10,8 +10,6 @@ import { DashboardShell } from "~/components/dashboard-shell";
 import {
 	ChartCardSkeleton,
 	DonutCardSkeleton,
-	PageSkeleton,
-	useIsNavigating,
 } from "~/components/page-skeletons";
 import {
 	type Currency,
@@ -90,19 +88,10 @@ export function PortfolioPage() {
 		[setSearchParams],
 	);
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
-	const isNavigating = useIsNavigating();
 
 	useEffect(() => {
 		setStoredCurrency(readStoredCurrency(window.localStorage));
 	}, []);
-
-	if (isNavigating) {
-		return (
-			<DashboardShell title="Portfolio" wallet={undefined} rpc={undefined}>
-				<PageSkeleton />
-			</DashboardShell>
-		);
-	}
 
 	if ("ok" in data && data.ok === false) {
 		return (
