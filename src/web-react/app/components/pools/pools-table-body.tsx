@@ -3,6 +3,7 @@ import { CurrencyValue } from "~/components/currency-value";
 import { Badge } from "~/components/ui/badge";
 import { Table, TableBody, TableCell, TableRow } from "~/components/ui/table";
 import { fmtPct, meteoraUrl, pnlClass, shortAddr } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import {
 	type Currency,
 	organicBucket,
@@ -52,10 +53,13 @@ export function PoolsTableBody({
 										<div className="flex h-full w-full items-center justify-center text-xs font-bold">
 											{pool.baseSymbol.slice(0, 2).toUpperCase()}
 										</div>
-										{pool.baseIcon ? (
+										{proxiedIconUrl(pool.baseIcon) ? (
 											<img
-												src={pool.baseIcon}
+												src={proxiedIconUrl(pool.baseIcon) as string}
 												alt={pool.baseSymbol}
+												crossOrigin="anonymous"
+												referrerPolicy="no-referrer"
+												loading="lazy"
 												className="absolute inset-0 h-full w-full rounded-md object-cover"
 												onError={(e) => {
 													e.currentTarget.style.display = "none";

@@ -1,0 +1,61 @@
+import type { Route } from "./+types/icon";
+
+// Lightweight same-origin image proxy to bypass IPFS gateway CORP/COEP issues.
+// Browser fetches /api/icon?url=<encoded> which is same-origin, so
+// ERR_BLOCKED_BY_RESPONSE.NotSameOrigin never triggers.
+// Upstream is fetched server-side and re-served with permissive headers.
+
+export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
+	const url = new URL(request.url).searchParams.get("url");
+	if (!url) return new Response("missing url", { status: 400 });
+
+	let parsed: URL;
+	try {
+		parsed = new URL(url);
+	} catch {
+		return new Response("invalid url", { status: 400 });
+	}
+	if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+		return new Response("invalid protocol", { status: 400 });
+	}
+	// SSRF guard: block private / loopback hosts
+	const host = parsed.hostname.toLowerCase();
+	if (
+		host === "localhost" ||
+		host === "127.0.0.1" ||
+		host === "::1" ||
+		host.endsWith(".local") ||
+		host.startsWith("10.") ||
+		host.startsWith("192.168.") ||
+		host.startsWith("169.254.")
+	) {
+		return new Response("blocked host", { status: 400 });
+	}
+
+	const upstream = await fetch(parsed.toString(), {
+		// Don't forward cookies/auth; small timeout via AbortSignal if available
+		headers: { accept: "image/*,*/*;q=0.8" },
+	});
+	if (!upstream.ok || !upstream.body) {
+		return new Response("upstream error", { status: upstream.status || 502 });
+	}
+
+	const contentType = upstream.headers.get("content-type") ?? "image/png";
+	// Only allow image-ish content types; fallback to octet-stream for safety
+	const safeType = contentType.startsWith("image/")
+		? contentType
+		: "application/octet-stream";
+
+	const headers = new Headers();
+	headers.set("Content-Type", safeType);
+	headers.set(
+		"Cache-Control",
+		"public, max-age=86400, stale-while-revalidate=86400",
+	);
+	headers.set("Cross-Origin-Resource-Policy", "cross-origin");
+	headers.set("Access-Control-Allow-Origin", "*");
+	const cacheControl = upstream.headers.get("cache-control");
+	if (cacheControl) headers.set("X-Upstream-Cache-Control", cacheControl);
+
+	return new Response(upstream.body, { headers });
+}

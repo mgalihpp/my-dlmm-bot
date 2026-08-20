@@ -28,6 +28,7 @@ import {
 	solscanAccountUrl,
 	solscanUrl,
 } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import { fmtAmount } from "~/lib/pools";
 import type { CloseResult } from "~/lib/server/close.server";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
@@ -174,11 +175,15 @@ function TokenIcon({
 	symbol: string;
 	className?: string;
 }) {
-	if (!icon) return null;
+	const src = proxiedIconUrl(icon);
+	if (!src) return null;
 	return (
 		<img
-			src={icon}
+			src={src}
 			alt={symbol}
+			crossOrigin="anonymous"
+			referrerPolicy="no-referrer"
+			loading="lazy"
 			className={cn("h-4 w-4 shrink-0 rounded-full object-cover", className)}
 			onError={(e) => {
 				(e.currentTarget as HTMLImageElement).style.display = "none";
@@ -220,10 +225,13 @@ export function PoolCell({ pool }: { pool: OpenPoolWithIcons }) {
 	return (
 		<div className="flex items-center gap-3">
 			<div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted text-xs font-bold">
-				{pool.tokenXIcon ? (
+				{proxiedIconUrl(pool.tokenXIcon) ? (
 					<img
-						src={pool.tokenXIcon}
+						src={proxiedIconUrl(pool.tokenXIcon) as string}
 						alt={pool.tokenX}
+						crossOrigin="anonymous"
+						referrerPolicy="no-referrer"
+						loading="lazy"
 						className="h-full w-full object-cover"
 						onError={(e) => {
 							(e.currentTarget as HTMLImageElement).style.display = "none";
