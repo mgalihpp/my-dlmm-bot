@@ -295,14 +295,18 @@ export function fetchPortfolioDeferred(
 					.enrichOpenPortfolioPnl([...pools] as OpenPool[], wallet, {
 						withRanges: true,
 					})
-					.pipe(Effect.catchAll(() => Effect.succeed([...pools] as OpenPool[]))),
-				dlmm.fetchUserPositions(wallet).pipe(
-					Effect.catchAll(() => Effect.succeed([] as never[])),
-				),
+					.pipe(
+						Effect.catchAll(() => Effect.succeed([...pools] as OpenPool[])),
+					),
+				dlmm
+					.fetchUserPositions(wallet)
+					.pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
 				api
 					.closedPortfolio(wallet, closedPage, 10)
 					.pipe(Effect.catchAll(() => Effect.succeed(null))),
-				api.totalPnl(wallet).pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL))),
+				api
+					.totalPnl(wallet)
+					.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL))),
 			],
 			{ concurrency: "unbounded" },
 		);
@@ -349,7 +353,11 @@ export function fetchPortfolioDeferred(
 			const createdAt = new Map(
 				(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
 			);
-			const liveArr = (pool as unknown as { positionsLive?: Array<{ address: string; createdAt?: number | null }> }).positionsLive;
+			const liveArr = (
+				pool as unknown as {
+					positionsLive?: Array<{ address: string; createdAt?: number | null }>;
+				}
+			).positionsLive;
 			if (liveArr) {
 				for (const pos of liveArr) {
 					Object.assign(pos, { createdAt: createdAt.get(pos.address) ?? null });
@@ -365,7 +373,9 @@ export function fetchPortfolioDeferred(
 				closedRes === null
 					? Effect.succeed([] as ClosedPoolWithIcons[])
 					: enrichWithIcons(closedRes.pools, api).pipe(
-							Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
+							Effect.catchAll(() =>
+								Effect.succeed([] as ClosedPoolWithIcons[]),
+							),
 						),
 			],
 			{ concurrency: "unbounded" },
@@ -375,7 +385,12 @@ export function fetchPortfolioDeferred(
 			pools: openWithIcons,
 			closed:
 				closedRes === null
-					? { pools: closedWithIcons, page: closedPage, pageSize: 10, totalCount: 0 }
+					? {
+							pools: closedWithIcons,
+							page: closedPage,
+							pageSize: 10,
+							totalCount: 0,
+						}
 					: {
 							pools: closedWithIcons,
 							page: closedRes.page,
@@ -389,7 +404,12 @@ export function fetchPortfolioDeferred(
 		Effect.catchAll(() =>
 			Effect.succeed({
 				pools: [] as OpenPoolWithIcons[],
-				closed: { pools: [] as ClosedPoolWithIcons[], page: closedPage, pageSize: 10, totalCount: 0 },
+				closed: {
+					pools: [] as ClosedPoolWithIcons[],
+					page: closedPage,
+					pageSize: 10,
+					totalCount: 0,
+				},
 				total: EMPTY_TOTAL,
 			} satisfies PortfolioDeferred),
 		),
@@ -399,7 +419,9 @@ export function fetchPortfolioDeferred(
 
 export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
-		const critical = yield* Effect.tryPromise(() => fetchPortfolioCritical()).pipe(
+		const critical = yield* Effect.tryPromise(() =>
+			fetchPortfolioCritical(),
+		).pipe(
 			Effect.flatMap((c) =>
 				c.ok
 					? Effect.succeed(c as PortfolioCritical)

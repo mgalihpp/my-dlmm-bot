@@ -18,7 +18,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 	const critical = await fetchPortfolioCritical();
 	if (!critical.ok) return critical;
-	const deferred = fetchPortfolioDeferred(critical.wallet, critical.pools, closedPage);
+	const deferred = fetchPortfolioDeferred(
+		critical.wallet,
+		critical.pools,
+		closedPage,
+	);
 	return { critical, deferred };
 }
 

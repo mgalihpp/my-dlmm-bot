@@ -1,8 +1,17 @@
 import { Suspense, useCallback, useEffect, useState } from "react";
-import { Await, useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import {
+	Await,
+	useLoaderData,
+	useRevalidator,
+	useSearchParams,
+} from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
+import {
+	PageSkeleton,
+	PageSkeleton as TableFallback,
+	useIsNavigating,
+} from "~/components/page-skeletons";
 import {
 	type Currency,
 	readStoredCurrency,
@@ -15,7 +24,6 @@ import type {
 } from "~/lib/server/portfolio.server";
 import { PortfolioContent } from "./portfolio-content";
 import { PortfolioHeader } from "./portfolio-header";
-import { PageSkeleton as TableFallback } from "~/components/page-skeletons";
 
 export type { Currency } from "~/lib/currency";
 
@@ -100,7 +108,11 @@ export function PortfolioPage() {
 	};
 
 	return (
-		<DashboardShell title="Portfolio" wallet={critical.wallet} rpc={critical.rpc}>
+		<DashboardShell
+			title="Portfolio"
+			wallet={critical.wallet}
+			rpc={critical.rpc}
+		>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<PortfolioHeader
 					currency={currency}
@@ -113,7 +125,10 @@ export function PortfolioPage() {
 					<Await
 						resolve={deferred}
 						errorElement={
-							<LoadErrorCard title="Failed to load positions" error="Deferred load failed" />
+							<LoadErrorCard
+								title="Failed to load positions"
+								error="Deferred load failed"
+							/>
 						}
 					>
 						{(d: PortfolioDeferred) => {
