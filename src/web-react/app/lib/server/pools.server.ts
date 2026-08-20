@@ -66,9 +66,20 @@ export interface PoolsCritical extends PoolsPayload {
 	readonly pools: readonly import("@vexis/domain/index.js").ScreenedPool[];
 }
 
+const poolsCriticalCache = new Map<
+	string,
+	{ at: number; data: PoolsPayload }
+>();
+const POOLS_CACHE_TTL_MS = 12_000;
+
 export function fetchPoolsCritical(
 	rawTimeframe: string | null,
 ): Promise<PoolsPayload> {
+	const cacheKey = rawTimeframe ?? "__default__";
+	const cached = poolsCriticalCache.get(cacheKey);
+	if (cached && Date.now() - cached.at < POOLS_CACHE_TTL_MS) {
+		return Promise.resolve(cached.data);
+	}
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const current = yield* config.get;
@@ -98,6 +109,11 @@ export function fetchPoolsCritical(
 				solPrice: null,
 				fetchedAt: Date.now(),
 			} satisfies PoolsPayload),
+		),
+		Effect.tap((payload) =>
+			Effect.sync(() => {
+				poolsCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
+			}),
 		),
 	);
 	return Effect.runPromise(program);

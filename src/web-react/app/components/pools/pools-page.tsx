@@ -9,6 +9,7 @@ import {
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
+import { PoolsPageSkeleton } from "~/components/page-skeletons/pools";
 import { PoolsContent } from "~/components/pools/pools-content";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
@@ -19,20 +20,18 @@ import {
 } from "~/lib/currency";
 import type { PoolsPayload } from "~/lib/pools";
 
-type LoaderData =
-	| PoolsPayload
-	| { critical: PoolsPayload; deferred: Promise<readonly ScreenedPool[]> };
+type LoaderData = {
+	critical: Promise<PoolsPayload>;
+	deferred: Promise<readonly ScreenedPool[]>;
+};
 
-export function PoolsPage() {
-	const data = useLoaderData<LoaderData>();
-	const isNavigating = useIsNavigating();
-	const isDeferred = "critical" in data;
-	const payload = isDeferred
-		? (data as { critical: PoolsPayload }).critical
-		: (data as PoolsPayload);
-	const deferred = isDeferred
-		? (data as { deferred: Promise<readonly ScreenedPool[]> }).deferred
-		: null;
+function PoolsPageContent({
+	payload,
+	deferred,
+}: {
+	payload: PoolsPayload;
+	deferred: Promise<readonly ScreenedPool[]>;
+}) {
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeframe = searchParams.get("timeframe") ?? payload.timeframe;
@@ -81,32 +80,42 @@ export function PoolsPage() {
 			rpc={payload.rpc}
 			realtimeMs={60_000}
 		>
-			{isNavigating ? (
-				<PageSkeleton />
-			) : (
-				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-					<PoolsHeader
-						total={payload.total}
-						ok={payload.ok}
-						timeframe={timeframe}
-						currency={currency}
-						onCurrencyChange={onCurrencyChange}
-						onTimeframeChange={onTimeframeChange}
-						onRefresh={revalidate}
-						refreshing={state === "loading"}
-					/>
+			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<PoolsHeader
+					total={payload.total}
+					ok={payload.ok}
+					timeframe={timeframe}
+					currency={currency}
+					onCurrencyChange={onCurrencyChange}
+					onTimeframeChange={onTimeframeChange}
+					onRefresh={revalidate}
+					refreshing={state === "loading"}
+				/>
 
-					{!payload.ok ? (
-						<LoadErrorCard title="Failed to load pools" error={payload.error} />
-					) : payload.pools.length === 0 ? (
-						<Card className="mx-4 lg:mx-6">
-							<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
-								No pools found for the {timeframe} timeframe.
-							</CardContent>
-						</Card>
-					) : deferred ? (
-						<Suspense
-							fallback={
+				{!payload.ok ? (
+					<LoadErrorCard title="Failed to load pools" error={payload.error} />
+				) : payload.pools.length === 0 ? (
+					<Card className="mx-4 lg:mx-6">
+						<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
+							No pools found for the {timeframe} timeframe.
+						</CardContent>
+					</Card>
+				) : (
+					<Suspense
+						fallback={
+							<PoolsContent
+								pools={payload.pools}
+								currency={currency}
+								solPrice={payload.solPrice}
+								selectedPool={selectedPool}
+								onSelect={setSelectedPool}
+								onClose={() => setSelectedPool(null)}
+							/>
+						}
+					>
+						<Await
+							resolve={deferred}
+							errorElement={
 								<PoolsContent
 									pools={payload.pools}
 									currency={currency}
@@ -117,43 +126,63 @@ export function PoolsPage() {
 								/>
 							}
 						>
-							<Await
-								resolve={deferred}
-								errorElement={
-									<PoolsContent
-										pools={payload.pools}
-										currency={currency}
-										solPrice={payload.solPrice}
-										selectedPool={selectedPool}
-										onSelect={setSelectedPool}
-										onClose={() => setSelectedPool(null)}
-									/>
-								}
-							>
-								{(enriched: readonly ScreenedPool[]) => (
-									<PoolsContent
-										pools={enriched.length > 0 ? enriched : payload.pools}
-										currency={currency}
-										solPrice={payload.solPrice}
-										selectedPool={selectedPool}
-										onSelect={setSelectedPool}
-										onClose={() => setSelectedPool(null)}
-									/>
-								)}
-							</Await>
-						</Suspense>
-					) : (
-						<PoolsContent
-							pools={payload.pools}
-							currency={currency}
-							solPrice={payload.solPrice}
-							selectedPool={selectedPool}
-							onSelect={setSelectedPool}
-							onClose={() => setSelectedPool(null)}
-						/>
-					)}
-				</div>
-			)}
+							{(enriched: readonly ScreenedPool[]) => (
+								<PoolsContent
+									pools={enriched.length > 0 ? enriched : payload.pools}
+									currency={currency}
+									solPrice={payload.solPrice}
+									selectedPool={selectedPool}
+									onSelect={setSelectedPool}
+									onClose={() => setSelectedPool(null)}
+								/>
+							)}
+						</Await>
+					</Suspense>
+				)}
+			</div>
 		</DashboardShell>
+	);
+}
+
+export function PoolsPage() {
+	const data = useLoaderData<LoaderData>();
+	const isNavigating = useIsNavigating();
+
+	// During client navigation the old route stays mounted for 1 frame —
+	// show skeleton for target route instantly (same trick as agent/settings).
+	if (isNavigating) {
+		return (
+			<DashboardShell title="Pool Radar" realtimeMs={60_000}>
+				<PageSkeleton />
+			</DashboardShell>
+		);
+	}
+
+	return (
+		<Suspense
+			fallback={
+				<DashboardShell title="Pool Radar" realtimeMs={60_000}>
+					<PoolsPageSkeleton />
+				</DashboardShell>
+			}
+		>
+			<Await
+				resolve={data.critical}
+				errorElement={
+					<DashboardShell title="Pool Radar" realtimeMs={60_000}>
+						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+							<LoadErrorCard
+								title="Failed to load pools"
+								error="Loader failed"
+							/>
+						</div>
+					</DashboardShell>
+				}
+			>
+				{(payload: PoolsPayload) => (
+					<PoolsPageContent payload={payload} deferred={data.deferred} />
+				)}
+			</Await>
+		</Suspense>
 	);
 }

@@ -236,6 +236,15 @@ export interface PortfolioDeferred {
 	readonly total: PortfolioTotal;
 }
 
+const portfolioCriticalCache = new Map<
+	string,
+	{
+		at: number;
+		data: PortfolioCritical | { ok: false; error: string; solPrice: null };
+	}
+>();
+const PORTFOLIO_CACHE_TTL_MS = 12_000;
+
 export function fetchPortfolioCritical(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
@@ -243,6 +252,11 @@ export function fetchPortfolioCritical(): Promise<
 		const config = yield* AppConfig;
 		const current = yield* config.get;
 		const wallet = yield* config.wallet();
+		const cacheKey = wallet;
+		const cached = portfolioCriticalCache.get(cacheKey);
+		if (cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
+			return cached.data;
+		}
 		const api = yield* MeteoraApi;
 		const res = yield* api.openPortfolio(wallet, 1, 10);
 		const apiTotals = res.total ?? null;
@@ -257,7 +271,7 @@ export function fetchPortfolioCritical(): Promise<
 			},
 			HISTORY_FILE,
 		);
-		return {
+		const payload: PortfolioCritical = {
 			ok: true as const,
 			wallet,
 			rpc: current.rpcUrl ?? "rpc not configured",
@@ -267,6 +281,8 @@ export function fetchPortfolioCritical(): Promise<
 			pools: res.pools,
 			history: readHistory(HISTORY_FILE),
 		};
+		portfolioCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
+		return payload;
 	}).pipe(
 		Effect.provide(AppLayer),
 		Effect.catchAll((error) =>
