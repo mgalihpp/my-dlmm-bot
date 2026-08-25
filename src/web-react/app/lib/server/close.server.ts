@@ -34,12 +34,16 @@ export function closePosition(
 	pool: string,
 	position: string,
 	poolName: string,
+	walletParam?: string | null,
 ): Promise<CloseResult> {
 	const invalid = validateCloseInput(pool, position);
 	if (invalid) return Promise.resolve({ ok: false, error: invalid });
 
 	const program = Effect.gen(function* () {
 		const zap = yield* Zap;
+		// walletParam is accepted for future per-wallet Zap routing; currently Zap uses the default signer,
+		// but we persist the wallet association for manual cooldown and UI.
+		void walletParam;
 		const res = yield* zap.closeAndZapOut(pool, position);
 		const sig = pickCloseSig(res);
 		if (!sig) throw new Error("Close produced no transaction signature");

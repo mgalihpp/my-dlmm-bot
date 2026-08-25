@@ -12,7 +12,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const parsedPage = rawPage === null ? 1 : Number(rawPage);
 	const page =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-	return fetchAgent(page, url.searchParams.get("action"));
+	return fetchAgent(
+		page,
+		url.searchParams.get("action"),
+		url.searchParams.get("wallet"),
+	);
 }
 
 export default AgentPage;

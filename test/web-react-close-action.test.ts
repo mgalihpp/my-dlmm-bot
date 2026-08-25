@@ -26,6 +26,7 @@ describe("portfolio close action", () => {
 			"pool-address",
 			"position-address",
 			"BOT/SOL",
+			null,
 		);
 	});
 });

@@ -1,7 +1,7 @@
 import "~/lib/server/env.server";
 
 import { join } from "node:path";
-import { loadConfigSync } from "@vexis/services/Config.js";
+import { getWalletConfigs, loadConfigSync } from "@vexis/services/Config.js";
 import {
 	type AgentStats,
 	agentStats,
@@ -18,7 +18,7 @@ import { readBriefingCache } from "@vexis/telegram/agent/briefing.js";
 import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
 import { readJournalAll } from "@vexis/telegram/agent/journal.js";
 import type { AgentState } from "@vexis/telegram/agent/state.js";
-import { loadState } from "@vexis/telegram/agent/state.js";
+import { getWalletState, loadState } from "@vexis/telegram/agent/state.js";
 import { repoRoot } from "./env.server";
 
 export interface AgentStateSummary {
@@ -50,6 +50,7 @@ export interface AgentPayload {
 	readonly chart?: readonly CyclePoint[];
 	readonly groups?: readonly TimelineGroup[];
 	readonly wallet?: string;
+	readonly wallets?: readonly { wallet: string; label?: string }[];
 	readonly rpc?: string;
 }
 
@@ -104,10 +105,49 @@ export function buildAgentPayload(
 export function fetchAgent(
 	page: number,
 	rawAction: string | null,
+	walletParam?: string | null,
 ): AgentPayload {
 	const root = repoRoot();
-	const journal = readJournalAll(join(root, ".vexis-agent-journal.jsonl"));
-	const state = loadState(join(root, ".vexis-agent.json"));
+	const rawJournal = readJournalAll(join(root, ".vexis-agent-journal.jsonl"));
+	const rawState = loadState(join(root, ".vexis-agent.json"));
+	const { config } = loadConfigSync();
+	const wallets = getWalletConfigs(config)
+		.filter((w) => w.enabled !== false)
+		.map((w) => ({ wallet: w.wallet, label: w.label }));
+	let wallet: string | undefined = config.wallet;
+	let state: AgentState = rawState;
+	let journal: readonly AgentJournalEntry[] = rawJournal;
+	if (walletParam) {
+		const found = wallets.find(
+			(w) => w.wallet === walletParam || w.label === walletParam,
+		);
+		if (found) {
+			wallet = found.wallet;
+			journal = rawJournal.filter((j) => j.wallet === found.wallet);
+			// if journal entries have no wallet (legacy), show all
+			if (journal.length === 0 && rawJournal.some((j) => j.wallet == null)) {
+				journal = rawJournal;
+			}
+			state = getWalletState(
+				rawState as unknown as ReturnType<typeof loadState>,
+				found.wallet,
+			);
+		} else if (wallets.length > 0) {
+			wallet = wallets[0].wallet;
+			journal = rawJournal.filter((j) => j.wallet === wallet);
+			if (journal.length === 0 && rawJournal.some((j) => j.wallet == null)) {
+				journal = rawJournal;
+			}
+			state = getWalletState(
+				rawState as unknown as ReturnType<typeof loadState>,
+				wallet,
+			);
+		}
+	} else if (wallets.length > 0) {
+		wallet = wallets[0].wallet;
+		// for default view without wallet param, show aggregated? Keep current wallet as first
+		// but journal stays aggregated for now
+	}
 	const cachedBriefing = readBriefingCache(
 		join(root, ".vexis-agent-briefing.json"),
 	);
@@ -115,6 +155,5 @@ export function fetchAgent(
 		? { text: cachedBriefing.text, source: cachedBriefing.source }
 		: { text: "Belum ada briefing Telegram.", source: "fallback" as const };
 	const payload = buildAgentPayload(journal, state, narrative, rawAction, page);
-	const { config } = loadConfigSync();
-	return { ...payload, wallet: config.wallet, rpc: config.rpcUrl };
+	return { ...payload, wallet, wallets, rpc: config.rpcUrl };
 }

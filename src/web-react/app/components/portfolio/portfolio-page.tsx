@@ -4,6 +4,7 @@ import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
 import { PortfolioContent } from "~/components/portfolio/portfolio-content";
+import { WalletSwitcher } from "~/components/wallet-switcher";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
 import {
 	type Currency,
@@ -93,6 +94,12 @@ export function PortfolioPage() {
 	return (
 		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<div className="flex flex-wrap items-center justify-between gap-2 px-4 lg:px-6">
+					<WalletSwitcher
+						wallets={data.wallets ?? []}
+						value={data.wallet ?? ""}
+					/>
+				</div>
 				<PortfolioHeader
 					currency={currency}
 					onCurrencyChange={setCurrency}

@@ -10,7 +10,11 @@ import type {
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
-import { AppConfig } from "@vexis/services/Config.js";
+import {
+	AppConfig,
+	getWalletConfigs,
+	loadConfigSync,
+} from "@vexis/services/Config.js";
 import { Dlmm } from "@vexis/services/Dlmm.js";
 import {
 	MeteoraApi,
@@ -154,6 +158,7 @@ export interface PortfolioPayload {
 	readonly ok: boolean;
 	readonly error?: string;
 	readonly wallet?: string;
+	readonly wallets?: readonly { wallet: string; label?: string }[];
 	readonly rpc?: string;
 	readonly solPrice: number | null;
 	readonly total?: PortfolioTotal;
@@ -259,14 +264,25 @@ export interface PortfolioDeferred {
 	readonly total: PortfolioTotal;
 }
 
-export function fetchPortfolioCritical(): Promise<
-	PortfolioCritical | { ok: false; error: string; solPrice: null }
-> {
+export function fetchPortfolioCritical(
+	walletParam?: string | null,
+): Promise<PortfolioCritical | { ok: false; error: string; solPrice: null }> {
 	const configProgram = () =>
 		Effect.gen(function* () {
 			const config = yield* AppConfig;
 			const current = yield* config.get;
-			const wallet = yield* config.wallet();
+			let wallet: string;
+			if (walletParam) {
+				const wallets = yield* config.wallets.pipe(
+					Effect.catchAll(() => Effect.succeed([] as never[])),
+				);
+				const found = (wallets as { wallet: string; label?: string }[]).find(
+					(w) => w.wallet === walletParam || w.label === walletParam,
+				);
+				wallet = found ? found.wallet : yield* config.wallet();
+			} else {
+				wallet = yield* config.wallet();
+			}
 			const api = yield* MeteoraApi;
 			const res = yield* api.openPortfolio(wallet, 1, 10);
 			const apiTotals = res.total ?? null;
@@ -443,10 +459,13 @@ export function fetchPortfolioDeferred(
 	return Effect.runPromise(program);
 }
 
-export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
+export function fetchPortfolio(
+	closedPage: number,
+	walletParam?: string | null,
+): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
 		const critical = yield* Effect.tryPromise(() =>
-			fetchPortfolioCritical(),
+			fetchPortfolioCritical(walletParam),
 		).pipe(
 			Effect.flatMap((c) =>
 				c.ok
@@ -457,9 +476,20 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 		const deferred = yield* Effect.tryPromise(() =>
 			fetchPortfolioDeferred(critical.wallet, critical.pools, closedPage),
 		);
+		const wallets = (() => {
+			try {
+				const { config } = loadConfigSync();
+				return getWalletConfigs(config)
+					.filter((w) => w.enabled !== false)
+					.map((w) => ({ wallet: w.wallet, label: w.label }));
+			} catch {
+				return [] as { wallet: string; label?: string }[];
+			}
+		})();
 		return {
 			ok: true,
 			wallet: critical.wallet,
+			wallets,
 			rpc: critical.rpc,
 			solPrice: critical.solPrice,
 			total: deferred.total,
