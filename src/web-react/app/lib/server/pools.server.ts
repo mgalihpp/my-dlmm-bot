@@ -80,9 +80,9 @@ function doFetchPoolsCritical(
 			(TIMEFRAMES as readonly string[]).includes(rawTimeframe)
 				? rawTimeframe
 				: configured;
-	const screening = yield* Screening;
+		const screening = yield* Screening;
 		const [result, solPrice] = yield* Effect.all(
-			[screening.screen({ timeframe }), fetchSolPrice()],
+			[screening.screen({ timeframe, skipEnrich: true }), fetchSolPrice()],
 			{ concurrency: "unbounded" },
 		);
 		const payload = buildPoolsPayload(result, solPrice, timeframe);
