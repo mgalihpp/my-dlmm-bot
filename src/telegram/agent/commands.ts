@@ -85,9 +85,10 @@ export function planActionLabel(p: {
 }): string {
 	// Keyboard-button label — buttons are plain text, Telegram doesn't parse
 	// MarkdownV2 there, so escaping would show literal backslashes.
+	const amt = p.amountSol > 0 ? `${p.amountSol} SOL` : "-- SOL";
 	return p.positionAddress
-		? `${p.poolName} ${p.amountSol} SOL`
-		: `${p.poolName} · ${p.amountSol} SOL (pending)`;
+		? `${p.poolName} ${amt}`
+		: `${p.poolName} · ${amt} (pending)`;
 }
 
 export interface PlanPosition {

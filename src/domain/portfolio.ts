@@ -77,6 +77,10 @@ export const OpenPool = Schema.Struct({
 	poolPrice: Schema.Number,
 	poolStateUpdatedAtBlockTime: Schema.optional(Schema.NullOr(Schema.Number)),
 	poolStateUpdatedAtSlot: Schema.optional(Schema.NullOr(Schema.Number)),
+	// Observed live fields not originally decoded — used to derive amountSol for adopted plans
+	balancesSol: Schema.optional(Schema.NullOr(Schema.String)),
+	unclaimedFeesSol: Schema.optional(Schema.NullOr(Schema.String)),
+	totalDepositSol: Schema.optional(Schema.NullOr(Schema.String)),
 });
 export type OpenPool = Schema.Schema.Type<typeof OpenPool>;
 
