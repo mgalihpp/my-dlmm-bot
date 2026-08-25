@@ -85,7 +85,9 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 								prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
 							);
 							setSelectedPool((prev) =>
-								prev && prev.pool === pool.pool ? ({ ...prev, ...pool } as ScreenedPool) : prev,
+								prev && prev.pool === pool.pool
+									? ({ ...prev, ...pool } as ScreenedPool)
+									: prev,
 							);
 						} catch {}
 					}

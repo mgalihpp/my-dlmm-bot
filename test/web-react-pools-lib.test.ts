@@ -48,7 +48,6 @@ const mkPool = (over: Partial<ScreenedPool> = {}): ScreenedPool => ({
 const mkResult = (pools: ScreenedPool[]): ScreenResult => ({
 	pools,
 	total: 120,
-	filtered: 3,
 });
 
 describe("organicBucket", () => {
@@ -147,7 +146,6 @@ describe("buildPoolsPayload", () => {
 		expect(payload.ok).toBe(true);
 		expect(payload.timeframe).toBe("30m");
 		expect(payload.total).toBe(120);
-		expect(payload.filtered).toBe(3);
 		expect(payload.pools).toHaveLength(1);
 		expect(payload.solPrice).toBe(150);
 		expect(payload.fetchedAt).toBeTypeOf("number");

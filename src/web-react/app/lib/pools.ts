@@ -33,7 +33,6 @@ export interface PoolsPayload {
 	readonly error?: string;
 	readonly timeframe: string;
 	readonly total: number;
-	readonly filtered: number;
 	readonly pools: readonly ScreenedPool[];
 	readonly solPrice: number | null;
 	readonly fetchedAt: number;
@@ -138,7 +137,6 @@ export function buildPoolsPayload(
 		ok: true,
 		timeframe,
 		total: result.total,
-		filtered: result.filtered,
 		pools: result.pools,
 		solPrice,
 		fetchedAt: Date.now(),

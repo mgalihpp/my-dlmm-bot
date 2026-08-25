@@ -178,7 +178,6 @@ export function condensePool(pool: DiscoveryPool): ScreenedPool {
 export interface ScreenResult {
 	pools: ScreenedPool[];
 	total: number;
-	filtered: number;
 }
 
 export function finalizeScreen(
@@ -192,6 +191,5 @@ export function finalizeScreen(
 	return {
 		pools: top,
 		total: total ?? rawPools.length,
-		filtered: 0,
 	};
 }

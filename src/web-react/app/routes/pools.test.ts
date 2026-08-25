@@ -16,7 +16,6 @@ const payload: PoolsPayload = {
 	ok: true,
 	timeframe: "30m",
 	total: 1,
-	filtered: 1,
 	pools: [],
 	solPrice: 100,
 	fetchedAt: 1,
