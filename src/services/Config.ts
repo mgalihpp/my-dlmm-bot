@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
 import { Context, Effect, Layer, Ref } from "effect";
-import type { CreatePreset, VexisConfig } from "../domain/config.js";
+import type {
+	CreatePreset,
+	VexisConfig,
+	WalletConfig,
+} from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
 
 function candidatePaths(): string[] {
@@ -35,6 +39,66 @@ export function reloadConfigFile(path: string): VexisConfig {
 	return JSON.parse(readFileSync(path, "utf8")) as VexisConfig;
 }
 
+function decodeKeypair(raw: string): Keypair {
+	try {
+		return Keypair.fromSecretKey(Buffer.from(raw, "base64"));
+	} catch {}
+	try {
+		return Keypair.fromSecretKey(bs58.decode(raw));
+	} catch {}
+	throw new Error("Invalid private key format (expected base64 or base58).");
+}
+
+export function getWalletConfigs(config: VexisConfig): WalletConfig[] {
+	if (config.wallets && config.wallets.length > 0) {
+		return config.wallets.map((w) => ({ enabled: true, ...w }));
+	}
+	if (config.wallet) {
+		const key = config.privateKey ?? process.env.VEXIS_PRIVATE_KEY ?? "";
+		if (!key) return [];
+		return [
+			{
+				wallet: config.wallet,
+				privateKey: key,
+				label: "primary",
+				enabled: true,
+			},
+		];
+	}
+	return [];
+}
+
+export const resolveKeypairFor = (
+	config: VexisConfig,
+	address: string,
+): Keypair => {
+	const wallets = getWalletConfigs(config);
+	if (wallets.length > 0) {
+		const addrs = wallets.map((w) => w.wallet);
+		if (new Set(addrs).size !== addrs.length)
+			throw new Error("Duplicate wallet addresses in config");
+	}
+	let w = wallets.find((x) => x.wallet === address) ?? null;
+	if (!w && config.wallet === address && config.privateKey) {
+		w = {
+			wallet: config.wallet,
+			privateKey: config.privateKey,
+			enabled: true,
+		};
+	}
+	if (!w) throw new Error(`Wallet ${address} not found`);
+	const raw = (w as WalletConfig).privateKey;
+	if (!raw) throw new Error(`No private key for wallet ${address}`);
+	const envOverride =
+		wallets.length === 1 &&
+		w?.wallet === config.wallet &&
+		process.env.VEXIS_PRIVATE_KEY
+			? process.env.VEXIS_PRIVATE_KEY
+			: null;
+	const effectiveRaw = envOverride ?? raw;
+	return decodeKeypair(effectiveRaw);
+};
+
 export function agentEnabledTransition(
 	prev: VexisConfig,
 	next: VexisConfig,
@@ -54,6 +118,15 @@ export interface AppConfigService {
 	readonly save: Effect.Effect<void, ConfigError>;
 	readonly wallet: (arg?: string) => Effect.Effect<string, WalletError>;
 	readonly keypair: Effect.Effect<Keypair, SignerError>;
+	readonly wallets: Effect.Effect<WalletConfig[], ConfigError>;
+	readonly enabledWallets: Effect.Effect<WalletConfig[], ConfigError>;
+	readonly keypairs: Effect.Effect<
+		Map<string, Keypair>,
+		SignerError | ConfigError
+	>;
+	readonly keypairFor: (
+		wallet: string,
+	) => Effect.Effect<Keypair, SignerError | ConfigError>;
 	readonly rpcUrl: Effect.Effect<string>;
 	readonly botToken: Effect.Effect<string, ConfigError>;
 	readonly chatId: Effect.Effect<string | undefined>;
@@ -256,6 +329,24 @@ const make = (
 							}),
 					});
 
+		const walletsEffect: Effect.Effect<WalletConfig[], ConfigError> = Ref.get(
+			ref,
+		).pipe(
+			Effect.flatMap((c) => {
+				const wallets = getWalletConfigs(c);
+				if (wallets.length === 0) return Effect.succeed(wallets);
+				const addrs = wallets.map((w) => w.wallet);
+				if (new Set(addrs).size !== addrs.length) {
+					return Effect.fail(
+						new ConfigError({
+							message: "Duplicate wallet addresses in config",
+						}),
+					);
+				}
+				return Effect.succeed(wallets);
+			}),
+		);
+
 		const service: AppConfigService = {
 			get: Ref.get(ref),
 			path,
@@ -277,6 +368,12 @@ const make = (
 				Ref.get(ref).pipe(
 					Effect.flatMap((c) => {
 						if (arg) return Effect.succeed(arg);
+						const wallets = getWalletConfigs(c);
+						if (wallets.length > 0) {
+							const enabled = wallets.find((w) => w.enabled !== false);
+							if (enabled) return Effect.succeed(enabled.wallet);
+							return Effect.succeed(wallets[0].wallet);
+						}
 						if (c.wallet) return Effect.succeed(c.wallet);
 						return Effect.fail(
 							new WalletError({
@@ -289,7 +386,15 @@ const make = (
 			keypair: Ref.get(ref).pipe(
 				Effect.flatMap((c) =>
 					Effect.try({
-						try: () => resolveKeypairFrom(c),
+						try: () => {
+							const wallets = getWalletConfigs(c);
+							if (wallets.length > 0) {
+								const enabled =
+									wallets.find((w) => w.enabled !== false) ?? wallets[0];
+								return resolveKeypairFor(c, enabled.wallet);
+							}
+							return resolveKeypairFrom(c);
+						},
 						catch: (e) =>
 							new SignerError({
 								message: e instanceof Error ? e.message : String(e),
@@ -297,6 +402,45 @@ const make = (
 					}),
 				),
 			),
+			wallets: walletsEffect,
+			enabledWallets: walletsEffect.pipe(
+				Effect.map((ws) => ws.filter((w) => w.enabled !== false)),
+			),
+			keypairs: walletsEffect.pipe(
+				Effect.flatMap((ws) =>
+					Effect.try({
+						try: () => {
+							const m = new Map<string, Keypair>();
+							for (const w of ws) {
+								const kp = decodeKeypair(w.privateKey);
+								m.set(w.wallet, kp);
+							}
+							// also handle legacy env override for single wallet case already covered
+							if (ws.length === 0) {
+								// fallback to legacy single wallet via resolveKeypairFrom if present
+								// do not populate map if no wallets
+							}
+							return m;
+						},
+						catch: (e) =>
+							new SignerError({
+								message: e instanceof Error ? e.message : String(e),
+							}),
+					}),
+				),
+			),
+			keypairFor: (walletAddr: string) =>
+				Ref.get(ref).pipe(
+					Effect.flatMap((c) =>
+						Effect.try({
+							try: () => resolveKeypairFor(c, walletAddr),
+							catch: (e) =>
+								new SignerError({
+									message: e instanceof Error ? e.message : String(e),
+								}),
+						}),
+					),
+				),
 			rpcUrl: Ref.get(ref).pipe(
 				Effect.map((c) => c.rpcUrl || "https://api.mainnet-beta.solana.com"),
 			),
