@@ -1,12 +1,65 @@
 import { fmtMc, formatPrice } from "~/lib/format";
 
+export function resolveRangeAnchor(
+	ranges: readonly {
+		minPrice: string;
+		maxPrice: string;
+		poolActivePrice?: string | number | null;
+	}[],
+	current: number | null | undefined,
+	mcap?: number | null,
+): { effectiveCurrent: number | null; effectiveMcap: number | null } {
+	let effectiveCurrent: number | null = null;
+	for (const r of ranges) {
+		const v = (r as { poolActivePrice?: string | number | null })
+			.poolActivePrice;
+		if (v != null) {
+			const n = Number(v);
+			if (Number.isFinite(n) && n > 0) {
+				effectiveCurrent = n;
+				break;
+			}
+		}
+	}
+	if (effectiveCurrent == null) {
+		const c = current != null ? Number(current) : NaN;
+		if (Number.isFinite(c) && c > 0) effectiveCurrent = c;
+	}
+	let effectiveMcap: number | null = mcap ?? null;
+	if (
+		effectiveMcap != null &&
+		Number.isFinite(effectiveMcap) &&
+		effectiveMcap > 0 &&
+		current != null &&
+		Number.isFinite(Number(current)) &&
+		Number(current) > 0 &&
+		effectiveCurrent != null &&
+		Number.isFinite(effectiveCurrent) &&
+		effectiveCurrent > 0 &&
+		effectiveCurrent !== Number(current)
+	) {
+		effectiveMcap = effectiveMcap * (effectiveCurrent / Number(current));
+	}
+	if (
+		effectiveMcap != null &&
+		(!Number.isFinite(effectiveMcap) || effectiveMcap <= 0)
+	) {
+		effectiveMcap = null;
+	}
+	return { effectiveCurrent, effectiveMcap };
+}
+
 export function RangeVisual({
 	ranges,
 	current,
 	mcap,
 	className,
 }: {
-	ranges: readonly { minPrice: string; maxPrice: string }[];
+	ranges: readonly {
+		minPrice: string;
+		maxPrice: string;
+		poolActivePrice?: string | number | null;
+	}[];
 	current: number | null | undefined;
 	mcap?: number | null;
 	className?: string;
@@ -30,9 +83,14 @@ export function RangeVisual({
 	const chartMax = max + pad;
 	const xFor = (price: number) =>
 		((price - chartMin) / (chartMax - chartMin)) * 100;
+	const { effectiveCurrent, effectiveMcap } = resolveRangeAnchor(
+		ranges,
+		current,
+		mcap,
+	);
 	const currentX =
-		current !== null && current !== undefined
-			? Math.min(100, Math.max(0, xFor(Number(current))))
+		effectiveCurrent !== null
+			? Math.min(100, Math.max(0, xFor(Number(effectiveCurrent))))
 			: null;
 
 	const baselinePct = 12.8;
@@ -54,7 +112,8 @@ export function RangeVisual({
 				left: (i / 48) * 100,
 				width: 100 / 48,
 				height,
-				leftSide: currentX === null || price < Number(current),
+				leftSide:
+					currentX === null || price < Number(effectiveCurrent as number),
 			});
 		}
 	}
@@ -63,14 +122,16 @@ export function RangeVisual({
 		currentX !== null ? Math.min(90, Math.max(10, currentX)) : null;
 
 	const hasMc =
-		mcap != null &&
-		Number.isFinite(mcap) &&
-		mcap > 0 &&
-		current != null &&
-		Number.isFinite(Number(current)) &&
-		Number(current) > 0;
+		effectiveMcap != null &&
+		Number.isFinite(effectiveMcap) &&
+		effectiveMcap > 0 &&
+		effectiveCurrent != null &&
+		Number.isFinite(Number(effectiveCurrent)) &&
+		Number(effectiveCurrent) > 0;
 	const mcFor = (price: number) =>
-		hasMc ? (mcap as number) * (price / Number(current)) : null;
+		hasMc
+			? (effectiveMcap as number) * (price / Number(effectiveCurrent))
+			: null;
 	const fmtLabel = (price: number) => {
 		const mc = mcFor(price);
 		return mc != null ? fmtMc(mc) : formatPrice(price);
@@ -116,7 +177,9 @@ export function RangeVisual({
 								{hasMc ? "MC" : "Pool Price"}
 							</span>
 							<span className="block font-semibold tabular-nums">
-								{hasMc ? fmtMc(mcap) : formatPrice(Number(current))}
+								{hasMc
+									? fmtMc(effectiveMcap)
+									: formatPrice(Number(effectiveCurrent as number))}
 							</span>
 						</span>
 					</>
