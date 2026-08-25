@@ -80,11 +80,12 @@ export function RangeVisual({
 		: `Position range ${formatPrice(min)} to ${formatPrice(max)}`;
 
 	return (
-		<div
-			className={`relative h-16 w-full min-w-32 overflow-hidden rounded-md bg-muted/40 ${className ?? ""}`}
-			role="img"
-			aria-label={ariaLabel}
-		>
+		<div className={`w-full min-w-32 ${className ?? ""}`}>
+			<div
+				className="relative h-16 w-full overflow-hidden rounded-md bg-muted/40"
+				role="img"
+				aria-label={ariaLabel}
+			>
 			{bars.map((bar) => (
 				<div
 					key={bar.left}
@@ -101,34 +102,31 @@ export function RangeVisual({
 				className="absolute inset-x-0"
 				style={{ bottom: `${baselinePct}%` }}
 			/>
-			{currentX !== null ? (
-				<>
-					<div
-						className="absolute inset-y-0 w-0.5 bg-foreground/70"
-						style={{ left: `${currentX}%` }}
-					/>
-					<span
-						className="absolute top-0.5 -translate-x-1/2 rounded-sm bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
-						style={{ left: `${labelX}%` }}
-					>
-						<span className="block text-muted-foreground">
-							{hasMc ? "MC" : "Pool Price"}
+				{currentX !== null ? (
+					<>
+						<div
+							className="absolute inset-y-0 w-0.5 bg-foreground/70"
+							style={{ left: `${currentX}%` }}
+						/>
+						<span
+							className="absolute top-0.5 -translate-x-1/2 rounded-sm bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
+							style={{ left: `${labelX}%` }}
+						>
+							<span className="block text-muted-foreground">
+								{hasMc ? "MC" : "Pool Price"}
+							</span>
+							<span className="block font-semibold tabular-nums">
+								{hasMc ? fmtMc(mcap) : formatPrice(Number(current))}
+							</span>
 						</span>
-						<span className="block font-semibold tabular-nums">
-							{hasMc ? fmtMc(mcap) : formatPrice(Number(current))}
-						</span>
-					</span>
-				</>
-			) : null}
-			<span className="absolute bottom-0 left-1 text-[10px] text-muted-foreground">
-				{fmtLabel(min)}
-			</span>
-			<span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
-				{fmtLabel((min + max) / 2)}
-			</span>
-			<span className="absolute right-1 bottom-0 text-[10px] text-muted-foreground">
-				{fmtLabel(max)}
-			</span>
+					</>
+				) : null}
+			</div>
+			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium tabular-nums text-muted-foreground">
+				<span>{fmtLabel(min)}</span>
+				<span>{fmtLabel((min + max) / 2)}</span>
+				<span>{fmtLabel(max)}</span>
+			</div>
 		</div>
 	);
 }
