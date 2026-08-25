@@ -1,5 +1,6 @@
 import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
+import type { WalletConfig } from "../../domain/config.js";
 import type { PositionCostQuote } from "../../domain/onchain.js";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
 import {
@@ -11,6 +12,7 @@ import {
 	dlmm,
 	getConfig,
 	getConfigSync,
+	resolveEnabledWallets,
 	resolveWallet,
 	screenPools,
 	zap,
@@ -72,7 +74,8 @@ import {
 } from "./signalWeights.js";
 import {
 	type AgentPlan,
-	type AgentState,
+	ensureWalletState,
+	type HybridState,
 	loadState,
 	saveState,
 } from "./state.js";
@@ -87,8 +90,10 @@ const WSOL_MINT = "So11111111111111111111111111111111111111112";
  */
 const MIN_POSITION_AGE_MS = 90_000;
 
-/** Positions with a close transaction currently in flight (one per position). */
+/** Positions with a close transaction currently in flight (one per position, per wallet). */
 const closeInFlight = new Set<string>();
+const closeKey = (wallet: string, positionAddress: string) =>
+	`${wallet}:${positionAddress}`;
 
 /** Newest journal candidate with a failed execution for the pool, or null. */
 export function findFailedCandidate(
@@ -106,7 +111,7 @@ export function findFailedCandidate(
 }
 
 export interface RuntimeAgent {
-	state: AgentState;
+	state: HybridState;
 	/** Monotonic generation counter — incremented on every start/stop so
 	 * in-flight jobs can detect that they were superseded (stop during a
 	 * running cycle, or a quick stop→start) and abort before any tx. */
@@ -165,17 +170,20 @@ async function syncOnchainPlans(
 	open?: OpenPortfolioResponse,
 ) {
 	const res = open ?? (await api.openPortfolio(wallet, 1, 100));
-	const before = rt.state.plans.length;
-	rt.state.plans = [
-		...adoptOnchainPlans(rt.state.plans, res.pools ?? [], {
+	const ws = ensureWalletState(rt.state, wallet);
+	const before = ws.plans.length;
+	ws.plans = [
+		...adoptOnchainPlans(ws.plans, res.pools ?? [], {
 			complete: !res.hasNext,
-			cooldowns: rt.state.cooldowns,
+			cooldowns: ws.cooldowns,
 			nowMs: Date.now(),
 		}),
 	];
-	if (rt.state.plans.length !== before) {
+	if (ws.plans.length !== before) {
 		saveState(rt.state);
-		logInfo(`plans reconciled on-chain: ${before} → ${rt.state.plans.length}`);
+		logInfo(
+			`plans reconciled on-chain [${wallet.slice(0, 4)}]: ${before} → ${ws.plans.length}`,
+		);
 	}
 }
 
@@ -190,8 +198,8 @@ async function retryOpen(
 	const open = await api.openPortfolio(wallet, 1, 100);
 	const deployed = Number(open.total?.balancesSol ?? 0);
 	const openPositions = open.totalPositions ?? 0;
-	const baseMint =
-		rt.state.plans.find((p) => p.pool === cand.pool)?.baseMint ?? "";
+	const ws = ensureWalletState(rt.state, wallet);
+	const baseMint = ws.plans.find((p) => p.pool === cand.pool)?.baseMint ?? "";
 	// On-chain double-open guard: a createPosition whose response was lost may
 	// have landed on-chain without a tracked plan — never open it twice.
 	if (
@@ -206,13 +214,13 @@ async function retryOpen(
 	const dup = checkDuplicate({
 		pool: cand.pool,
 		baseMint,
-		plans: rt.state.plans,
+		plans: ws.plans,
 	});
 	if (!dup.ok) return `retry blocked: ${dup.reason}`;
 	const cd = checkPoolCooldown(
 		cand.pool,
 		baseMint || null,
-		rt.state.cooldowns,
+		ws.cooldowns,
 		Date.now(),
 	);
 	if (!cd.ok) return `retry blocked: ${cd.reason}`;
@@ -239,7 +247,7 @@ async function retryOpen(
 	if (!guard.ok) return `retry blocked: ${guard.reason}`;
 	if (amountSol <= 0) return "retry blocked: no budget remaining";
 	const cooldown = checkCooldown({
-		lastExecutionAt: lastOpenExecutionAt(rt.state.executions),
+		lastExecutionAt: lastOpenExecutionAt(ws.executions),
 		nowMs: Date.now(),
 		txCooldownMs: cfg.txCooldownMs,
 	});
@@ -263,7 +271,7 @@ async function retryOpen(
 		const res = await dlmm.createPosition(params);
 		const sig = res.signatures.join(",");
 		const now = new Date().toISOString();
-		rt.state.plans.push({
+		ws.plans.push({
 			pool: cand.pool,
 			poolName: cand.poolName,
 			baseMint: null,
@@ -271,7 +279,7 @@ async function retryOpen(
 			positionAddress: res.positions[0] ?? null,
 			openedAt: now,
 		});
-		rt.state.executions.push({
+		ws.executions.push({
 			at: now,
 			action: "open",
 			pool: cand.pool,
@@ -279,8 +287,8 @@ async function retryOpen(
 		});
 		appendJournal({
 			ts: now,
-			cycle: rt.state.cycle,
-			llmStatus: rt.state.llmStatus,
+			cycle: ws.cycle,
+			llmStatus: ws.llmStatus,
 			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
 		});
 		saveState(rt.state);
@@ -300,8 +308,8 @@ async function retryOpen(
 		const msg = e instanceof Error ? e.message : String(e);
 		appendJournal({
 			ts: new Date().toISOString(),
-			cycle: rt.state.cycle,
-			llmStatus: rt.state.llmStatus,
+			cycle: ws.cycle,
+			llmStatus: ws.llmStatus,
 			candidates: [{ ...cand, execution: "failed" }],
 		});
 		return `retry failed: ${msg}`;
@@ -315,7 +323,20 @@ async function retryClose(
 	cfg: AgentCfg,
 	cand: JournalCandidate,
 ): Promise<string> {
-	const plan = rt.state.plans.find(
+	// determine wallet for close retry: find which wallet owns the plan, fallback to first wallet
+	let walletForClose: string | null = null;
+	for (const [addr, w] of Object.entries(rt.state.wallets)) {
+		if (w.plans.some((p) => p.pool === cand.pool)) {
+			walletForClose = addr;
+			break;
+		}
+	}
+	if (!walletForClose) {
+		const wallets = await resolveEnabledWallets().catch(() => []);
+		walletForClose = wallets[0]?.wallet ?? (await resolveWallet());
+	}
+	const ws = ensureWalletState(rt.state, walletForClose);
+	const plan = ws.plans.find(
 		(p) => p.pool === cand.pool && p.positionAddress != null,
 	);
 	if (!plan?.positionAddress)
@@ -327,17 +348,16 @@ async function retryClose(
 			WSOL_MINT,
 		);
 		const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
-		rt.state.plans = rt.state.plans.filter((p) => p !== plan);
-		if (rt.state.oorSince[cand.pool] != null)
-			delete rt.state.oorSince[cand.pool];
-		rt.state.executions.push({
+		ws.plans = ws.plans.filter((p) => p !== plan);
+		if (ws.oorSince[cand.pool] != null) delete ws.oorSince[cand.pool];
+		ws.executions.push({
 			at: new Date().toISOString(),
 			action: cand.action,
 			pool: cand.pool,
 			txSignature: sig || null,
 		});
-		rt.state.cooldowns = recordCooldown(
-			rt.state.cooldowns,
+		ws.cooldowns = recordCooldown(
+			ws.cooldowns,
 			{
 				pool: cand.pool,
 				poolName: cand.poolName,
@@ -349,8 +369,8 @@ async function retryClose(
 		);
 		appendJournal({
 			ts: new Date().toISOString(),
-			cycle: rt.state.cycle,
-			llmStatus: rt.state.llmStatus,
+			cycle: ws.cycle,
+			llmStatus: ws.llmStatus,
 			candidates: [{ ...cand, execution: "ok", txSignature: sig || null }],
 		});
 		saveState(rt.state);
@@ -391,8 +411,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 	let gen = 0;
 	const busy = { cycle: -1, fast: -1, oor: -1 };
 	const syncRunning = () => {
-		rt.state.running =
-			busy.cycle === gen || busy.fast === gen || busy.oor === gen;
+		const running = busy.cycle === gen || busy.fast === gen || busy.oor === gen;
+		rt.state.running = running;
+		rt.state.global.running = running;
 	};
 
 	const schedule = (
@@ -443,7 +464,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 				if (myGen !== gen) return;
 				const agentCfg = resolveAgentConfigFrom(cfg);
 				rt.state.enabled = true;
+				rt.state.global.enabled = true;
 				rt.state.running = false;
+				rt.state.global.running = false;
 				saveState(rt.state);
 				intervalFiber = schedule(
 					"cycle",
@@ -469,32 +492,65 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			oorFiber = null;
 			briefingFiber = null;
 			rt.state.enabled = false;
+			rt.state.global.enabled = false;
 			rt.state.running = false;
+			rt.state.global.running = false;
 			// busy flags are NOT reset here: an in-flight run under an older
 			// generation owns them, and must not be cleared by stop().
 			saveState(rt.state);
 		},
 		async runFast() {
 			const myGen = gen;
-			if (busy.fast === myGen || !rt.state.enabled || myGen !== gen) return;
+			if (busy.fast === myGen || !rt.state.global.enabled || myGen !== gen)
+				return;
 			busy.fast = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallet = await resolveWallet();
-				section("TP/SL FAST CHECK");
-				const t0 = Date.now();
-				await syncOnchainPlans(rt, wallet);
-				const t1 = Date.now();
-				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
-					includeOor: false,
-					myGen,
-				});
-				const t2 = Date.now();
-				logInfo(
-					`fast check done: sync=${t1 - t0}ms tpsl=${t2 - t1}ms total=${t2 - t0}ms`,
-				);
+				const wallets = await resolveEnabledWallets().catch(() => []);
+				const targets: WalletConfig[] =
+					wallets.length > 0
+						? wallets
+						: [
+								{
+									wallet: await resolveWallet(),
+									privateKey: "",
+									label: "primary",
+									enabled: true,
+								},
+							];
+				for (const w of targets) {
+					try {
+						const wallet = w.wallet;
+						const label = w.label ?? wallet.slice(0, 4);
+						ensureWalletState(rt.state, wallet, label);
+						section(`TP/SL FAST CHECK [${label}]`);
+						const t0 = Date.now();
+						await syncOnchainPlans(rt, wallet);
+						const t1 = Date.now();
+						await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
+							includeOor: false,
+							myGen,
+						});
+						const t2 = Date.now();
+						logInfo(
+							`fast check [${label}] done: sync=${t1 - t0}ms tpsl=${t2 - t1}ms total=${t2 - t0}ms`,
+						);
+					} catch (e) {
+						logError(`fast check [${w.wallet}] error:`, e);
+						if (cfg) {
+							await notify(
+								bot,
+								chatId,
+								`[${w.label ?? w.wallet.slice(0, 4)}] ${formatError("fast cycle", e)}`,
+								{
+									keyboard: notifyKeyboard("error"),
+								},
+							);
+						}
+					}
+				}
 			} catch (e) {
 				logError("fast cycle error:", e);
 				if (cfg) {
@@ -512,33 +568,66 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		},
 		async runCycle() {
 			const myGen = gen;
-			if (busy.cycle === myGen || !rt.state.enabled || myGen !== gen) return;
+			if (busy.cycle === myGen || !rt.state.global.enabled || myGen !== gen)
+				return;
 			busy.cycle = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallet = await resolveWallet();
-				section(
-					`CYCLE #${rt.state.cycle + 1} | plans: ${rt.state.plans.length} | interval: ${cfg.txCooldownMs / 60_000}m`,
-				);
-				const open = await api.openPortfolio(wallet, 1, 100);
-				const deployed = Number(open.total?.balancesSol ?? 0);
-				const openPositions = open.totalPositions ?? 0;
-				await syncOnchainPlans(rt, wallet, open);
-				await evaluatePlans(
-					rt,
-					bot,
-					chatId,
-					cfg,
-					deployed,
-					openPositions,
-					myGen,
-				);
-				rt.state.lastCycleAt = new Date().toISOString();
-				logInfo(
-					`cycle #${rt.state.cycle} done | plans: ${rt.state.plans.length}`,
-				);
+				const wallets = await resolveEnabledWallets().catch(() => []);
+				const targets: WalletConfig[] =
+					wallets.length > 0
+						? wallets
+						: [
+								{
+									wallet: await resolveWallet(),
+									privateKey: "",
+									label: "primary",
+									enabled: true,
+								},
+							];
+				for (const w of targets) {
+					try {
+						const wallet = w.wallet;
+						const label = w.label ?? wallet.slice(0, 4);
+						ensureWalletState(rt.state, wallet, label);
+						const ws = rt.state.wallets[wallet];
+						section(
+							`CYCLE #${ws.cycle + 1} [${label}] | plans: ${ws.plans.length} | interval: ${cfg.txCooldownMs / 60_000}m`,
+						);
+						const open = await api.openPortfolio(wallet, 1, 100);
+						const deployed = Number(open.total?.balancesSol ?? 0);
+						const openPositions = open.totalPositions ?? 0;
+						await syncOnchainPlans(rt, wallet, open);
+						await evaluatePlans(
+							rt,
+							bot,
+							chatId,
+							cfg,
+							wallet,
+							deployed,
+							openPositions,
+							myGen,
+						);
+						ws.lastCycleAt = new Date().toISOString();
+						logInfo(
+							`cycle #${ws.cycle} [${label}] done | plans: ${ws.plans.length}`,
+						);
+					} catch (e) {
+						logError(`cycle wallet ${w.label ?? w.wallet} error:`, e);
+						await notify(
+							bot,
+							chatId,
+							`[${w.label ?? w.wallet.slice(0, 4)}] ${formatError("cycle", e)}`,
+							{
+								keyboard: notifyKeyboard("error"),
+							},
+						);
+					}
+				}
+				rt.state.global.lastCycleAt = new Date().toISOString();
+				logInfo(`cycle done | wallets: ${targets.length}`);
 			} catch (e) {
 				logError("cycle error:", e);
 				if (cfg) {
@@ -556,18 +645,49 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 		},
 		async runOor() {
 			const myGen = gen;
-			if (busy.oor === myGen || !rt.state.enabled || myGen !== gen) return;
+			if (busy.oor === myGen || !rt.state.global.enabled || myGen !== gen)
+				return;
 			busy.oor = myGen;
 			syncRunning();
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallet = await resolveWallet();
-				section("OOR CHECK");
-				await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
-					includeOor: true,
-					myGen,
-				});
+				const wallets = await resolveEnabledWallets().catch(() => []);
+				const targets: WalletConfig[] =
+					wallets.length > 0
+						? wallets
+						: [
+								{
+									wallet: await resolveWallet(),
+									privateKey: "",
+									label: "primary",
+									enabled: true,
+								},
+							];
+				for (const w of targets) {
+					try {
+						const wallet = w.wallet;
+						const label = w.label ?? wallet.slice(0, 4);
+						ensureWalletState(rt.state, wallet, label);
+						section(`OOR CHECK [${label}]`);
+						await evaluateTpSl(rt, bot, chatId, cfg, wallet, {
+							includeOor: true,
+							myGen,
+						});
+					} catch (e) {
+						logError(`oor wallet ${w.wallet} error:`, e);
+						if (cfg) {
+							await notify(
+								bot,
+								chatId,
+								`[${w.label ?? w.wallet.slice(0, 4)}] ${formatError("OOR check", e)}`,
+								{
+									keyboard: notifyKeyboard("error"),
+								},
+							);
+						}
+					}
+				}
 			} catch (e) {
 				logError("oor error:", e);
 				if (cfg) {
@@ -654,11 +774,12 @@ async function evaluateTpSl(
 	wallet: string,
 	opts: { includeOor?: boolean; myGen: number } = { myGen: 0 },
 ) {
+	const ws = ensureWalletState(rt.state, wallet);
 	const oorPositions: OorPosition[] = [];
 	// ensure oorSince exists (migration for old state files)
-	if (!rt.state.oorSince) rt.state.oorSince = {};
+	if (!ws.oorSince) ws.oorSince = {};
 	let oorDirty = false;
-	const plansWithPosition = [...rt.state.plans].filter(
+	const plansWithPosition = [...ws.plans].filter(
 		(p) => p.positionAddress != null,
 	);
 	const t0 = Date.now();
@@ -671,7 +792,7 @@ async function evaluateTpSl(
 		`positionPnl fetch: ${Date.now() - t0}ms (${plansWithPosition.length} plans)`,
 	);
 	if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
-	for (const plan of [...rt.state.plans]) {
+	for (const plan of [...ws.plans]) {
 		if (opts.myGen !== rt.gen) return; // agent stopped/restarted mid-run
 		if (!plan.positionAddress) continue;
 		if (positionTooYoung(plan, MIN_POSITION_AGE_MS, Date.now())) {
@@ -686,11 +807,11 @@ async function evaluateTpSl(
 			(pp) => pp.positionAddress === plan.positionAddress,
 		);
 		if (!pos || pos.isClosed) {
-			rt.state.plans = rt.state.plans.filter(
+			ws.plans = ws.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
-			if (rt.state.oorSince[plan.pool] != null) {
-				delete rt.state.oorSince[plan.pool];
+			if (ws.oorSince[plan.pool] != null) {
+				delete ws.oorSince[plan.pool];
 				oorDirty = true;
 			}
 			logInfo(`position check: ${plan.poolName} → closed, plan removed`);
@@ -722,18 +843,18 @@ async function evaluateTpSl(
 		}
 		const nowMs = Date.now();
 		if (isOorRight) {
-			if (rt.state.oorSince[plan.pool] == null) {
-				rt.state.oorSince[plan.pool] = nowMs;
+			if (ws.oorSince[plan.pool] == null) {
+				ws.oorSince[plan.pool] = nowMs;
 				oorDirty = true;
 			}
 		} else {
-			if (rt.state.oorSince[plan.pool] != null) {
-				delete rt.state.oorSince[plan.pool];
+			if (ws.oorSince[plan.pool] != null) {
+				delete ws.oorSince[plan.pool];
 				oorDirty = true;
 			}
 		}
 		if (pos.isOutOfRange === true) {
-			const since = rt.state.oorSince[plan.pool];
+			const since = ws.oorSince[plan.pool];
 			const oorDurationHours =
 				isOorRight && since != null ? (nowMs - since) / 3_600_000 : null;
 			oorPositions.push({
@@ -762,25 +883,22 @@ async function evaluateTpSl(
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
 		if (action === "hold") continue;
 		if (opts.myGen !== rt.gen) return; // aborted before the close tx
-		const gate = checkCloseGate(
-			plan,
-			rt.state.plans,
-			rt.state.cooldowns,
-			Date.now(),
-		);
+		const gate = checkCloseGate(plan, ws.plans, ws.cooldowns, Date.now());
 		if (!gate.ok) {
 			logInfo(
 				`position check: ${plan.poolName} → ${action} skipped (${gate.reason})`,
 			);
 			continue;
 		}
-		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+		if (
+			!claimClose(closeKey(wallet, plan.positionAddress!), closeInFlight).ok
+		) {
 			logInfo(
 				`position check: ${plan.poolName} → ${action} skipped (close already in flight)`,
 			);
 			continue;
 		}
-		closeInFlight.add(plan.positionAddress!);
+		closeInFlight.add(closeKey(wallet, plan.positionAddress!));
 		logInfo(
 			`position check: ${plan.poolName} pnl=${pct}% range=[${pos.minPrice}..${pos.maxPrice}] price=${pos.poolActivePrice} status=${pos.isOutOfRange === true ? "OOR" : "in-range"} → ${action}`,
 		);
@@ -807,13 +925,12 @@ async function evaluateTpSl(
 					);
 				}
 			}
-			rt.state.plans = rt.state.plans.filter(
+			ws.plans = ws.plans.filter(
 				(x) => x.positionAddress !== plan.positionAddress,
 			);
-			if (rt.state.oorSince[plan.pool] != null)
-				delete rt.state.oorSince[plan.pool];
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			if (ws.oorSince[plan.pool] != null) delete ws.oorSince[plan.pool];
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: plan.pool,
 					poolName: plan.poolName,
@@ -823,7 +940,7 @@ async function evaluateTpSl(
 				cfg.poolCooldownMs,
 				Date.now(),
 			);
-			rt.state.executions.push({
+			ws.executions.push({
 				at: new Date().toISOString(),
 				action,
 				pool: plan.pool,
@@ -831,8 +948,9 @@ async function evaluateTpSl(
 			});
 			const entry: AgentJournalEntry = {
 				ts: new Date().toISOString(),
-				cycle: rt.state.cycle,
-				llmStatus: rt.state.llmStatus,
+				cycle: ws.cycle,
+				wallet,
+				llmStatus: ws.llmStatus,
 				candidates: [
 					{
 						pool: plan.pool,
@@ -870,8 +988,9 @@ async function evaluateTpSl(
 			logError("tp/sl close failed:", e);
 			appendJournal({
 				ts: new Date().toISOString(),
-				cycle: rt.state.cycle,
-				llmStatus: rt.state.llmStatus,
+				cycle: ws.cycle,
+				wallet,
+				llmStatus: ws.llmStatus,
 				candidates: [
 					{
 						pool: plan.pool,
@@ -897,19 +1016,19 @@ async function evaluateTpSl(
 				{ keyboard: notifyKeyboard("failed", plan.pool) },
 			);
 		} finally {
-			closeInFlight.delete(plan.positionAddress!);
+			closeInFlight.delete(closeKey(wallet, plan.positionAddress!));
 		}
 	}
 	// prune stale oorSince entries for pools no longer tracked
-	for (const pool of Object.keys(rt.state.oorSince)) {
-		if (!rt.state.plans.some((p) => p.pool === pool)) {
-			delete rt.state.oorSince[pool];
+	for (const pool of Object.keys(ws.oorSince)) {
+		if (!ws.plans.some((p) => p.pool === pool)) {
+			delete ws.oorSince[pool];
 			oorDirty = true;
 		}
 	}
 	if (oorDirty) saveState(rt.state);
 	if (opts.includeOor && oorPositions.length > 0) {
-		await evaluateOor(rt, bot, chatId, cfg, oorPositions, opts.myGen);
+		await evaluateOor(rt, bot, chatId, cfg, wallet, oorPositions, opts.myGen);
 	}
 }
 
@@ -918,9 +1037,11 @@ async function evaluateOor(
 	bot: Bot,
 	chatId: string,
 	cfg: AgentCfg,
+	wallet: string,
 	positions: readonly OorPosition[],
 	myGen: number,
 ) {
+	const ws = ensureWalletState(rt.state, wallet);
 	logInfo(`OOR: ${positions.length} position(s) out of range → LLM`);
 	const { decisions, degraded, errorMessage } = await requestPositionDecisions({
 		cfg,
@@ -938,16 +1059,11 @@ async function evaluateOor(
 		if (myGen !== rt.gen) return; // aborted before the close tx
 		const pos = positions.find((p) => p.pool === d.pool);
 		if (!pos) continue;
-		const plan = rt.state.plans.find(
+		const plan = ws.plans.find(
 			(p) => p.pool === pos.pool && p.positionAddress != null,
 		);
 		if (!plan) continue; // closed this cycle by tp/sl
-		const gate = checkCloseGate(
-			plan,
-			rt.state.plans,
-			rt.state.cooldowns,
-			Date.now(),
-		);
+		const gate = checkCloseGate(plan, ws.plans, ws.cooldowns, Date.now());
 		if (!gate.ok) {
 			logInfo(`OOR decide: ${pos.poolName} → close skipped (${gate.reason})`);
 			continue;
@@ -966,20 +1082,23 @@ async function evaluateOor(
 		if (d.action === "hold") {
 			appendJournal({
 				ts: new Date().toISOString(),
-				cycle: rt.state.cycle,
+				cycle: ws.cycle,
+				wallet,
 				llmStatus: "ok",
 				candidates: [base],
 			});
 			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
 			continue;
 		}
-		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
+		if (
+			!claimClose(closeKey(wallet, plan.positionAddress!), closeInFlight).ok
+		) {
 			logInfo(
 				`OOR decide: ${pos.poolName} → close skipped (close already in flight)`,
 			);
 			continue;
 		}
-		closeInFlight.add(plan.positionAddress!);
+		closeInFlight.add(closeKey(wallet, plan.positionAddress!));
 		try {
 			const out = await zap.closeAndZapOut(
 				pos.pool,
@@ -1002,17 +1121,16 @@ async function evaluateOor(
 					);
 				}
 			}
-			rt.state.plans = rt.state.plans.filter((x) => x !== plan);
-			if (rt.state.oorSince[pos.pool] != null)
-				delete rt.state.oorSince[pos.pool];
-			rt.state.executions.push({
+			ws.plans = ws.plans.filter((x) => x !== plan);
+			if (ws.oorSince[pos.pool] != null) delete ws.oorSince[pos.pool];
+			ws.executions.push({
 				at: new Date().toISOString(),
 				action: "close",
 				pool: pos.pool,
 				txSignature: sig || null,
 			});
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: pos.pool,
 					poolName: pos.poolName,
@@ -1024,7 +1142,8 @@ async function evaluateOor(
 			);
 			appendJournal({
 				ts: new Date().toISOString(),
-				cycle: rt.state.cycle,
+				cycle: ws.cycle,
+				wallet,
 				llmStatus: "ok",
 				candidates: [{ ...base, execution: "ok", txSignature: sig || null }],
 			});
@@ -1056,12 +1175,13 @@ async function evaluateOor(
 			);
 			appendJournal({
 				ts: new Date().toISOString(),
-				cycle: rt.state.cycle,
+				cycle: ws.cycle,
+				wallet,
 				llmStatus: "ok",
 				candidates: [{ ...base, execution: "failed" }],
 			});
 		} finally {
-			closeInFlight.delete(plan.positionAddress!);
+			closeInFlight.delete(closeKey(wallet, plan.positionAddress!));
 		}
 	}
 }
@@ -1071,10 +1191,12 @@ async function evaluatePlans(
 	bot: Bot,
 	chatId: string,
 	cfg: AgentCfg,
+	wallet: string,
 	deployedSol: number,
 	openPositions: number,
 	myGen: number,
 ) {
+	const ws = ensureWalletState(rt.state, wallet);
 	if (openPositions >= cfg.maxOpenPositions) {
 		logInfo(
 			`at max positions (${openPositions}/${cfg.maxOpenPositions} on-chain), skipping screening + LLM`,
@@ -1082,7 +1204,7 @@ async function evaluatePlans(
 		return;
 	}
 	const live: LiveMsg = { msgId: null };
-	const cycle = rt.state.cycle + 1;
+	const cycle = ws.cycle + 1;
 	const liveLines = [`🔎 screening pools...`];
 	await liveSend(bot, chatId, live, formatLive(cycle, liveLines));
 	let screen;
@@ -1101,7 +1223,7 @@ async function evaluatePlans(
 	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,
-		rt.state.cooldowns,
+		ws.cooldowns,
 		Date.now(),
 	);
 	if (cooldownSkipped > 0) {
@@ -1112,7 +1234,7 @@ async function evaluatePlans(
 	}
 	const { pools: candidatePools, skipped: dupSkipped } = filterDuplicates(
 		noCooldownPools,
-		rt.state.plans,
+		ws.plans,
 	);
 	if (dupSkipped > 0) {
 		liveLines.push(
@@ -1123,12 +1245,13 @@ async function evaluatePlans(
 	const mintByPool = new Map(
 		candidatePools.map((p) => [p.pool, p.baseMint] as const),
 	);
-	for (const plan of rt.state.plans) {
+	for (const plan of ws.plans) {
 		if (!plan.baseMint) plan.baseMint = mintByPool.get(plan.pool) ?? null;
 	}
 	const journal: AgentJournalEntry = {
 		ts: new Date().toISOString(),
-		cycle: ++rt.state.cycle,
+		cycle: ++ws.cycle,
+		wallet,
 		llmStatus: "skipped",
 		candidates: [],
 	};
@@ -1196,9 +1319,7 @@ async function evaluatePlans(
 				maxSolPerPosition: cfg.maxSolPerPosition,
 				deployedSol,
 				openPositions,
-				cooldowns: rt.state.cooldowns.filter(
-					(c) => Date.parse(c.until) > Date.now(),
-				),
+				cooldowns: ws.cooldowns.filter((c) => Date.parse(c.until) > Date.now()),
 			})
 		: undefined;
 	const {
@@ -1221,7 +1342,7 @@ async function evaluatePlans(
 		logError(`LLM: ${failure}`);
 		liveLines[liveLines.length - 1] = `❌ LLM failed — ${failure}`;
 		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
-		rt.state.llmStatus = "failed";
+		ws.llmStatus = "failed";
 		appendJournal(journal);
 		saveState(rt.state);
 		await notify(bot, chatId, formatError("LLM decision", new Error(failure)));
@@ -1248,7 +1369,7 @@ async function evaluatePlans(
 
 	let budget = deployedSol;
 	let opened = 0;
-	let lastExecAt = lastOpenExecutionAt(rt.state.executions);
+	let lastExecAt = lastOpenExecutionAt(ws.executions);
 
 	const liveDecision = async (line: string) => {
 		liveLines.push(line);
@@ -1280,7 +1401,7 @@ async function evaluatePlans(
 		const dup = checkDuplicate({
 			pool: pool.pool,
 			baseMint: pool.baseMint,
-			plans: rt.state.plans,
+			plans: ws.plans,
 		});
 		if (!dup.ok) {
 			journal.candidates.push({
@@ -1288,8 +1409,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: dup.reason,
 			});
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: pool.pool,
 					poolName: pool.name,
@@ -1306,7 +1427,7 @@ async function evaluatePlans(
 		const cd = checkPoolCooldown(
 			pool.pool,
 			pool.baseMint,
-			rt.state.cooldowns,
+			ws.cooldowns,
 			Date.now(),
 		);
 		if (!cd.ok) {
@@ -1326,8 +1447,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: risk.reason,
 			});
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: pool.pool,
 					poolName: pool.name,
@@ -1356,8 +1477,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: guard.reason,
 			});
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: pool.pool,
 					poolName: pool.name,
@@ -1432,8 +1553,8 @@ async function evaluatePlans(
 				guardrail: "blocked",
 				blockedReason: rent.reason,
 			});
-			rt.state.cooldowns = recordCooldown(
-				rt.state.cooldowns,
+			ws.cooldowns = recordCooldown(
+				ws.cooldowns,
 				{
 					pool: pool.pool,
 					poolName: pool.name,
@@ -1452,7 +1573,7 @@ async function evaluatePlans(
 			const res = await dlmm.createPosition(params);
 			const sig = res.signatures.join(",");
 			const now = new Date().toISOString();
-			rt.state.plans.push({
+			ws.plans.push({
 				pool: pool.pool,
 				poolName: pool.name,
 				baseMint: pool.baseMint,
@@ -1461,7 +1582,7 @@ async function evaluatePlans(
 				openedAt: now,
 				signals: signalSnapshot(pool),
 			});
-			rt.state.executions.push({
+			ws.executions.push({
 				at: now,
 				action: "open",
 				pool: pool.pool,
@@ -1511,13 +1632,13 @@ async function evaluatePlans(
 		}
 	}
 
-	rt.state.llmStatus = journal.llmStatus;
+	ws.llmStatus = journal.llmStatus;
 	appendJournal(journal);
 	saveState(rt.state);
 	const summary = formatCycleSummary(
 		readJournal(1),
 		journal.llmStatus,
-		rt.state.cooldowns,
+		ws.cooldowns,
 	);
 	await liveSend(bot, chatId, live, summary);
 }
