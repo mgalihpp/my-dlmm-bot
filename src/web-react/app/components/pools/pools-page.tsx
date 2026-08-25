@@ -1,11 +1,6 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
-import { Suspense, useEffect, useState } from "react";
-import {
-	Await,
-	useLoaderData,
-	useRevalidator,
-	useSearchParams,
-} from "react-router";
+import { useEffect, useState } from "react";
+import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PoolsContent } from "~/components/pools/pools-content";
@@ -18,18 +13,9 @@ import {
 } from "~/lib/currency";
 import type { PoolsPayload } from "~/lib/pools";
 
-type LoaderData = {
-	critical: PoolsPayload;
-	deferred: Promise<readonly ScreenedPool[]>;
-};
+type LoaderData = PoolsPayload;
 
-function PoolsPageContent({
-	payload,
-	deferred,
-}: {
-	payload: PoolsPayload;
-	deferred: Promise<readonly ScreenedPool[]>;
-}) {
+function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeframe = searchParams.get("timeframe") ?? payload.timeframe;
@@ -76,7 +62,6 @@ function PoolsPageContent({
 			title="Pool Radar"
 			wallet={payload.wallet}
 			rpc={payload.rpc}
-			realtimeMs={60_000}
 		>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<PoolsHeader
@@ -99,43 +84,14 @@ function PoolsPageContent({
 						</CardContent>
 					</Card>
 				) : (
-					<Suspense
-						fallback={
-							<PoolsContent
-								pools={payload.pools}
-								currency={currency}
-								solPrice={payload.solPrice}
-								selectedPool={selectedPool}
-								onSelect={setSelectedPool}
-								onClose={() => setSelectedPool(null)}
-							/>
-						}
-					>
-						<Await
-							resolve={deferred}
-							errorElement={
-								<PoolsContent
-									pools={payload.pools}
-									currency={currency}
-									solPrice={payload.solPrice}
-									selectedPool={selectedPool}
-									onSelect={setSelectedPool}
-									onClose={() => setSelectedPool(null)}
-								/>
-							}
-						>
-							{(enriched: readonly ScreenedPool[]) => (
-								<PoolsContent
-									pools={enriched.length > 0 ? enriched : payload.pools}
-									currency={currency}
-									solPrice={payload.solPrice}
-									selectedPool={selectedPool}
-									onSelect={setSelectedPool}
-									onClose={() => setSelectedPool(null)}
-								/>
-							)}
-						</Await>
-					</Suspense>
+					<PoolsContent
+						pools={payload.pools}
+						currency={currency}
+						solPrice={payload.solPrice}
+						selectedPool={selectedPool}
+						onSelect={setSelectedPool}
+						onClose={() => setSelectedPool(null)}
+					/>
 				)}
 			</div>
 		</DashboardShell>
@@ -145,5 +101,5 @@ function PoolsPageContent({
 export function PoolsPage() {
 	const data = useLoaderData<LoaderData>();
 
-	return <PoolsPageContent payload={data.critical} deferred={data.deferred} />;
+	return <PoolsPageContent payload={data} />;
 }

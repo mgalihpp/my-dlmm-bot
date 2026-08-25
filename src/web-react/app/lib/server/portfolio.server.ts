@@ -236,24 +236,10 @@ export interface PortfolioDeferred {
 	readonly total: PortfolioTotal;
 }
 
-const portfolioCriticalCache = new Map<
-	string,
-	{
-		at: number;
-		data: PortfolioCritical | { ok: false; error: string; solPrice: null };
-	}
->();
-const PORTFOLIO_CACHE_TTL_MS = 30_000;
-const PORTFOLIO_STALE_MS = 5 * 60 * 1000;
-const portfolioInFlight = new Map<
-	string,
-	Promise<PortfolioCritical | { ok: false; error: string; solPrice: null }>
->();
-
 export function fetchPortfolioCritical(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
-	const configProgram = (cacheKey: string) =>
+	const configProgram = () =>
 		Effect.gen(function* () {
 			const config = yield* AppConfig;
 			const current = yield* config.get;
@@ -282,7 +268,6 @@ export function fetchPortfolioCritical(): Promise<
 				pools: res.pools,
 				history: readHistory(HISTORY_FILE),
 			};
-			portfolioCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
 			return payload;
 		}).pipe(
 			Effect.provide(AppLayer),
@@ -295,34 +280,7 @@ export function fetchPortfolioCritical(): Promise<
 			),
 		);
 
-	return Effect.runPromise(
-		Effect.gen(function* () {
-			const config = yield* AppConfig;
-			const wallet = yield* config.wallet();
-			const cacheKey = wallet;
-			const now = Date.now();
-			const cached = portfolioCriticalCache.get(cacheKey);
-			if (cached && now - cached.at < PORTFOLIO_CACHE_TTL_MS) {
-				return cached.data;
-			}
-			if (cached && now - cached.at < PORTFOLIO_STALE_MS) {
-				if (!portfolioInFlight.has(cacheKey)) {
-					const bg = Effect.runPromise(configProgram(cacheKey)).finally(() =>
-						portfolioInFlight.delete(cacheKey),
-					);
-					portfolioInFlight.set(cacheKey, bg);
-				}
-				return cached.data;
-			}
-			const inFlight = portfolioInFlight.get(cacheKey);
-			if (inFlight) return yield* Effect.tryPromise(() => inFlight);
-			const promise = Effect.runPromise(configProgram(cacheKey)).finally(() =>
-				portfolioInFlight.delete(cacheKey),
-			);
-			portfolioInFlight.set(cacheKey, promise);
-			return yield* Effect.tryPromise(() => promise);
-		}).pipe(Effect.provide(AppLayer)),
-	);
+	return Effect.runPromise(configProgram());
 }
 
 export function fetchPortfolioDeferred(

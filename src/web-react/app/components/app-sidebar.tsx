@@ -43,7 +43,7 @@ const data = {
 			title: "Pools",
 			url: "/pools",
 			icon: <CandlestickChart />,
-			prefetch: "render",
+			prefetch: "render" as const,
 		},
 	],
 	navSecondary: [

@@ -62,50 +62,14 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 	);
 }
 
-export interface PoolsCritical extends PoolsPayload {
-	readonly pools: readonly import("@vexis/domain/index.js").ScreenedPool[];
-}
-
-const poolsCriticalCache = new Map<
-	string,
-	{ at: number; data: PoolsPayload }
->();
-const POOLS_CACHE_TTL_MS = 30_000;
-// keep stale for 5m to serve instantly while revalidating in background
-const POOLS_STALE_MS = 5 * 60 * 1000;
-const poolsInFlight = new Map<string, Promise<PoolsPayload>>();
-
 export function fetchPoolsCritical(
 	rawTimeframe: string | null,
 ): Promise<PoolsPayload> {
-	const cacheKey = rawTimeframe ?? "__default__";
-	const cached = poolsCriticalCache.get(cacheKey);
-	const now = Date.now();
-	if (cached && now - cached.at < POOLS_CACHE_TTL_MS) {
-		return Promise.resolve(cached.data);
-	}
-	// stale-while-revalidate: serve stale instantly (stream), refresh in background
-	if (cached && now - cached.at < POOLS_STALE_MS) {
-		if (!poolsInFlight.has(cacheKey)) {
-			const bg = doFetchPoolsCritical(rawTimeframe, cacheKey).finally(() =>
-				poolsInFlight.delete(cacheKey),
-			);
-			poolsInFlight.set(cacheKey, bg);
-		}
-		return Promise.resolve(cached.data);
-	}
-	const inFlight = poolsInFlight.get(cacheKey);
-	if (inFlight) return inFlight;
-	const promise = doFetchPoolsCritical(rawTimeframe, cacheKey).finally(() =>
-		poolsInFlight.delete(cacheKey),
-	);
-	poolsInFlight.set(cacheKey, promise);
-	return promise;
+	return doFetchPoolsCritical(rawTimeframe);
 }
 
 function doFetchPoolsCritical(
 	rawTimeframe: string | null,
-	cacheKey: string,
 ): Promise<PoolsPayload> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
@@ -137,11 +101,6 @@ function doFetchPoolsCritical(
 				fetchedAt: Date.now(),
 			} satisfies PoolsPayload),
 		),
-		Effect.tap((payload) =>
-			Effect.sync(() => {
-				poolsCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
-			}),
-		),
 	);
 	return Effect.runPromise(program);
 }
@@ -166,36 +125,5 @@ export function fetchPoolsDeferred(
 }
 
 export function fetchPools(rawTimeframe: string | null): Promise<PoolsPayload> {
-	const program = Effect.gen(function* () {
-		const config = yield* AppConfig;
-		const current = yield* config.get;
-		const configured = current.pools?.timeframe ?? "30m";
-		const timeframe =
-			rawTimeframe !== null &&
-			(TIMEFRAMES as readonly string[]).includes(rawTimeframe)
-				? rawTimeframe
-				: configured;
-		const screening = yield* Screening;
-		const [result, solPrice] = yield* Effect.all(
-			[screening.screen({ timeframe }), fetchSolPrice()],
-			{ concurrency: "unbounded" },
-		);
-		const payload = buildPoolsPayload(result, solPrice, timeframe);
-		return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
-	}).pipe(
-		Effect.provide(AppLayer),
-		Effect.catchAll((error) =>
-			Effect.succeed({
-				ok: false,
-				error: errorMessage(error),
-				timeframe: rawTimeframe ?? "30m",
-				total: 0,
-				filtered: 0,
-				pools: [],
-				solPrice: null,
-				fetchedAt: Date.now(),
-			} satisfies PoolsPayload),
-		),
-	);
-	return Effect.runPromise(program);
+	return doFetchPoolsCritical(rawTimeframe);
 }

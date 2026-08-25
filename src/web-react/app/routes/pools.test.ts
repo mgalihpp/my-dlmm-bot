@@ -2,13 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoolsPayload } from "~/lib/pools";
 
 const mocks = vi.hoisted(() => ({
-	fetchPoolsCritical: vi.fn(),
-	fetchPoolsDeferred: vi.fn(),
+	fetchPools: vi.fn(),
 }));
 
 vi.mock("~/lib/server/pools.server", () => ({
-	fetchPoolsCritical: mocks.fetchPoolsCritical,
-	fetchPoolsDeferred: mocks.fetchPoolsDeferred,
+	fetchPools: mocks.fetchPools,
 }));
 vi.mock("~/middleware/auth", () => ({ authMiddleware: {} }));
 
@@ -29,17 +27,15 @@ const payload: PoolsPayload = {
 describe("pools loader", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.fetchPoolsCritical.mockResolvedValue(payload);
-		mocks.fetchPoolsDeferred.mockResolvedValue([]);
+		mocks.fetchPools.mockResolvedValue(payload);
 	});
 
-	it("awaits critical data and defers enrichment", async () => {
+	it("returns the complete pools payload", async () => {
 		const result = await loader({
 			request: new Request("https://example.test/pools"),
 		} as Parameters<typeof loader>[0]);
 
-		expect(result.critical).toEqual(payload);
-		expect(result.deferred).toBeInstanceOf(Promise);
-		expect(mocks.fetchPoolsDeferred).toHaveBeenCalledWith(payload.pools);
+		expect(result).toEqual(payload);
+		expect(mocks.fetchPools).toHaveBeenCalledWith(null);
 	});
 });
