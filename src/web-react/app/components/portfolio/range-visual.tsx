@@ -86,22 +86,22 @@ export function RangeVisual({
 				role="img"
 				aria-label={ariaLabel}
 			>
-			{bars.map((bar) => (
+				{bars.map((bar) => (
+					<div
+						key={bar.left}
+						className={`absolute ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
+						style={{
+							left: `${bar.left}%`,
+							width: `calc(${bar.width}% + 1px)`,
+							bottom: `${baselinePct}%`,
+							height: `${bar.height}%`,
+						}}
+					/>
+				))}
 				<div
-					key={bar.left}
-					className={`absolute ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
-					style={{
-						left: `${bar.left}%`,
-						width: `calc(${bar.width}% + 1px)`,
-						bottom: `${baselinePct}%`,
-						height: `${bar.height}%`,
-					}}
+					className="absolute inset-x-0"
+					style={{ bottom: `${baselinePct}%` }}
 				/>
-			))}
-			<div
-				className="absolute inset-x-0"
-				style={{ bottom: `${baselinePct}%` }}
-			/>
 				{currentX !== null ? (
 					<>
 						<div

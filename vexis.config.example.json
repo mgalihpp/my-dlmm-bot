@@ -27,6 +27,7 @@
 			"maxBotHoldersPct": 30,
 			"maxTop10Pct": 60,
 			"minFromAthPct": 30,
+			"maxRugScore": 500,
 			"blockWash": true,
 			"blockRugpull": true,
 			"blockDexScreenerPaid": true,

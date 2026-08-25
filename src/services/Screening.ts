@@ -1,4 +1,4 @@
-import { Context, Effect, type Either, Layer } from "effect";
+import { Context, Duration, Effect, type Either, Layer } from "effect";
 import type { PoolsConfig } from "../domain/config.js";
 import type { DecodeError, MeteoraApiError } from "../errors.js";
 import {
@@ -44,7 +44,7 @@ const make = Effect.gen(function* () {
 	) =>
 		Effect.forEach(
 			pools,
-			(pool) =>
+			(pool, idx) =>
 				Effect.all(
 					[
 						api.poolOhlcv(pool.pool, { timeframe: "24h" }).pipe(
@@ -112,8 +112,14 @@ const make = Effect.gen(function* () {
 						}).pipe(Effect.catchAll(() => Effect.succeed(void 0))),
 					],
 					{ concurrency: 2, discard: true },
+				).pipe(
+					Effect.tap(() =>
+						idx < pools.length - 1
+							? Effect.sleep(Duration.millis(650))
+							: Effect.succeed(void 0),
+					),
 				),
-			{ concurrency: 3, discard: true }, //  3 + 1.1s spaced retry respects fluxrpc.com/docs/rugcheck free 1 RPS; bump to 5+ with paid plan
+			{ concurrency: 1, discard: true }, // sequential 1 + 650ms gap ~= 1 RPS for RugCheck free tier; bump with paid plan
 		);
 
 	const service: ScreeningService = {

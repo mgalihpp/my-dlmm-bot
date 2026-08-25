@@ -63,9 +63,9 @@ export class RugCheck extends Context.Tag("RugCheck")<
 	RugCheckService
 >() {}
 
-const retryPolicy = Schedule.exponential(Duration.millis(500)).pipe(
+const retryPolicy = Schedule.exponential(Duration.millis(650)).pipe(
 	Schedule.intersect(Schedule.recurs(3)),
-); // 500ms exp covers fluxrpc.com/docs/rugcheck free 1 RPS burst (500+1000+2000) <5s test timeout
+); // 650ms exp (650+1300+2600=4550ms) respects fluxrpc.com/docs/rugcheck free 1 RPS; use spaced 1.1s throttle in Screening for burst control
 
 const transient = (e: RugCheckApiError): boolean =>
 	e.status === undefined || e.status === 429 || e.status >= 500;
