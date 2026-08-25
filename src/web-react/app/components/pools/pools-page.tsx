@@ -46,18 +46,60 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 		if (!payload.ok || payload.pools.length === 0) return;
 		let cancelled = false;
 		const controller = new AbortController();
-		fetch(`/api/pools-enriched?timeframe=${encodeURIComponent(timeframe)}`, {
-			signal: controller.signal,
-			credentials: "same-origin",
-		})
-			.then((r) => r.json())
-			.then((data: { ok?: boolean; pools?: ScreenedPool[] }) => {
-				if (cancelled) return;
-				if (data.ok && Array.isArray(data.pools)) {
-					setDisplayPools(data.pools);
+		(async () => {
+			try {
+				const res = await fetch(
+					`/api/pools-enriched?timeframe=${encodeURIComponent(timeframe)}`,
+					{
+						signal: controller.signal,
+						credentials: "same-origin",
+						headers: { Accept: "application/x-ndjson" },
+					},
+				);
+				if (!res.ok || !res.body) {
+					const data = (await res.json()) as {
+						ok?: boolean;
+						pools?: ScreenedPool[];
+					};
+					if (!cancelled && data.ok && Array.isArray(data.pools)) {
+						setDisplayPools(data.pools);
+					}
+					return;
 				}
-			})
-			.catch(() => {});
+				const reader = res.body.getReader();
+				const decoder = new TextDecoder();
+				let buffer = "";
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					if (cancelled) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split("\n");
+					buffer = lines.pop() ?? "";
+					for (const line of lines) {
+						if (!line.trim() || line.includes('"_error"')) continue;
+						try {
+							const pool = JSON.parse(line) as ScreenedPool;
+							if (cancelled) break;
+							setDisplayPools((prev) =>
+								prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
+							);
+							setSelectedPool((prev) =>
+								prev && prev.pool === pool.pool ? ({ ...prev, ...pool } as ScreenedPool) : prev,
+							);
+						} catch {}
+					}
+				}
+				if (buffer.trim() && !cancelled) {
+					try {
+						const pool = JSON.parse(buffer) as ScreenedPool;
+						setDisplayPools((prev) =>
+							prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
+						);
+					} catch {}
+				}
+			} catch {}
+		})();
 		return () => {
 			cancelled = true;
 			controller.abort();
