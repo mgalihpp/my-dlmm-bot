@@ -333,6 +333,17 @@ export function recordCooldown(
  * position for a few seconds after a close, which would otherwise re-track it
  * right after the agent closed it.
  */
+function deriveAdoptedAmountSol(
+	pool: Pick<OpenPool, "balancesSol" | "totalDepositSol">,
+): number {
+	const raw = pool.balancesSol ?? pool.totalDepositSol ?? null;
+	if (raw == null) return 0;
+	const n = parseFloat(raw);
+	if (!Number.isFinite(n) || n <= 0) return 0;
+	// keep 3 decimals, same as deriveOpenAmount rounding
+	return Math.round(n * 1000) / 1000;
+}
+
 export function adoptOnchainPlans(
 	plans: readonly AgentPlan[],
 	openPools: readonly Pick<
@@ -343,6 +354,8 @@ export function adoptOnchainPlans(
 		| "tokenXMint"
 		| "openPositionCount"
 		| "listPositions"
+		| "balancesSol"
+		| "totalDepositSol"
 	>[],
 	opts: {
 		complete?: boolean;
@@ -373,7 +386,7 @@ export function adoptOnchainPlans(
 			pool: pool.poolAddress,
 			poolName: `${pool.tokenX}/${pool.tokenY}`,
 			baseMint: pool.tokenXMint,
-			amountSol: 0,
+			amountSol: deriveAdoptedAmountSol(pool),
 			positionAddress: pool.listPositions[0] ?? null,
 			openedAt: null,
 		});

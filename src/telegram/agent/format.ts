@@ -73,7 +73,7 @@ export function formatStatus(
 			const pnlStr =
 				live && live.pnlPct != null ? ` ${tgPct(live.pnlPct)}` : "";
 			lines.push(
-				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${tgSolAmt(p.amountSol)} ${marker}${pnlStr}`,
+				`${i + 1}\\. ${escapeMarkdown(p.poolName)} ${p.amountSol > 0 ? tgSolAmt(p.amountSol) : escapeMarkdown("-- ◎")} ${marker}${pnlStr}`,
 			);
 		});
 	}
@@ -407,7 +407,7 @@ export function formatPositionCard(o: PositionCard): string {
 		"",
 		pnl,
 	];
-	if (o.amountSol != null) {
+	if (o.amountSol != null && o.amountSol > 0) {
 		lines.push(`Amount: ${tgSolAmt(o.amountSol)}`);
 	}
 	lines.push(`Range: ${range}`);
