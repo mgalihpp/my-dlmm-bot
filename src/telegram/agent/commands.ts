@@ -1,7 +1,11 @@
 import type { Api, Context } from "grammy";
 import { type Bot, InlineKeyboard } from "grammy";
 import type { PositionPnLData } from "../../domain/index.js";
-import { resolveAgentConfigFrom } from "../../services/Config.js";
+import {
+	getWalletConfigs,
+	loadConfigSync,
+	resolveAgentConfigFrom,
+} from "../../services/Config.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { escapeMarkdown } from "../format.js";
 import { api, getConfig, resolveWallet, updateConfig } from "../fx.js";
@@ -21,10 +25,29 @@ import {
 } from "./format.js";
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
-import { clearCooldowns } from "./state.js";
+import { clearCooldowns, getWalletState } from "./state.js";
 import { actionCounts, pnlPctValue, tradeStats } from "./stats.js";
 
 export const PAGE_SIZE = 5;
+
+export function resolveWalletArg(input?: string): string | null {
+	if (!input || /^\d+$/.test(input)) return null;
+	try {
+		const { config } = loadConfigSync();
+		const wallets = getWalletConfigs(config);
+		const lower = input.toLowerCase();
+		const found = wallets.find(
+			(w) =>
+				w.wallet === input ||
+				w.label === input ||
+				w.wallet.toLowerCase() === lower ||
+				w.label?.toLowerCase() === lower,
+		);
+		return found ? found.wallet : null;
+	} catch {
+		return null;
+	}
+}
 
 // Telegram rejects editMessageText when content is unchanged. Ignore it.
 export async function editOrIgnore(
@@ -121,15 +144,42 @@ async function syncEnabledConfig(enabled: boolean): Promise<void> {
 	}
 }
 
-function statusKeyboard(rt: RuntimeAgent): InlineKeyboard {
-	const kb = agentKeyboard(rt.state.enabled);
-	for (const p of rt.state.plans) {
+function statusKeyboard(
+	rt: RuntimeAgent,
+	walletOverride?: string | null,
+): InlineKeyboard {
+	const sourceState = walletOverride
+		? getWalletState(
+				rt.state as unknown as ReturnType<
+					typeof import("./state.js").loadState
+				>,
+				walletOverride,
+			)
+		: rt.state;
+	const kb = agentKeyboard(sourceState.enabled);
+	const plans = walletOverride
+		? getWalletState(
+				rt.state as unknown as ReturnType<
+					typeof import("./state.js").loadState
+				>,
+				walletOverride,
+			).plans
+		: rt.state.plans;
+	for (const p of plans) {
 		if (p.positionAddress == null) continue;
 		const id = registerAction(p.pool, p.positionAddress);
 		kb.row().text(planActionLabel(p).slice(0, 32), `agent:pos:${id}`);
 	}
 	kb.row().text("🔄 Refresh", "agent:status");
-	if (rt.state.cooldowns.some((c) => Date.parse(c.until) > Date.now())) {
+	const cooldowns = walletOverride
+		? getWalletState(
+				rt.state as unknown as ReturnType<
+					typeof import("./state.js").loadState
+				>,
+				walletOverride,
+			).cooldowns
+		: rt.state.cooldowns;
+	if (cooldowns.some((c) => Date.parse(c.until) > Date.now())) {
 		kb.text("🧹 Clear cooldowns", "agent:clear-cooldowns");
 	}
 	return kb;
@@ -140,10 +190,21 @@ function tradeStatsOf() {
 }
 
 /** Live PnL per plan (by pool address). Skips plans with no open position or failed fetch. */
-async function pnlByPool(rt: RuntimeAgent): Promise<Map<string, PositionPnl>> {
-	const wallet = await resolveWallet();
+async function pnlByPool(
+	rt: RuntimeAgent,
+	walletOverride?: string | null,
+): Promise<Map<string, PositionPnl>> {
+	const wallet = walletOverride ?? (await resolveWallet());
+	const sourcePlans = walletOverride
+		? getWalletState(
+				rt.state as unknown as ReturnType<
+					typeof import("./state.js").loadState
+				>,
+				walletOverride,
+			).plans
+		: rt.state.plans;
 	const map = new Map<string, PositionPnl>();
-	for (const plan of rt.state.plans) {
+	for (const plan of sourcePlans) {
 		if (!plan.positionAddress) continue;
 		try {
 			const pdata = await api.positionPnl(plan.pool, wallet, "open");
@@ -165,11 +226,20 @@ async function pnlByPool(rt: RuntimeAgent): Promise<Map<string, PositionPnl>> {
 
 async function portfolioRows(
 	rt: RuntimeAgent,
+	walletOverride?: string | null,
 ): Promise<{ rows: PortfolioRow[]; deployedSol: number }> {
-	const byPool = await pnlByPool(rt);
+	const byPool = await pnlByPool(rt, walletOverride);
+	const sourcePlans = walletOverride
+		? getWalletState(
+				rt.state as unknown as ReturnType<
+					typeof import("./state.js").loadState
+				>,
+				walletOverride,
+			).plans
+		: rt.state.plans;
 	const rows: PortfolioRow[] = [];
 	let deployedSol = 0;
-	for (const plan of rt.state.plans) {
+	for (const plan of sourcePlans) {
 		deployedSol += plan.amountSol ?? 0;
 		const live = byPool.get(plan.pool);
 		if (!live) continue;
@@ -202,43 +272,158 @@ export function journalKeyboard(
 
 export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 	bot.command("agent", async (ctx) => {
-		const [cmd, arg] = (ctx.match as string).trim().split(/\s+/);
+		const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
+		const cmd = parts[0] ?? "";
+		const arg = parts[1];
+		const walletOverride = resolveWalletArg(arg);
+		const isWalletArg = walletOverride !== null;
 		const cfg = resolveAgentConfigFrom(await getConfig());
 		const stats = tradeStatsOf();
 		switch (cmd) {
 			case "start": {
-				rt.start();
-				await syncEnabledConfig(true);
-				await ctx.reply(escapeMarkdown("🤖 DLMM Agent started."), MD);
+				if (walletOverride) {
+					const ws = getWalletState(
+						rt.state as unknown as ReturnType<
+							typeof import("./state.js").loadState
+						>,
+						walletOverride,
+					);
+					ws.enabled = true;
+					rt.state.global.enabled = true;
+					const { saveState } = await import("./state.js");
+					saveState(rt.state);
+					await ctx.reply(
+						escapeMarkdown(
+							`🤖 DLMM Agent started for ${walletOverride.slice(0, 4)}…`,
+						),
+						MD,
+					);
+				} else {
+					rt.start();
+					await syncEnabledConfig(true);
+					await ctx.reply(escapeMarkdown("🤖 DLMM Agent started."), MD);
+				}
 				break;
 			}
 			case "stop": {
-				rt.stop();
-				await syncEnabledConfig(false);
-				await ctx.reply(escapeMarkdown("🛑 DLMM Agent stopped."), MD);
+				if (walletOverride) {
+					const ws = getWalletState(
+						rt.state as unknown as ReturnType<
+							typeof import("./state.js").loadState
+						>,
+						walletOverride,
+					);
+					ws.enabled = false;
+					const { saveState } = await import("./state.js");
+					saveState(rt.state);
+					await ctx.reply(
+						escapeMarkdown(
+							`🛑 DLMM Agent stopped for ${walletOverride.slice(0, 4)}…`,
+						),
+						MD,
+					);
+				} else {
+					rt.stop();
+					await syncEnabledConfig(false);
+					await ctx.reply(escapeMarkdown("🛑 DLMM Agent stopped."), MD);
+				}
 				break;
 			}
 			case "clear-cooldowns": {
-				const n = rt.state.cooldowns.length;
-				clearCooldowns(rt.state);
-				await ctx.reply(
-					n > 0
-						? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.`
-						: "No cooldowns to clear.",
-					MD,
-				);
+				if (walletOverride) {
+					const ws = getWalletState(
+						rt.state as unknown as ReturnType<
+							typeof import("./state.js").loadState
+						>,
+						walletOverride,
+					);
+					const n = ws.cooldowns.length;
+					ws.cooldowns = [];
+					const { saveState } = await import("./state.js");
+					saveState(rt.state);
+					await ctx.reply(
+						n > 0
+							? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns for ${walletOverride.slice(0, 4)}…`
+							: `No cooldowns to clear for ${walletOverride.slice(0, 4)}…`,
+						MD,
+					);
+				} else {
+					const n = rt.state.cooldowns.length;
+					clearCooldowns(rt.state);
+					await ctx.reply(
+						n > 0
+							? `🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.`
+							: "No cooldowns to clear.",
+						MD,
+					);
+				}
 				break;
 			}
 			case "status": {
-				const pnl = await pnlByPool(rt);
-				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
+				const targetWallet = isWalletArg ? walletOverride : null;
+				const pnl = await pnlByPool(rt, targetWallet);
+				const stateForStatus = targetWallet
+					? getWalletState(
+							rt.state as unknown as ReturnType<
+								typeof import("./state.js").loadState
+							>,
+							targetWallet,
+						)
+					: rt.state;
+				let text: string;
+				if (!targetWallet) {
+					try {
+						const { config } = loadConfigSync();
+						const wallets = getWalletConfigs(config).filter(
+							(w) => w.enabled !== false,
+						);
+						if (wallets.length > 1) {
+							const lines: string[] = ["*Agent — all wallets*\\n"];
+							for (const w of wallets) {
+								const ws = getWalletState(
+									rt.state as unknown as ReturnType<
+										typeof import("./state.js").loadState
+									>,
+									w.wallet,
+								);
+								lines.push(
+									`${w.label ?? w.wallet.slice(0, 4)}: ${ws.plans.length} pos • ${ws.cooldowns.length} cooldowns • ${ws.enabled ? "enabled" : "paused"}`,
+								);
+							}
+							text = lines.join("\\n");
+						} else {
+							text = formatStatus(
+								stateForStatus as unknown as typeof rt.state,
+								cfg,
+								stats,
+								pnl,
+							);
+						}
+					} catch {
+						text = formatStatus(
+							stateForStatus as unknown as typeof rt.state,
+							cfg,
+							stats,
+							pnl,
+						);
+					}
+				} else {
+					text = formatStatus(
+						stateForStatus as unknown as typeof rt.state,
+						cfg,
+						stats,
+						pnl,
+					);
+				}
+				await ctx.reply(text, {
 					...MD,
-					reply_markup: statusKeyboard(rt),
+					reply_markup: statusKeyboard(rt, targetWallet),
 				});
 				break;
 			}
 			case "portfolio": {
-				const { rows, deployedSol } = await portfolioRows(rt);
+				const targetWallet = isWalletArg ? walletOverride : null;
+				const { rows, deployedSol } = await portfolioRows(rt, targetWallet);
 				await ctx.reply(formatPortfolio(rows, deployedSol, stats), {
 					...MD,
 					reply_markup: portfolioKeyboard(rt.state.enabled),
@@ -246,9 +431,15 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				break;
 			}
 			case "journal": {
-				const entries = readJournalAll();
+				let entries = readJournalAll();
+				if (isWalletArg && walletOverride) {
+					entries = entries.filter((e) => e.wallet === walletOverride);
+				}
 				const counts = actionCounts(entries);
-				const n = Math.min(parseInt(arg || "5", 10) || 5, 20);
+				const n = Math.min(
+					parseInt((isWalletArg ? undefined : arg) || "5", 10) || 5,
+					20,
+				);
 				const text = formatJournalPage(
 					entries,
 					{ page: 0, pageSize: n, filter: "all" },
@@ -262,11 +453,28 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 				break;
 			}
 			default: {
-				const pnl = await pnlByPool(rt);
-				await ctx.reply(formatStatus(rt.state, cfg, stats, pnl), {
-					...MD,
-					reply_markup: statusKeyboard(rt),
-				});
+				const targetWallet = isWalletArg ? walletOverride : null;
+				const pnl = await pnlByPool(rt, targetWallet);
+				const stateForStatus = targetWallet
+					? getWalletState(
+							rt.state as unknown as ReturnType<
+								typeof import("./state.js").loadState
+							>,
+							targetWallet,
+						)
+					: rt.state;
+				await ctx.reply(
+					formatStatus(
+						stateForStatus as unknown as typeof rt.state,
+						cfg,
+						stats,
+						pnl,
+					),
+					{
+						...MD,
+						reply_markup: statusKeyboard(rt, targetWallet),
+					},
+				);
 			}
 		}
 	});
