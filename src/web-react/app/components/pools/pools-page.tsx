@@ -7,6 +7,7 @@ import { PoolsContent } from "~/components/pools/pools-content";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
 import {
+	POOLS_CURRENCY_STORAGE_KEY,
 	readStoredCurrency,
 	resolveCurrency,
 	writeStoredCurrency,
@@ -29,7 +30,9 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
 
 	useEffect(() => {
-		setStoredCurrency(readStoredCurrency(window.localStorage));
+		setStoredCurrency(
+			readStoredCurrency(window.localStorage, POOLS_CURRENCY_STORAGE_KEY),
+		);
 	}, []);
 
 	const onTimeframeChange = (value: string) =>
@@ -44,7 +47,11 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 		);
 	const onCurrencyChange = (value: string) => {
 		const currency = value as "usd" | "sol";
-		writeStoredCurrency(window.localStorage, currency);
+		writeStoredCurrency(
+			window.localStorage,
+			POOLS_CURRENCY_STORAGE_KEY,
+			currency,
+		);
 		setStoredCurrency(currency);
 		setSearchParams(
 			(current) => {

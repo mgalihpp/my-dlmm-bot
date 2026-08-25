@@ -7,6 +7,7 @@ import { PortfolioContent } from "~/components/portfolio/portfolio-content";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
 import {
 	type Currency,
+	PORTFOLIO_CURRENCY_STORAGE_KEY,
 	readStoredCurrency,
 	resolveCurrency,
 	writeStoredCurrency,
@@ -31,11 +32,17 @@ export function PortfolioPage() {
 	);
 
 	useEffect(() => {
-		setStoredCurrency(readStoredCurrency(window.localStorage));
+		setStoredCurrency(
+			readStoredCurrency(window.localStorage, PORTFOLIO_CURRENCY_STORAGE_KEY),
+		);
 	}, []);
 
 	const setCurrency = (value: Currency) => {
-		writeStoredCurrency(window.localStorage, value);
+		writeStoredCurrency(
+			window.localStorage,
+			PORTFOLIO_CURRENCY_STORAGE_KEY,
+			value,
+		);
 		setStoredCurrency(value);
 		setSearchParams(
 			(current) => {
