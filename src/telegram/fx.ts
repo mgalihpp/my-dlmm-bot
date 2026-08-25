@@ -1,13 +1,18 @@
 import type { Keypair } from "@solana/web3.js";
 import type BN from "bn.js";
 import { Effect } from "effect";
-import type { PoolsConfig, VexisConfig } from "../domain/config.js";
+import type {
+	PoolsConfig,
+	VexisConfig,
+	WalletConfig,
+} from "../domain/config.js";
 import type { OpenPool } from "../domain/index.js";
 import type { ScreenResult } from "../lib/screening.js";
 import { AppConfig } from "../services/Config.js";
 import { Dlmm, type DlmmService } from "../services/Dlmm.js";
 import { MeteoraApi, type MeteoraApiService } from "../services/MeteoraApi.js";
 import { Screening } from "../services/Screening.js";
+import { Solana } from "../services/Solana.js";
 import { TokenMeta, type TokenMetaInfo } from "../services/TokenMeta.js";
 import { type WatchedWallet, Watchlist } from "../services/Watchlist.js";
 import { Zap } from "../services/Zap.js";
@@ -35,6 +40,15 @@ export const resolveRpc = (): Promise<string> =>
 
 export const resolveKeypair = (): Promise<Keypair> =>
 	runFx(Effect.flatMap(AppConfig, (c) => c.keypair));
+
+export const resolveKeypairFor = (wallet: string): Promise<Keypair> =>
+	runFx(Effect.flatMap(Solana, (s) => s.keypairFor(wallet)));
+
+export const resolveWallets = (): Promise<WalletConfig[]> =>
+	runFx(Effect.flatMap(AppConfig, (c) => c.wallets));
+
+export const resolveEnabledWallets = (): Promise<WalletConfig[]> =>
+	runFx(Effect.flatMap(AppConfig, (c) => c.enabledWallets));
 
 export const api = {
 	totalPnl: (user: string) =>
