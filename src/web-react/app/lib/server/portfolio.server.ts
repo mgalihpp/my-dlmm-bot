@@ -243,57 +243,86 @@ const portfolioCriticalCache = new Map<
 		data: PortfolioCritical | { ok: false; error: string; solPrice: null };
 	}
 >();
-const PORTFOLIO_CACHE_TTL_MS = 12_000;
+const PORTFOLIO_CACHE_TTL_MS = 30_000;
+const PORTFOLIO_STALE_MS = 5 * 60 * 1000;
+const portfolioInFlight = new Map<
+	string,
+	Promise<PortfolioCritical | { ok: false; error: string; solPrice: null }>
+>();
 
 export function fetchPortfolioCritical(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
-	const program = Effect.gen(function* () {
-		const config = yield* AppConfig;
-		const current = yield* config.get;
-		const wallet = yield* config.wallet();
-		const cacheKey = wallet;
-		const cached = portfolioCriticalCache.get(cacheKey);
-		if (cached && Date.now() - cached.at < PORTFOLIO_CACHE_TTL_MS) {
-			return cached.data;
-		}
-		const api = yield* MeteoraApi;
-		const res = yield* api.openPortfolio(wallet, 1, 10);
-		const apiTotals = res.total ?? null;
-		const summary = computePortfolioSummary(res.pools, apiTotals);
-		recordSnapshot(
-			{
-				ts: Math.floor(Date.now() / 1000),
-				pnlUsd: summary.unrealizedUsd,
-				pnlSol: summary.unrealizedSol,
-				balanceUsd: summary.openBalanceUsd,
-				feesUsd: summary.openFeesUsd,
-			},
-			HISTORY_FILE,
+	const configProgram = (cacheKey: string) =>
+		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const current = yield* config.get;
+			const wallet = yield* config.wallet();
+			const api = yield* MeteoraApi;
+			const res = yield* api.openPortfolio(wallet, 1, 10);
+			const apiTotals = res.total ?? null;
+			const summary = computePortfolioSummary(res.pools, apiTotals);
+			recordSnapshot(
+				{
+					ts: Math.floor(Date.now() / 1000),
+					pnlUsd: summary.unrealizedUsd,
+					pnlSol: summary.unrealizedSol,
+					balanceUsd: summary.openBalanceUsd,
+					feesUsd: summary.openFeesUsd,
+				},
+				HISTORY_FILE,
+			);
+			const payload: PortfolioCritical = {
+				ok: true as const,
+				wallet,
+				rpc: current.rpcUrl ?? "rpc not configured",
+				solPrice: parseNum(res.solPrice),
+				total: apiTotals,
+				summary,
+				pools: res.pools,
+				history: readHistory(HISTORY_FILE),
+			};
+			portfolioCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
+			return payload;
+		}).pipe(
+			Effect.provide(AppLayer),
+			Effect.catchAll((error) =>
+				Effect.succeed({
+					ok: false as const,
+					error: errorMessage(error),
+					solPrice: null,
+				}),
+			),
 		);
-		const payload: PortfolioCritical = {
-			ok: true as const,
-			wallet,
-			rpc: current.rpcUrl ?? "rpc not configured",
-			solPrice: parseNum(res.solPrice),
-			total: apiTotals,
-			summary,
-			pools: res.pools,
-			history: readHistory(HISTORY_FILE),
-		};
-		portfolioCriticalCache.set(cacheKey, { at: Date.now(), data: payload });
-		return payload;
-	}).pipe(
-		Effect.provide(AppLayer),
-		Effect.catchAll((error) =>
-			Effect.succeed({
-				ok: false as const,
-				error: errorMessage(error),
-				solPrice: null,
-			}),
-		),
+
+	return Effect.runPromise(
+		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const wallet = yield* config.wallet();
+			const cacheKey = wallet;
+			const now = Date.now();
+			const cached = portfolioCriticalCache.get(cacheKey);
+			if (cached && now - cached.at < PORTFOLIO_CACHE_TTL_MS) {
+				return cached.data;
+			}
+			if (cached && now - cached.at < PORTFOLIO_STALE_MS) {
+				if (!portfolioInFlight.has(cacheKey)) {
+					const bg = Effect.runPromise(configProgram(cacheKey)).finally(() =>
+						portfolioInFlight.delete(cacheKey),
+					);
+					portfolioInFlight.set(cacheKey, bg);
+				}
+				return cached.data;
+			}
+			const inFlight = portfolioInFlight.get(cacheKey);
+			if (inFlight) return yield* Effect.tryPromise(() => inFlight);
+			const promise = Effect.runPromise(configProgram(cacheKey)).finally(() =>
+				portfolioInFlight.delete(cacheKey),
+			);
+			portfolioInFlight.set(cacheKey, promise);
+			return yield* Effect.tryPromise(() => promise);
+		}).pipe(Effect.provide(AppLayer)),
 	);
-	return Effect.runPromise(program);
 }
 
 export function fetchPortfolioDeferred(

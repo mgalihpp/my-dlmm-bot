@@ -70,16 +70,43 @@ const poolsCriticalCache = new Map<
 	string,
 	{ at: number; data: PoolsPayload }
 >();
-const POOLS_CACHE_TTL_MS = 12_000;
+const POOLS_CACHE_TTL_MS = 30_000;
+// keep stale for 5m to serve instantly while revalidating in background
+const POOLS_STALE_MS = 5 * 60 * 1000;
+const poolsInFlight = new Map<string, Promise<PoolsPayload>>();
 
 export function fetchPoolsCritical(
 	rawTimeframe: string | null,
 ): Promise<PoolsPayload> {
 	const cacheKey = rawTimeframe ?? "__default__";
 	const cached = poolsCriticalCache.get(cacheKey);
-	if (cached && Date.now() - cached.at < POOLS_CACHE_TTL_MS) {
+	const now = Date.now();
+	if (cached && now - cached.at < POOLS_CACHE_TTL_MS) {
 		return Promise.resolve(cached.data);
 	}
+	// stale-while-revalidate: serve stale instantly (stream), refresh in background
+	if (cached && now - cached.at < POOLS_STALE_MS) {
+		if (!poolsInFlight.has(cacheKey)) {
+			const bg = doFetchPoolsCritical(rawTimeframe, cacheKey).finally(() =>
+				poolsInFlight.delete(cacheKey),
+			);
+			poolsInFlight.set(cacheKey, bg);
+		}
+		return Promise.resolve(cached.data);
+	}
+	const inFlight = poolsInFlight.get(cacheKey);
+	if (inFlight) return inFlight;
+	const promise = doFetchPoolsCritical(rawTimeframe, cacheKey).finally(() =>
+		poolsInFlight.delete(cacheKey),
+	);
+	poolsInFlight.set(cacheKey, promise);
+	return promise;
+}
+
+function doFetchPoolsCritical(
+	rawTimeframe: string | null,
+	cacheKey: string,
+): Promise<PoolsPayload> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const current = yield* config.get;
