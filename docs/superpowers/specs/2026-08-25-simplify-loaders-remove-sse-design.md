@@ -22,6 +22,7 @@ because those boundaries concern JavaScript bundle loading, not route data.
 ### Preserve
 
 - Manual refresh through `useRevalidator`.
+- Portfolio auto-refresh every 10 seconds while its tab is visible.
 - `fetchPortfolio(closedPage)` and `fetchPools(timeframe)` as the complete server
   payload functions.
 - Existing query validation for `closedPage` and accepted pool timeframes.
@@ -80,5 +81,6 @@ connection remains open after a route loader completes.
 
 - No change to backend/domain fetching semantics.
 - No client-side replacement for SSE polling.
+- No automatic refresh for the Pools page.
 - No removal of HTTP caching used by the icon proxy.
 - No redesign of dashboard UI or route authorization.

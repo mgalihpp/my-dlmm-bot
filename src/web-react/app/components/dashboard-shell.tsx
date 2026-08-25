@@ -3,22 +3,18 @@ import { AppSidebar } from "~/components/app-sidebar";
 import { MobileBottomNav } from "~/components/mobile-bottom-nav";
 import { SiteHeader } from "~/components/site-header";
 import { SidebarInset, SidebarProvider } from "~/components/ui/sidebar";
-import { useRealtimeRevalidate } from "~/hooks/use-realtime";
 
 export function DashboardShell({
 	title = "Documents",
 	wallet,
 	rpc,
-	realtimeMs = 10_000,
 	children,
 }: {
 	title?: string;
 	wallet?: string;
 	rpc?: string;
-	realtimeMs?: number;
 	children: ReactNode;
 }) {
-	useRealtimeRevalidate(realtimeMs);
 	const sidebar = useMemo(
 		() => <AppSidebar wallet={wallet} rpc={rpc} />,
 		[wallet, rpc],

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-	fetchPortfolioCritical: vi.fn(),
-	fetchPortfolioDeferred: vi.fn(),
+	fetchPortfolio: vi.fn(),
 }));
 
 vi.mock("~/components/portfolio/portfolio-page", () => ({
@@ -28,21 +27,23 @@ const critical = {
 describe("portfolio loader", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.fetchPortfolioCritical.mockResolvedValue(critical);
-		mocks.fetchPortfolioDeferred.mockResolvedValue({});
+		mocks.fetchPortfolio.mockResolvedValue(critical);
 	});
 
-	it("awaits critical data and defers enrichment", async () => {
+	it("returns the complete portfolio payload", async () => {
 		const result = await loader({
 			request: new Request("https://example.test/portfolio"),
 		} as Parameters<typeof loader>[0]);
 
-		expect(result.critical).toEqual(critical);
-		expect(result.deferred).toBeInstanceOf(Promise);
-		expect(mocks.fetchPortfolioDeferred).toHaveBeenCalledWith(
-			critical.wallet,
-			critical.pools,
-			1,
-		);
+		expect(result).toEqual(critical);
+		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(1);
+	});
+
+	it("passes a valid closed positions page to the fetcher", async () => {
+		await loader({
+			request: new Request("https://example.test/portfolio?closedPage=3"),
+		} as Parameters<typeof loader>[0]);
+
+		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(3);
 	});
 });
