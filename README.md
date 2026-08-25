@@ -126,6 +126,21 @@ The dashboard is served by the root application. It does not expose private keys
 }
 ```
 
+### Multi-wallet
+
+Configure multiple wallets in `vexis.config.json`:
+
+```json
+"wallets": [
+  { "label": "main", "wallet": "DYAn...", "privateKey": "base58-or-base64", "enabled": true },
+  { "label": "scalping", "wallet": "9W3k...", "privateKey": "...", "enabled": true }
+]
+```
+
+Legacy single-wallet `wallet`/`privateKey` still works and auto-migrates to `wallets[0]`. Each wallet has isolated budgets (`maxSolPerPosition`, `maxTotalSol`, `maxOpenPositions`) and isolated state (plans, cooldowns, OOR timers). The agent loops wallets sequentially.
+
+Web: use `?wallet=ADDRESS` or the `WalletSwitcher` dropdown. Telegram: `/agent status <label>` or `/portfolio <label>` for per-wallet views; without an argument, status shows an aggregated summary across all enabled wallets.
+
 Run the development server or the compiled server with:
 
 ```bash
