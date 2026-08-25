@@ -28,6 +28,7 @@ export interface AgentJournalEntry {
 	cycle: number;
 	llmStatus: LlmStatus;
 	candidates: JournalCandidate[];
+	wallet?: string | null;
 }
 
 const DEFAULT_FILE = repoPath(".vexis-agent-journal.jsonl");
