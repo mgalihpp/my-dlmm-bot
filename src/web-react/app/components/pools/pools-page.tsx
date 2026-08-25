@@ -8,8 +8,6 @@ import {
 } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
-import { PoolsPageSkeleton } from "~/components/page-skeletons/pools";
 import { PoolsContent } from "~/components/pools/pools-content";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
@@ -21,7 +19,7 @@ import {
 import type { PoolsPayload } from "~/lib/pools";
 
 type LoaderData = {
-	critical: Promise<PoolsPayload>;
+	critical: PoolsPayload;
 	deferred: Promise<readonly ScreenedPool[]>;
 };
 
@@ -146,43 +144,6 @@ function PoolsPageContent({
 
 export function PoolsPage() {
 	const data = useLoaderData<LoaderData>();
-	const isNavigating = useIsNavigating();
 
-	// During client navigation the old route stays mounted for 1 frame —
-	// show skeleton for target route instantly (same trick as agent/settings).
-	if (isNavigating) {
-		return (
-			<DashboardShell title="Pool Radar" realtimeMs={60_000}>
-				<PageSkeleton />
-			</DashboardShell>
-		);
-	}
-
-	return (
-		<Suspense
-			fallback={
-				<DashboardShell title="Pool Radar" realtimeMs={60_000}>
-					<PoolsPageSkeleton />
-				</DashboardShell>
-			}
-		>
-			<Await
-				resolve={data.critical}
-				errorElement={
-					<DashboardShell title="Pool Radar" realtimeMs={60_000}>
-						<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
-							<LoadErrorCard
-								title="Failed to load pools"
-								error="Loader failed"
-							/>
-						</div>
-					</DashboardShell>
-				}
-			>
-				{(payload: PoolsPayload) => (
-					<PoolsPageContent payload={payload} deferred={data.deferred} />
-				)}
-			</Await>
-		</Suspense>
-	);
+	return <PoolsPageContent payload={data.critical} deferred={data.deferred} />;
 }

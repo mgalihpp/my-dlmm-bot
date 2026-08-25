@@ -10,18 +10,17 @@ import type { Route } from "./+types/portfolio";
 export const meta: Route.MetaFunction = () => [{ title: "Portfolio | Vexis" }];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request }: Route.LoaderArgs) {
 	const url = new URL(request.url);
 	const rawPage = url.searchParams.get("closedPage");
 	const parsedPage = rawPage === null ? 1 : Number(rawPage);
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-	// Stream critical so navigation commits instantly — same perceived speed as
-	// hard reload (SSR onShellReady streams shell). Skeleton shown via Suspense.
-	const critical = fetchPortfolioCritical();
-	const deferred = critical.then((c) => {
-		if (!c.ok) {
-			return {
+	// Await only data needed for the first render; enrichment remains deferred.
+	const critical = await fetchPortfolioCritical();
+	const deferred = critical.ok
+		? fetchPortfolioDeferred(critical.wallet, critical.pools, closedPage)
+		: Promise.resolve({
 				pools:
 					[] as const as readonly import("~/lib/server/portfolio.server").OpenPoolWithIcons[],
 				closed: {
@@ -37,10 +36,7 @@ export function loader({ request }: Route.LoaderArgs) {
 					totalPnlPctChange: "-",
 					totalPnlSolPctChange: "-",
 				} as const,
-			};
-		}
-		return fetchPortfolioDeferred(c.wallet, c.pools, closedPage);
-	});
+			});
 	return { critical, deferred };
 }
 

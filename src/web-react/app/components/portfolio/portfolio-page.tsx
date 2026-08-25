@@ -48,9 +48,7 @@ export type { Currency } from "~/lib/currency";
 export type RangeFilter = "all" | "in-range" | "oor";
 
 type LoaderData = {
-	critical: Promise<
-		PortfolioCritical | { ok: false; error: string; solPrice: null }
-	>;
+	critical: PortfolioCritical | { ok: false; error: string; solPrice: null };
 	deferred: Promise<PortfolioDeferred>;
 };
 
