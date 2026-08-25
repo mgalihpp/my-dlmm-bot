@@ -14,6 +14,7 @@ export function NavMain({
 		title: string;
 		url: string;
 		icon?: React.ReactNode;
+		prefetch?: "intent" | "render";
 	}[];
 }) {
 	const { pathname } = useLocation();
@@ -29,7 +30,7 @@ export function NavMain({
 								tooltip={item.title}
 								isActive={pathname === item.url}
 							>
-								<NavLink to={item.url} prefetch="intent">
+								<NavLink to={item.url} prefetch={item.prefetch ?? "intent"}>
 									{item.icon}
 									<span>{item.title}</span>
 								</NavLink>

@@ -27,7 +27,7 @@ export function MobileBottomNav() {
 						<NavLink
 							key={item.title}
 							to={item.url}
-							prefetch="intent"
+							prefetch={item.url === "/pools" ? "render" : "intent"}
 							className={({ isActive }) =>
 								cn(
 									"flex min-w-16 flex-1 flex-col items-center justify-center gap-1 rounded-md text-[10px] font-medium text-sidebar-foreground/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
