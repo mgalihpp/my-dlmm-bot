@@ -50,7 +50,7 @@ export async function loader({ request }: { request: Request }) {
 							.enrichPools([pool as never])
 							.pipe(Effect.provide(AppLayer)),
 					);
-					controller.enqueue(encoder.encode(JSON.stringify(pool) + "\n"));
+					controller.enqueue(encoder.encode(`${JSON.stringify(pool)}\n`));
 					if (i < pools.length - 1) {
 						await new Promise<void>((r) => setTimeout(r, 650));
 					}
@@ -59,7 +59,7 @@ export async function loader({ request }: { request: Request }) {
 			} catch (e) {
 				try {
 					controller.enqueue(
-						encoder.encode(JSON.stringify({ _error: String(e) }) + "\n"),
+						encoder.encode(`${JSON.stringify({ _error: String(e) })}\n`),
 					);
 				} catch {}
 				controller.close();

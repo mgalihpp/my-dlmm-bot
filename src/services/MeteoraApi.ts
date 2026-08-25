@@ -319,11 +319,11 @@ const make = Effect.gen(function* () {
 			getJson(
 				DISCOVERY_API,
 				"/pools",
-				{ page_size: 1, query: address },
+				{ page_size: 10, query: address },
 				DiscoveryPoolsResponse,
 			).pipe(
 				Effect.flatMap((res) => {
-					const pool = res.data[0];
+					const pool = res.data.find((p) => p.pool_address === address);
 					return pool
 						? Effect.succeed(pool)
 						: Effect.fail(

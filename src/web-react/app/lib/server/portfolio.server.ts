@@ -17,6 +17,7 @@ import {
 	type MeteoraApiService,
 } from "@vexis/services/MeteoraApi.js";
 import { Effect } from "effect";
+import { computeLiveMcap } from "~/lib/mcap";
 import { resolveWebConfig } from "./config";
 import { repoRoot } from "./env.server";
 import {
@@ -40,7 +41,13 @@ export type ClosedPoolWithIcons = ClosedPool & {
 
 const iconCache = new Map<
 	string,
-	{ x?: string; y?: string; mcap?: number | null; at: number }
+	{
+		x?: string;
+		y?: string;
+		mcap?: number | null;
+		price?: number | null;
+		at: number;
+	}
 >();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
@@ -171,6 +178,7 @@ export interface PortfolioPayload {
 function enrichWithIcons<T extends { readonly poolAddress: string }>(
 	pools: readonly T[],
 	api: MeteoraApiService,
+	solPrice: number | null,
 ): Effect.Effect<
 	Array<
 		T & {
@@ -193,13 +201,22 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 			pools,
 			(pool) =>
 				Effect.gen(function* () {
+					const poolPrice = (pool as { poolPrice?: number }).poolPrice ?? null;
 					const cached = iconCache.get(pool.poolAddress);
 					if (cached && now - cached.at < ICON_CACHE_TTL_MS) {
 						out.push({
 							...pool,
 							tokenXIcon: cached.x ?? null,
 							tokenYIcon: cached.y ?? null,
-							mcap: cached.mcap ?? null,
+							mcap:
+								computeLiveMcap(
+									cached.mcap,
+									cached.price,
+									poolPrice,
+									solPrice,
+								) ??
+								cached.mcap ??
+								null,
 						});
 						return;
 					}
@@ -217,18 +234,26 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 						return;
 					}
 					const d = discovery.right;
-					const mcap = d.token_x?.market_cap ?? null;
+					const snapshotMcap = d.token_x?.market_cap ?? null;
+					const snapshotPrice = d.token_x?.price ?? null;
 					iconCache.set(pool.poolAddress, {
 						x: d.token_x?.icon ?? undefined,
 						y: d.token_y?.icon ?? undefined,
-						mcap,
+						mcap: snapshotMcap,
+						price: snapshotPrice,
 						at: now,
 					});
 					out.push({
 						...pool,
 						tokenXIcon: d.token_x?.icon ?? null,
 						tokenYIcon: d.token_y?.icon ?? null,
-						mcap,
+						mcap:
+							computeLiveMcap(
+								snapshotMcap,
+								snapshotPrice,
+								poolPrice,
+								solPrice,
+							) ?? snapshotMcap,
 					});
 				}),
 			{ concurrency: 10 },
@@ -310,6 +335,7 @@ export function fetchPortfolioDeferred(
 	wallet: string,
 	pools: readonly OpenPool[],
 	closedPage: number,
+	solPrice: number | null,
 ): Promise<PortfolioDeferred> {
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
@@ -393,12 +419,12 @@ export function fetchPortfolioDeferred(
 
 		const [openWithIcons, closedWithIcons] = yield* Effect.all(
 			[
-				enrichWithIcons(enrichedPnl, api).pipe(
+				enrichWithIcons(enrichedPnl, api, solPrice).pipe(
 					Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
 				),
 				closedRes === null
 					? Effect.succeed([] as ClosedPoolWithIcons[])
-					: enrichWithIcons(closedRes.pools, api).pipe(
+					: enrichWithIcons(closedRes.pools, api, solPrice).pipe(
 							Effect.catchAll(() =>
 								Effect.succeed([] as ClosedPoolWithIcons[]),
 							),
@@ -455,7 +481,12 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			),
 		);
 		const deferred = yield* Effect.tryPromise(() =>
-			fetchPortfolioDeferred(critical.wallet, critical.pools, closedPage),
+			fetchPortfolioDeferred(
+				critical.wallet,
+				critical.pools,
+				closedPage,
+				critical.solPrice,
+			),
 		);
 		return {
 			ok: true,
