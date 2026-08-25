@@ -30,6 +30,7 @@ const HISTORY_FILE = join(repoRoot(), ".vexis-portfolio-history.json");
 export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
 	readonly tokenYIcon?: string | null;
+	readonly mcap?: number | null;
 };
 
 export type ClosedPoolWithIcons = ClosedPool & {
@@ -37,7 +38,10 @@ export type ClosedPoolWithIcons = ClosedPool & {
 	readonly tokenYIcon?: string | null;
 };
 
-const iconCache = new Map<string, { x?: string; y?: string; at: number }>();
+const iconCache = new Map<
+	string,
+	{ x?: string; y?: string; mcap?: number | null; at: number }
+>();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
 export type { PortfolioSnapshot, PortfolioTotal };
@@ -168,12 +172,22 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 	pools: readonly T[],
 	api: MeteoraApiService,
 ): Effect.Effect<
-	Array<T & { tokenXIcon: string | null; tokenYIcon: string | null }>
+	Array<
+		T & {
+			tokenXIcon: string | null;
+			tokenYIcon: string | null;
+			mcap: number | null;
+		}
+	>
 > {
 	return Effect.gen(function* () {
 		const now = Date.now();
 		const out: Array<
-			T & { tokenXIcon: string | null; tokenYIcon: string | null }
+			T & {
+				tokenXIcon: string | null;
+				tokenYIcon: string | null;
+				mcap: number | null;
+			}
 		> = [];
 		yield* Effect.forEach(
 			pools,
@@ -185,6 +199,7 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 							...pool,
 							tokenXIcon: cached.x ?? null,
 							tokenYIcon: cached.y ?? null,
+							mcap: cached.mcap ?? null,
 						});
 						return;
 					}
@@ -193,19 +208,27 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 						.pipe(Effect.either);
 					if (discovery._tag === "Left") {
 						iconCache.set(pool.poolAddress, { at: now });
-						out.push({ ...pool, tokenXIcon: null, tokenYIcon: null });
+						out.push({
+							...pool,
+							tokenXIcon: null,
+							tokenYIcon: null,
+							mcap: null,
+						});
 						return;
 					}
 					const d = discovery.right;
+					const mcap = d.token_x?.market_cap ?? null;
 					iconCache.set(pool.poolAddress, {
 						x: d.token_x?.icon ?? undefined,
 						y: d.token_y?.icon ?? undefined,
+						mcap,
 						at: now,
 					});
 					out.push({
 						...pool,
 						tokenXIcon: d.token_x?.icon ?? null,
 						tokenYIcon: d.token_y?.icon ?? null,
+						mcap,
 					});
 				}),
 			{ concurrency: 10 },

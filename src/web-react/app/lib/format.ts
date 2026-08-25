@@ -144,3 +144,13 @@ export function solscanAccountUrl(address: string): string {
 export function formatPrice(price: number): string {
 	return price >= 1 ? price.toFixed(3) : price.toFixed(5);
 }
+
+export function fmtMc(value: string | number | null | undefined): string {
+	if (value === null || value === undefined) return "-";
+	const n = typeof value === "number" ? value : parseFloat(value);
+	if (Number.isNaN(n)) return "-";
+	if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
+	if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
+	if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
+	return `$${formatNum(n)}`;
+}

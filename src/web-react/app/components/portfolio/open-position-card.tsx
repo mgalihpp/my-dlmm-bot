@@ -122,6 +122,7 @@ export function OpenPositionCard({
 				<RangeVisual
 					ranges={pool.positionsRange ?? []}
 					current={pool.poolPrice}
+					mcap={pool.mcap ?? null}
 				/>
 			</div>
 			<div className="mt-3 flex items-center justify-between">

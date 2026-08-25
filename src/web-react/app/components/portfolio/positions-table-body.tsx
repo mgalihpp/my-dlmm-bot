@@ -195,6 +195,7 @@ export function PositionsTableBody({
 										<RangeVisual
 											ranges={pool.positionsRange ?? []}
 											current={pool.poolPrice}
+											mcap={pool.mcap ?? null}
 										/>
 									</TableCell>
 									<TableCell>

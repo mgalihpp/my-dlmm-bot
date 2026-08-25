@@ -1,12 +1,14 @@
-import { formatPrice } from "~/lib/format";
+import { fmtMc, formatPrice } from "~/lib/format";
 
 export function RangeVisual({
 	ranges,
 	current,
+	mcap,
 	className,
 }: {
 	ranges: readonly { minPrice: string; maxPrice: string }[];
 	current: number | null | undefined;
+	mcap?: number | null;
 	className?: string;
 }) {
 	const prices = ranges.flatMap((r) => [
@@ -60,12 +62,30 @@ export function RangeVisual({
 	const labelX =
 		currentX !== null ? Math.min(90, Math.max(10, currentX)) : null;
 
+	const hasMc =
+		mcap != null &&
+		Number.isFinite(mcap) &&
+		mcap > 0 &&
+		current != null &&
+		Number.isFinite(Number(current)) &&
+		Number(current) > 0;
+	const mcFor = (price: number) =>
+		hasMc ? (mcap as number) * (price / Number(current)) : null;
+	const fmtLabel = (price: number) => {
+		const mc = mcFor(price);
+		return mc != null ? fmtMc(mc) : formatPrice(price);
+	};
+	const ariaLabel = hasMc
+		? `Position range ${fmtMc(mcFor(min))} to ${fmtMc(mcFor(max))}`
+		: `Position range ${formatPrice(min)} to ${formatPrice(max)}`;
+
 	return (
-		<div
-			className={`relative h-16 w-full min-w-32 overflow-hidden rounded-md bg-muted/40 ${className ?? ""}`}
-			role="img"
-			aria-label={`Position range ${formatPrice(min)} to ${formatPrice(max)}`}
-		>
+		<div className={`w-full min-w-32 ${className ?? ""}`}>
+			<div
+				className="relative h-16 w-full overflow-hidden rounded-md bg-muted/40"
+				role="img"
+				aria-label={ariaLabel}
+			>
 			{bars.map((bar) => (
 				<div
 					key={bar.left}
@@ -82,32 +102,31 @@ export function RangeVisual({
 				className="absolute inset-x-0"
 				style={{ bottom: `${baselinePct}%` }}
 			/>
-			{currentX !== null ? (
-				<>
-					<div
-						className="absolute inset-y-0 w-0.5 bg-foreground/70"
-						style={{ left: `${currentX}%` }}
-					/>
-					<span
-						className="absolute top-0.5 -translate-x-1/2 rounded-sm bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
-						style={{ left: `${labelX}%` }}
-					>
-						<span className="block text-muted-foreground">Pool Price</span>
-						<span className="block font-semibold tabular-nums">
-							{formatPrice(Number(current))}
+				{currentX !== null ? (
+					<>
+						<div
+							className="absolute inset-y-0 w-0.5 bg-foreground/70"
+							style={{ left: `${currentX}%` }}
+						/>
+						<span
+							className="absolute top-0.5 -translate-x-1/2 rounded-sm bg-background px-1 text-center text-[9px] leading-3 whitespace-nowrap"
+							style={{ left: `${labelX}%` }}
+						>
+							<span className="block text-muted-foreground">
+								{hasMc ? "MC" : "Pool Price"}
+							</span>
+							<span className="block font-semibold tabular-nums">
+								{hasMc ? fmtMc(mcap) : formatPrice(Number(current))}
+							</span>
 						</span>
-					</span>
-				</>
-			) : null}
-			<span className="absolute bottom-0 left-1 text-[10px] text-muted-foreground">
-				{formatPrice(min)}
-			</span>
-			<span className="absolute bottom-0 left-1/2 -translate-x-1/2 text-[10px] text-muted-foreground">
-				{formatPrice((min + max) / 2)}
-			</span>
-			<span className="absolute right-1 bottom-0 text-[10px] text-muted-foreground">
-				{formatPrice(max)}
-			</span>
+					</>
+				) : null}
+			</div>
+			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium tabular-nums text-muted-foreground">
+				<span>{fmtLabel(min)}</span>
+				<span>{fmtLabel((min + max) / 2)}</span>
+				<span>{fmtLabel(max)}</span>
+			</div>
 		</div>
 	);
 }
