@@ -1,8 +1,13 @@
 import { PortfolioPage } from "~/components/portfolio/portfolio-page";
+import { RouteError } from "~/components/route-error";
 import { closePosition } from "~/lib/server/close.server";
 import { fetchPortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/portfolio";
+
+export function ErrorBoundary() {
+	return <RouteError title="Failed to load portfolio" shellTitle="Portfolio" />;
+}
 
 export const meta: Route.MetaFunction = () => [{ title: "Portfolio | Vexis" }];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
