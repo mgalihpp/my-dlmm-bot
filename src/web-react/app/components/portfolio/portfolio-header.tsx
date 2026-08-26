@@ -5,10 +5,10 @@ import type { Currency } from "~/lib/currency";
 
 function greeting() {
 	const hour = new Date().getHours();
-	if (hour >= 5 && hour < 11) return "Selamat pagi!";
-	if (hour >= 11 && hour < 15) return "Selamat siang!";
-	if (hour >= 15 && hour < 18) return "Selamat sore!";
-	return "Selamat malam!";
+	if (hour >= 5 && hour < 11) return "Good morning!";
+	if (hour >= 11 && hour < 15) return "Good afternoon!";
+	if (hour >= 15 && hour < 18) return "Good evening!";
+	return "Good night!";
 }
 
 export function PortfolioHeader({

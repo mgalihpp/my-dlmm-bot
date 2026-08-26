@@ -1,7 +1,12 @@
 import { PoolsPage } from "~/components/pools/pools-page";
+import { RouteError } from "~/components/route-error";
 import { fetchPools } from "~/lib/server/pools.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/pools";
+
+export function ErrorBoundary() {
+	return <RouteError title="Failed to load pools" shellTitle="Pool Radar" />;
+}
 
 export const meta: Route.MetaFunction = () => [{ title: "Pools | Vexis" }];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];

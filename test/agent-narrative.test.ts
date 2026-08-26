@@ -46,7 +46,7 @@ describe("narrativeFor", () => {
 			{
 				at: "2026-08-12T10:04:00.000Z",
 				coveringTs: entryTs,
-				text: "Ringkasan.",
+				text: "Summary.",
 				source: "llm",
 			},
 			file,
@@ -54,7 +54,7 @@ describe("narrativeFor", () => {
 		const entries = [mkEntry(entryTs, 1, [])];
 		const spy = vi.fn(async () => "generated");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
-		expect(out).toEqual({ text: "Ringkasan.", source: "llm" });
+		expect(out).toEqual({ text: "Summary.", source: "llm" });
 		expect(spy).not.toHaveBeenCalled();
 	});
 	it("generates via LLM when stale and persists result", async () => {
@@ -64,12 +64,12 @@ describe("narrativeFor", () => {
 			dailyCut(NARRATIVE_CUT_HOUR, now) - 3_600_000,
 		).toISOString();
 		const entries = [mkEntry(entryTs, 1, [])];
-		const spy = vi.fn(async () => "Ringkasan baru.");
+		const spy = vi.fn(async () => "New summary.");
 		const out = await narrativeFor(entries, mkState(), LLM, now, file, spy);
-		expect(out).toEqual({ text: "Ringkasan baru.", source: "llm" });
+		expect(out).toEqual({ text: "New summary.", source: "llm" });
 		expect(spy).toHaveBeenCalledOnce();
 		expect(readNarrativeCache(file)).toMatchObject({
-			text: "Ringkasan baru.",
+			text: "New summary.",
 			source: "llm",
 			coveringTs: entryTs,
 		});
@@ -212,10 +212,10 @@ describe("buildNarrativePrompt", () => {
 	});
 	it("handles empty journal and empty state sections", () => {
 		const prompt = buildNarrativePrompt([], mkState());
-		expect(prompt).toContain("- kosong");
+		expect(prompt).toContain("- empty");
 		expect(prompt).toContain("- none");
 		expect(prompt).toContain("Deployed:");
-		expect(prompt).toContain("posisi aktif:");
+		expect(prompt).toContain("active positions:");
 	});
 	it("marks llm-failed cycles", () => {
 		const entries = [
@@ -248,7 +248,7 @@ describe("buildRunSummary", () => {
 			]),
 		];
 		const out = buildRunSummary(entries);
-		expect(out).toContain("Siklus 40–41");
+		expect(out).toContain("Cycles 40–41");
 		expect(out).toContain("2 open (SOL/USDC, JUP/SOL)");
 		expect(out).toContain("1 TP");
 		expect(out).toContain("1 SL");
@@ -270,7 +270,7 @@ describe("buildRunSummary", () => {
 				candidates: [],
 			},
 		];
-		expect(buildRunSummary(entries)).toContain("LLM gagal di siklus 9");
+		expect(buildRunSummary(entries)).toContain("LLM failed on cycle(s) 9");
 	});
 	it("reports failed executions", () => {
 		const entries = [
@@ -278,23 +278,21 @@ describe("buildRunSummary", () => {
 				mkCandidate({ action: "close", execution: "failed" }),
 			]),
 		];
-		expect(buildRunSummary(entries)).toContain("1 eksekusi gagal");
+		expect(buildRunSummary(entries)).toContain("1 execution(s) failed");
 	});
 	it("handles empty journal", () => {
-		expect(buildRunSummary([])).toBe(
-			"Belum ada aktivitas dalam 24 jam terakhir.",
-		);
+		expect(buildRunSummary([])).toBe("No activity in the last 24 hours.");
 	});
 	it("handles entries with no decisions", () => {
 		const entries = [mkEntry("2026-08-12T10:00:00.000Z", 3, [])];
-		expect(buildRunSummary(entries)).toContain("tidak ada keputusan eksekusi");
+		expect(buildRunSummary(entries)).toContain("no execution decisions");
 	});
 });
 
 const CACHE: NarrativeCache = {
 	at: "2026-08-12T10:00:00.000Z",
 	coveringTs: "2026-08-12T09:00:00.000Z",
-	text: "Ringkasan.",
+	text: "Summary.",
 	source: "llm",
 };
 
@@ -354,14 +352,14 @@ describe("narrativeSnapshot", () => {
 			{
 				at: "2026-08-12T10:00:00.000Z",
 				coveringTs: "2026-08-12T09:00:00.000Z",
-				text: "Ringkasan cache.",
+				text: "Cached summary.",
 				source: "llm",
 			},
 			file,
 		);
 		const entries = [mkEntry("2026-08-12T09:00:00.000Z", 1, [])];
 		expect(narrativeSnapshot(entries, now, file)).toEqual({
-			text: "Ringkasan cache.",
+			text: "Cached summary.",
 			source: "llm",
 		});
 	});
@@ -372,7 +370,7 @@ describe("narrativeSnapshot", () => {
 			{
 				at: "2026-08-12T09:05:00.000Z",
 				coveringTs: "2026-08-11T09:00:00.000Z",
-				text: "Ringkasan lama.",
+				text: "Old summary.",
 				source: "llm",
 			},
 			file,
@@ -420,9 +418,9 @@ describe("narrativeFor single-flight", () => {
 		const second = narrativeFor(entries, mkState(), LLM, now, file, spy);
 		await Promise.resolve();
 		expect(calls).toBe(1);
-		resolveLlm("Ringkasan single-flight.");
+		resolveLlm("Summary single-flight.");
 		const [a, b] = await Promise.all([first, second]);
-		expect(a).toEqual({ text: "Ringkasan single-flight.", source: "llm" });
+		expect(a).toEqual({ text: "Summary single-flight.", source: "llm" });
 		expect(b).toEqual(a);
 		expect(calls).toBe(1);
 	});

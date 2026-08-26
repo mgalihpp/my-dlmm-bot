@@ -153,7 +153,7 @@ export function fetchAgent(
 	);
 	const narrative = cachedBriefing
 		? { text: cachedBriefing.text, source: cachedBriefing.source }
-		: { text: "Belum ada briefing Telegram.", source: "fallback" as const };
+		: { text: "No Telegram briefing yet.", source: "fallback" as const };
 	const payload = buildAgentPayload(journal, state, narrative, rawAction, page);
 	return { ...payload, wallet, wallets, rpc: config.rpcUrl };
 }
