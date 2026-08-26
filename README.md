@@ -1,18 +1,5 @@
-# Vexis
-
-### Autonomous liquidity management for Meteora DLMM
-
-> Manages Meteora DLMM liquidity positions on Solana.
->
-> An LLM evaluates which pools are worth opening. Deterministic checks control whether that evaluation reaches the chain.
-
----
-
 ## Overview
-
-It takes a pool from discovery to an open, on-chain position, but the LLM never holds the keys.
-
-An LLM evaluates which pools are worth opening. Deterministic checks decide whether that evaluation reaches the chain.
+An agent for Meteora DLMM liquidity on Solana. It screens pools, uses an LLM to pick which to open, and only trades after risk checks pass.
 
 ```text
 Market Data
