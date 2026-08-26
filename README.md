@@ -1,81 +1,156 @@
-# Vexis DLMM Bot
+# Vexis
 
-Vexis is a TypeScript CLI and Telegram bot for monitoring and managing Meteora DLMM positions on Solana. It can screen pools, track portfolio PnL, run alerts and TP/SL rules, and execute on-chain position operations when a signer is configured.
+### Autonomous liquidity management for Meteora DLMM
 
-The repository also contains a React Router dashboard for portfolio, pool, and agent monitoring. Portfolio data is read-only, but authenticated users can close positions from the dashboard.
+> Manages Meteora DLMM liquidity positions on Solana.
+>
+> An LLM evaluates which pools are worth opening. Deterministic checks control whether that evaluation reaches the chain.
 
-## Documentation
+---
 
-- [AI agent guide](docs/ai-agent.md)
-- [Configuration reference](docs/config-reference.md)
-- [API response reference](docs/api-responses.md)
-- [Troubleshooting](docs/troubleshooting.md)
-- [Coding-agent setup prompt](docs/coding-agent-prompt.md)
-- [Web dashboard README](src/web-react/README.md)
+## Overview
 
-## Features
+It takes a pool from discovery to an open, on-chain position, but the LLM never holds the keys.
 
-- Pool screening through Meteora's Pool Discovery API
-- Open and closed portfolio views with USD and SOL PnL
-- Telegram commands for balances, positions, pools, watchlists, alerts, and TP/SL
-- On-chain create, close, add-liquidity, remove-liquidity, fee-claim, and reward-claim operations
-- Configurable pool filters and interactive Telegram config editing
-- Automated agent decisions with LLM output validation and deterministic guardrails
-- Read-only React dashboard with portfolio, pools, settings, and agent history pages
-
-## Architecture
+An LLM evaluates which pools are worth opening. Deterministic checks decide whether that evaluation reaches the chain.
 
 ```text
-CLI (@effect/cli)       Telegram bot (grammY)       Web dashboard (React Router)
-         \                       |                          /
-          \_____________________|_________________________/
-                                |
-                         Effect services
-                                |
-       Meteora API | Pool screening | DLMM SDK | Jupiter | Solana RPC
+Market Data
+     ↓
+Pool Screening
+     ↓
+AI Evaluation
+     ↓
+  OPEN / HOLD
+     ↓
+Risk Guardrails
+     ↓
+On-Chain Execution
 ```
 
-The domain schemas decode external API responses before the application uses them. Runtime state is stored in git-ignored files such as `.vexis-alerts.json`, `.vexis-tpsl.json`, `.vexis-watchlist.json`, `.vexis-agent.json`, `.vexis-agent-journal.jsonl`, and `.vexis-agent-signals.json`.
+---
 
-## Requirements and installation
+## How the agent works
 
-Use Node.js 20 or newer.
+### 1. Pool screening
 
-```bash
-npm install
-npm run build
-copy vexis.config.example.json vexis.config.json
-```
+It collects pool and market signals, then applies deterministic filters to remove pools that don't meet the configured requirements.
 
-On macOS or Linux, use `cp` instead of `copy`.
+### 2. AI evaluation
 
-At minimum, set `wallet` for portfolio queries. Set `telegramBotToken` and `telegramChatId` to run the bot. A valid `privateKey` is required for on-chain operations.
+It hands candidate pools to an LLM along with the relevant market context. The agent returns an `OPEN` or `HOLD` decision with a rationale.
 
-Configuration is loaded in this order:
+### 3. Risk validation
 
-1. The file named by `VEXIS_CONFIG`
-2. `./vexis.config.json`
-3. `~/.vexis/config.json`
+AI decisions don't directly trigger transactions.
 
-`VEXIS_PRIVATE_KEY`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `OPENAI_API_KEY`, and `VEXIS_WEB_PASSWORD` override their corresponding settings. `rpcUrl` is read from the config file only. There is no `RPC_URL` environment variable.
+Every `OPEN` decision must pass deterministic checks such as:
 
-See [the configuration reference](docs/config-reference.md) for every supported key.
+- position limits
+- capital and budget limits
+- risk thresholds
+- duplicate detection
+- cooldowns
+- configured pool constraints
 
-## Zero-setup with an AI coding agent
+### 4. On-chain execution
 
-You can let an AI coding agent install and configure Vexis from an empty folder. Use a trusted agent because setup may involve a private key, Telegram token, and LLM API key.
+Only decisions that pass all required checks can reach the execution layer and interact with Meteora DLMM on Solana.
 
-Open Claude Code, Codex, or another coding agent in the target folder and paste:
+---
+
+## AI agent architecture
 
 ```text
-Clone this repository into the current folder, read README.md and all linked documentation, then set up and deploy Vexis from start to finish. Install the required dependencies, ask me only for the configuration values and secrets you need, create the local git-ignored vexis.config.json, run the documented checks, and explain how to start the deployment. Never expose or commit secrets, and do not send on-chain transactions without my explicit confirmation.
+                    ┌─────────────────┐
+                    │   Market Data   │
+                    └────────┬────────┘
+                             ↓
+                    ┌─────────────────┐
+                    │ Pool Screening  │
+                    └────────┬────────┘
+                             ↓
+                    ┌─────────────────┐
+                    │  AI Evaluation  │
+                    │      LLM        │
+                    └────────┬────────┘
+                             ↓
+                       ┌───────────┐
+                       │ OPEN/HOLD │
+                       └─────┬─────┘
+                             │
+                          OPEN
+                             ↓
+                    ┌─────────────────┐
+                    │ Risk Guardrails │
+                    └────────┬────────┘
+                             ↓
+                    ┌─────────────────┐
+                    │    Solana /     │
+                    │ Meteora DLMM    │
+                    └─────────────────┘
 ```
 
-The full setup and troubleshooting prompts are in [the coding-agent prompt guide](docs/coding-agent-prompt.md). After setup, start the service with `npm start`, then use `/agent start` in Telegram if automated position management is enabled.
+The agent is disabled by default. Configure `agent`, start the bot, then run `/agent start` and `/agent status` in Telegram. Read the [AI agent guide](docs/ai-agent.md) for setup, limits, state files, and failure behavior.
 
-## Telegram bot
+---
 
-Create a bot with [@BotFather](https://t.me/BotFather), obtain the numeric chat ID for the target chat, and add both values to `vexis.config.json`:
+## Capabilities
+
+### Pool intelligence
+
+- Pool discovery
+- Liquidity and volume analysis
+- Market activity monitoring
+- Configurable pool screening
+
+### Portfolio management
+
+- Open positions
+- Closed positions
+- PnL tracking
+- Position monitoring
+- Liquidity management
+
+### Automation
+
+- AI-based pool evaluation
+- Automated `OPEN` / `HOLD` decisions
+- TP/SL monitoring
+- Alerts
+- Agent activity history
+
+### On-chain operations
+
+- Create positions
+- Add liquidity
+- Remove liquidity
+- Close positions
+- Claim fees
+- Claim rewards
+
+---
+
+## Safety model
+
+### AI suggests. Rules decide.
+
+It intentionally separates AI reasoning from execution authority.
+
+If an AI request fails or returns an invalid or out-of-range decision, it falls back to `HOLD` instead of executing blindly. TP/SL and several execution constraints stay deterministic.
+
+> The LLM can evaluate an opportunity.
+> It cannot override the risk engine.
+
+---
+
+## Interfaces
+
+It is controlled through three interfaces: a Telegram bot, a web dashboard, and a command-line interface.
+
+### Telegram
+
+Monitor and control it from Telegram. Create a bot with [@BotFather](https://t.me/BotFather), then add the token and chat ID to `vexis.config.json`:
 
 ```json
 {
@@ -84,13 +159,7 @@ Create a bot with [@BotFather](https://t.me/BotFather), obtain the numeric chat 
 }
 ```
 
-Start the bot with:
-
-```bash
-npm run bot
-```
-
-Useful command groups include:
+Start the bot with `npm run bot`. Useful command groups:
 
 | Group | Commands |
 |---|---|
@@ -100,22 +169,9 @@ Useful command groups include:
 | Watchlist | `/watchadd`, `/watchremove`, `/watchlist`, `/watchpositions`, `/wallets <address...>` |
 | Automation | `/alerts`, `/tpsl`, `/agent`, `/briefing` |
 
-## AI agent
+### Web dashboard
 
-The agent screens pools, asks the configured LLM for `open` or `hold` decisions, validates the response, and applies deterministic duplicate, cooldown, risk, and budget checks before creating a position. TP/SL checks are deterministic. Out-of-range decisions use the LLM and fail safe to `hold` if the request fails.
-
-The agent is disabled by default. Configure `agent`, start the bot, then run:
-
-```text
-/agent start
-/agent status
-```
-
-Read [the AI agent guide](docs/ai-agent.md) for setup, limits, state files, and failure behavior.
-
-## Web dashboard
-
-The dashboard is served by the root application. It does not expose private keys. Portfolio, pool, and agent data are read-only; the authenticated portfolio page also supports closing a position and zapping the result to SOL. Configure it with:
+A read-only React dashboard for monitoring portfolio, pools, positions, agent activity, and configuration. It does not expose private keys; the authenticated portfolio page also supports closing a position. Configure it with:
 
 ```json
 {
@@ -126,16 +182,11 @@ The dashboard is served by the root application. It does not expose private keys
 }
 ```
 
-Run the development server or the compiled server with:
+Run with `npm run dev` (development) or `npm start` (compiled server).
 
-```bash
-npm run dev
-npm start
-```
+### Command-line interface
 
-## CLI
-
-Run the TypeScript CLI directly with `npm run cli -- <command>`, or use the compiled `vexis` binary after building.
+Run the CLI directly with `npm run cli -- <command>`, or use the compiled `vexis` binary after building.
 
 ```bash
 npm run cli -- open [wallet]
@@ -146,9 +197,84 @@ npm run cli -- pool info <address>
 npm run cli -- position create <poolAddress> --strategy bidask --x-amount 1 --y-amount 1 --min-pct -10 --max-pct 10 --dry-run
 ```
 
-The CLI also provides `config`, `position close`, `liquidity add`, `liquidity remove`, `claim fee`, `claim reward`, `watch`, and `wallets` commands. Use `--help` for the exact options.
+The CLI also provides `config`, `position close`, `liquidity add`, `liquidity remove`, `claim fee`, `claim reward`, `watch`, and `wallets` commands. Use `--help` for exact options.
 
-## Development and verification
+---
+
+## Built with
+
+```text
+TypeScript
+Effect
+grammY
+React Router
+Meteora DLMM SDK
+Jupiter
+Solana RPC
+Vercel AI SDK
+```
+
+---
+
+## Getting started
+
+Requires Node.js 20 or newer.
+
+```bash
+git clone https://github.com/mgalihpp/my-dlmm-bot.git
+cd my-dlmm-bot
+
+npm install
+npm run build
+```
+
+Then create your local config:
+
+```bash
+cp vexis.config.example.json vexis.config.json
+```
+
+On Windows, use `copy` instead of `cp`.
+
+At minimum, set `wallet` for portfolio queries. Set `telegramBotToken` and `telegramChatId` to run the bot. A valid `privateKey` is required for on-chain operations. See the [developer setup guide](docs/coding-agent-prompt.md) for automated environment configuration.
+
+---
+
+## Configuration
+
+Configuration is loaded in this order:
+
+1. The file named by `VEXIS_CONFIG`
+2. `./vexis.config.json`
+3. `~/.vexis/config.json`
+
+`rpcUrl` is read from the config file only. There is no `RPC_URL` environment variable.
+
+Runtime state is stored in git-ignored files such as `.vexis-alerts.json`, `.vexis-tpsl.json`, `.vexis-watchlist.json`, `.vexis-agent.json`, `.vexis-agent-journal.jsonl`, and `.vexis-agent-signals.json`.
+
+See [the configuration reference](docs/config-reference.md) for every supported key.
+
+---
+
+## Deployment
+
+See the [deployment guide](docs/deployment.md) for VPS, PM2, and Docker setup.
+
+---
+
+## Documentation
+
+- [AI agent guide](docs/ai-agent.md)
+- [Configuration reference](docs/config-reference.md)
+- [API response reference](docs/api-responses.md)
+- [Troubleshooting](docs/troubleshooting.md)
+- [Coding-agent setup prompt](docs/coding-agent-prompt.md)
+- [Web dashboard README](src/web-react/README.md)
+- [Deployment guide](docs/deployment.md)
+
+---
+
+## Development
 
 ```bash
 npm run check
@@ -156,56 +282,9 @@ npm run typecheck
 npm test
 ```
 
-`npm run build` builds both the root TypeScript application and the web dashboard. The tests focus on pure logic, response decoding, formatting, state storage, and agent behavior. They do not require live RPC, Telegram, or Meteora services.
+`npm run build` builds both the root TypeScript application and the web dashboard. Tests focus on pure logic, response decoding, formatting, state storage, and agent behavior. They do not require live RPC, Telegram, or Meteora services.
 
-## Deployment
-
-### VPS with pm2
-
-Install Node.js 20 or newer and pm2 on the server. Copy `vexis.config.json` to the server through a secure channel, then run:
-
-```bash
-npm ci
-npm run build
-pm2 start npm --name vexis -- start
-pm2 save
-pm2 startup
-```
-
-The `start` script runs the compiled React dashboard and the shared bot runtime. Set the dashboard port in `web.port`, or provide the port expected by the hosting environment. After a release, run:
-
-```bash
-npm ci
-npm run build
-pm2 restart vexis
-```
-
-### Docker
-
-Create a `Dockerfile` in the repository root:
-
-```dockerfile
-FROM node:20-slim
-WORKDIR /app
-COPY package*.json ./
-COPY src/web-react/package*.json ./src/web-react/
-RUN npm ci && npm ci --prefix src/web-react
-COPY . .
-RUN npm run build
-CMD ["npm", "start"]
-```
-
-Build and run it with the local config mounted read-only:
-
-```bash
-docker run -d --restart unless-stopped \
-  --name vexis \
-  -p 8080:8080 \
-  -v "$(pwd)/vexis.config.json:/app/vexis.config.json:ro" \
-  vexis
-```
-
-Use a secret manager for private keys, Telegram tokens, and LLM API keys where the hosting platform provides one. Do not bake `vexis.config.json` into the image.
+---
 
 ## Security
 
