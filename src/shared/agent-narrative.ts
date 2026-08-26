@@ -90,27 +90,27 @@ export function buildNarrativePrompt(
 			? `closes=${stats.closes} winRate=${Math.round(stats.winRate ?? 0)}% avg=${(stats.avgPnlPct ?? 0).toFixed(2)}% total=${(stats.totalPnlPct ?? 0).toFixed(2)}%`
 			: "no closed trades yet";
 	return [
-		"Anda adalah portfolio manager untuk bot likuiditas Solana DLMM. Ringkas aktivitas otomatis 24 jam terakhir dalam bahasa Indonesia, teks polos, tanpa markdown/emoji, maksimal 120 kata.",
-		"Cakup: 1) apa yang terjadi (open/close dengan nama pool, TP/SL, blocked dengan alasan), 2) anomali (eksekusi gagal, cycle dengan llm=failed — keputusan saat itu hanya berbasis heuristik), 3) catatan risiko penutup (posisi di luar range, capital terpusat, blocked opens).",
+		"You are a portfolio manager for the Solana DLMM liquidity bot. Summarize the last 24 hours of automated activity in English, plain text, no markdown/emoji, max 120 words.",
+		"Cover: 1) what happened (open/close with pool name, TP/SL, blocked with reason), 2) anomalies (failed executions, cycles with llm=failed — decisions then were heuristic-only), 3) closing risk notes (out-of-range positions, concentrated capital, blocked opens).",
 		"",
-		`Jurnal 24 jam terakhir (${entries.length} cycle):`,
-		journalLines.join("\n") || "- kosong",
+		`Journal last 24h (${entries.length} cycles):`,
+		journalLines.join("\n") || "- empty",
 		"",
-		"Cooldown aktif:",
+		"Active cooldowns:",
 		cooldowns,
 		"",
-		"Eksekusi terakhir:",
+		"Recent executions:",
 		executions,
 		"",
-		`Total cycle sejauh ini: ${state.cycle}.`,
+		`Total cycles so far: ${state.cycle}.`,
 		"",
-		`Deployed: ${deployedSol.toFixed(2)} SOL, posisi aktif: ${activePositions}.`,
+		`Deployed: ${deployedSol.toFixed(2)} SOL, active positions: ${activePositions}.`,
 		`Stats: ${statsLine}`,
 	].join("\n");
 }
 
 export function buildRunSummary(entries: readonly AgentJournalEntry[]): string {
-	if (entries.length === 0) return "Belum ada aktivitas dalam 24 jam terakhir.";
+	if (entries.length === 0) return "No activity in the last 24 hours.";
 	let opens = 0;
 	let tp = 0;
 	let sl = 0;
@@ -153,7 +153,7 @@ export function buildRunSummary(entries: readonly AgentJournalEntry[]): string {
 	const first = entries[0].cycle;
 	const last = entries[entries.length - 1].cycle;
 	const cycleRange =
-		first === last ? `Siklus ${last}` : `Siklus ${first}–${last}`;
+		first === last ? `Cycle ${last}` : `Cycles ${first}–${last}`;
 	const bits: string[] = [];
 	if (opens > 0)
 		bits.push(
@@ -169,13 +169,13 @@ export function buildRunSummary(entries: readonly AgentJournalEntry[]): string {
 		);
 	} else {
 		parts.push(
-			`${cycleRange}: ${bits.join(", ") || "tidak ada keputusan eksekusi"}.`,
+			`${cycleRange}: ${bits.join(", ") || "no execution decisions"}.`,
 		);
 	}
-	if (failed > 0) parts.push(`${failed} eksekusi gagal.`);
+	if (failed > 0) parts.push(`${failed} execution(s) failed.`);
 	if (llmFailedCycles.length > 0) {
 		parts.push(
-			`LLM gagal di siklus ${llmFailedCycles.join(", ")} — keputusan saat itu berbasis heuristik.`,
+			`LLM failed on cycle(s) ${llmFailedCycles.join(", ")} — decisions then were heuristic-based.`,
 		);
 	}
 	return parts.join(" ");
