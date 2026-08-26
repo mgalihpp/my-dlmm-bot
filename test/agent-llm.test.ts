@@ -155,7 +155,7 @@ describe("buildOpenDecisionPrompt", () => {
 		expect(prompt).toContain("rugScore=1500");
 		expect(prompt).toContain("fromAthPct=40.0%");
 		expect(prompt).toContain("0-2500");
-		expect(prompt).toContain("jangan pernah memilih OPEN");
+		expect(prompt).toContain("never choose OPEN");
 		expect(prompt).toContain("feeTvlRatio");
 	});
 
@@ -338,12 +338,12 @@ describe("buildPositionPrompt", () => {
 				positionAgeHours: 0,
 			},
 		]);
-		expect(prompt).toContain("OOR ke kanan");
+		expect(prompt).toContain("OOR to the right");
 		expect(prompt).toContain("full SOL");
-		expect(prompt).toContain("modal bisa digunakan di tempat lain");
-		expect(prompt).toContain("OOR ke kiri");
-		expect(prompt).toContain("full token meme");
-		expect(prompt).toContain("mengunci keuntungan");
+		expect(prompt).toContain("capital can be redeployed");
+		expect(prompt).toContain("OOR to the left");
+		expect(prompt).toContain("full meme token");
+		expect(prompt).toContain("lock profit");
 	});
 });
 

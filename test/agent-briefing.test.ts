@@ -69,10 +69,10 @@ describe("buildBriefingPrompt", () => {
 describe("formatBriefing", () => {
 	it("wraps narrative with header and escaped body", () => {
 		const now = new Date(2026, 7, 9, 9, 0, 0);
-		const text = formatBriefing("Ringkasan: WIF/SOL bagus.", now);
+		const text = formatBriefing("Summary: WIF/SOL good.", now);
 		expect(text).toContain("📋 Daily briefing");
 		expect(text).toContain("2026\\-08\\-09");
-		expect(text).toContain("Ringkasan: WIF/SOL bagus\\.");
+		expect(text).toContain("Summary: WIF/SOL good\\.");
 	});
 });
 
