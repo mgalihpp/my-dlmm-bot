@@ -1,7 +1,12 @@
 import { AgentPage } from "~/components/agent/agent-page";
+import { RouteError } from "~/components/route-error";
 import { fetchAgent } from "~/lib/server/agent.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/agent";
+
+export function ErrorBoundary() {
+	return <RouteError title="Failed to load agent log" shellTitle="Agent Log" />;
+}
 
 export const meta: Route.MetaFunction = () => [{ title: "Agent | Vexis" }];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];

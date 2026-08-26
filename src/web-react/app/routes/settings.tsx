@@ -1,7 +1,12 @@
+import { RouteError } from "~/components/route-error";
 import { SettingsPage } from "~/components/settings/settings-page";
 import { fetchSettings } from "~/lib/server/settings.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/settings";
+
+export function ErrorBoundary() {
+	return <RouteError title="Failed to load settings" shellTitle="Settings" />;
+}
 
 export const meta: Route.MetaFunction = () => [{ title: "Settings | Vexis" }];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
