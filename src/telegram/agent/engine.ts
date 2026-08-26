@@ -268,7 +268,7 @@ async function retryOpen(
 	const rent = checkRent(quote);
 	if (!rent.ok) return `retry blocked: ${rent.reason}`;
 	try {
-		const res = await dlmm.createPosition(params);
+		const res = await dlmm.createPosition(params, wallet);
 		const sig = res.signatures.join(",");
 		const now = new Date().toISOString();
 		ws.plans.push({
@@ -346,6 +346,7 @@ async function retryClose(
 			cand.pool,
 			plan.positionAddress,
 			WSOL_MINT,
+			walletForClose,
 		);
 		const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 		ws.plans = ws.plans.filter((p) => p !== plan);
@@ -508,18 +509,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallets = await resolveEnabledWallets().catch(() => []);
-				const targets: WalletConfig[] =
-					wallets.length > 0
-						? wallets
-						: [
-								{
-									wallet: await resolveWallet(),
-									privateKey: "",
-									label: "primary",
-									enabled: true,
-								},
-							];
+				const targets = (await resolveEnabledWallets().catch(
+					() => [],
+				)) as WalletConfig[];
 				for (const w of targets) {
 					try {
 						const wallet = w.wallet;
@@ -575,18 +567,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallets = await resolveEnabledWallets().catch(() => []);
-				const targets: WalletConfig[] =
-					wallets.length > 0
-						? wallets
-						: [
-								{
-									wallet: await resolveWallet(),
-									privateKey: "",
-									label: "primary",
-									enabled: true,
-								},
-							];
+				const targets = (await resolveEnabledWallets().catch(
+					() => [],
+				)) as WalletConfig[];
 				for (const w of targets) {
 					try {
 						const wallet = w.wallet;
@@ -652,18 +635,9 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
 			let cfg: AgentCfg | undefined;
 			try {
 				cfg = resolveAgentConfigFrom(await getConfig());
-				const wallets = await resolveEnabledWallets().catch(() => []);
-				const targets: WalletConfig[] =
-					wallets.length > 0
-						? wallets
-						: [
-								{
-									wallet: await resolveWallet(),
-									privateKey: "",
-									label: "primary",
-									enabled: true,
-								},
-							];
+				const targets = (await resolveEnabledWallets().catch(
+					() => [],
+				)) as WalletConfig[];
 				for (const w of targets) {
 					try {
 						const wallet = w.wallet;
@@ -908,6 +882,7 @@ async function evaluateTpSl(
 				plan.pool,
 				plan.positionAddress,
 				WSOL_MINT,
+				wallet,
 			);
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 			const signals = plan.signals;
@@ -1104,6 +1079,7 @@ async function evaluateOor(
 				pos.pool,
 				plan.positionAddress!,
 				WSOL_MINT,
+				wallet,
 			);
 			const sig = out.closeSig ?? out.zapSig ?? out.claimSig ?? "";
 			const signals = plan.signals;
@@ -1568,7 +1544,7 @@ async function evaluatePlans(
 		}
 		if (myGen !== rt.gen) return; // aborted before the open tx
 		try {
-			const res = await dlmm.createPosition(params);
+			const res = await dlmm.createPosition(params, wallet);
 			const sig = res.signatures.join(",");
 			const now = new Date().toISOString();
 			ws.plans.push({

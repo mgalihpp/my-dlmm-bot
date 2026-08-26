@@ -349,3 +349,30 @@ export function ensureWalletState(
 	}
 	return state.wallets[wallet];
 }
+
+/**
+ * Aggregates per-wallet state into a single flat AgentState for the default
+ * (no-specific-wallet) status/agent view. Per-wallet state is the source of
+ * truth since the engine writes there; the top-level flat fields stay empty
+ * under multi-wallet, so callers must aggregate rather than read `rt.state`
+ * directly. Global fields (enabled/running/etc.) are authoritative.
+ */
+export function aggregateAgentState(state: HybridState): AgentState {
+	const wallets = Object.values(state.wallets);
+	const plans = wallets.flatMap((w) => w.plans);
+	const executions = wallets.flatMap((w) => w.executions);
+	const cooldowns = wallets.flatMap((w) => w.cooldowns);
+	const oorSince: Record<string, number> = {};
+	for (const w of wallets) Object.assign(oorSince, w.oorSince);
+	return {
+		enabled: state.global.enabled,
+		running: state.global.running,
+		lastCycleAt: state.global.lastCycleAt,
+		llmStatus: state.global.llmStatus,
+		cycle: state.global.cycle,
+		plans,
+		executions,
+		cooldowns,
+		oorSince,
+	};
+}

@@ -4,7 +4,7 @@ import { registerAction, resolveAction } from "../action-store.js";
 import type { RuntimeAgent } from "../agent/engine.js";
 import { recordManualClose } from "../agent/manual-close.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
-import { dlmm, resolveKeypair, zap } from "../fx.js";
+import { dlmm, resolveKeypair, resolveWallet, zap } from "../fx.js";
 import { setInputSession } from "../input-store.js";
 import {
 	fetchOpenPools,
@@ -139,25 +139,29 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 				ctx,
 				summary,
 				makeDlmmRunner(async (dlmm) => {
-					const res = await dlmm.createPosition({
-						poolAddress,
-						strategy: strategy as StrategyType,
-						totalXAmount: xAmt,
-						totalYAmount: yAmt,
-						amountsAreHuman: true,
-						singleSidedX,
-						singleSidedY,
-						...(isPctMode
-							? {
-									minPct: parseFloat(rangeA) / 100,
-									maxPct: parseFloat(rangeB) / 100,
-								}
-							: {
-									minBinId: parseInt(rangeA, 10),
-									maxBinId: parseInt(rangeB, 10),
-									relativeBins: true,
-								}),
-					});
+					const wallet = await resolveWallet();
+					const res = await dlmm.createPosition(
+						{
+							poolAddress,
+							strategy: strategy as StrategyType,
+							totalXAmount: xAmt,
+							totalYAmount: yAmt,
+							amountsAreHuman: true,
+							singleSidedX,
+							singleSidedY,
+							...(isPctMode
+								? {
+										minPct: parseFloat(rangeA) / 100,
+										maxPct: parseFloat(rangeB) / 100,
+									}
+								: {
+										minBinId: parseInt(rangeA, 10),
+										maxBinId: parseInt(rangeB, 10),
+										relativeBins: true,
+									}),
+						},
+						wallet,
+					);
 					return res.signatures.join("\n");
 				}),
 			);
@@ -200,14 +204,23 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 					ctx,
 					summary,
 					makeZapRunner(async (zap) => {
+						const wallet = await resolveWallet();
 						const result = await zap.closeAndZapOut(
 							poolAddress,
 							positionPubkey,
+							undefined,
+							wallet,
 						);
 						const sig = result.zapSig || result.closeSig;
 						if (!sig)
 							throw new Error("Close produced no transaction signature");
-						await recordManualClose(getRt, poolAddress, pairName, baseMint);
+						await recordManualClose(
+							getRt,
+							poolAddress,
+							pairName,
+							baseMint,
+							wallet,
+						);
 						return sig;
 					}),
 				);
@@ -295,10 +308,16 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 			ctx,
 			summary,
 			makeZapRunner(async (zap) => {
-				const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
+				const wallet = await resolveWallet();
+				const result = await zap.closeAndZapOut(
+					poolAddress,
+					positionPubkey,
+					undefined,
+					wallet,
+				);
 				const sig = result.zapSig || result.closeSig;
 				if (!sig) throw new Error("Close produced no transaction signature");
-				await recordManualClose(getRt, poolAddress, pairName, baseMint);
+				await recordManualClose(getRt, poolAddress, pairName, baseMint, wallet);
 				return sig;
 			}),
 			`close:pool:${poolAddress}`,
@@ -336,18 +355,22 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 				await present(
 					ctx,
 					summary,
-					makeDlmmRunner((dlmm) =>
-						dlmm.addLiquidity({
-							poolAddress,
-							positionPubkey,
-							strategy: strategy as StrategyType,
-							totalXAmount: xAmt,
-							totalYAmount: yAmt,
-							amountsAreHuman: true,
-							minBinId: 0,
-							maxBinId: 0,
-						}),
-					),
+					makeDlmmRunner(async (dlmm) => {
+						const wallet = await resolveWallet();
+						return dlmm.addLiquidity(
+							{
+								poolAddress,
+								positionPubkey,
+								strategy: strategy as StrategyType,
+								totalXAmount: xAmt,
+								totalYAmount: yAmt,
+								amountsAreHuman: true,
+								minBinId: 0,
+								maxBinId: 0,
+							},
+							wallet,
+						);
+					}),
 				);
 				return;
 			}
@@ -514,18 +537,22 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 				await present(
 					sessionCtx2,
 					summary,
-					makeDlmmRunner((dlmm) =>
-						dlmm.addLiquidity({
-							poolAddress: s2.poolAddress,
-							positionPubkey: s2.positionPubkey,
-							strategy: s2.strategy!,
-							totalXAmount: s2.xAmt!,
-							totalYAmount: s2.yAmt!,
-							amountsAreHuman: true,
-							minBinId: 0,
-							maxBinId: 0,
-						}),
-					),
+					makeDlmmRunner(async (dlmm) => {
+						const wallet = await resolveWallet();
+						return dlmm.addLiquidity(
+							{
+								poolAddress: s2.poolAddress,
+								positionPubkey: s2.positionPubkey,
+								strategy: s2.strategy!,
+								totalXAmount: s2.xAmt!,
+								totalYAmount: s2.yAmt!,
+								amountsAreHuman: true,
+								minBinId: 0,
+								maxBinId: 0,
+							},
+							wallet,
+						);
+					}),
 				);
 			});
 			await sessionCtx.reply(
@@ -572,14 +599,18 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 				await present(
 					ctx,
 					summary,
-					makeDlmmRunner((dlmm) =>
-						dlmm.removeLiquidity({
-							poolAddress,
-							positionPubkey,
-							bpsToRemove: bpsNum,
-							shouldClaimAndClose: false,
-						}),
-					),
+					makeDlmmRunner(async (dlmm) => {
+						const wallet = await resolveWallet();
+						return dlmm.removeLiquidity(
+							{
+								poolAddress,
+								positionPubkey,
+								bpsToRemove: bpsNum,
+								shouldClaimAndClose: false,
+							},
+							wallet,
+						);
+					}),
 				);
 				return;
 			}
@@ -694,14 +725,18 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 		await present(
 			ctx,
 			summary,
-			makeDlmmRunner((dlmm) =>
-				dlmm.removeLiquidity({
-					poolAddress,
-					positionPubkey,
-					bpsToRemove: bps,
-					shouldClaimAndClose: false,
-				}),
-			),
+			makeDlmmRunner(async (dlmm) => {
+				const wallet = await resolveWallet();
+				return dlmm.removeLiquidity(
+					{
+						poolAddress,
+						positionPubkey,
+						bpsToRemove: bps,
+						shouldClaimAndClose: false,
+					},
+					wallet,
+				);
+			}),
 		);
 	});
 
@@ -752,14 +787,18 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 			await present(
 				sessionCtx,
 				summary,
-				makeDlmmRunner((dlmm) =>
-					dlmm.removeLiquidity({
-						poolAddress,
-						positionPubkey,
-						bpsToRemove: bps,
-						shouldClaimAndClose: false,
-					}),
-				),
+				makeDlmmRunner(async (dlmm) => {
+					const wallet = await resolveWallet();
+					return dlmm.removeLiquidity(
+						{
+							poolAddress,
+							positionPubkey,
+							bpsToRemove: bps,
+							shouldClaimAndClose: false,
+						},
+						wallet,
+					);
+				}),
 			);
 		});
 		await ctx.editMessageText(
@@ -798,9 +837,12 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 					ctx,
 					summary,
 					makeZapRunner(async (zap) => {
+						const wallet = await resolveWallet();
 						const result = await zap.claimAndZapOut(
 							poolAddress,
 							positionPubkey,
+							undefined,
+							wallet,
 						);
 						const sig = result.zapSig || result.claimSig;
 						if (!sig)
@@ -884,7 +926,13 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 			ctx,
 			summary,
 			makeZapRunner(async (zap) => {
-				const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
+				const wallet = await resolveWallet();
+				const result = await zap.claimAndZapOut(
+					poolAddress,
+					positionPubkey,
+					undefined,
+					wallet,
+				);
 				const sig = result.zapSig || result.claimSig;
 				if (!sig) throw new Error("Claim produced no transaction signature");
 				return sig;
@@ -919,9 +967,10 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 				await present(
 					ctx,
 					summary,
-					makeDlmmRunner((dlmm) =>
-						dlmm.claimReward(poolAddress, positionPubkey),
-					),
+					makeDlmmRunner(async (dlmm) => {
+						const wallet = await resolveWallet();
+						return dlmm.claimReward(poolAddress, positionPubkey, wallet);
+					}),
 				);
 				return;
 			}
@@ -1002,7 +1051,10 @@ export function registerOnchain(bot: Bot, getRt: () => RuntimeAgent | null) {
 		await present(
 			ctx,
 			summary,
-			makeDlmmRunner((dlmm) => dlmm.claimReward(poolAddress, positionPubkey)),
+			makeDlmmRunner(async (dlmm) => {
+				const wallet = await resolveWallet();
+				return dlmm.claimReward(poolAddress, positionPubkey, wallet);
+			}),
 		);
 	});
 

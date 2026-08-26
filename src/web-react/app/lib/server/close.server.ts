@@ -3,6 +3,7 @@ import "~/lib/server/env.server";
 import { join } from "node:path";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
+import { AppConfig } from "@vexis/services/Config.js";
 import { Zap } from "@vexis/services/Zap.js";
 import { Effect } from "effect";
 import { getBotRuntime } from "../../../../runtime-host.js";
@@ -41,10 +42,11 @@ export function closePosition(
 
 	const program = Effect.gen(function* () {
 		const zap = yield* Zap;
-		// walletParam is accepted for future per-wallet Zap routing; currently Zap uses the default signer,
-		// but we persist the wallet association for manual cooldown and UI.
-		void walletParam;
-		const res = yield* zap.closeAndZapOut(pool, position);
+		const config = yield* AppConfig;
+		const wallet = walletParam?.trim()
+			? walletParam.trim()
+			: yield* config.wallet();
+		const res = yield* zap.closeAndZapOut(pool, position, undefined, wallet);
 		const sig = pickCloseSig(res);
 		if (!sig) throw new Error("Close produced no transaction signature");
 		yield* Effect.promise(() =>
@@ -53,6 +55,7 @@ export function closePosition(
 				pool,
 				poolName.trim(),
 				null,
+				wallet,
 				join(repoRoot(), ".vexis-agent.json"),
 			),
 		);

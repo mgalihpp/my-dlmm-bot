@@ -64,20 +64,23 @@ export interface ZapService {
 	readonly claimAndZapOut: (
 		poolAddress: string,
 		positionPubkey: string,
-		outputMint?: string,
+		outputMint: string | undefined,
+		wallet: string,
 	) => Effect.Effect<ZapOutResult, OnchainError | JupiterApiError>;
 	readonly closeAndZapOut: (
 		poolAddress: string,
 		positionPubkey: string,
-		outputMint?: string,
+		outputMint: string | undefined,
+		wallet: string,
 	) => Effect.Effect<ZapOutResult, OnchainError | JupiterApiError>;
 	readonly swapExactIn: (
 		inputMint: string,
 		outputMint: string,
 		amount: BN,
-		slippageBps?: number,
+		slippageBps: number | undefined,
+		wallet: string,
 	) => Effect.Effect<SwapExactInResult, OnchainError | JupiterApiError>;
-	readonly getSolBalance: Effect.Effect<BN, OnchainError>;
+	readonly getSolBalance: (wallet: string) => Effect.Effect<BN, OnchainError>;
 }
 
 export class Zap extends Context.Tag("Zap")<Zap, ZapService>() {}
@@ -310,13 +313,20 @@ const make = Effect.gen(function* () {
 
 	const withSigner = <A, E>(
 		op: string,
+		wallet: string,
 		run: (connection: Connection, keypair: Keypair) => Effect.Effect<A, E>,
 	): Effect.Effect<A, OnchainError | E> =>
 		Effect.gen(function* () {
 			const connection = yield* solana.connection;
-			const keypair = yield* solana.signer.pipe(
-				Effect.mapError((e) => new OnchainError({ op, message: e.message })),
-			);
+			const keypair = yield* solana
+				.keypairFor(wallet)
+				.pipe(
+					Effect.mapError((e) =>
+						e instanceof OnchainError
+							? e
+							: new OnchainError({ op, message: e.message }),
+					),
+				);
 			return yield* run(connection, keypair);
 		});
 
@@ -338,8 +348,9 @@ const make = Effect.gen(function* () {
 			poolAddress,
 			positionPubkey,
 			outputMint = SOL_MINT.toBase58(),
+			wallet,
 		) =>
-			withSigner("claimAndZapOut", (connection, keypair) =>
+			withSigner("claimAndZapOut", wallet, (connection, keypair) =>
 				Effect.gen(function* () {
 					const outputMintPk = new PublicKey(outputMint);
 					const state = yield* tryOnchain("claimAndZapOut", async () => {
@@ -416,8 +427,9 @@ const make = Effect.gen(function* () {
 			poolAddress,
 			positionPubkey,
 			outputMint = SOL_MINT.toBase58(),
+			wallet,
 		) =>
-			withSigner("closeAndZapOut", (connection, keypair) =>
+			withSigner("closeAndZapOut", wallet, (connection, keypair) =>
 				Effect.gen(function* () {
 					const outputMintPk = new PublicKey(outputMint);
 					const state = yield* tryOnchain("closeAndZapOut", async () => {
@@ -493,8 +505,8 @@ const make = Effect.gen(function* () {
 					};
 				}),
 			),
-		swapExactIn: (inputMint, outputMint, amount, slippageBps) =>
-			withSigner("swapExactIn", (connection, keypair) =>
+		swapExactIn: (inputMint, outputMint, amount, slippageBps, wallet) =>
+			withSigner("swapExactIn", wallet, (connection, keypair) =>
 				Effect.gen(function* () {
 					const inPk = new PublicKey(inputMint);
 					const outPk = new PublicKey(outputMint);
@@ -531,12 +543,13 @@ const make = Effect.gen(function* () {
 					};
 				}),
 			),
-		getSolBalance: withSigner("getSolBalance", (connection, keypair) =>
-			tryOnchain("getSolBalance", async () => {
-				const lamports = await connection.getBalance(keypair.publicKey);
-				return new BN(lamports);
-			}),
-		),
+		getSolBalance: (wallet) =>
+			withSigner("getSolBalance", wallet, (connection, keypair) =>
+				tryOnchain("getSolBalance", async () => {
+					const lamports = await connection.getBalance(keypair.publicKey);
+					return new BN(lamports);
+				}),
+			),
 	};
 	return service;
 });

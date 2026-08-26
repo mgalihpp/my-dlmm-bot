@@ -18,7 +18,11 @@ import { readBriefingCache } from "@vexis/telegram/agent/briefing.js";
 import type { AgentJournalEntry } from "@vexis/telegram/agent/journal.js";
 import { readJournalAll } from "@vexis/telegram/agent/journal.js";
 import type { AgentState } from "@vexis/telegram/agent/state.js";
-import { getWalletState, loadState } from "@vexis/telegram/agent/state.js";
+import {
+	aggregateAgentState,
+	getWalletState,
+	loadState,
+} from "@vexis/telegram/agent/state.js";
 import { repoRoot } from "./env.server";
 
 export interface AgentStateSummary {
@@ -115,7 +119,7 @@ export function fetchAgent(
 		.filter((w) => w.enabled !== false)
 		.map((w) => ({ wallet: w.wallet, label: w.label }));
 	let wallet: string | undefined = config.wallet;
-	let state: AgentState = rawState;
+	let state: AgentState = aggregateAgentState(rawState);
 	let journal: readonly AgentJournalEntry[] = rawJournal;
 	if (walletParam) {
 		const found = wallets.find(
@@ -145,8 +149,8 @@ export function fetchAgent(
 		}
 	} else if (wallets.length > 0) {
 		wallet = wallets[0].wallet;
-		// for default view without wallet param, show aggregated? Keep current wallet as first
-		// but journal stays aggregated for now
+		// default view: aggregated across per-wallet state (the engine writes
+		// there, so the top-level flat fields are empty under multi-wallet)
 	}
 	const cachedBriefing = readBriefingCache(
 		join(root, ".vexis-agent-briefing.json"),

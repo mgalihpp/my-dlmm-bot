@@ -266,6 +266,7 @@ const positionCreateCmd = Command.make(
 		singleSidedY: Options.boolean("single-sided-y").pipe(
 			Options.withDescription("single-sided: deposit only token Y (SOL)"),
 		),
+		wallet: walletArg,
 		dryRun: dryRunFlag,
 		yes: yesFlag,
 	},
@@ -273,7 +274,8 @@ const positionCreateCmd = Command.make(
 		Effect.gen(function* () {
 			const config = yield* AppConfig;
 			const solana = yield* Solana;
-			const keypair = yield* solana.signer;
+			const w = yield* config.wallet(Option.getOrUndefined(opts.wallet));
+			const keypair = yield* solana.keypairFor(w);
 			const rpcUrl = yield* config.rpcUrl;
 
 			const singleSidedX = opts.singleSided;
@@ -341,18 +343,21 @@ const positionCreateCmd = Command.make(
 
 			yield* Console.log(dim("Sending transaction..."));
 
-			const res = yield* dlmm.createPosition({
-				poolAddress: opts.poolAddress,
-				strategy: opts.strategy as "spot" | "bidask" | "curve",
-				totalXAmount: opts.xAmount,
-				totalYAmount: opts.yAmount,
-				amountsAreHuman: !opts.atomic,
-				autoFill: opts.autoFill,
-				singleSidedX,
-				...(isPctMode
-					? { minPct: minPct! / 100, maxPct: maxPct! / 100 }
-					: { minBinId: minBin!, maxBinId: maxBin! }),
-			});
+			const res = yield* dlmm.createPosition(
+				{
+					poolAddress: opts.poolAddress,
+					strategy: opts.strategy as "spot" | "bidask" | "curve",
+					totalXAmount: opts.xAmount,
+					totalYAmount: opts.yAmount,
+					amountsAreHuman: !opts.atomic,
+					autoFill: opts.autoFill,
+					singleSidedX,
+					...(isPctMode
+						? { minPct: minPct! / 100, maxPct: maxPct! / 100 }
+						: { minBinId: minBin!, maxBinId: maxBin! }),
+				},
+				w,
+			);
 
 			yield* Console.log(
 				`${bold("✓ Success")} — ${res.positions.length} position(s), bins ${res.minBinId}..${res.maxBinId} (${res.binCount})`,
@@ -369,13 +374,16 @@ const positionCloseCmd = Command.make(
 	{
 		poolAddress: Args.text({ name: "poolAddress" }),
 		positionPubkey: Args.text({ name: "positionPubkey" }),
+		wallet: walletArg,
 		dryRun: dryRunFlag,
 		yes: yesFlag,
 	},
 	(opts) =>
 		Effect.gen(function* () {
+			const config = yield* AppConfig;
 			const solana = yield* Solana;
-			const keypair = yield* solana.signer;
+			const w = yield* config.wallet(Option.getOrUndefined(opts.wallet));
+			const keypair = yield* solana.keypairFor(w);
 
 			yield* Console.log(`\n${bold("Close Position + Zap Out")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
@@ -399,6 +407,8 @@ const positionCloseCmd = Command.make(
 			const result = yield* zap.closeAndZapOut(
 				opts.poolAddress,
 				opts.positionPubkey,
+				undefined,
+				w,
 			);
 			const sig = result.zapSig || result.closeSig || "";
 			yield* Console.log(`${bold("✓ Success")} ${cyan(sig)}`);
@@ -425,11 +435,14 @@ const liquidityAddCmd = Command.make(
 		yAmount: Options.text("y-amount").pipe(
 			Options.withDescription("amount of token Y to add"),
 		),
+		wallet: walletArg,
 		dryRun: dryRunFlag,
 		yes: yesFlag,
 	},
 	(opts) =>
 		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const w = yield* config.wallet(Option.getOrUndefined(opts.wallet));
 			yield* Console.log(`\n${bold("Add Liquidity")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Position: ${gray(shortAddr(opts.positionPubkey))}`);
@@ -448,15 +461,18 @@ const liquidityAddCmd = Command.make(
 
 			const dlmm = yield* Dlmm;
 			yield* Console.log(dim("Sending transaction..."));
-			const sig = yield* dlmm.addLiquidity({
-				poolAddress: opts.poolAddress,
-				positionPubkey: opts.positionPubkey,
-				strategy: opts.strategy as "spot" | "bidask" | "curve",
-				totalXAmount: opts.xAmount,
-				totalYAmount: opts.yAmount,
-				minBinId: 0,
-				maxBinId: 0,
-			});
+			const sig = yield* dlmm.addLiquidity(
+				{
+					poolAddress: opts.poolAddress,
+					positionPubkey: opts.positionPubkey,
+					strategy: opts.strategy as "spot" | "bidask" | "curve",
+					totalXAmount: opts.xAmount,
+					totalYAmount: opts.yAmount,
+					minBinId: 0,
+					maxBinId: 0,
+				},
+				w,
+			);
 			yield* Console.log(`${bold("✓ Success")} ${cyan(sig)}`);
 			yield* Console.log(`  https://solscan.io/tx/${sig}\n`);
 		}),
@@ -473,6 +489,7 @@ const liquidityRemoveCmd = Command.make(
 		close: Options.boolean("close").pipe(
 			Options.withDescription("close position after removing all liquidity"),
 		),
+		wallet: walletArg,
 		dryRun: dryRunFlag,
 		yes: yesFlag,
 	},
@@ -482,6 +499,8 @@ const liquidityRemoveCmd = Command.make(
 				return yield* Effect.fail(new Error("BPS must be between 1 and 10000"));
 			}
 
+			const config = yield* AppConfig;
+			const w = yield* config.wallet(Option.getOrUndefined(opts.wallet));
 			yield* Console.log(`\n${bold("Remove Liquidity")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Position: ${gray(shortAddr(opts.positionPubkey))}`);
@@ -500,12 +519,15 @@ const liquidityRemoveCmd = Command.make(
 
 			const dlmm = yield* Dlmm;
 			yield* Console.log(dim("Sending transaction..."));
-			const sig = yield* dlmm.removeLiquidity({
-				poolAddress: opts.poolAddress,
-				positionPubkey: opts.positionPubkey,
-				bpsToRemove: opts.bps,
-				shouldClaimAndClose: opts.close,
-			});
+			const sig = yield* dlmm.removeLiquidity(
+				{
+					poolAddress: opts.poolAddress,
+					positionPubkey: opts.positionPubkey,
+					bpsToRemove: opts.bps,
+					shouldClaimAndClose: opts.close,
+				},
+				w,
+			);
 			yield* Console.log(`${bold("✓ Success")} ${cyan(sig)}`);
 			yield* Console.log(`  https://solscan.io/tx/${sig}\n`);
 		}),
@@ -519,6 +541,7 @@ const liquidityCmd = Command.make("liquidity", {}, () => Effect.void).pipe(
 const claimArgs = {
 	poolAddress: Args.text({ name: "poolAddress" }),
 	positionPubkey: Args.text({ name: "positionPubkey" }),
+	wallet: walletArg,
 	dryRun: dryRunFlag,
 	yes: yesFlag,
 };
@@ -530,15 +553,19 @@ const claimAction =
 			dlmm: Dlmm["Type"],
 			poolAddress: string,
 			positionPubkey: string,
+			wallet: string,
 		) => Effect.Effect<string, unknown>,
 	) =>
 	(opts: {
 		poolAddress: string;
 		positionPubkey: string;
+		wallet: Option.Option<string>;
 		dryRun: boolean;
 		yes: boolean;
 	}) =>
 		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const w = yield* config.wallet(Option.getOrUndefined(opts.wallet));
 			yield* Console.log(`\n${bold(label)}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(
@@ -556,7 +583,7 @@ const claimAction =
 
 			const dlmm = yield* Dlmm;
 			yield* Console.log(dim("Sending transaction..."));
-			const sig = yield* run(dlmm, opts.poolAddress, opts.positionPubkey);
+			const sig = yield* run(dlmm, opts.poolAddress, opts.positionPubkey, w);
 			yield* Console.log(`${bold("✓ Success")} ${cyan(sig)}`);
 			yield* Console.log(`  https://solscan.io/tx/${sig}\n`);
 		});
@@ -564,13 +591,13 @@ const claimAction =
 const claimFeeCmd = Command.make(
 	"fee",
 	claimArgs,
-	claimAction("Claim Fee", (d, p, k) => d.claimFee(p, k)),
+	claimAction("Claim Fee", (d, p, k, w) => d.claimFee(p, k, w)),
 ).pipe(Command.withDescription("claim accumulated trading fees"));
 
 const claimRewardCmd = Command.make(
 	"reward",
 	claimArgs,
-	claimAction("Claim Reward", (d, p, k) => d.claimReward(p, k)),
+	claimAction("Claim Reward", (d, p, k, w) => d.claimReward(p, k, w)),
 ).pipe(Command.withDescription("claim liquidity mining rewards"));
 
 const claimCmd = Command.make("claim", {}, () => Effect.void).pipe(

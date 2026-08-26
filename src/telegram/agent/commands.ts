@@ -8,7 +8,13 @@ import {
 } from "../../services/Config.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { escapeMarkdown } from "../format.js";
-import { api, getConfig, resolveWallet, updateConfig } from "../fx.js";
+import {
+	api,
+	getConfig,
+	resolveWallet,
+	resolveWalletArg,
+	updateConfig,
+} from "../fx.js";
 import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
@@ -25,29 +31,14 @@ import {
 } from "./format.js";
 import { readJournalAll } from "./journal.js";
 import { loadSignalWeights } from "./signalWeights.js";
-import { clearCooldowns, getWalletState } from "./state.js";
+import {
+	aggregateAgentState,
+	clearCooldowns,
+	getWalletState,
+} from "./state.js";
 import { actionCounts, pnlPctValue, tradeStats } from "./stats.js";
 
 export const PAGE_SIZE = 5;
-
-export function resolveWalletArg(input?: string): string | null {
-	if (!input || /^\d+$/.test(input)) return null;
-	try {
-		const { config } = loadConfigSync();
-		const wallets = getWalletConfigs(config);
-		const lower = input.toLowerCase();
-		const found = wallets.find(
-			(w) =>
-				w.wallet === input ||
-				w.label === input ||
-				w.wallet.toLowerCase() === lower ||
-				w.label?.toLowerCase() === lower,
-		);
-		return found ? found.wallet : null;
-	} catch {
-		return null;
-	}
-}
 
 // Telegram rejects editMessageText when content is unchanged. Ignore it.
 export async function editOrIgnore(
@@ -462,7 +453,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 							>,
 							targetWallet,
 						)
-					: rt.state;
+					: aggregateAgentState(rt.state);
 				await ctx.reply(
 					formatStatus(
 						stateForStatus as unknown as typeof rt.state,
@@ -499,7 +490,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
+			formatStatus(aggregateAgentState(rt.state), cfg, tradeStatsOf(), pnl),
 			statusKeyboard(rt),
 		);
 	});
@@ -517,7 +508,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			ctx.api,
 			chatId,
 			messageId,
-			`🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.\n\n${formatStatus(rt.state, cfg, tradeStatsOf(), pnl)}`,
+			`🧹 Cleared ${escapeMarkdown(String(n))} cooldowns.\n\n${formatStatus(aggregateAgentState(rt.state), cfg, tradeStatsOf(), pnl)}`,
 			statusKeyboard(rt),
 		);
 	});
@@ -533,7 +524,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
+			formatStatus(aggregateAgentState(rt.state), cfg, tradeStatsOf(), pnl),
 			statusKeyboard(rt),
 		);
 	});
@@ -813,7 +804,7 @@ export function registerMenuSpokes(bot: Bot, rt: RuntimeAgent) {
 			ctx.api,
 			chatId,
 			messageId,
-			formatStatus(rt.state, cfg, tradeStatsOf(), pnl),
+			formatStatus(aggregateAgentState(rt.state), cfg, tradeStatsOf(), pnl),
 			statusKeyboard(rt),
 		);
 	});

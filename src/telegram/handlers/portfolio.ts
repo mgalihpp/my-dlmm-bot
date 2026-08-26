@@ -1,27 +1,7 @@
 import type { Bot, Context } from "grammy";
-import { getWalletConfigs, loadConfigSync } from "../../services/Config.js";
 import { tgClosedPools, tgOpenPools, tgPortfolioSummary } from "../format.js";
-import { api, dlmm, resolveWallet } from "../fx.js";
+import { api, dlmm, resolveWallet, resolveWalletArg } from "../fx.js";
 import { MD, replyError } from "../utils.js";
-
-function resolveWalletArg(input?: string): string | null {
-	if (!input) return null;
-	try {
-		const { config } = loadConfigSync();
-		const wallets = getWalletConfigs(config);
-		const lower = input.toLowerCase();
-		const found = wallets.find(
-			(w) =>
-				w.wallet === input ||
-				w.label === input ||
-				w.wallet.toLowerCase() === lower ||
-				w.label?.toLowerCase() === lower,
-		);
-		return found ? found.wallet : null;
-	} catch {
-		return null;
-	}
-}
 
 export function registerPortfolio(bot: Bot) {
 	bot.command("portfolio", async (ctx: Context) => {

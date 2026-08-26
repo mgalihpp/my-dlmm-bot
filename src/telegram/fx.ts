@@ -8,7 +8,11 @@ import type {
 } from "../domain/config.js";
 import type { OpenPool } from "../domain/index.js";
 import type { ScreenResult } from "../lib/screening.js";
-import { AppConfig } from "../services/Config.js";
+import {
+	AppConfig,
+	getWalletConfigs,
+	loadConfigSync,
+} from "../services/Config.js";
 import { Dlmm, type DlmmService } from "../services/Dlmm.js";
 import { MeteoraApi, type MeteoraApiService } from "../services/MeteoraApi.js";
 import { Screening } from "../services/Screening.js";
@@ -46,6 +50,32 @@ export const resolveKeypairFor = (wallet: string): Promise<Keypair> =>
 
 export const resolveWallets = (): Promise<WalletConfig[]> =>
 	runFx(Effect.flatMap(AppConfig, (c) => c.wallets));
+
+/**
+ * Resolves a user-supplied wallet argument (address or label) to its canonical
+ * wallet address, or null when it doesn't match a configured wallet. Numeric
+ * tokens are NOT special-cased: a label that happens to be digits resolves if
+ * it matches a wallet; anything that doesn't match is treated as a non-wallet
+ * argument by callers (e.g. a page number).
+ */
+export function resolveWalletArg(input?: string): string | null {
+	if (!input) return null;
+	try {
+		const { config } = loadConfigSync();
+		const wallets = getWalletConfigs(config);
+		const lower = input.toLowerCase();
+		const found = wallets.find(
+			(w) =>
+				w.wallet === input ||
+				w.label === input ||
+				w.wallet.toLowerCase() === lower ||
+				w.label?.toLowerCase() === lower,
+		);
+		return found ? found.wallet : null;
+	} catch {
+		return null;
+	}
+}
 
 export const resolveEnabledWallets = (): Promise<WalletConfig[]> =>
 	runFx(Effect.flatMap(AppConfig, (c) => c.enabledWallets));
@@ -99,21 +129,39 @@ export const dlmm = {
 	quotePositionCost: (
 		params: Parameters<DlmmService["quotePositionCost"]>[0],
 	) => runFx(Effect.flatMap(Dlmm, (d) => d.quotePositionCost(params))),
-	createPosition: (params: Parameters<DlmmService["createPosition"]>[0]) =>
-		runFx(Effect.flatMap(Dlmm, (d) => d.createPosition(params))),
-	closePosition: (poolAddress: string, positionPubkey: string) =>
+	createPosition: (
+		params: Parameters<DlmmService["createPosition"]>[0],
+		wallet: string,
+	) => runFx(Effect.flatMap(Dlmm, (d) => d.createPosition(params, wallet))),
+	closePosition: (
+		poolAddress: string,
+		positionPubkey: string,
+		wallet: string,
+	) =>
 		runFx(
-			Effect.flatMap(Dlmm, (d) => d.closePosition(poolAddress, positionPubkey)),
+			Effect.flatMap(Dlmm, (d) =>
+				d.closePosition(poolAddress, positionPubkey, wallet),
+			),
 		),
-	addLiquidity: (params: Parameters<DlmmService["addLiquidity"]>[0]) =>
-		runFx(Effect.flatMap(Dlmm, (d) => d.addLiquidity(params))),
-	removeLiquidity: (params: Parameters<DlmmService["removeLiquidity"]>[0]) =>
-		runFx(Effect.flatMap(Dlmm, (d) => d.removeLiquidity(params))),
-	claimFee: (poolAddress: string, positionPubkey: string) =>
-		runFx(Effect.flatMap(Dlmm, (d) => d.claimFee(poolAddress, positionPubkey))),
-	claimReward: (poolAddress: string, positionPubkey: string) =>
+	addLiquidity: (
+		params: Parameters<DlmmService["addLiquidity"]>[0],
+		wallet: string,
+	) => runFx(Effect.flatMap(Dlmm, (d) => d.addLiquidity(params, wallet))),
+	removeLiquidity: (
+		params: Parameters<DlmmService["removeLiquidity"]>[0],
+		wallet: string,
+	) => runFx(Effect.flatMap(Dlmm, (d) => d.removeLiquidity(params, wallet))),
+	claimFee: (poolAddress: string, positionPubkey: string, wallet: string) =>
 		runFx(
-			Effect.flatMap(Dlmm, (d) => d.claimReward(poolAddress, positionPubkey)),
+			Effect.flatMap(Dlmm, (d) =>
+				d.claimFee(poolAddress, positionPubkey, wallet),
+			),
+		),
+	claimReward: (poolAddress: string, positionPubkey: string, wallet: string) =>
+		runFx(
+			Effect.flatMap(Dlmm, (d) =>
+				d.claimReward(poolAddress, positionPubkey, wallet),
+			),
 		),
 	attachLivePositions: (pools: OpenPool[], wallet: string) =>
 		runFx(Effect.flatMap(Dlmm, (d) => d.attachLivePositions(pools, wallet))),
@@ -123,35 +171,39 @@ export const zap = {
 	claimAndZapOut: (
 		poolAddress: string,
 		positionPubkey: string,
-		outputMint?: string,
+		outputMint: string | undefined,
+		wallet: string,
 	) =>
 		runFx(
 			Effect.flatMap(Zap, (z) =>
-				z.claimAndZapOut(poolAddress, positionPubkey, outputMint),
+				z.claimAndZapOut(poolAddress, positionPubkey, outputMint, wallet),
 			),
 		),
 	closeAndZapOut: (
 		poolAddress: string,
 		positionPubkey: string,
-		outputMint?: string,
+		outputMint: string | undefined,
+		wallet: string,
 	) =>
 		runFx(
 			Effect.flatMap(Zap, (z) =>
-				z.closeAndZapOut(poolAddress, positionPubkey, outputMint),
+				z.closeAndZapOut(poolAddress, positionPubkey, outputMint, wallet),
 			),
 		),
 	swapExactIn: (
 		inputMint: string,
 		outputMint: string,
 		amount: BN,
-		slippageBps?: number,
+		slippageBps: number | undefined,
+		wallet: string,
 	) =>
 		runFx(
 			Effect.flatMap(Zap, (z) =>
-				z.swapExactIn(inputMint, outputMint, amount, slippageBps),
+				z.swapExactIn(inputMint, outputMint, amount, slippageBps, wallet),
 			),
 		),
-	getSolBalance: () => runFx(Effect.flatMap(Zap, (z) => z.getSolBalance)),
+	getSolBalance: (wallet: string) =>
+		runFx(Effect.flatMap(Zap, (z) => z.getSolBalance(wallet))),
 };
 
 export const screenPools = (opts?: {
