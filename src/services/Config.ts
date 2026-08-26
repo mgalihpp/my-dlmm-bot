@@ -258,7 +258,7 @@ export const resolveAgentConfigFrom = (
 			maxBotHoldersPct: r.maxBotHoldersPct ?? 30,
 			maxTop10Pct: r.maxTop10Pct ?? 60,
 			minFromAthPct: r.minFromAthPct ?? 30,
-			maxRugScore: r.maxRugScore ?? 1,
+			maxRugScore: r.maxRugScore ?? 500,
 			blockWash: r.blockWash ?? true,
 			blockRugpull: r.blockRugpull ?? true,
 			blockDexScreenerPaid: r.blockDexScreenerPaid ?? true,

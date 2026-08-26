@@ -90,7 +90,7 @@ export function buildGuardrailSection(g: GuardrailContext): string {
 		);
 	if (g.maxRugScore != null)
 		lines.push(
-			`- maxRugScore=${g.maxRugScore} (RugCheck 0-2500; 0-1 = clean, above → reject)`,
+			`- maxRugScore=${g.maxRugScore} (RugCheck 0-2500; pass ≤250, review ≤1250, blocked >1250 → reject)`,
 		);
 	lines.push(
 		`- capacity: ${g.openPositions}/${g.maxOpenPositions} open positions, deployed ${g.deployedSol.toFixed(2)}/${g.maxTotalSol} SOL cap, max ${g.maxSolPerPosition} SOL per position`,
@@ -245,9 +245,7 @@ export function buildOpenDecisionPrompt(
 		"- feeTvlRatio: nilai lebih besar berarti fee per unit likuiditas aktif lebih tinggi.",
 		"- organicScore: nilai lebih besar berarti aktivitas lebih organik dan lebih sedikit dipengaruhi bot.",
 		"- holders, volume, swapCount, uniqueTraders: indikator aktivitas nyata. swapCount tinggi dengan uniqueTraders rendah dapat menunjukkan wash trading atau aktivitas bot.",
-		"- top10Pct, bundlePct, botHoldersPct: nilai lebih kecil umumnya lebih sehat.",
-		"- rugScore (RugCheck 0-2500): nilai 0-1 tergolong bersih. Nilai di atas maxRugScore akan ditolak guardrail, jadi jangan pernah memilih OPEN untuk pool tersebut.",
-		"- isRugpull, isWash, atau devSoldAll: jika bernilai true, pilih HOLD.",
+		"- rugScore (RugCheck 0-2500): nilai ≤250 pass, 250-1250 review, >1250 blocked. Nilai di atas maxRugScore akan ditolak guardrail, jadi jangan pernah memilih OPEN untuk pool tersebut.",
 		"- dexScreenerPaid: hanya menunjukkan bahwa promosi DexScreener dibayar. Ini bukan sinyal rugpull dan bukan alasan untuk menolak pool.",
 		"- fromAthPct: persentase harga di bawah ATH atau 24h-high. Nilai lebih besar berarti harga lebih jauh dari puncak. Guardrail menolak nilai di bawah minFromAthPct.",
 		"- globalFeesSol: total fee pool. Guardrail menolak nilai di bawah minTokenFeesSol.",

@@ -226,9 +226,7 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 	if (result.pools.length === 0) return tgBold("📭 No pools found");
 	const lines = [
 		tgBold("🔥 Screened Pools"),
-		escapeMarkdown(
-			`${result.pools.length} shown / ${result.total} total / ${result.filtered} filtered`,
-		),
+		escapeMarkdown(`${result.pools.length} shown / ${result.total} total`),
 		"",
 	];
 	result.pools.forEach((p, i) => {

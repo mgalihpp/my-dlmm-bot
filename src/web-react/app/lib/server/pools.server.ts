@@ -95,7 +95,6 @@ function doFetchPoolsCritical(
 				error: errorMessage(error),
 				timeframe: rawTimeframe ?? "30m",
 				total: 0,
-				filtered: 0,
 				pools: [],
 				solPrice: null,
 				fetchedAt: Date.now(),

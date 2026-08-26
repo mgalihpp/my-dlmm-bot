@@ -612,7 +612,7 @@ const poolListCmd = Command.make(
 			}
 
 			yield* Console.log(
-				`\n${bold("Screened Pools")} ${gray(`(${result.total} total · ${result.pools.length} shown · ${result.filtered} filtered)`)}`,
+				`\n${bold("Screened Pools")} ${gray(`(${result.total} total · ${result.pools.length} shown)`)}`,
 			);
 
 			if (!result.pools.length) {

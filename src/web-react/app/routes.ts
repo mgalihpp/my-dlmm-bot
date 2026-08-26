@@ -9,7 +9,7 @@ export default [
 		index("routes/settings-index.tsx"),
 		route(":category", "routes/settings-category.tsx"),
 	]),
-	route("logout", "routes/logout.tsx"),
 	route("api/closed-detail/:pool", "routes/api/closed-detail.tsx"),
 	route("api/icon", "routes/api/icon.tsx"),
+	route("api/pools-enriched", "routes/api.pools-enriched.ts"),
 ] satisfies RouteConfig;

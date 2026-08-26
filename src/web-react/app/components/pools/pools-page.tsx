@@ -28,12 +28,85 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 		storedCurrency,
 	);
 	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
+	const [displayPools, setDisplayPools] = useState<ScreenedPool[]>(
+		() => payload.pools as ScreenedPool[],
+	);
 
 	useEffect(() => {
 		setStoredCurrency(
 			readStoredCurrency(window.localStorage, POOLS_CURRENCY_STORAGE_KEY),
 		);
 	}, []);
+
+	useEffect(() => {
+		setDisplayPools(payload.pools as ScreenedPool[]);
+	}, [payload.pools]);
+
+	useEffect(() => {
+		if (!payload.ok || payload.pools.length === 0) return;
+		let cancelled = false;
+		const controller = new AbortController();
+		(async () => {
+			try {
+				const res = await fetch(
+					`/api/pools-enriched?timeframe=${encodeURIComponent(timeframe)}`,
+					{
+						signal: controller.signal,
+						credentials: "same-origin",
+						headers: { Accept: "application/x-ndjson" },
+					},
+				);
+				if (!res.ok || !res.body) {
+					const data = (await res.json()) as {
+						ok?: boolean;
+						pools?: ScreenedPool[];
+					};
+					if (!cancelled && data.ok && Array.isArray(data.pools)) {
+						setDisplayPools(data.pools);
+					}
+					return;
+				}
+				const reader = res.body.getReader();
+				const decoder = new TextDecoder();
+				let buffer = "";
+				while (true) {
+					const { done, value } = await reader.read();
+					if (done) break;
+					if (cancelled) break;
+					buffer += decoder.decode(value, { stream: true });
+					const lines = buffer.split("\n");
+					buffer = lines.pop() ?? "";
+					for (const line of lines) {
+						if (!line.trim() || line.includes('"_error"')) continue;
+						try {
+							const pool = JSON.parse(line) as ScreenedPool;
+							if (cancelled) break;
+							setDisplayPools((prev) =>
+								prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
+							);
+							setSelectedPool((prev) =>
+								prev && prev.pool === pool.pool
+									? ({ ...prev, ...pool } as ScreenedPool)
+									: prev,
+							);
+						} catch {}
+					}
+				}
+				if (buffer.trim() && !cancelled) {
+					try {
+						const pool = JSON.parse(buffer) as ScreenedPool;
+						setDisplayPools((prev) =>
+							prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
+						);
+					} catch {}
+				}
+			} catch {}
+		})();
+		return () => {
+			cancelled = true;
+			controller.abort();
+		};
+	}, [timeframe, payload.ok, payload.pools.length]);
 
 	const onTimeframeChange = (value: string) =>
 		setSearchParams(
@@ -84,7 +157,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 
 				{!payload.ok ? (
 					<LoadErrorCard title="Failed to load pools" error={payload.error} />
-				) : payload.pools.length === 0 ? (
+				) : displayPools.length === 0 ? (
 					<Card className="mx-4 lg:mx-6">
 						<CardContent className="px-4 py-10 text-center text-sm text-muted-foreground">
 							No pools found for the {timeframe} timeframe.
@@ -92,7 +165,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 					</Card>
 				) : (
 					<PoolsContent
-						pools={payload.pools}
+						pools={displayPools}
 						currency={currency}
 						solPrice={payload.solPrice}
 						selectedPool={selectedPool}

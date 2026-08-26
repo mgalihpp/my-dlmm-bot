@@ -59,7 +59,7 @@ The first three jobs run once at startup. The briefing waits for the next 09:00,
 
 `checkDuplicate` and `filterDuplicates` compare pool and base-token IDs. `checkCooldown` enforces the global transaction cooldown, while `checkPoolCooldown` handles per-pool cooldowns. `checkRisks` evaluates risk data and the configured caps. `checkOpenGuardrail` enforces per-position, total-budget, and position-count limits. `deriveOpenAmount` returns the amount that fits the remaining budget.
 
-The default risk values are enabled, 30 SOL minimum token fees, 30% bundle and bot-holder caps, 60% top-10-holder cap, 30% minimum distance below ATH, and enabled wash, rug-pull, paid-promotion, and developer-sold-all blocks. `maxRugScore` defaults to `1`.
+The default risk values are enabled, 30 SOL minimum token fees, 30% bundle and bot-holder caps, 60% top-10-holder cap, 30% minimum distance below ATH, and enabled wash, rug-pull, paid-promotion, and developer-sold-all blocks. `maxRugScore` defaults to `500` (RugCheck 0-2500; pass ≤250, review ≤1250).
 
 ## Heuristic and adaptive weights
 

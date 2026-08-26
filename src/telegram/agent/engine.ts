@@ -1216,10 +1216,8 @@ async function evaluatePlans(
 		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 		return;
 	}
-	logInfo(
-		`screening: ${screen.pools.length}/${screen.total} pools, filtered ${screen.filtered}`,
-	);
-	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened, filtered ${screen.filtered}`;
+	logInfo(`screening: ${screen.pools.length}/${screen.total} pools`);
+	liveLines[0] = `🔎 ${screen.pools.length}/${screen.total} pools screened`;
 	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	const { pools: noCooldownPools, skipped: cooldownSkipped } = filterCooldown(
 		screen.pools,

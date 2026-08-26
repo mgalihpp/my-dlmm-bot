@@ -77,7 +77,7 @@ These checks are deterministic and cannot be bypassed by the LLM.
 | `maxBotHoldersPct` | `30` | Maximum bot-holder percentage. |
 | `maxTop10Pct` | `60` | Maximum top-10-holder percentage. |
 | `minFromAthPct` | `30` | Minimum distance below the all-time high. |
-| `maxRugScore` | `1` | Maximum accepted RugCheck score. |
+| `maxRugScore` | `500` | Maximum accepted RugCheck score (0-2500; pass ≤250, review ≤1250, blocked >1250). |
 | `blockWash` | `true` | Block wash-trading signals. |
 | `blockRugpull` | `true` | Block rug-pull signals. |
 | `blockDexScreenerPaid` | `true` | Block paid DEX Screener pools. |
