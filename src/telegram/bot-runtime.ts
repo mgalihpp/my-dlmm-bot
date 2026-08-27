@@ -12,6 +12,7 @@ import { createAlerts, registerAlertCommands } from "./alerts.js";
 import { registerDashboard } from "./dashboard.js";
 import { escapeMarkdown, tgBold } from "./format.js";
 import { registerBalance } from "./handlers/balance.js";
+import { registerBlacklist } from "./handlers/blacklist.js";
 import { registerConfigEditor } from "./handlers/config-editor.js";
 import { registerCreate } from "./handlers/create.js";
 import { registerManage } from "./handlers/manage.js";
@@ -131,6 +132,7 @@ export async function startBot(): Promise<BotRuntime | null> {
 	registerOnchain(bot, () => rtAgent);
 	registerManage(bot, () => rtAgent);
 	registerWatchlist(bot);
+	registerBlacklist(bot);
 	registerBalance(bot);
 	registerMenu(bot);
 
@@ -192,6 +194,9 @@ export async function startBot(): Promise<BotRuntime | null> {
 		{ command: "watchlist", description: "List watched wallets" },
 		{ command: "watchpositions", description: "Positions of watched wallets" },
 		{ command: "wallets", description: "Query any wallets" },
+		{ command: "blacklist", description: "List blacklisted tokens" },
+		{ command: "blacklistadd", description: "Blacklist a token mint" },
+		{ command: "blacklistremove", description: "Remove token from blacklist" },
 		// On-chain
 		{ command: "manage", description: "Position manager" },
 		{

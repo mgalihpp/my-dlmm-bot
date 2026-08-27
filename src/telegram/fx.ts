@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { PoolsConfig, VexisConfig } from "../domain/config.js";
 import type { OpenPool } from "../domain/index.js";
 import type { ScreenResult } from "../lib/screening.js";
+import { Blacklist, type BlacklistedToken } from "../services/Blacklist.js";
 import { AppConfig } from "../services/Config.js";
 import { Dlmm, type DlmmService } from "../services/Dlmm.js";
 import { MeteoraApi, type MeteoraApiService } from "../services/MeteoraApi.js";
@@ -155,6 +156,19 @@ export const watchlist = {
 		runFx(Effect.flatMap(Watchlist, (w) => w.remove(address))),
 	list: (): Promise<WatchedWallet[]> =>
 		runFx(Effect.flatMap(Watchlist, (w) => w.list)),
+};
+
+export const blacklist = {
+	add: (mint: string, label?: string): Promise<BlacklistedToken> =>
+		runFx(Effect.flatMap(Blacklist, (b) => b.add(mint, label))),
+	remove: (mint: string): Promise<boolean> =>
+		runFx(Effect.flatMap(Blacklist, (b) => b.remove(mint))),
+	list: (): Promise<BlacklistedToken[]> =>
+		runFx(Effect.flatMap(Blacklist, (b) => b.list)),
+	contains: (mint: string): Promise<boolean> =>
+		runFx(Effect.flatMap(Blacklist, (b) => b.contains(mint))),
+	isBlacklisted: (mint: string | null | undefined): Promise<boolean> =>
+		runFx(Effect.flatMap(Blacklist, (b) => b.isBlacklisted(mint))),
 };
 
 export const tokenMeta = (mint: string): Promise<TokenMetaInfo | null> =>

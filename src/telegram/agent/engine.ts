@@ -2,6 +2,7 @@ import { Duration, Effect, Fiber, Schedule } from "effect";
 import type { Bot } from "grammy";
 import type { PositionCostQuote } from "../../domain/onchain.js";
 import type { OpenPortfolioResponse } from "../../domain/portfolio.js";
+import { loadState as loadBlacklist } from "../../services/Blacklist.js";
 import {
 	resolveAgentConfigFrom,
 	resolveCreatePresetFrom,
@@ -31,6 +32,7 @@ import {
 } from "./format.js";
 import {
 	adoptOnchainPlans,
+	checkBlacklist,
 	checkCloseGate,
 	checkCooldown,
 	checkDuplicate,
@@ -40,6 +42,7 @@ import {
 	checkRisks,
 	claimClose,
 	deriveOpenAmount,
+	filterBlacklist,
 	filterCooldown,
 	filterDuplicates,
 	lastOpenExecutionAt,
@@ -216,6 +219,12 @@ async function retryOpen(
 		Date.now(),
 	);
 	if (!cd.ok) return `retry blocked: ${cd.reason}`;
+	const blSet = new Set(loadBlacklist().tokens.map((t) => t.mint));
+	const blCheck = checkBlacklist({
+		baseMint,
+		blacklist: blSet,
+	});
+	if (!blCheck.ok) return `retry blocked: ${blCheck.reason}`;
 	// Re-check deterministic risks against a fresh screen (the original pass
 	// may be stale by the time the user retries).
 	let risk: { ok: boolean; reason: string | null } = { ok: true, reason: null };
@@ -1118,8 +1127,19 @@ async function evaluatePlans(
 		);
 		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
+	const blacklistSet = new Set(loadBlacklist().tokens.map((t) => t.mint));
+	const { pools: filteredPools, skipped: blacklistSkipped } = filterBlacklist(
+		candidatePools,
+		blacklistSet,
+	);
+	if (blacklistSkipped > 0) {
+		liveLines.push(
+			`🚫 ${blacklistSkipped} pool${blacklistSkipped === 1 ? "" : "s"} blacklisted, skipped`,
+		);
+		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
+	}
 	const mintByPool = new Map(
-		candidatePools.map((p) => [p.pool, p.baseMint] as const),
+		filteredPools.map((p) => [p.pool, p.baseMint] as const),
 	);
 	for (const plan of rt.state.plans) {
 		if (!plan.baseMint) plan.baseMint = mintByPool.get(plan.pool) ?? null;
@@ -1134,7 +1154,7 @@ async function evaluatePlans(
 	const sw = loadSignalWeights();
 	const weights = sw.weights;
 
-	const ranked = rankPools(candidatePools, {
+	const ranked = rankPools(filteredPools, {
 		// heuristic selects WHICH pools the LLM sees; it does not gate the decision
 		minCandidate: 0,
 		maxCandidates: cfg.maxCandidates,
@@ -1315,6 +1335,21 @@ async function evaluatePlans(
 			});
 			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${cd.reason})`);
 			await liveDecision(`⏳ ${pool.name} in cooldown: ${cd.reason ?? ""}`);
+			continue;
+		}
+		const bl = checkBlacklist({
+			baseMint: pool.baseMint,
+			tokenXAddress: pool.tokenXAddress,
+			blacklist: blacklistSet,
+		});
+		if (!bl.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: bl.reason,
+			});
+			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (${bl.reason})`);
+			await liveDecision(`🚫 ${pool.name} blocked: ${bl.reason ?? ""}`);
 			continue;
 		}
 		const risk = checkRisks({ pool, risks: cfg.risks });

@@ -23,6 +23,7 @@ import {
 	usd,
 } from "./format.js";
 import { AppLayer } from "./layers.js";
+import { Blacklist } from "./services/Blacklist.js";
 import { AppConfig } from "./services/Config.js";
 import { Dlmm } from "./services/Dlmm.js";
 import { MeteoraApi } from "./services/MeteoraApi.js";
@@ -854,6 +855,66 @@ const watchCmd = Command.make("watch", {}, () => Effect.void).pipe(
 	]),
 );
 
+const blAddCmd = Command.make(
+	"add",
+	{
+		mint: Args.text({ name: "mint" }),
+		label: Options.text("label").pipe(
+			Options.withAlias("l"),
+			Options.withDescription("friendly label for the token"),
+			Options.optional,
+		),
+	},
+	(opts) =>
+		Effect.gen(function* () {
+			const bl = yield* Blacklist;
+			const entry = yield* bl.add(opts.mint, Option.getOrUndefined(opts.label));
+			const desc = entry.label ? ` (${entry.label})` : "";
+			yield* Console.log(`${bold("✓ Blacklisted")} ${gray(opts.mint)}${desc}`);
+		}),
+).pipe(Command.withDescription("blacklist a token mint"));
+
+const blRemoveCmd = Command.make(
+	"remove",
+	{ mint: Args.text({ name: "mint" }) },
+	(opts) =>
+		Effect.gen(function* () {
+			const bl = yield* Blacklist;
+			const removed = yield* bl.remove(opts.mint);
+			if (removed) {
+				yield* Console.log(
+					`${bold("✓ Removed")} ${gray(opts.mint)} from blacklist`,
+				);
+			} else {
+				yield* Console.log(dim("Token not found in blacklist."));
+			}
+		}),
+).pipe(Command.withDescription("remove a token from the blacklist"));
+
+const blListCmd = Command.make("list", {}, () =>
+	Effect.gen(function* () {
+		const bl = yield* Blacklist;
+		const tokens = yield* bl.list;
+		if (tokens.length === 0) {
+			yield* Console.log(
+				dim("No blacklisted tokens. Add one with: vexis blacklist add <mint>"),
+			);
+			return;
+		}
+		yield* Console.log(`\n${bold("Blacklisted Tokens")}`);
+		for (const t of tokens) {
+			const label = t.label ? ` ${dim(`(${t.label})`)}` : "";
+			yield* Console.log(`  ${gray(t.mint)}${label}`);
+		}
+		yield* Console.log(dim(`\n  ${tokens.length} token(s)\n`));
+	}),
+).pipe(Command.withDescription("list all blacklisted tokens"));
+
+const blacklistCmd = Command.make("blacklist", {}, () => Effect.void).pipe(
+	Command.withDescription("manage blacklisted tokens"),
+	Command.withSubcommands([blAddCmd, blRemoveCmd, blListCmd]),
+);
+
 const walletsCmd = Command.make(
 	"wallets",
 	{
@@ -888,6 +949,7 @@ const rootCmd = Command.make("vexis", {}, () => Effect.void).pipe(
 		claimCmd,
 		poolCmd,
 		watchCmd,
+		blacklistCmd,
 		walletsCmd,
 	]),
 );
