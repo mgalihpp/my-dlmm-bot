@@ -1,5 +1,6 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, Share2Icon } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import {
 	fmtPnlPct,
 	meteoraUrl,
@@ -11,6 +12,8 @@ import {
 import { proxiedIconUrl } from "~/lib/icon";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
+import { createPnlCardDataFromPosition } from "../../../../pnl-card/render.js";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import type { Currency } from "./portfolio-page";
 import { PortfolioAmount } from "./positions-detail";
 import { RangeVisual } from "./range-visual";
@@ -20,13 +23,34 @@ export function OpenPositionCard({
 	onDetails,
 	currency,
 	solPrice,
+	onPnlCard,
+	wallet,
 }: {
 	pool: OpenPoolWithIcons;
 	onDetails: () => void;
 	currency: Currency;
 	solPrice: number | null;
+	onPnlCard?: (data: PnlCardData) => void;
+	wallet?: string;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+	const handleCard = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!onPnlCard) return;
+		const data = createPnlCardDataFromPosition({
+			wallet: wallet ?? "",
+			pnlUsd: pool.pnl,
+			pnlSol: pool.pnlSol,
+			pnlPct:
+				currency === "usd"
+					? pool.pnlPctChange
+					: (pool.pnlSolPctChange ?? pool.pnlPctChange),
+			pairName: pair(pool.tokenX, pool.tokenY),
+			poolAddress: pool.poolAddress,
+		});
+		onPnlCard(data);
+	};
+
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
 		<div
@@ -130,10 +154,23 @@ export function OpenPositionCard({
 					{pool.openPositionCount} position
 					{pool.openPositionCount === 1 ? "" : "s"}
 				</span>
-				<ChevronRightIcon
-					className="size-5 text-muted-foreground"
-					aria-hidden="true"
-				/>
+				<div className="flex items-center gap-1">
+					{onPnlCard ? (
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-7"
+							onClick={handleCard}
+							aria-label="Generate PnL card"
+						>
+							<Share2Icon className="size-4" />
+						</Button>
+					) : null}
+					<ChevronRightIcon
+						className="size-5 text-muted-foreground"
+						aria-hidden="true"
+					/>
+				</div>
 			</div>
 		</div>
 	);

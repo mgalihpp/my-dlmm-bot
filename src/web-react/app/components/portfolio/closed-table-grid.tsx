@@ -40,6 +40,7 @@ import {
 	type ViewMode,
 	writeViewPreference,
 } from "~/lib/view-preference";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import { ClosedDetail, PortfolioAmount } from "./closed-detail";
 import { ClosedPair, ClosedPoolCard } from "./closed-pool-card";
 import type { Currency } from "./portfolio-page";
@@ -56,10 +57,14 @@ function ClosedTableView({
 	closed,
 	currency,
 	onPageChange,
+	onPnlCard,
+	wallet,
 }: {
 	closed: ClosedPayload;
 	currency: Currency;
 	onPageChange: (page: number) => void;
+	onPnlCard?: (data: PnlCardData) => void;
+	wallet?: string;
 }) {
 	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
@@ -121,6 +126,8 @@ function ClosedTableView({
 								pool={pool}
 								currency={currency}
 								onDetails={selectCard}
+								onPnlCard={onPnlCard}
+								wallet={wallet}
 							/>
 						))}
 					</div>
@@ -303,6 +310,7 @@ function ClosedTableView({
 							pool={selectedCard.poolAddress}
 							pairLabel={pair(selectedCard.tokenX, selectedCard.tokenY)}
 							currency={currency}
+							layout="card"
 						/>
 					) : null}
 				</SheetContent>
@@ -316,5 +324,7 @@ export const ClosedTable = memo(
 	(prev, next) =>
 		prev.currency === next.currency &&
 		prev.onPageChange === next.onPageChange &&
+		prev.onPnlCard === next.onPnlCard &&
+		prev.wallet === next.wallet &&
 		JSON.stringify(prev.closed) === JSON.stringify(next.closed),
 );

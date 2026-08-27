@@ -1,5 +1,7 @@
+import { Share2Icon } from "lucide-react";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { RefreshButton } from "~/components/dashboard-page-parts";
+import { Button } from "~/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import type { Currency } from "~/lib/currency";
 
@@ -16,16 +18,24 @@ export function PortfolioHeader({
 	onCurrencyChange,
 	onRefresh,
 	refreshing,
+	onSharePnl,
 }: {
 	currency: Currency;
 	onCurrencyChange: (currency: Currency) => void;
 	onRefresh: () => void;
 	refreshing: boolean;
+	onSharePnl?: () => void;
 }) {
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
 			<h1 className="text-2xl font-bold tracking-tight">{greeting()}</h1>
 			<div className="flex items-center gap-2">
+				{onSharePnl ? (
+					<Button variant="outline" size="sm" onClick={onSharePnl}>
+						<Share2Icon className="size-4" />
+						Share PnL
+					</Button>
+				) : null}
 				<Tabs
 					value={currency}
 					onValueChange={(value) => onCurrencyChange(value as Currency)}

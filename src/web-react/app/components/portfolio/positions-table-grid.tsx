@@ -16,6 +16,7 @@ import {
 	type ViewMode,
 	writeViewPreference,
 } from "~/lib/view-preference";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import { OpenPositionCard } from "./open-position-card";
 import type { Currency, RangeFilter } from "./portfolio-page";
 import { PositionsCardDetail } from "./positions-detail";
@@ -40,12 +41,16 @@ function PositionsTableView({
 	onRangeFilterChange,
 	currency,
 	solPrice,
+	onPnlCard,
+	wallet,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (filter: RangeFilter) => void;
 	currency: Currency;
 	solPrice: number | null;
+	onPnlCard?: (data: PnlCardData) => void;
+	wallet?: string;
 }) {
 	const isMobile = useIsMobile();
 	const [search, setSearch] = useState("");
@@ -170,6 +175,8 @@ function PositionsTableView({
 								currency={currency}
 								solPrice={solPrice}
 								onDetails={() => setSelectedCard(pool)}
+								onPnlCard={onPnlCard}
+								wallet={wallet}
 							/>
 						))}
 					</div>

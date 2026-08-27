@@ -5,6 +5,7 @@ import {
 } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import type { RangeFilter } from "./portfolio-page";
 import {
 	ClosedTableSkeleton,
@@ -31,12 +32,14 @@ export function PortfolioContent({
 	rangeFilter,
 	onRangeFilterChange,
 	onClosedPageChange,
+	onPnlCard,
 }: {
 	data: PortfolioPayload;
 	currency: Currency;
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (value: RangeFilter) => void;
 	onClosedPageChange: (page: number) => void;
+	onPnlCard?: (data: PnlCardData) => void;
 }) {
 	return (
 		<>
@@ -71,6 +74,8 @@ export function PortfolioContent({
 					onRangeFilterChange={onRangeFilterChange}
 					currency={currency}
 					solPrice={data.solPrice}
+					onPnlCard={onPnlCard}
+					wallet={data.wallet}
 				/>
 			</Suspense>
 			<Suspense fallback={<ClosedTableSkeleton />}>
@@ -78,6 +83,8 @@ export function PortfolioContent({
 					closed={data.closed!}
 					currency={currency}
 					onPageChange={onClosedPageChange}
+					onPnlCard={onPnlCard}
+					wallet={data.wallet}
 				/>
 			</Suspense>
 		</>

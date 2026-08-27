@@ -1,5 +1,6 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, Share2Icon } from "lucide-react";
 import { memo } from "react";
+import { Button } from "~/components/ui/button";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -11,6 +12,8 @@ import {
 import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
+import { createPnlCardDataFromPosition } from "../../../../pnl-card/render.js";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import { PortfolioAmount } from "./closed-detail";
 import type { Currency } from "./portfolio-page";
 
@@ -23,12 +26,12 @@ function TokenIcon({ icon, symbol }: { icon?: string | null; symbol: string }) {
 			<img
 				src={src}
 				alt={symbol}
-				crossOrigin="anonymous"
-				referrerPolicy="no-referrer"
 				loading="lazy"
 				className="size-5 rounded-full object-cover"
-				onError={(event) => {
-					event.currentTarget.style.display = "none";
+				crossOrigin="anonymous"
+				referrerPolicy="no-referrer"
+				onError={(e) => {
+					(e.currentTarget as HTMLImageElement).style.display = "none";
 				}}
 			/>
 		);
@@ -42,11 +45,9 @@ function TokenIcon({ icon, symbol }: { icon?: string | null; symbol: string }) {
 function ClosedPair({ pool }: { pool: ClosedPool }) {
 	return (
 		<span className="inline-flex items-center gap-1.5">
-			<span className="flex -space-x-1">
-				<TokenIcon icon={pool.tokenXIcon} symbol={pool.tokenX} />
-				<TokenIcon icon={pool.tokenYIcon} symbol={pool.tokenY} />
-			</span>
+			<TokenIcon icon={pool.tokenXIcon} symbol={pool.tokenX} />
 			{pair(pool.tokenX, pool.tokenY)}
+			<TokenIcon icon={pool.tokenYIcon} symbol={pool.tokenY} />
 		</span>
 	);
 }
@@ -55,16 +56,34 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 	pool,
 	onDetails,
 	currency,
+	onPnlCard,
+	wallet,
 }: {
 	pool: ClosedPool;
 	onDetails: (pool: ClosedPool) => void;
 	currency: Currency;
+	onPnlCard?: (data: PnlCardData) => void;
+	wallet?: string;
 }) {
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
+	const handleCard = (e: React.MouseEvent) => {
+		e.stopPropagation();
+		if (!onPnlCard) return;
+		const data = createPnlCardDataFromPosition({
+			wallet: wallet ?? "",
+			pnlUsd: pool.pnlUsd,
+			pnlSol: pool.pnlSol,
+			pnlPct: pool.pnlPctChange,
+			pairName: pair(pool.tokenX, pool.tokenY),
+			poolAddress: pool.poolAddress,
+		});
+		onPnlCard(data);
+	};
+
 	return (
 		<button
-			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+			className="rounded-xl border bg-card p-4 text-left shadow-sm transition-colors hover:border-primary/50"
 			type="button"
 			tabIndex={0}
 			onClick={() => onDetails(pool)}
@@ -148,7 +167,18 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 					</p>
 				</div>
 			</div>
-			<div className="mt-3 flex justify-end">
+			<div className="mt-3 flex items-center justify-end gap-1">
+				{onPnlCard ? (
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-7"
+						onClick={handleCard}
+						aria-label="Generate PnL card"
+					>
+						<Share2Icon className="size-4" />
+					</Button>
+				) : null}
 				<ChevronRightIcon
 					className="size-5 text-muted-foreground"
 					aria-hidden="true"

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
+import { PnlCardDialog } from "~/components/pnl-card/pnl-card-dialog";
 import { PortfolioContent } from "~/components/portfolio/portfolio-content";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
 import {
@@ -13,6 +14,8 @@ import {
 	writeStoredCurrency,
 } from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
+import { createPnlCardDataFromTotal } from "../../../../pnl-card/render.js";
+import type { PnlCardData } from "../../../../pnl-card/types.js";
 import { PortfolioHeader } from "./portfolio-header";
 
 export type { Currency } from "~/lib/currency";
@@ -26,6 +29,8 @@ export function PortfolioPage() {
 	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
+	const [pnlCardData, setPnlCardData] = useState<PnlCardData | null>(null);
+	const [pnlCardOpen, setPnlCardOpen] = useState(false);
 	const currency = resolveCurrency(
 		searchParams.get("currency"),
 		storedCurrency,
@@ -66,6 +71,23 @@ export function PortfolioPage() {
 			{ preventScrollReset: true },
 		);
 
+	const handleOpenTotalPnlCard = useCallback(() => {
+		if (!data.wallet || !data.total) return;
+		const closedPools = data.closed?.pools ?? [];
+		const cardData = createPnlCardDataFromTotal({
+			wallet: data.wallet,
+			total: data.total,
+			closedPools,
+		});
+		setPnlCardData(cardData);
+		setPnlCardOpen(true);
+	}, [data.wallet, data.total, data.closed]);
+
+	const handleOpenPnlCard = useCallback((cardData: PnlCardData) => {
+		setPnlCardData(cardData);
+		setPnlCardOpen(true);
+	}, []);
+
 	if (isNavigating) {
 		return (
 			<DashboardShell title="Portfolio">
@@ -73,7 +95,6 @@ export function PortfolioPage() {
 			</DashboardShell>
 		);
 	}
-
 	if (!data.ok) {
 		return (
 			<DashboardShell title="Portfolio">
@@ -98,6 +119,7 @@ export function PortfolioPage() {
 					onCurrencyChange={setCurrency}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
+					onSharePnl={handleOpenTotalPnlCard}
 				/>
 				<PortfolioContent
 					data={data}
@@ -105,8 +127,14 @@ export function PortfolioPage() {
 					rangeFilter={rangeFilter}
 					onRangeFilterChange={setRangeFilter}
 					onClosedPageChange={onClosedPageChange}
+					onPnlCard={handleOpenPnlCard}
 				/>
 			</div>
+			<PnlCardDialog
+				open={pnlCardOpen}
+				onOpenChange={setPnlCardOpen}
+				data={pnlCardData}
+			/>
 		</DashboardShell>
 	);
 }
