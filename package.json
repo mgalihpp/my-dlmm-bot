@@ -6,6 +6,9 @@
 	"bin": {
 		"vexis": "./dist/cli.js"
 	},
+	"workspaces": [
+		"src/web-react"
+	],
 	"scripts": {
 		"postinstall": "node scripts/patch-cjs.cjs",
 		"build": "tsc && npm run build --prefix src/web-react",
