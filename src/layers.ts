@@ -1,4 +1,5 @@
 import { Layer } from "effect";
+import { BlacklistLive } from "./services/Blacklist.js";
 import { AppConfigLive } from "./services/Config.js";
 import { DlmmLive } from "./services/Dlmm.js";
 import { JupiterLive } from "./services/Jupiter.js";
@@ -20,6 +21,7 @@ export const AppLayer = Layer.mergeAll(
 	ScreeningLive,
 	SessionStoreLive,
 	WatchlistLive,
+	BlacklistLive,
 	SolanaLive,
 	TokenMetaLive,
 ).pipe(

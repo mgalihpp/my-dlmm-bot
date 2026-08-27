@@ -15,6 +15,9 @@ scripts/deploy.sh
 # watchlist state (per-machine runtime state)
 .vexis-watchlist.json
 
+# blacklist state (per-machine runtime state)
+.vexis-blacklist.json
+
 # stop-loss / take-profit rules (per-machine runtime state)
 .vexis-tpsl.json
 

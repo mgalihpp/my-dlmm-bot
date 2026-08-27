@@ -187,6 +187,39 @@ export function checkRisks(input: {
 	return { ok: true, reason: null };
 }
 
+export function checkBlacklist(input: {
+	baseMint: string | null | undefined;
+	tokenXAddress?: string | null | undefined;
+	blacklist: ReadonlySet<string>;
+}): GuardOk {
+	const mints = [input.baseMint, input.tokenXAddress].filter(
+		(m): m is string => typeof m === "string" && m.length > 0,
+	);
+	for (const m of mints) {
+		if (input.blacklist.has(m)) {
+			return { ok: false, reason: `token ${m} blacklisted` };
+		}
+	}
+	return { ok: true, reason: null };
+}
+
+export function filterBlacklist(
+	pools: readonly ScreenedPool[],
+	blacklist: ReadonlySet<string>,
+): { pools: ScreenedPool[]; skipped: number } {
+	if (blacklist.size === 0) return { pools: [...pools], skipped: 0 };
+	const out: ScreenedPool[] = [];
+	let skipped = 0;
+	for (const p of pools) {
+		if (blacklist.has(p.baseMint) || blacklist.has(p.tokenXAddress)) {
+			skipped++;
+		} else {
+			out.push(p);
+		}
+	}
+	return { pools: out, skipped };
+}
+
 /** Pools matching an active cooldown (by pool address or baseMint) are skipped before ranking/LLM. */
 export function filterCooldown(
 	pools: readonly ScreenedPool[],
