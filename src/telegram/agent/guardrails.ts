@@ -58,7 +58,7 @@ export function checkRent(quote: PositionCostQuote): GuardOk {
 /** Blocks opening when a plan already exists on the same pool or same base token. */
 export function checkDuplicate(input: {
 	pool: string;
-	baseMint: string;
+	baseMint: string | null;
 	plans: ReadonlyArray<{ pool: string; baseMint?: string | null }>;
 }): GuardOk {
 	for (const p of input.plans) {
@@ -269,13 +269,15 @@ export function checkCloseGate(
 	}
 	for (const c of cooldowns) {
 		if (!isCloseCooldown(c)) continue;
-		const gate = checkPoolCooldown(
-			plan.pool,
-			plan.baseMint ?? null,
-			[c],
-			nowMs,
-		);
-		if (!gate.ok) return gate;
+		if (Date.parse(c.until) <= nowMs) continue;
+		// Match by pool only: a close cooldown must block re-closing the SAME
+		// position, not every pool of the same token. Token-level matching here
+		// would deny a legitimate TP/SL close on a different open pool of the
+		// same token while the first pool's cooldown is active. Re-adoption of a
+		// stale on-chain position is guarded separately by adoptOnchainPlans.
+		if (c.pool === plan.pool) {
+			return { ok: false, reason: `cooldown until ${c.until} (${c.reason})` };
+		}
 	}
 	return { ok: true, reason: null };
 }
@@ -316,7 +318,7 @@ export function recordCooldown(
 		{
 			pool: input.pool,
 			poolName: input.poolName,
-			baseMint: input.baseMint,
+			baseMint: input.baseMint || null,
 			until: new Date(nowMs + durationMs).toISOString(),
 			reason: input.reason,
 		},

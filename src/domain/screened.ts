@@ -2,7 +2,7 @@ export interface ScreenedPool {
 	pool: string;
 	name: string;
 	baseSymbol: string;
-	baseMint: string;
+	baseMint: string | null;
 	baseIcon: string | null;
 	quoteSymbol: string;
 	quoteIcon: string | null;

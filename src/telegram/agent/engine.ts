@@ -179,7 +179,7 @@ async function syncOnchainPlans(
 	}
 }
 
-async function retryOpen(
+export async function retryOpen(
 	rt: RuntimeAgent,
 	bot: Bot,
 	chatId: string,
@@ -219,10 +219,14 @@ async function retryOpen(
 	// Re-check deterministic risks against a fresh screen (the original pass
 	// may be stale by the time the user retries).
 	let risk: { ok: boolean; reason: string | null } = { ok: true, reason: null };
+	let screenedBaseMint: string | null = baseMint || null;
 	try {
 		const screen = await screenPools();
 		const sp = screen.pools.find((p) => p.pool === cand.pool);
-		if (sp) risk = checkRisks({ pool: sp, risks: cfg.risks });
+		if (sp) {
+			risk = checkRisks({ pool: sp, risks: cfg.risks });
+			screenedBaseMint = sp.baseMint;
+		}
 	} catch {
 		// screening unavailable — retry proceeds on the decision-time validation
 	}
@@ -266,7 +270,7 @@ async function retryOpen(
 		rt.state.plans.push({
 			pool: cand.pool,
 			poolName: cand.poolName,
-			baseMint: null,
+			baseMint: screenedBaseMint,
 			amountSol,
 			positionAddress: res.positions[0] ?? null,
 			openedAt: now,
@@ -1119,7 +1123,7 @@ async function evaluatePlans(
 		await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
 	}
 	const mintByPool = new Map(
-		candidatePools.map((p) => [p.pool, p.baseMint] as const),
+		screen.pools.map((p) => [p.pool, p.baseMint] as const),
 	);
 	for (const plan of rt.state.plans) {
 		if (!plan.baseMint) plan.baseMint = mintByPool.get(plan.pool) ?? null;

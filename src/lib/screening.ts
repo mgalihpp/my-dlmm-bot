@@ -134,7 +134,7 @@ export function condensePool(pool: DiscoveryPool): ScreenedPool {
 		pool: pool.pool_address,
 		name: pool.name,
 		baseSymbol: pool.token_x?.symbol ?? "?",
-		baseMint: pool.token_x?.address ?? "",
+		baseMint: pool.token_x?.address ?? null,
 		baseIcon: pool.token_x?.icon ?? null,
 		quoteSymbol: pool.token_y?.symbol ?? "?",
 		quoteIcon: pool.token_y?.icon ?? null,
