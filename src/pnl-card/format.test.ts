@@ -40,6 +40,14 @@ describe("pnlCardColor", () => {
 	it("is red for negative", () => expect(pnlCardColor("-5")).toBe("#ef4444"));
 	it("is neutral for zero", () => expect(pnlCardColor("0")).toBe("#94a3b8"));
 	it("is neutral for null", () => expect(pnlCardColor(null)).toBe("#94a3b8"));
+	it("parses formatted currency strings", () =>
+		expect(pnlCardSign("+$4,092.15")).toBe(1));
+	it("parses formatted negative currency strings", () =>
+		expect(pnlCardSign("-$210.00")).toBe(-1));
+	it("colors formatted profit green", () =>
+		expect(pnlCardColor("+$4,092.15")).toBe("#22c55e"));
+	it("colors formatted loss red", () =>
+		expect(pnlCardColor("-$210.00")).toBe("#ef4444"));
 });
 
 describe("formatCardUsd", () => {

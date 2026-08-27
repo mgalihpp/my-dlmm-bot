@@ -22,7 +22,6 @@ export function buildTotalPnlCardData(
 async function loadCanvas() {
 	// Dynamic import — @napi-rs/canvas is an optional native dep not present in web build
 	try {
-		// @ts-expect-error optional dep may not be installed in web build
 		const mod = await import("@napi-rs/canvas");
 		return mod;
 	} catch {

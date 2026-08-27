@@ -101,14 +101,15 @@ export function drawPnlCard(
 	ctx.fillStyle = pnlColor;
 	ctx.font = "800 64px sans-serif";
 	ctx.textBaseline = "alphabetic";
+	const usdWidth = ctx.measureText(usdText).width;
 	ctx.fillText(usdText, 40, 235);
 
 	ctx.fillStyle = pnlColor === "#94a3b8" ? "rgba(255,255,255,0.7)" : pnlColor;
 	ctx.globalAlpha = 0.9;
 	ctx.font = "600 22px sans-serif";
-	const usdWidth = ctx.measureText(usdText).width;
+	const solWidth = ctx.measureText(solText).width;
 	const solX = 40 + usdWidth + 18;
-	if (solX + ctx.measureText(solText).width > width - 40) {
+	if (solX + solWidth > width - 40) {
 		ctx.fillText(solText, 40, 268);
 	} else {
 		ctx.fillText(solText, solX, 235);

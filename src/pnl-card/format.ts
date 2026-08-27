@@ -7,8 +7,13 @@ export const PNL_NEUTRAL = "#94a3b8";
 
 export function pnlCardSign(value: string | number | null | undefined): number {
 	if (value === null || value === undefined) return 0;
-	const n =
-		typeof value === "number" ? value : Number.parseFloat(String(value));
+	if (typeof value === "number") {
+		if (Number.isNaN(value) || value === 0) return 0;
+		return value > 0 ? 1 : -1;
+	}
+	const raw = value.replace(/[^0-9.\-+]/g, "");
+	if (raw === "" || raw === "-" || raw === "+") return 0;
+	const n = Number.parseFloat(raw);
 	if (Number.isNaN(n) || n === 0) return 0;
 	return n > 0 ? 1 : -1;
 }
