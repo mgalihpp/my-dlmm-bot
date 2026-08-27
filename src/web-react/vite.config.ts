@@ -15,6 +15,7 @@ export default defineConfig({
 		reactRouter(),
 		babel({
 			include: /\.[jt]sx?$/,
+			presets: [["@babel/preset-typescript", { allowDeclareFields: true }]],
 			plugins: ["babel-plugin-react-compiler"],
 		} as Parameters<typeof babel>[0]),
 		devtoolsJson(),
