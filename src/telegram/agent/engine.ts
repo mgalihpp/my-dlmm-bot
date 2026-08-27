@@ -64,6 +64,7 @@ import { logError, logInfo, logSuccess, section, shortSig } from "./log.js";
 import { notify, notifyKeyboard } from "./notify.js";
 import { buildCreateParams } from "./params.js";
 import { alignedSchedule, delayToDaily } from "./schedule.js";
+import { checkSession } from "./session.js";
 import {
 	loadSignalWeights,
 	recordClosePerf,
@@ -216,6 +217,8 @@ async function retryOpen(
 		Date.now(),
 	);
 	if (!cd.ok) return `retry blocked: ${cd.reason}`;
+	const sess = checkSession(Date.now(), cfg.blockedSessions);
+	if (!sess.ok) return `retry blocked: ${sess.reason}`;
 	// Re-check deterministic risks against a fresh screen (the original pass
 	// may be stale by the time the user retries).
 	let risk: { ok: boolean; reason: string | null } = { ok: true, reason: null };
@@ -1081,6 +1084,13 @@ async function evaluatePlans(
 		);
 		return;
 	}
+	{
+		const sess = checkSession(Date.now(), cfg.blockedSessions);
+		if (!sess.ok) {
+			logInfo(`session block: ${sess.reason}, skipping screening + LLM`);
+			return;
+		}
+	}
 	const live: LiveMsg = { msgId: null };
 	const cycle = rt.state.cycle + 1;
 	const liveLines = [`🔎 screening pools...`];
@@ -1274,6 +1284,21 @@ async function evaluatePlans(
 			logInfo(`decide: ${pool.name} heuristic ${h} → hold`);
 			await liveDecision(`➖ ${pool.name} hold (heuristic ${h})`);
 			continue;
+		}
+		{
+			const sess = checkSession(Date.now(), cfg.blockedSessions);
+			if (!sess.ok) {
+				journal.candidates.push({
+					...base,
+					guardrail: "blocked",
+					blockedReason: sess.reason,
+				});
+				logInfo(
+					`decide: ${pool.name} heuristic ${h} → blocked (${sess.reason})`,
+				);
+				await liveDecision(`⛔ ${pool.name} blocked: ${sess.reason ?? ""}`);
+				continue;
+			}
 		}
 		const dup = checkDuplicate({
 			pool: pool.pool,

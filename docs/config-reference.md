@@ -83,6 +83,17 @@ These checks are deterministic and cannot be bypassed by the LLM.
 | `blockDexScreenerPaid` | `true` | Block paid DEX Screener pools. |
 | `blockDevSoldAll` | `true` | Block pools where the developer sold all holdings. |
 
+### `agent.blockedSessions`
+
+No new position is opened while local wall-clock time falls inside any window. Useful to silence low-volatility sessions.
+
+| Key | Default | Purpose |
+|---|---:|---|
+| `timezone` | `UTC` | Wall-clock timezone for `windows`. `UTC` or `WIB` (UTC+7). |
+| `windows` | `[]` | Session windows. Each has `name` (string), `start` (`HH:MM`), `end` (`HH:MM`). Windows where `end <= start` wrap past midnight. Invalid `HH:MM` values are ignored. |
+
+Example: `{ "timezone": "WIB", "windows": [{ "name": "NY lunch", "start": "12:00", "end": "13:00" }] }` blocks opens at 12:30 WIB. `{ "name": "Asia", "start": "22:00", "end": "02:00" }` blocks 22:00–02:00.
+
 ### `agent.darwin`
 
 Darwinian weights are recalculated from closed-position results.

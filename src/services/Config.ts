@@ -132,6 +132,11 @@ export interface ResolvedAgentDarwin {
 	minSamples: number;
 }
 
+export interface ResolvedBlockedSessions {
+	timezone: "UTC" | "WIB";
+	windows: { name: string; start: string; end: string }[];
+}
+
 export interface ResolvedAgentConfig {
 	enabled: boolean;
 	intervalMinutes: number;
@@ -147,6 +152,7 @@ export interface ResolvedAgentConfig {
 	llm: ResolvedAgentLlm;
 	risks: ResolvedAgentRisks;
 	darwin: ResolvedAgentDarwin;
+	blockedSessions: ResolvedBlockedSessions;
 }
 
 export const resolveAgentConfigFrom = (
@@ -157,6 +163,17 @@ export const resolveAgentConfigFrom = (
 	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
 	const r = a.risks ?? {};
 	const d = a.darwin ?? {};
+	const bs = a.blockedSessions;
+	const rawTz = bs?.timezone;
+	const timezone: "UTC" | "WIB" = rawTz === "WIB" ? "WIB" : "UTC";
+	const windows = Array.isArray(bs?.windows)
+		? bs.windows.filter(
+				(w): w is { name: string; start: string; end: string } =>
+					typeof w.name === "string" &&
+					typeof w.start === "string" &&
+					typeof w.end === "string",
+			)
+		: [];
 	return {
 		enabled: a.enabled ?? false,
 		intervalMinutes: Math.max(1, a.intervalMinutes ?? 15),
@@ -201,6 +218,7 @@ export const resolveAgentConfigFrom = (
 			weightCeiling: d.weightCeiling ?? 2.5,
 			minSamples: d.minSamples ?? 10,
 		},
+		blockedSessions: { timezone, windows },
 	};
 };
 

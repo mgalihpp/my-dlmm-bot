@@ -46,6 +46,13 @@
 		"llm": {
 			"baseUrl": "https://api.openai.com/v1",
 			"model": "gpt-4o-mini"
+		},
+		"blockedSessions": {
+			"timezone": "WIB",
+			"windows": [
+				{ "name": "NY lunch", "start": "12:00", "end": "13:00" },
+				{ "name": "Asia", "start": "22:00", "end": "02:00" }
+			]
 		}
 	},
 	"create": {

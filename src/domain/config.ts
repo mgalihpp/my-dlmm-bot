@@ -106,6 +106,19 @@ export interface AgentDarwinConfig {
 
 export type NotifLevel = "verbose" | "normal" | "errors-only";
 
+export type SessionTimezone = "UTC" | "WIB";
+
+export interface TradingSessionWindow {
+	name: string;
+	start: string;
+	end: string;
+}
+
+export interface AgentBlockedSessionsConfig {
+	timezone?: SessionTimezone;
+	windows?: TradingSessionWindow[];
+}
+
 export interface AgentConfig {
 	enabled?: boolean;
 	intervalMinutes?: number;
@@ -124,6 +137,7 @@ export interface AgentConfig {
 	llm?: AgentLlmConfig;
 	risks?: AgentRiskConfig;
 	darwin?: AgentDarwinConfig;
+	blockedSessions?: AgentBlockedSessionsConfig;
 }
 
 export interface WebConfig {
