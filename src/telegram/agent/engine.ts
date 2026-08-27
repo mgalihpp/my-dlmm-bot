@@ -38,6 +38,7 @@ import {
 	checkPoolCooldown,
 	checkRent,
 	checkRisks,
+	checkWalletBalance,
 	claimClose,
 	deriveOpenAmount,
 	filterCooldown,
@@ -89,6 +90,16 @@ const MIN_POSITION_AGE_MS = 90_000;
 
 /** Positions with a close transaction currently in flight (one per position). */
 const closeInFlight = new Set<string>();
+
+async function fetchWalletBalanceSol(): Promise<number | null> {
+	try {
+		const bn = await zap.getSolBalance();
+		const sol = Number(bn.toString()) / 1_000_000_000;
+		return Number.isFinite(sol) ? sol : null;
+	} catch {
+		return null;
+	}
+}
 
 /** Newest journal candidate with a failed execution for the pool, or null. */
 export function findFailedCandidate(
@@ -227,7 +238,8 @@ async function retryOpen(
 		// screening unavailable — retry proceeds on the decision-time validation
 	}
 	if (!risk.ok) return `retry blocked: ${risk.reason}`;
-	const amountSol = deriveOpenAmount(deployed, cfg);
+	const walletBalanceSol = await fetchWalletBalanceSol();
+	const amountSol = deriveOpenAmount(deployed, cfg, walletBalanceSol);
 	const guard = checkOpenGuardrail({
 		amountSol,
 		deployedSol: deployed,
@@ -237,6 +249,8 @@ async function retryOpen(
 		openPositionCount: openPositions,
 	});
 	if (!guard.ok) return `retry blocked: ${guard.reason}`;
+	const walletGuard = checkWalletBalance({ amountSol, walletBalanceSol });
+	if (!walletGuard.ok) return `retry blocked: ${walletGuard.reason}`;
 	if (amountSol <= 0) return "retry blocked: no budget remaining";
 	const cooldown = checkCooldown({
 		lastExecutionAt: lastOpenExecutionAt(rt.state.executions),
@@ -1180,7 +1194,15 @@ async function evaluatePlans(
 	}));
 	liveLines.push(`🧠 LLM: thinking...`);
 	await liveStep(bot, chatId, live, formatLive(cycle, liveLines));
-	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap`;
+	const walletBalanceSolAtStart = await fetchWalletBalanceSol();
+	if (walletBalanceSolAtStart != null) {
+		logInfo(`wallet balance: ${walletBalanceSolAtStart.toFixed(3)} SOL`);
+	}
+	const walletCtx =
+		walletBalanceSolAtStart != null
+			? `, wallet ${walletBalanceSolAtStart.toFixed(2)} SOL available`
+			: "";
+	const portfolioContext = `${openPositions}/${cfg.maxOpenPositions} open positions, deployed ${deployedSol.toFixed(2)}/${cfg.maxTotalSol} SOL cap${walletCtx}`;
 	const guardrailsSection = cfg.risks.enabled
 		? buildGuardrailSection({
 				maxBundlePct: cfg.risks.maxBundlePct,
@@ -1245,6 +1267,8 @@ async function evaluatePlans(
 	const poolByAddr = new Map(ranked.map((p) => [p.pool, p] as const));
 
 	let budget = deployedSol;
+	let walletRemaining =
+		walletBalanceSolAtStart != null ? walletBalanceSolAtStart : null;
 	let opened = 0;
 	let lastExecAt = lastOpenExecutionAt(rt.state.executions);
 
@@ -1339,7 +1363,7 @@ async function evaluatePlans(
 			await liveDecision(`⛔ ${pool.name} blocked: ${risk.reason ?? ""}`);
 			continue;
 		}
-		const amountSol = deriveOpenAmount(budget, cfg);
+		const amountSol = deriveOpenAmount(budget, cfg, walletRemaining);
 		const guard = checkOpenGuardrail({
 			amountSol,
 			deployedSol: budget,
@@ -1379,6 +1403,24 @@ async function evaluatePlans(
 			});
 			logInfo(`decide: ${pool.name} heuristic ${h} → blocked (no budget)`);
 			await liveDecision(`⛔ ${pool.name} blocked: no budget`);
+			continue;
+		}
+		const walletGuard = checkWalletBalance({
+			amountSol,
+			walletBalanceSol: walletRemaining,
+		});
+		if (!walletGuard.ok) {
+			journal.candidates.push({
+				...base,
+				guardrail: "blocked",
+				blockedReason: walletGuard.reason,
+			});
+			logInfo(
+				`decide: ${pool.name} heuristic ${h} → blocked (${walletGuard.reason})`,
+			);
+			await liveDecision(
+				`⛔ ${pool.name} blocked: ${walletGuard.reason ?? ""}`,
+			);
 			continue;
 		}
 		const cooldown = checkCooldown({
@@ -1466,6 +1508,7 @@ async function evaluatePlans(
 				txSignature: sig || null,
 			});
 			budget += amountSol;
+			if (walletRemaining != null) walletRemaining -= amountSol;
 			opened += 1;
 			lastExecAt = Date.now();
 			journal.candidates.push({

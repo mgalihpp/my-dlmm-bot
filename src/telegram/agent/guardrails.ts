@@ -96,16 +96,44 @@ export function lastOpenExecutionAt(
 	return null;
 }
 
-/** SOL amount to deploy for one new position, bounded by the remaining budget. */
+export const WALLET_RESERVE_SOL = 0.02;
+
+export function checkWalletBalance(input: {
+	amountSol: number;
+	walletBalanceSol: number | null | undefined;
+}): GuardOk {
+	if (
+		input.walletBalanceSol == null ||
+		!Number.isFinite(input.walletBalanceSol)
+	) {
+		return { ok: true, reason: null };
+	}
+	const needed = input.amountSol + WALLET_RESERVE_SOL;
+	if (input.walletBalanceSol + 1e-9 < needed) {
+		return {
+			ok: false,
+			reason: `insufficient wallet balance ${input.walletBalanceSol.toFixed(3)} SOL < ${needed.toFixed(3)} SOL (amount + fees)`,
+		};
+	}
+	return { ok: true, reason: null };
+}
+
+/** SOL amount to deploy for one new position, bounded by the remaining budget and wallet balance. */
 export function deriveOpenAmount(
 	deployedSol: number,
 	cfg: ResolvedAgentConfig,
+	walletBalanceSol?: number | null,
 ): number {
 	const wanted = Math.min(
 		cfg.maxSolPerPosition,
 		Math.max(0, cfg.maxTotalSol - deployedSol),
 	);
-	return Math.max(0, Math.round(wanted * 1000) / 1000);
+	if (walletBalanceSol == null || !Number.isFinite(walletBalanceSol)) {
+		return Math.max(0, Math.round(wanted * 1000) / 1000);
+	}
+	const walletAvailable = Math.max(0, walletBalanceSol - WALLET_RESERVE_SOL);
+	const capped = Math.min(wanted, walletAvailable);
+	return Math.max(0, Math.round(capped * 1000) / 1000);
 }
 
 export function checkRisks(input: {
