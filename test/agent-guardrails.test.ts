@@ -466,6 +466,15 @@ describe("checkPoolCooldown", () => {
 		).toBe(true);
 		expect(checkPoolCooldown("P9", "other", [cd()], NOW).ok).toBe(true);
 	});
+
+	it("blocks a different pool of the same token when baseMint is known", () => {
+		expect(checkPoolCooldown("P2", "mx", [cd()], NOW).ok).toBe(false);
+	});
+
+	it("does not token-match when the cooldown baseMint is unknown", () => {
+		const empty = cd({ pool: "P1", baseMint: null });
+		expect(checkPoolCooldown("P2", "mx", [empty], NOW).ok).toBe(true);
+	});
 });
 
 describe("recordCooldown", () => {
@@ -483,6 +492,16 @@ describe("recordCooldown", () => {
 		expect(out).toHaveLength(1);
 		expect(out[0].pool).toBe("P2");
 		expect(out[0].reason).toBe("closed");
+	});
+
+	it("normalizes an empty baseMint to null (never stored as a fake mint)", () => {
+		const out = recordCooldown(
+			[],
+			{ pool: "P2", poolName: "B/SOL", baseMint: "", reason: "closed" },
+			60_000,
+			NOW,
+		);
+		expect(out[0].baseMint).toBe(null);
 	});
 });
 
@@ -644,11 +663,21 @@ describe("checkCloseGate", () => {
 		expect(out.ok).toBe(true);
 	});
 
-	it("blocks close when close cooldown matches baseMint (re-adopted same token)", () => {
+	it("does not block a different pool of the same token during a close cooldown", () => {
 		const out = checkCloseGate(
 			{ pool: "P1", baseMint: "mx" },
 			[{ pool: "P1" }],
-			[cd({ pool: "OTHER-POOL", reason: "tp triggered" })],
+			[cd({ pool: "OTHER-POOL", baseMint: "mx", reason: "tp triggered" })],
+			NOW,
+		);
+		expect(out.ok).toBe(true);
+	});
+
+	it("blocks close when the same pool has an active close cooldown", () => {
+		const out = checkCloseGate(
+			{ pool: "P1", baseMint: "mx" },
+			[{ pool: "P1" }],
+			[cd({ pool: "P1", baseMint: "mx", reason: "tp triggered" })],
 			NOW,
 		);
 		expect(out.ok).toBe(false);
