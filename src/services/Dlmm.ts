@@ -26,7 +26,7 @@ import type {
 	RemoveLiquidityParams,
 	StrategyType,
 } from "../domain/index.js";
-import { OnchainError, RpcError } from "../errors.js";
+import { OnchainError } from "../errors.js";
 import { atomicToHuman, pctToBinOffset, scaleAmount } from "../lib/math.js";
 import { Solana } from "./Solana.js";
 
@@ -73,28 +73,34 @@ export interface DlmmService {
 	) => Effect.Effect<PositionCostQuote, OnchainError>;
 	readonly createPosition: (
 		params: CreatePositionParams,
+		wallet: string,
 	) => Effect.Effect<CreatePositionResult, OnchainError>;
 	readonly closePosition: (
 		poolAddress: string,
 		positionPubkey: string,
+		wallet: string,
 	) => Effect.Effect<string, OnchainError>;
 	readonly addLiquidity: (
 		params: AddLiquidityParams,
+		wallet: string,
 	) => Effect.Effect<string, OnchainError>;
 	readonly removeLiquidity: (
 		params: RemoveLiquidityParams,
+		wallet: string,
 	) => Effect.Effect<string, OnchainError>;
 	readonly claimFee: (
 		poolAddress: string,
 		positionPubkey: string,
+		wallet: string,
 	) => Effect.Effect<string, OnchainError>;
 	readonly claimReward: (
 		poolAddress: string,
 		positionPubkey: string,
+		wallet: string,
 	) => Effect.Effect<string, OnchainError>;
 	readonly fetchUserPositions: (
 		wallet: string,
-	) => Effect.Effect<UserPositionLive[], RpcError>;
+	) => Effect.Effect<UserPositionLive[], OnchainError>;
 	readonly attachLivePositions: (
 		pools: OpenPool[],
 		wallet: string,
@@ -383,13 +389,20 @@ const make = Effect.gen(function* () {
 
 	const onchain = <A>(
 		op: string,
+		wallet: string,
 		run: (connection: Connection, keypair: Keypair) => Promise<A>,
 	) =>
 		Effect.gen(function* () {
 			const connection = yield* solana.connection;
-			const keypair = yield* solana.signer.pipe(
-				Effect.mapError((e) => new OnchainError({ op, message: e.message })),
-			);
+			const keypair = yield* solana
+				.keypairFor(wallet)
+				.pipe(
+					Effect.mapError((e) =>
+						e instanceof OnchainError
+							? e
+							: new OnchainError({ op, message: e.message }),
+					),
+				);
 			return yield* Effect.tryPromise({
 				try: () => run(connection, keypair),
 				catch: (e) =>
@@ -409,7 +422,7 @@ const make = Effect.gen(function* () {
 			return yield* Effect.tryPromise({
 				try: () => run(connection),
 				catch: (e) =>
-					new RpcError({
+					new OnchainError({
 						op,
 						message: e instanceof Error ? e.message : String(e),
 					}),
@@ -421,7 +434,7 @@ const make = Effect.gen(function* () {
 
 	const service: DlmmService = {
 		previewRange: (params) =>
-			onchain("previewRange", async (connection) => {
+			readonlyOp("previewRange", async (connection) => {
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -446,11 +459,13 @@ const make = Effect.gen(function* () {
 				};
 			}),
 		quotePositionCost: (params) =>
-			onchain("quotePositionCost", (c) => quotePositionCostImpl(c, params)),
-		createPosition: (params) =>
-			onchain("createPosition", (c, k) => createPositionImpl(c, k, params)),
-		closePosition: (poolAddress, positionPubkey) =>
-			onchain("closePosition", async (connection, keypair) => {
+			readonlyOp("quotePositionCost", (c) => quotePositionCostImpl(c, params)),
+		createPosition: (params, wallet) =>
+			onchain("createPosition", wallet, (c, k) =>
+				createPositionImpl(c, k, params),
+			),
+		closePosition: (poolAddress, positionPubkey, wallet) =>
+			onchain("closePosition", wallet, async (connection, keypair) => {
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),
@@ -461,8 +476,8 @@ const make = Effect.gen(function* () {
 				});
 				return sendAndConfirmTransaction(connection, tx, [keypair]);
 			}),
-		addLiquidity: (params) =>
-			onchain("addLiquidity", async (connection, keypair) => {
+		addLiquidity: (params, wallet) =>
+			onchain("addLiquidity", wallet, async (connection, keypair) => {
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -500,8 +515,8 @@ const make = Effect.gen(function* () {
 				});
 				return sendAndConfirmTransaction(connection, tx, [keypair]);
 			}),
-		removeLiquidity: (params) =>
-			onchain("removeLiquidity", async (connection, keypair) => {
+		removeLiquidity: (params, wallet) =>
+			onchain("removeLiquidity", wallet, async (connection, keypair) => {
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -521,8 +536,8 @@ const make = Effect.gen(function* () {
 				if (txs.length === 0) throw new Error("No transactions generated");
 				return sendAndConfirmTransaction(connection, txs[0], [keypair]);
 			}),
-		claimFee: (poolAddress, positionPubkey) =>
-			onchain("claimFee", async (connection, keypair) => {
+		claimFee: (poolAddress, positionPubkey, wallet) =>
+			onchain("claimFee", wallet, async (connection, keypair) => {
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),
@@ -534,8 +549,8 @@ const make = Effect.gen(function* () {
 				if (txs.length === 0) throw new Error("No transactions generated");
 				return sendAndConfirmTransaction(connection, txs[0], [keypair]);
 			}),
-		claimReward: (poolAddress, positionPubkey) =>
-			onchain("claimReward", async (connection, keypair) => {
+		claimReward: (poolAddress, positionPubkey, wallet) =>
+			onchain("claimReward", wallet, async (connection, keypair) => {
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),

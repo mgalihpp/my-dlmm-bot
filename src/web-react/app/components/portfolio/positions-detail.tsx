@@ -1,6 +1,6 @@
 import { AlertTriangleIcon, CheckIcon, CopyIcon } from "lucide-react";
 import { type ReactNode, useEffect, useState } from "react";
-import { useFetcher } from "react-router";
+import { useFetcher, useSearchParams } from "react-router";
 import { toast } from "sonner";
 import { CurrencyIcon } from "~/components/currency-icon";
 import { Button } from "~/components/ui/button";
@@ -105,6 +105,8 @@ export function CloseConfirmPopover({
 	const fetcher = useFetcher<CloseResult>();
 	const [open, setOpen] = useState(false);
 	const submitting = fetcher.state !== "idle";
+	const [searchParams] = useSearchParams();
+	const wallet = searchParams.get("wallet");
 
 	useEffect(() => {
 		if (fetcher.data?.ok) toast.success("Position closed");
@@ -147,6 +149,9 @@ export function CloseConfirmPopover({
 							<input type="hidden" name="pool" value={pool} />
 							<input type="hidden" name="position" value={position} />
 							<input type="hidden" name="poolName" value={poolName} />
+							{wallet ? (
+								<input type="hidden" name="wallet" value={wallet} />
+							) : null}
 							<Button
 								type="button"
 								variant="outline"

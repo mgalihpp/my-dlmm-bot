@@ -131,9 +131,20 @@ export interface WebConfig {
 	password?: string;
 }
 
+export interface WalletConfig {
+	label?: string;
+	wallet: string;
+	privateKey: string;
+	enabled?: boolean;
+	agent?: Partial<AgentConfig>;
+}
+
 export interface VexisConfig {
+	/** @deprecated Use `wallets` instead. Kept for backward compatibility. */
 	wallet?: string;
+	/** @deprecated Use `wallets[].privateKey` instead. Kept for backward compatibility. */
 	privateKey?: string;
+	wallets?: WalletConfig[];
 	rpcUrl?: string;
 	dev?: boolean;
 	pageSize?: number;

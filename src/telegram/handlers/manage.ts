@@ -4,7 +4,7 @@ import { registerAction, resolveAction } from "../action-store.js";
 import type { RuntimeAgent } from "../agent/engine.js";
 import { recordManualClose } from "../agent/manual-close.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
-import { dlmm, resolveKeypair, zap } from "../fx.js";
+import { dlmm, resolveKeypair, resolveWallet, zap } from "../fx.js";
 import { setInputSession } from "../input-store.js";
 import {
 	actionPanelKeyboard,
@@ -194,10 +194,16 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 			.filter(Boolean)
 			.join("\n");
 		await presentEdit(ctx, summary, async () => {
-			const result = await zap.closeAndZapOut(poolAddress, positionPubkey);
+			const wallet = await resolveWallet();
+			const result = await zap.closeAndZapOut(
+				poolAddress,
+				positionPubkey,
+				undefined,
+				wallet,
+			);
 			const sig = result.zapSig || result.closeSig;
 			if (!sig) throw new Error("Close produced no transaction signature");
-			await recordManualClose(getRt, poolAddress, pairName, baseMint);
+			await recordManualClose(getRt, poolAddress, pairName, baseMint, wallet);
 			return sig;
 		});
 	});
@@ -227,7 +233,13 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 			.filter(Boolean)
 			.join("\n");
 		await presentEdit(ctx, summary, async () => {
-			const result = await zap.claimAndZapOut(poolAddress, positionPubkey);
+			const wallet = await resolveWallet();
+			const result = await zap.claimAndZapOut(
+				poolAddress,
+				positionPubkey,
+				undefined,
+				wallet,
+			);
 			const sig = result.zapSig || result.claimSig;
 			if (!sig) throw new Error("Claim produced no transaction signature");
 			return sig;
@@ -257,7 +269,8 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 			.filter(Boolean)
 			.join("\n");
 		await presentEdit(ctx, summary, async () => {
-			return dlmm.claimReward(poolAddress, positionPubkey);
+			const wallet = await resolveWallet();
+			return dlmm.claimReward(poolAddress, positionPubkey, wallet);
 		});
 	});
 
@@ -373,16 +386,20 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 					.filter(Boolean)
 					.join("\n");
 				await presentNew(sessionCtx2, summary, async () => {
-					return dlmm.addLiquidity({
-						poolAddress: s2.poolAddress,
-						positionPubkey: s2.positionPubkey,
-						strategy: s2.strategy!,
-						totalXAmount: s2.xAmt!,
-						totalYAmount: s2.yAmt!,
-						amountsAreHuman: true,
-						minBinId: 0,
-						maxBinId: 0,
-					});
+					const wallet = await resolveWallet();
+					return dlmm.addLiquidity(
+						{
+							poolAddress: s2.poolAddress,
+							positionPubkey: s2.positionPubkey,
+							strategy: s2.strategy!,
+							totalXAmount: s2.xAmt!,
+							totalYAmount: s2.yAmt!,
+							amountsAreHuman: true,
+							minBinId: 0,
+							maxBinId: 0,
+						},
+						wallet,
+					);
 				});
 			};
 			await sessionCtx.reply(
@@ -448,12 +465,16 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 			.filter(Boolean)
 			.join("\n");
 		await presentEdit(ctx, summary, async () => {
-			return dlmm.removeLiquidity({
-				poolAddress,
-				positionPubkey,
-				bpsToRemove: bps,
-				shouldClaimAndClose: false,
-			});
+			const wallet = await resolveWallet();
+			return dlmm.removeLiquidity(
+				{
+					poolAddress,
+					positionPubkey,
+					bpsToRemove: bps,
+					shouldClaimAndClose: false,
+				},
+				wallet,
+			);
 		});
 	});
 
@@ -490,12 +511,16 @@ export function registerManage(bot: Bot, getRt: () => RuntimeAgent | null) {
 				.filter(Boolean)
 				.join("\n");
 			await presentNew(sessionCtx, summary, async () => {
-				return dlmm.removeLiquidity({
-					poolAddress,
-					positionPubkey,
-					bpsToRemove: bps,
-					shouldClaimAndClose: false,
-				});
+				const wallet = await resolveWallet();
+				return dlmm.removeLiquidity(
+					{
+						poolAddress,
+						positionPubkey,
+						bpsToRemove: bps,
+						shouldClaimAndClose: false,
+					},
+					wallet,
+				);
 			});
 		};
 		setInputSession(chatId, bpsHandler);

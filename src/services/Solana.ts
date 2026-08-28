@@ -1,11 +1,19 @@
 import { Connection, type Keypair } from "@solana/web3.js";
 import { Context, Effect, Layer } from "effect";
-import type { SignerError } from "../errors.js";
+import type { ConfigError, SignerError } from "../errors.js";
 import { AppConfig } from "./Config.js";
 
 export interface SolanaService {
 	readonly connection: Effect.Effect<Connection>;
+	/** @deprecated Use keypairFor(wallet) — returns first enabled wallet's keypair */
 	readonly signer: Effect.Effect<Keypair, SignerError>;
+	readonly keypairFor: (
+		wallet: string,
+	) => Effect.Effect<Keypair, SignerError | ConfigError>;
+	readonly keypairs: Effect.Effect<
+		Map<string, Keypair>,
+		SignerError | ConfigError
+	>;
 }
 
 export class Solana extends Context.Tag("Solana")<Solana, SolanaService>() {}
@@ -24,6 +32,8 @@ const make = Effect.gen(function* () {
 			}),
 		),
 		signer: config.keypair,
+		keypairFor: (wallet: string) => config.keypairFor(wallet),
+		keypairs: config.keypairs,
 	};
 	return service;
 });

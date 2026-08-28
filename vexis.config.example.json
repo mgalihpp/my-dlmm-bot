@@ -1,6 +1,20 @@
 {
 	"wallet": "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt",
 	"privateKey": "your-base64-private-key-or-base58",
+	"wallets": [
+		{
+			"label": "main",
+			"wallet": "DYAn4XpAkN5mhiXkRB7dGq4Jadnx6XYgu8L5b3WGhbrt",
+			"privateKey": "your-base64-private-key-or-base58",
+			"enabled": true
+		},
+		{
+			"label": "scalping",
+			"wallet": "9W3kMexampleAddressForSecondWallet111111111111",
+			"privateKey": "your-second-base64-private-key",
+			"enabled": true
+		}
+	],
 	"rpcUrl": "https://api.mainnet-beta.solana.com",
 	"dev": false,
 	"pageSize": 50,

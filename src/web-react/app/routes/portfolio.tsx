@@ -18,7 +18,8 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const parsedPage = rawPage === null ? 1 : Number(rawPage);
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
-	return fetchPortfolio(closedPage);
+	const wallet = url.searchParams.get("wallet");
+	return fetchPortfolio(closedPage, wallet);
 }
 
 export async function action({ request }: Route.ActionArgs) {
@@ -30,7 +31,8 @@ export async function action({ request }: Route.ActionArgs) {
 	const pool = String(form.get("pool") ?? "");
 	const position = String(form.get("position") ?? "");
 	const poolName = String(form.get("poolName") ?? "");
-	return closePosition(pool, position, poolName);
+	const wallet = form.get("wallet") ? String(form.get("wallet")) : null;
+	return closePosition(pool, position, poolName, wallet);
 }
 
 export default PortfolioPage;

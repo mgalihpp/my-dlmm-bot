@@ -614,22 +614,26 @@ export function registerCreate(bot: Bot) {
 
 		await ctx.editMessageText("⏳ Creating position\\.\\.\\.", MD);
 		try {
-			const res = await dlmm.createPosition({
-				poolAddress: state.poolAddress,
-				strategy,
-				totalXAmount: xAmt,
-				totalYAmount: yAmt,
-				amountsAreHuman: true,
-				singleSidedX,
-				singleSidedY,
-				...(isPctMode
-					? { minPct: state.minPct!, maxPct: state.maxPct! }
-					: {
-							minBinId: state.minBin!,
-							maxBinId: state.maxBin!,
-							relativeBins: true,
-						}),
-			});
+			const wallet = await resolveWallet();
+			const res = await dlmm.createPosition(
+				{
+					poolAddress: state.poolAddress,
+					strategy,
+					totalXAmount: xAmt,
+					totalYAmount: yAmt,
+					amountsAreHuman: true,
+					singleSidedX,
+					singleSidedY,
+					...(isPctMode
+						? { minPct: state.minPct!, maxPct: state.maxPct! }
+						: {
+								minBinId: state.minBin!,
+								maxBinId: state.maxBin!,
+								relativeBins: true,
+							}),
+				},
+				wallet,
+			);
 			const sigs = (res.signatures ?? [res]).join("\n");
 			const body = sigs
 				.split("\n")
@@ -898,7 +902,8 @@ async function executeSwapAndCreate(ctx: Context, wid: string, budget: number) {
 		);
 
 		// Balance guard: need budget + fee buffer.
-		const solBal = await zap.getSolBalance();
+		const wallet = await resolveWallet();
+		const solBal = await zap.getSolBalance(wallet);
 		const LAMPORTS = 1_000_000_000;
 		const budgetLamports = Math.round(budget * LAMPORTS);
 		const needed = budgetLamports + FEE_BUFFER_LAMPORTS;
@@ -950,6 +955,7 @@ async function executeSwapAndCreate(ctx: Context, wid: string, budget: number) {
 			preview.tokenXMint,
 			new BN(String(solForXLamports)),
 			PRESET.slippageBps,
+			wallet,
 		);
 		if (swap.received.lten(0)) {
 			await ctx.editMessageText(
@@ -980,22 +986,25 @@ async function executeSwapAndCreate(ctx: Context, wid: string, budget: number) {
 		);
 
 		deleteWizard(wid);
-		const res = await dlmm.createPosition({
-			poolAddress: state.poolAddress,
-			strategy,
-			totalXAmount: swap.received.toString(), // raw atomic units
-			totalYAmount: "0", // auto-filled from X by the SDK
-			amountsAreHuman: false,
-			singleSidedX: false,
-			autoFill: true,
-			...(state.isPctMode
-				? { minPct: state.minPct!, maxPct: state.maxPct! }
-				: {
-						minBinId: state.minBin!,
-						maxBinId: state.maxBin!,
-						relativeBins: true,
-					}),
-		});
+		const res = await dlmm.createPosition(
+			{
+				poolAddress: state.poolAddress,
+				strategy,
+				totalXAmount: swap.received.toString(), // raw atomic units
+				totalYAmount: "0", // auto-filled from X by the SDK
+				amountsAreHuman: false,
+				singleSidedX: false,
+				autoFill: true,
+				...(state.isPctMode
+					? { minPct: state.minPct!, maxPct: state.maxPct! }
+					: {
+							minBinId: state.minBin!,
+							maxBinId: state.maxBin!,
+							relativeBins: true,
+						}),
+			},
+			wallet,
+		);
 
 		const body = (res.signatures ?? [])
 			.map((s: string) => tgTxLink(s))

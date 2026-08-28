@@ -36,7 +36,7 @@ describe("portfolio loader", () => {
 		} as Parameters<typeof loader>[0]);
 
 		expect(result).toEqual(critical);
-		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(1);
+		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(1, null);
 	});
 
 	it("passes a valid closed positions page to the fetcher", async () => {
@@ -44,6 +44,13 @@ describe("portfolio loader", () => {
 			request: new Request("https://example.test/portfolio?closedPage=3"),
 		} as Parameters<typeof loader>[0]);
 
-		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(3);
+		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(3, null);
+	});
+
+	it("passes wallet param to the fetcher", async () => {
+		await loader({
+			request: new Request("https://example.test/portfolio?wallet=W1"),
+		} as Parameters<typeof loader>[0]);
+		expect(mocks.fetchPortfolio).toHaveBeenCalledWith(1, "W1");
 	});
 });

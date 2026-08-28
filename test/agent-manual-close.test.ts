@@ -7,7 +7,11 @@ import {
 	applyManualCloseCooldown,
 	recordManualCloseCooldown,
 } from "../src/telegram/agent/manual-close.js";
-import { type AgentState, loadState } from "../src/telegram/agent/state.js";
+import {
+	type AgentState,
+	type HybridState,
+	loadState,
+} from "../src/telegram/agent/state.js";
 
 let dir = "";
 const tmpFile = (name: string) => {
@@ -38,6 +42,7 @@ describe("recordManualCloseCooldown", () => {
 			s,
 			{ pool: "P1", poolName: "A/SOL", baseMint: "mintX" },
 			60_000,
+			null,
 			tmpFile("cd1.json"),
 		);
 		expect(s.cooldowns).toHaveLength(1);
@@ -64,10 +69,36 @@ describe("recordManualCloseCooldown", () => {
 			s,
 			{ pool: "P1", poolName: "A/SOL", baseMint: null },
 			60_000,
+			null,
 			tmpFile("cd2.json"),
 		);
 		expect(s.cooldowns).toHaveLength(1);
 		expect(s.cooldowns[0].pool).toBe("P1");
+	});
+});
+
+describe("recordManualCloseCooldown", () => {
+	it("scopes the cooldown to the given wallet, not other wallets", () => {
+		const s = {
+			version: 2,
+			global: { ...state([]) },
+			wallets: {
+				WALLETA: { ...state([]), wallet: "WALLETA" },
+				WALLETB: { ...state([]), wallet: "WALLETB" },
+			},
+		} as unknown as HybridState;
+		recordManualCloseCooldown(
+			s,
+			{ pool: "P1", poolName: "A/SOL", baseMint: null },
+			60_000,
+			"WALLETA",
+			tmpFile("scope.json"),
+		);
+		const wallets = (s as HybridState).wallets;
+		expect(wallets.WALLETA.cooldowns).toHaveLength(1);
+		expect(wallets.WALLETA.cooldowns[0].pool).toBe("P1");
+		// isolation: the other wallet must NOT be blocked by this manual close
+		expect(wallets.WALLETB.cooldowns).toHaveLength(0);
 	});
 });
 
@@ -78,6 +109,7 @@ describe("applyManualCloseCooldown", () => {
 			null,
 			{ pool: "P1", poolName: "A/SOL", baseMint: "mintX" },
 			60_000,
+			null,
 			file,
 		);
 		const s = loadState(file);
@@ -106,6 +138,7 @@ describe("applyManualCloseCooldown", () => {
 			rt,
 			{ pool: "P1", poolName: "A/SOL", baseMint: null },
 			60_000,
+			null,
 			tmpFile("mem.json"),
 		);
 		expect(out).toBe(s);
