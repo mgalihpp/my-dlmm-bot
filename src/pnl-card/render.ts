@@ -1,9 +1,13 @@
 /// <reference lib="dom" />
 
 import type { ClosedPool, PortfolioTotal } from "../domain/portfolio.js";
-import { shortAddr } from "../format.js";
-import { computeClosedStats, pnlCardColor } from "./format.js";
+import { computeClosedStats, formatCardUsd, pnlCardColor } from "./format.js";
 import type { PnlCardData, PnlCardRenderOpts } from "./types.js";
+
+function shortAddr(addr: string, len = 4): string {
+	if (!addr || addr.length <= len * 2 + 2) return addr;
+	return `${addr.slice(0, len)}…${addr.slice(-len)}`;
+}
 
 export const CARD_WIDTH = 1200;
 export const CARD_HEIGHT = 675;
@@ -49,176 +53,103 @@ export function drawPnlCard(
 ): void {
 	const width = opts?.width ?? CARD_WIDTH;
 	const height = opts?.height ?? CARD_HEIGHT;
+	const pad = 64;
 
 	ctx.clearRect(0, 0, width, height);
+	ctx.fillStyle = "#0a0a0c";
+	ctx.fillRect(0, 0, width, height);
 
-	const gradient = ctx.createLinearGradient(0, 0, width, height);
-	gradient.addColorStop(0, "#0f172a");
-	gradient.addColorStop(1, "#1e293b");
-	ctx.fillStyle = gradient;
-	roundRect(ctx, 0, 0, width, height, 24);
-	ctx.fill();
+	ctx.save();
+	ctx.translate(width / 2, height / 2);
+	ctx.rotate(-Math.PI / 5);
+	const span = width + height;
+	for (let x = -span; x < span; x += 220) {
+		ctx.fillStyle = "rgba(255,255,255,0.018)";
+		ctx.fillRect(x, -span, 110, span * 2);
+	}
+	ctx.restore();
 
-	ctx.strokeStyle = "rgba(255,255,255,0.06)";
-	ctx.lineWidth = 1;
-	roundRect(ctx, 0, 0, width, height, 24);
+	ctx.strokeStyle = "rgba(255,255,255,0.09)";
+	ctx.lineWidth = 2;
+	roundRect(ctx, 1, 1, width - 2, height - 2, 28);
 	ctx.stroke();
 
-	const pnlColor = pnlCardColor(data.pnlUsd);
+	ctx.textBaseline = "alphabetic";
 
 	ctx.fillStyle = "rgba(255,255,255,0.92)";
-	ctx.font = "700 22px sans-serif";
-	ctx.textBaseline = "middle";
-	ctx.fillText("VEXIS DLMM Bot", 40, 48);
+	ctx.font = "800 30px sans-serif";
+	ctx.fillText("VEXIS", pad, 84);
 
-	ctx.fillStyle = "rgba(255,255,255,0.55)";
-	ctx.font = "400 14px sans-serif";
-	const walletLabel = data.walletShort || shortAddr(data.wallet, 4);
 	ctx.textAlign = "right";
-	ctx.fillText(walletLabel, width - 40, 48);
+	ctx.fillStyle = "rgba(255,255,255,0.35)";
+	ctx.font = "600 20px sans-serif";
+	ctx.fillText(data.date, width - pad, 84);
 	ctx.textAlign = "left";
 
-	ctx.fillStyle = "rgba(255,255,255,0.45)";
-	ctx.font = "600 11px sans-serif";
-	ctx.letterSpacing = "0.12em";
-	const modeLabel = data.mode === "position" ? "POSITION PNL" : "TOTAL PNL";
-	ctx.fillText(modeLabel, 40, 98);
+	ctx.fillStyle = "rgba(255,255,255,0.4)";
+	ctx.font = "700 26px sans-serif";
+	ctx.fillText(data.mode === "position" ? "POSITION" : "TOTAL", pad, 218);
 
-	ctx.fillStyle = "rgba(255,255,255,0.95)";
-	ctx.font = "700 18px sans-serif";
-	ctx.letterSpacing = "0";
-	const title = fitText(ctx, data.title, width - 80);
-	ctx.fillText(title, 40, 126);
+	ctx.fillStyle = "rgba(255,255,255,0.96)";
+	ctx.font = "800 76px sans-serif";
+	ctx.fillText(fitText(ctx, data.title, width - pad * 2), pad - 4, 306);
 
-	const usdText =
-		data.pnlUsd.startsWith("$") ||
-		data.pnlUsd.startsWith("-$") ||
-		data.pnlUsd.startsWith("+$")
-			? data.pnlUsd
-			: data.pnlUsd;
-	const solText = data.pnlSol;
-
+	const pnlColor = pnlCardColor(data.pnlUsd);
+	ctx.font = "800 128px sans-serif";
 	ctx.fillStyle = pnlColor;
-	ctx.font = "800 64px sans-serif";
-	ctx.textBaseline = "alphabetic";
-	const usdWidth = ctx.measureText(usdText).width;
-	ctx.fillText(usdText, 40, 235);
+	const big = fitText(ctx, data.pnlUsd, width - pad * 2 - 260);
+	ctx.fillText(big, pad - 6, 452);
+	const bigW = ctx.measureText(big).width;
 
-	ctx.fillStyle = pnlColor === "#94a3b8" ? "rgba(255,255,255,0.7)" : pnlColor;
-	ctx.globalAlpha = 0.9;
-	ctx.font = "600 22px sans-serif";
-	const solWidth = ctx.measureText(solText).width;
-	const solX = 40 + usdWidth + 18;
-	if (solX + solWidth > width - 40) {
-		ctx.fillText(solText, 40, 268);
-	} else {
-		ctx.fillText(solText, solX, 235);
-	}
-	ctx.globalAlpha = 1;
+	ctx.fillStyle = "rgba(255,255,255,0.45)";
+	ctx.font = "600 34px sans-serif";
+	ctx.fillText(data.pnlSol, pad + bigW + 28, 452);
 
-	if (data.pnlPct !== null && data.pnlPct !== "n/a" && data.pnlPct !== "-") {
-		const pctText = data.pnlPct.includes("%") ? data.pnlPct : `${data.pnlPct}%`;
-		ctx.font = "700 14px sans-serif";
-		const padX = 12;
-		const textW = ctx.measureText(pctText).width;
-		const badgeW = textW + padX * 2;
-		const badgeH = 26;
-		const badgeX = 40;
-		const badgeY = 282;
-		const isPositive = Number.parseFloat(data.pnlPct) > 0;
-		const isNegative = Number.parseFloat(data.pnlPct) < 0;
-		ctx.fillStyle = isPositive
-			? "rgba(34,197,94,0.18)"
-			: isNegative
-				? "rgba(239,68,68,0.18)"
-				: "rgba(148,163,184,0.15)";
-		roundRect(ctx, badgeX, badgeY, badgeW, badgeH, 999);
-		ctx.fill();
-		ctx.fillStyle = pnlCardColor(data.pnlPct);
-		ctx.textBaseline = "middle";
-		ctx.fillText(pctText, badgeX + padX, badgeY + badgeH / 2 + 0.5);
-		ctx.textBaseline = "alphabetic";
-	}
-
-	const gridTop = 340;
-	const colGap = 16;
-	const rowGap = 14;
-	const cols = 3;
-	const cellW = (width - 80 - colGap * (cols - 1)) / cols;
-	const cellH = 88;
-
-	const stats: Array<{ label: string; value: string }> = [
+	const pctValue =
+		data.pnlPct !== null && data.pnlPct !== "n/a" && data.pnlPct !== "-"
+			? data.pnlPct
+			: "n/a";
+	const stats: Array<{ label: string; value: string; pnl: boolean }> = [
 		{
-			label: "Win Rate",
+			label: "WIN RATE",
 			value:
 				data.stats.winRate === null
 					? "n/a"
 					: `${(data.stats.winRate * 100).toFixed(1)}%`,
+			pnl: false,
 		},
-		{ label: "Total Closed", value: String(data.stats.totalClosed) },
-		{ label: "Avg PnL", value: data.stats.avgPnlUsd ?? "n/a" },
-		{ label: "Best", value: data.stats.bestUsd ?? "n/a" },
-		{ label: "Worst", value: data.stats.worstUsd ?? "n/a" },
-		{ label: "Date", value: data.date },
+		{ label: "CLOSED", value: String(data.stats.totalClosed), pnl: false },
+		{
+			label: "AVG PNL",
+			value: data.stats.avgPnlUsd ?? "n/a",
+			pnl: data.stats.avgPnlUsd !== null,
+		},
+		{ label: "PNL %", value: pctValue, pnl: pctValue !== "n/a" },
 	];
-
-	for (let i = 0; i < stats.length; i++) {
-		const col = i % cols;
-		const row = Math.floor(i / cols);
-		const x = 40 + col * (cellW + colGap);
-		const y = gridTop + row * (cellH + rowGap);
-
-		ctx.fillStyle = "rgba(255,255,255,0.06)";
-		roundRect(ctx, x, y, cellW, cellH, 14);
-		ctx.fill();
-		ctx.strokeStyle = "rgba(255,255,255,0.07)";
-		ctx.lineWidth = 1;
-		roundRect(ctx, x, y, cellW, cellH, 14);
-		ctx.stroke();
-
-		ctx.fillStyle = "rgba(255,255,255,0.5)";
-		ctx.font = "600 10px sans-serif";
-		ctx.letterSpacing = "0.08em";
-		ctx.fillText(stats[i].label.toUpperCase(), x + 16, y + 22);
-		ctx.letterSpacing = "0";
-
-		const isPnlCell =
-			stats[i].label === "Avg PnL" ||
-			stats[i].label === "Best" ||
-			stats[i].label === "Worst";
-		if (isPnlCell && stats[i].value !== "n/a") {
-			ctx.fillStyle = pnlCardColor(stats[i].value);
-		} else {
-			ctx.fillStyle = "rgba(255,255,255,0.92)";
-		}
-		ctx.font = "700 18px sans-serif";
-		ctx.textBaseline = "middle";
-		const v = fitText(ctx, stats[i].value, cellW - 32);
-		ctx.fillText(v, x + 16, y + 52);
-		ctx.textBaseline = "alphabetic";
-	}
-
-	ctx.fillStyle = "rgba(255,255,255,0.28)";
-	ctx.font = "600 11px sans-serif";
-	ctx.letterSpacing = "0.14em";
-	ctx.textAlign = "right";
-	ctx.fillText("my-dlmm-bot", width - 40, height - 26);
-	ctx.textAlign = "left";
-	ctx.letterSpacing = "0";
-}
-
-function formatUsdForCard(value: string | number | null | undefined): string {
-	if (value === null || value === undefined) return "n/a";
-	const n =
-		typeof value === "number" ? value : Number.parseFloat(String(value));
-	if (Number.isNaN(n)) return String(value);
-	const abs = Math.abs(n).toLocaleString("en-US", {
-		minimumFractionDigits: 2,
-		maximumFractionDigits: 2,
+	const colW = (width - pad * 2) / stats.length;
+	const rowY = 548;
+	stats.forEach((stat, i) => {
+		const x = pad + i * colW;
+		ctx.fillStyle = "rgba(255,255,255,0.35)";
+		ctx.font = "600 19px sans-serif";
+		ctx.fillText(stat.label, x, rowY);
+		ctx.fillStyle =
+			stat.pnl && stat.value !== "n/a"
+				? pnlCardColor(stat.value)
+				: "rgba(255,255,255,0.9)";
+		ctx.font = "700 30px sans-serif";
+		ctx.fillText(fitText(ctx, stat.value, colW - 40), x, rowY + 44);
 	});
-	if (n > 0) return `+$${abs}`;
-	if (n < 0) return `-$${abs}`;
-	return `$${abs}`;
+
+	ctx.textAlign = "center";
+	ctx.fillStyle = "rgba(255,255,255,0.45)";
+	ctx.font = "600 22px sans-serif";
+	ctx.fillText(
+		data.walletShort || shortAddr(data.wallet, 4),
+		width / 2,
+		height - 40,
+	);
+	ctx.textAlign = "left";
 }
 
 function formatSolForCard(value: string | number | null | undefined): string {
@@ -258,7 +189,7 @@ export function createPnlCardDataFromTotal(params: {
 }): PnlCardData {
 	const walletShort = shortAddr(params.wallet, 4);
 	const stats = computeClosedStats(params.closedPools);
-	const pnlUsd = formatUsdForCard(params.total.totalPnlUsd);
+	const pnlUsd = formatCardUsd(params.total.totalPnlUsd);
 	const pnlSol = formatSolForCard(params.total.totalPnlSol);
 	const pnlPct = formatPctForCard(params.total.totalPnlPctChange);
 	return {
@@ -293,7 +224,7 @@ export function createPnlCardDataFromPosition(params: {
 				bestUsd: null,
 				worstUsd: null,
 			};
-	const pnlUsd = formatUsdForCard(params.pnlUsd);
+	const pnlUsd = formatCardUsd(params.pnlUsd);
 	const pnlSol = formatSolForCard(params.pnlSol);
 	const pnlPct = formatPctForCard(params.pnlPct);
 	return {

@@ -6,19 +6,42 @@ export interface PnlCardStats {
 	readonly worstUsd: string | null;
 }
 
-export interface PnlCardData {
+export interface PnlSummaryCardData {
 	readonly wallet: string;
 	readonly walletShort: string;
-	readonly mode: "total" | "position";
+	readonly mode: "total";
 	readonly title: string;
 	readonly pnlUsd: string;
 	readonly pnlSol: string;
 	readonly pnlPct: string | null;
 	readonly stats: PnlCardStats;
 	readonly date: string;
-	readonly pairName?: string;
-	readonly poolAddress?: string;
+	readonly timestampUtc: string;
+	readonly positionCount: number;
+	readonly feesSol: string;
+	readonly depositsSol: string;
+	readonly withdrawalsSol: string;
 }
+
+export interface PnlPositionCardData {
+	readonly wallet: string;
+	readonly walletShort: string;
+	readonly mode: "position";
+	readonly title: string;
+	readonly pnlUsd: string;
+	readonly pnlSol: string;
+	readonly pnlPct: string | null;
+	readonly stats: PnlCardStats;
+	readonly date: string;
+	readonly pairName: string;
+	readonly poolAddress: string;
+	readonly sent: string;
+	readonly received: string;
+	readonly closedAgo: string | null;
+	readonly traderLabel: string;
+}
+
+export type PnlCardData = PnlSummaryCardData | PnlPositionCardData;
 
 export interface PnlCardRenderOpts {
 	readonly width?: number;

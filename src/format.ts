@@ -11,8 +11,20 @@ const ansi = {
 	gray: "\x1b[90m",
 };
 
-const useColor = process.stdout.isTTY && !process.env.NO_COLOR;
-
+type NodeProc = {
+	stdout?: { isTTY?: boolean };
+	env?: Record<string, string | undefined>;
+};
+declare const process: NodeProc | undefined;
+let proc: NodeProc | undefined;
+if (
+	typeof process !== "undefined" &&
+	process !== null &&
+	typeof process === "object"
+) {
+	if ("stdout" in process || "env" in process) proc = process;
+}
+const useColor = Boolean(proc?.stdout?.isTTY && !proc?.env?.NO_COLOR);
 function c(code: string, s: string): string {
 	return useColor ? `${code}${s}${ansi.reset}` : s;
 }

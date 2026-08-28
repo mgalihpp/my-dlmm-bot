@@ -54,6 +54,36 @@ export function formatCardPct(
 	return `${sign}${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 }
 
+export function formatSolCompact(
+	value: string | number | null | undefined,
+): string {
+	if (value === null || value === undefined) return "n/a";
+	const n =
+		typeof value === "number" ? value : Number.parseFloat(String(value));
+	if (Number.isNaN(n)) return String(value);
+	const abs = Math.abs(n).toLocaleString("en-US", {
+		minimumFractionDigits: 4,
+		maximumFractionDigits: 4,
+	});
+	if (n > 0) return `+${abs} SOL`;
+	if (n < 0) return `-${abs} SOL`;
+	return `${abs} SOL`;
+}
+
+export function formatClosedAgo(lastClosedAt: number | null): string | null {
+	if (lastClosedAt === null || lastClosedAt === undefined) return null;
+	const now = Date.now();
+	const ts = lastClosedAt > 1e12 ? lastClosedAt : lastClosedAt * 1000;
+	const diff = now - ts;
+	if (diff < 0) return "0M AGO";
+	const mins = Math.floor(diff / 60000);
+	if (mins < 60) return `${mins}M AGO`;
+	const hours = Math.floor(mins / 60);
+	if (hours < 24) return `${hours}H AGO`;
+	const days = Math.floor(hours / 24);
+	return `${days}D AGO`;
+}
+
 export function computeClosedStats(pools: readonly ClosedPool[]): PnlCardStats {
 	const totalClosed = pools.length;
 	if (totalClosed === 0) {
@@ -101,4 +131,21 @@ export function computeClosedStats(pools: readonly ClosedPool[]): PnlCardStats {
 		bestUsd: best !== null ? formatCardUsd(best) : null,
 		worstUsd: worst !== null ? formatCardUsd(worst) : null,
 	};
+}
+
+export function sumSolField(
+	pools: readonly ClosedPool[],
+	field: "totalFeeSol" | "totalDepositSol" | "totalWithdrawalSol",
+	fallback: "totalFee" | "totalDeposit" | "totalWithdrawal",
+): string {
+	let sum = 0;
+	for (const p of pools) {
+		const v = p[field] ?? p[fallback];
+		const n = Number.parseFloat(v);
+		if (!Number.isNaN(n)) sum += n;
+	}
+	return sum.toLocaleString("en-US", {
+		minimumFractionDigits: 4,
+		maximumFractionDigits: 4,
+	});
 }
