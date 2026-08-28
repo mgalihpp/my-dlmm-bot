@@ -84,7 +84,7 @@ export function PnlCardDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
 				onClose={() => onOpenChange(false)}
-				className="max-w-[760px]"
+				className="max-w-[760px] space-y-4"
 			>
 				<DialogHeader>
 					<DialogTitle>PnL Card</DialogTitle>
