@@ -103,12 +103,12 @@ function drawSummaryCard(
 	ctx.fillText("↗", pad, 62);
 	ctx.fillStyle = "rgba(255,255,255,0.96)";
 	ctx.font = "800 26px sans-serif";
-	ctx.fillText("Metina", pad + 28, 62);
+	ctx.fillText("Vexis", pad + 28, 62);
 
 	ctx.textAlign = "right";
 	ctx.fillStyle = "rgba(255,255,255,0.32)";
 	ctx.font = "500 18px sans-serif";
-	ctx.fillText("metina.id", width - pad, 62);
+	ctx.fillText("vexis", width - pad, 62);
 	ctx.textAlign = "left";
 
 	const dateStr = formatDateLong(data.date);
@@ -230,19 +230,15 @@ function drawPositionCard(
 	ctx.fillText("↗", pad, 54);
 	ctx.fillStyle = "rgba(255,255,255,0.92)";
 	ctx.font = "800 20px sans-serif";
-	ctx.fillText("METINA", pad + 24, 54);
+	ctx.fillText("VEXIS", pad + 24, 54);
 
 	ctx.textAlign = "right";
 	ctx.fillStyle = "rgba(255,255,255,0.55)";
 	ctx.font = "600 16px sans-serif";
-	ctx.fillText("WWW.METINA.ID", width - pad, 54);
+	ctx.fillText("VEXIS", width - pad, 54);
 	ctx.fillStyle = "rgba(255,255,255,0.35)";
 	ctx.font = "600 16px sans-serif";
-	ctx.fillText(
-		"◉",
-		width - pad - ctx.measureText("WWW.METINA.ID").width - 18,
-		54,
-	);
+	ctx.fillText("◉", width - pad - ctx.measureText("VEXIS").width - 18, 54);
 	ctx.textAlign = "left";
 
 	const ago = data.closedAgo ?? "";
@@ -335,18 +331,14 @@ function drawPositionCard(
 	ctx.fillStyle = "rgba(255,255,255,0.55)";
 	ctx.font = "600 15px sans-serif";
 	const socialX = width - pad;
-	ctx.fillText("METINAID", socialX, bottomY + 6);
-	ctx.fillText("METINAID", socialX, bottomY + 30);
+	ctx.fillText("VEXIS", socialX, bottomY + 6);
+	ctx.fillText("VEXIS", socialX, bottomY + 30);
 	ctx.fillStyle = "rgba(255,255,255,0.35)";
 	ctx.font = "600 15px sans-serif";
-	ctx.fillText(
-		"◉",
-		socialX - ctx.measureText("METINAID").width - 10,
-		bottomY + 6,
-	);
+	ctx.fillText("◉", socialX - ctx.measureText("VEXIS").width - 10, bottomY + 6);
 	ctx.fillText(
 		"✕",
-		socialX - ctx.measureText("METINAID").width - 10,
+		socialX - ctx.measureText("VEXIS").width - 10,
 		bottomY + 30,
 	);
 	ctx.textAlign = "left";
