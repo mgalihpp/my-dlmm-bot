@@ -4,19 +4,31 @@ import type { ClosedPool, PortfolioTotal } from "../domain/portfolio.js";
 import {
 	CARD_HEIGHT,
 	CARD_WIDTH,
+	createPnlCardDataFromPosition,
 	createPnlCardDataFromTotal,
 	drawPnlCard,
 } from "../pnl-card/render.js";
 import type { PnlCardData } from "../pnl-card/types.js";
 
 export type { PnlCardData };
-
 export function buildTotalPnlCardData(
 	wallet: string,
 	total: PortfolioTotal,
 	closedPools: readonly ClosedPool[],
 ): PnlCardData {
 	return createPnlCardDataFromTotal({ wallet, total, closedPools });
+}
+
+export function buildPositionPnlCardData(params: {
+	wallet: string;
+	pnlUsd: string | number;
+	pnlSol: string | number | null | undefined;
+	pnlPct: string | number | null | undefined;
+	pairName: string;
+	poolAddress: string;
+	closedPools?: readonly ClosedPool[];
+}): PnlCardData {
+	return createPnlCardDataFromPosition(params);
 }
 
 async function loadCanvas() {

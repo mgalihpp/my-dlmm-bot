@@ -77,6 +77,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 			pnlPct: pool.pnlPctChange,
 			pairName: pair(pool.tokenX, pool.tokenY),
 			poolAddress: pool.poolAddress,
+			closedPools: [pool],
 		});
 		onPnlCard(data);
 	};
