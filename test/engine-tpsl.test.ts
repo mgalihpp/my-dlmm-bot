@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
+	isStaleCandidate,
 	positionAgeHours,
 	prefetchPlansPnl,
+	shouldEvaluateStale,
 } from "../src/telegram/agent/engine.js";
 import type { AgentPlan } from "../src/telegram/agent/state.js";
 
@@ -67,5 +69,51 @@ describe("prefetchPlansPnl", () => {
 		expect(map.get("A")).toEqual({ pool: "A" });
 		expect(map.get("B")).toBeNull();
 		expect(errors).toEqual([["B", new Error("boom")]]);
+	});
+});
+
+describe("isStaleCandidate", () => {
+	const staleCfg = { ageHours: 48, feePerTvlThreshold: 0.005 };
+	it("returns true when old and low fee", () => {
+		expect(isStaleCandidate(48, "0.001", staleCfg)).toBe(true);
+		expect(isStaleCandidate(72, "0.0049", staleCfg)).toBe(true);
+	});
+	it("returns false when young or fee high or missing", () => {
+		expect(isStaleCandidate(24, "0.001", staleCfg)).toBe(false);
+		expect(isStaleCandidate(48, "0.01", staleCfg)).toBe(false);
+		expect(isStaleCandidate(null, "0.001", staleCfg)).toBe(false);
+		expect(isStaleCandidate(48, null, staleCfg)).toBe(false);
+		expect(isStaleCandidate(48, "bad", staleCfg)).toBe(false);
+	});
+});
+
+describe("shouldEvaluateStale", () => {
+	it("allows first evaluation and throttles within interval", () => {
+		const now = Date.now();
+		expect(shouldEvaluateStale("poolA", {}, now, 6)).toBe(true);
+		expect(
+			shouldEvaluateStale(
+				"poolA",
+				{ staleEvaluatedAt: { poolA: now } },
+				now,
+				6,
+			),
+		).toBe(false);
+		expect(
+			shouldEvaluateStale(
+				"poolA",
+				{ staleEvaluatedAt: { poolA: now - 7 * 3_600_000 } },
+				now,
+				6,
+			),
+		).toBe(true);
+		expect(
+			shouldEvaluateStale(
+				"poolA",
+				{ staleEvaluatedAt: { poolA: now - 5 * 3_600_000 } },
+				now,
+				6,
+			),
+		).toBe(false);
 	});
 });

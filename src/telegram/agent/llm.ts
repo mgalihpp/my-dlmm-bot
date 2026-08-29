@@ -128,6 +128,8 @@ export interface OorPosition {
 	openSignals?: string | null;
 	/** Hours continuously OOR to the right (price > max). 0 when just entered, null if not tracked. Reset to 0 when back in-range. */
 	oorDurationHours?: number | null;
+	/** True when the position is in-range but stale (old + low fees). Used to differentiate LLM prompt section. */
+	isStale?: boolean;
 }
 
 export interface PositionDecision {
@@ -374,6 +376,8 @@ export async function requestOpenDecisions(opts: {
 export const OOR_DURATION_THRESHOLD_HOURS = 0.5;
 
 export function buildPositionPrompt(positions: readonly OorPosition[]): string {
+	const hasStale = positions.some((p) => p.isStale);
+	const hasOor = positions.some((p) => !p.isStale);
 	const table = positions
 		.map((p) => {
 			const distance =
@@ -384,11 +388,23 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 				p.oorDurationHours != null
 					? ` oorDurationHours=${p.oorDurationHours.toFixed(1)}`
 					: "";
-			return `- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${distance}${oorDur}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}`;
+			const staleTag = p.isStale ? " STALE(in-range, low yield)" : "";
+			return `- pool=${p.pool} pair=${p.poolName} pnlPct=${p.pnlPct.toFixed(2)}% minPrice=${p.minPrice} maxPrice=${p.maxPrice}${p.poolActivePrice != null ? ` poolActivePrice=${p.poolActivePrice}` : ""}${distance}${oorDur}${p.positionAgeHours != null ? ` positionAgeHours=${p.positionAgeHours}` : ""}${p.feePerTvl24h != null ? ` feePerTvl24h=${p.feePerTvl24h}` : ""}${p.pnlUsd != null ? ` pnlUsd=${p.pnlUsd}` : ""}${p.unrealizedPnlSol != null ? ` unrealizedPnlSol=${p.unrealizedPnlSol}` : ""}${p.amountSol != null ? ` amountSol=${p.amountSol}` : ""}${p.openSignals != null ? ` openSignals=${p.openSignals}` : ""}${staleTag}`;
 		})
 		.join("\n");
+	const intro =
+		hasStale && hasOor
+			? "The DLMM positions below need review: some are out-of-range (OOR) and some are stale in-range (old with low fees)."
+			: hasStale
+				? "The DLMM positions below are in-range but stale (old with low fees). They still earn fees but capital efficiency is low — consider whether closing and redeploying would be more productive."
+				: "The DLMM positions below are out-of-range (OOR). The pool's active price has left the position range, so the position earns no fees until price returns inside the range.";
+	const staleSection = hasStale
+		? [
+				"- STALE in-range (marked STALE): position is still in-range but positionAgeHours is large and feePerTvl24h is low — capital is idle/low-yield. Prefer CLOSE when feePerTvl24h is very low and ageHours > threshold, especially if pnlPct is near 0 or negative and amountSol blocks new opens (maxOpenPositions/maxTotalSol). Mention ageHours and feePerTvl24h in rationale. Do NOT close if pnlPct is deeply negative and fees have not covered slippage/rent — prefer HOLD unless redeploy has clearly better yield.",
+			]
+		: [];
 	return [
-		"The DLMM positions below are out-of-range (OOR). The pool's active price has left the position range, so the position earns no fees until price returns inside the range.",
+		intro,
 		"",
 		"Considerations:",
 		"- LP positions only earn fees when the pool's active price is inside the position range.",
@@ -399,6 +415,7 @@ export function buildPositionPrompt(positions: readonly OorPosition[]): string {
 		"- Consider positionAgeHours and feePerTvl24h. Old OOR positions with low fees are more worth closing. Mention distance, pnlPct, and ageHours in the rationale.",
 		"- openSignals is a snapshot of signals at open time and is only used as context.",
 		`- oorDurationHours = how long the position has been continuously OOR to the right (resets to 0 when back in-range). If oorDurationHours > ${OOR_DURATION_THRESHOLD_HOURS}h, the position has been idle on the right for a while — strongly recommend CLOSE so capital is not idle, unless there is a strong reason to hold. Mention oorDurationHours in rationale when >${OOR_DURATION_THRESHOLD_HOURS}h.`,
+		...staleSection,
 		"",
 		`Reply with a plain JSON array, no markdown: [{"pool":"<exact pool id>","action":"hold|close","rationale":"1 specific sentence, mention numbers (e.g. distance +108% 2.08x maxPrice, pnlPct=-8%, ageHours=50, oorDurationHours=${OOR_DURATION_THRESHOLD_HOURS + 2})"}]`,
 		"",

@@ -345,6 +345,56 @@ describe("buildPositionPrompt", () => {
 		expect(prompt).toContain("full meme token");
 		expect(prompt).toContain("lock profit");
 	});
+
+	it("renders STALE tag and stale section for in-range low-yield positions", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolStale",
+				poolName: "STALE/SOL",
+				pnlPct: 0.5,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "1.5",
+				positionAgeHours: 72,
+				feePerTvl24h: "0.0008",
+				isStale: true,
+			},
+		]);
+		expect(prompt).toContain("STALE");
+		expect(prompt).toContain("stale");
+		expect(prompt).toContain("low yield");
+		expect(prompt).toContain("STALE(in-range, low yield)");
+		expect(prompt).toContain("positionAgeHours=72");
+		expect(prompt).toContain("feePerTvl24h=0.0008");
+	});
+
+	it("mixes OOR and stale intro when both present", () => {
+		const prompt = buildPositionPrompt([
+			{
+				pool: "PoolOor",
+				poolName: "OOR/SOL",
+				pnlPct: -5,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "3",
+			},
+			{
+				pool: "PoolStale",
+				poolName: "STALE/SOL",
+				pnlPct: 0.2,
+				minPrice: "1",
+				maxPrice: "2",
+				poolActivePrice: "1.5",
+				positionAgeHours: 50,
+				feePerTvl24h: "0.001",
+				isStale: true,
+			},
+		]);
+		expect(prompt).toContain("some are out-of-range");
+		expect(prompt).toContain("some are stale");
+		expect(prompt).toContain("PoolOor");
+		expect(prompt).toContain("PoolStale");
+	});
 });
 
 describe("isLlmTimeout", () => {

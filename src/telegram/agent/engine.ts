@@ -626,6 +626,29 @@ export function positionAgeHours(
 	if (hours < 0 || hours > 24 * 365 * 10) return null;
 	return hours;
 }
+export function isStaleCandidate(
+	ageHours: number | null,
+	feePerTvl24h: string | null | undefined,
+	staleCfg: { ageHours: number; feePerTvlThreshold: number },
+): boolean {
+	if (ageHours == null) return false;
+	if (ageHours < staleCfg.ageHours) return false;
+	if (feePerTvl24h == null) return false;
+	const fee = Number(feePerTvl24h);
+	if (!Number.isFinite(fee)) return false;
+	return fee < staleCfg.feePerTvlThreshold;
+}
+
+export function shouldEvaluateStale(
+	pool: string,
+	state: { staleEvaluatedAt?: Record<string, number> },
+	nowMs: number,
+	checkIntervalHours: number,
+): boolean {
+	const last = state.staleEvaluatedAt?.[pool];
+	if (last == null) return true;
+	return nowMs - last >= checkIntervalHours * 3_600_000;
+}
 
 /**
  * Fetches position PnL for all plans in parallel. Failed fetches map to null
@@ -659,9 +682,12 @@ async function evaluateTpSl(
 	opts: { includeOor?: boolean; myGen: number } = { myGen: 0 },
 ) {
 	const oorPositions: OorPosition[] = [];
-	// ensure oorSince exists (migration for old state files)
+	const stalePositions: OorPosition[] = [];
+	// ensure oorSince/staleEvaluatedAt exists (migration for old state files)
 	if (!rt.state.oorSince) rt.state.oorSince = {};
+	if (!rt.state.staleEvaluatedAt) rt.state.staleEvaluatedAt = {};
 	let oorDirty = false;
+	let staleDirty = false;
 	const plansWithPosition = [...rt.state.plans].filter(
 		(p) => p.positionAddress != null,
 	);
@@ -696,6 +722,10 @@ async function evaluateTpSl(
 			if (rt.state.oorSince[plan.pool] != null) {
 				delete rt.state.oorSince[plan.pool];
 				oorDirty = true;
+			}
+			if (rt.state.staleEvaluatedAt[plan.pool] != null) {
+				delete rt.state.staleEvaluatedAt[plan.pool];
+				staleDirty = true;
 			}
 			logInfo(`position check: ${plan.poolName} → closed, plan removed`);
 			continue;
@@ -761,6 +791,40 @@ async function evaluateTpSl(
 					: null,
 				oorDurationHours,
 			});
+		} else {
+			const ageHours = positionAgeHours(pos.createdAt);
+			if (
+				isStaleCandidate(ageHours, pos.feePerTvl24h, cfg.stale) &&
+				shouldEvaluateStale(
+					plan.pool,
+					rt.state,
+					nowMs,
+					cfg.stale.checkIntervalHours,
+				)
+			) {
+				stalePositions.push({
+					pool: plan.pool,
+					poolName: plan.poolName,
+					pnlPct: pct ?? 0,
+					minPrice: pos.minPrice,
+					maxPrice: pos.maxPrice,
+					poolActivePrice: pos.poolActivePrice,
+					distancePct: null,
+					positionAgeHours: ageHours,
+					feePerTvl24h: pos.feePerTvl24h,
+					pnlUsd: pos.pnlUsd,
+					unrealizedPnlSol: pos.unrealizedPnl?.balancesSol ?? null,
+					amountSol: plan.amountSol,
+					openSignals: plan.signals
+						? Object.entries(plan.signals)
+								.sort((a, b) => b[1] - a[1])
+								.map(([name, w]) => `${name}:${w}`)
+								.join(",")
+						: null,
+					oorDurationHours: null,
+					isStale: true,
+				});
+			}
 		}
 		if (pct == null) continue;
 		const action = tpslAction(pct, cfg.tpPct, cfg.slPct);
@@ -816,6 +880,8 @@ async function evaluateTpSl(
 			);
 			if (rt.state.oorSince[plan.pool] != null)
 				delete rt.state.oorSince[plan.pool];
+			if (rt.state.staleEvaluatedAt[plan.pool] != null)
+				delete rt.state.staleEvaluatedAt[plan.pool];
 			rt.state.cooldowns = recordCooldown(
 				rt.state.cooldowns,
 				{
@@ -903,20 +969,31 @@ async function evaluateTpSl(
 		} finally {
 			closeInFlight.delete(plan.positionAddress!);
 		}
-	}
-	// prune stale oorSince entries for pools no longer tracked
-	for (const pool of Object.keys(rt.state.oorSince)) {
-		if (!rt.state.plans.some((p) => p.pool === pool)) {
-			delete rt.state.oorSince[pool];
-			oorDirty = true;
+		// prune stale oorSince entries for pools no longer tracked
+		for (const pool of Object.keys(rt.state.oorSince)) {
+			if (!rt.state.plans.some((p) => p.pool === pool)) {
+				delete rt.state.oorSince[pool];
+				oorDirty = true;
+			}
+		}
+		for (const pool of Object.keys(rt.state.staleEvaluatedAt)) {
+			if (!rt.state.plans.some((p) => p.pool === pool)) {
+				delete rt.state.staleEvaluatedAt[pool];
+				staleDirty = true;
+			}
+		}
+		if (oorDirty || staleDirty) saveState(rt.state);
+		const allPositions = [...oorPositions, ...stalePositions];
+		if (opts.includeOor && allPositions.length > 0) {
+			const now = Date.now();
+			for (const p of stalePositions) {
+				rt.state.staleEvaluatedAt[p.pool] = now;
+			}
+			if (stalePositions.length > 0) saveState(rt.state);
+			await evaluateOor(rt, bot, chatId, cfg, allPositions, opts.myGen);
 		}
 	}
-	if (oorDirty) saveState(rt.state);
-	if (opts.includeOor && oorPositions.length > 0) {
-		await evaluateOor(rt, bot, chatId, cfg, oorPositions, opts.myGen);
-	}
 }
-
 async function evaluateOor(
 	rt: RuntimeAgent,
 	bot: Bot,
@@ -925,16 +1002,24 @@ async function evaluateOor(
 	positions: readonly OorPosition[],
 	myGen: number,
 ) {
-	logInfo(`OOR: ${positions.length} position(s) out of range → LLM`);
+	const oorCount = positions.filter((p) => !p.isStale).length;
+	const staleCount = positions.filter((p) => p.isStale).length;
+	const label =
+		staleCount > 0 && oorCount > 0
+			? `${oorCount} OOR + ${staleCount} stale`
+			: staleCount > 0
+				? `${staleCount} stale`
+				: `${oorCount} OOR`;
+	logInfo(`position review: ${positions.length} position(s) (${label}) → LLM`);
 	const { decisions, degraded, errorMessage } = await requestPositionDecisions({
 		cfg,
 		positions,
 	});
 	if (degraded) {
 		if (errorMessage) {
-			logError(`OOR: LLM degraded — ${errorMessage}`);
+			logError(`position review: LLM degraded — ${errorMessage}`);
 		} else {
-			logInfo(`OOR: LLM degraded — ${positions.length} held`);
+			logInfo(`position review: LLM degraded — ${positions.length} held`);
 		}
 		return;
 	}
@@ -953,14 +1038,18 @@ async function evaluateOor(
 			Date.now(),
 		);
 		if (!gate.ok) {
-			logInfo(`OOR decide: ${pos.poolName} → close skipped (${gate.reason})`);
+			const tag = pos.isStale ? "STALE" : "OOR";
+			logInfo(
+				`${tag} decide: ${pos.poolName} → close skipped (${gate.reason})`,
+			);
 			continue;
 		}
+		const tag = pos.isStale ? "STALE" : "OOR";
 		const base: JournalCandidate = {
 			pool: pos.pool,
 			poolName: pos.poolName,
 			heuristicScore: 0,
-			rationale: `OOR ${d.action}: ${d.rationale}`,
+			rationale: `${tag} ${d.action}: ${d.rationale}`,
 			action: d.action,
 			guardrail: "pass",
 			blockedReason: null,
@@ -974,12 +1063,12 @@ async function evaluateOor(
 				llmStatus: "ok",
 				candidates: [base],
 			});
-			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
+			logInfo(`${tag} decide: ${pos.poolName} → hold (${d.rationale})`);
 			continue;
 		}
 		if (!claimClose(plan.positionAddress!, closeInFlight).ok) {
 			logInfo(
-				`OOR decide: ${pos.poolName} → close skipped (close already in flight)`,
+				`${tag} decide: ${pos.poolName} → close skipped (close already in flight)`,
 			);
 			continue;
 		}
@@ -1009,6 +1098,8 @@ async function evaluateOor(
 			rt.state.plans = rt.state.plans.filter((x) => x !== plan);
 			if (rt.state.oorSince[pos.pool] != null)
 				delete rt.state.oorSince[pos.pool];
+			if (rt.state.staleEvaluatedAt[pos.pool] != null)
+				delete rt.state.staleEvaluatedAt[pos.pool];
 			rt.state.executions.push({
 				at: new Date().toISOString(),
 				action: "close",
@@ -1021,7 +1112,7 @@ async function evaluateOor(
 					pool: pos.pool,
 					poolName: pos.poolName,
 					baseMint: plan.baseMint,
-					reason: "closed (OOR)",
+					reason: pos.isStale ? "closed (STALE)" : "closed (OOR)",
 				},
 				cfg.poolCooldownMs,
 				Date.now(),
@@ -1033,7 +1124,9 @@ async function evaluateOor(
 				candidates: [{ ...base, execution: "ok", txSignature: sig || null }],
 			});
 			saveState(rt.state);
-			logSuccess(`OOR close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`);
+			logSuccess(
+				`${tag} close ${pos.poolName} done: sig=${shortSig(sig) || "?"}`,
+			);
 			await notify(
 				bot,
 				chatId,
@@ -1041,13 +1134,13 @@ async function evaluateOor(
 					action: "close",
 					poolName: pos.poolName,
 					pnlPct: pos.pnlPct,
-					reason: `OOR close: ${d.rationale ?? ""}`,
+					reason: `${tag} close: ${d.rationale ?? ""}`,
 					txSignature: sig || null,
 				}),
 				{ keyboard: notifyKeyboard("close", pos.pool) },
 			);
 		} catch (e) {
-			logError("OOR close failed:", e);
+			logError(`${tag} close failed:`, e);
 			await notify(
 				bot,
 				chatId,

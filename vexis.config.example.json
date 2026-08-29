@@ -43,6 +43,11 @@
 			"weightCeiling": 2.5,
 			"minSamples": 10
 		},
+		"stale": {
+			"ageHours": 48,
+			"feePerTvlThreshold": 0.005,
+			"checkIntervalHours": 6
+		},
 		"llm": {
 			"baseUrl": "https://api.openai.com/v1",
 			"model": "gpt-4o-mini"

@@ -39,6 +39,8 @@ export interface AgentState {
 	cooldowns: AgentCooldown[];
 	/** pool -> timestamp ms when OOR to the right first detected. Reset to null when back in-range. */
 	oorSince: Record<string, number>;
+	/** pool -> timestamp ms when position was last evaluated for stale (in-range low-fee). Throttles LLM spam. */
+	staleEvaluatedAt: Record<string, number>;
 }
 
 const DEFAULT_FILE = repoPath(".vexis-agent.json");
@@ -53,6 +55,7 @@ const EMPTY: AgentState = {
 	executions: [],
 	cooldowns: [],
 	oorSince: {},
+	staleEvaluatedAt: {},
 };
 
 const LLM_STATUSES: readonly string[] = ["ok", "failed", "skipped"];
@@ -116,6 +119,13 @@ function sanitize(raw: unknown): AgentState {
 			if (typeof v === "number" && Number.isFinite(v) && v > 0) oorSince[k] = v;
 		}
 	}
+	const staleEvaluatedAt: Record<string, number> = {};
+	if (isRecord(raw.staleEvaluatedAt)) {
+		for (const [k, v] of Object.entries(raw.staleEvaluatedAt)) {
+			if (typeof v === "number" && Number.isFinite(v) && v > 0)
+				staleEvaluatedAt[k] = v;
+		}
+	}
 	return {
 		enabled: typeof raw.enabled === "boolean" ? raw.enabled : false,
 		running: typeof raw.running === "boolean" ? raw.running : false,
@@ -138,6 +148,7 @@ function sanitize(raw: unknown): AgentState {
 					.filter((c): c is AgentCooldown => c !== null)
 			: [],
 		oorSince,
+		staleEvaluatedAt,
 	};
 }
 
