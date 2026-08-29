@@ -120,12 +120,6 @@ export interface ResolvedAgentRisks {
 	blockDexScreenerPaid: boolean;
 	blockDevSoldAll: boolean;
 }
-export interface ResolvedAgentStale {
-	ageHours: number;
-	feePerTvlThreshold: number;
-	checkIntervalHours: number;
-}
-
 export interface ResolvedAgentDarwin {
 	enabled: boolean;
 	windowDays: number;
@@ -152,7 +146,6 @@ export interface ResolvedAgentConfig {
 	llm: ResolvedAgentLlm;
 	risks: ResolvedAgentRisks;
 	darwin: ResolvedAgentDarwin;
-	stale: ResolvedAgentStale;
 }
 
 export const resolveAgentConfigFrom = (
@@ -163,7 +156,6 @@ export const resolveAgentConfigFrom = (
 	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
 	const r = a.risks ?? {};
 	const d = a.darwin ?? {};
-	const s = a.stale ?? {};
 	return {
 		enabled: a.enabled ?? false,
 		intervalMinutes: Math.max(1, a.intervalMinutes ?? 15),
@@ -207,11 +199,6 @@ export const resolveAgentConfigFrom = (
 			weightFloor: d.weightFloor ?? 0.3,
 			weightCeiling: d.weightCeiling ?? 2.5,
 			minSamples: d.minSamples ?? 10,
-		},
-		stale: {
-			ageHours: Math.max(1, s.ageHours ?? 48),
-			feePerTvlThreshold: s.feePerTvlThreshold ?? 0.005,
-			checkIntervalHours: Math.max(1, s.checkIntervalHours ?? 6),
 		},
 	};
 };

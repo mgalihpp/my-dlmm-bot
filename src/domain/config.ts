@@ -92,12 +92,6 @@ export interface AgentRiskConfig {
 	blockDexScreenerPaid?: boolean;
 	blockDevSoldAll?: boolean;
 }
-export interface AgentStaleConfig {
-	ageHours?: number;
-	feePerTvlThreshold?: number;
-	checkIntervalHours?: number;
-}
-
 export interface AgentDarwinConfig {
 	enabled?: boolean;
 	windowDays?: number;
@@ -129,7 +123,6 @@ export interface AgentConfig {
 	llm?: AgentLlmConfig;
 	risks?: AgentRiskConfig;
 	darwin?: AgentDarwinConfig;
-	stale?: AgentStaleConfig;
 }
 
 export interface WebConfig {

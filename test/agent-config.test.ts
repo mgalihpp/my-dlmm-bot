@@ -104,35 +104,4 @@ describe("resolveAgentConfigFrom", () => {
 		expect(c.llm.model).toBe("deepseek-chat");
 		expect(c.llm.baseUrl).toBe("https://x/v1");
 	});
-
-	it("applies stale defaults", () => {
-		const c = resolveAgentConfigFrom({}, {});
-		expect(c.stale.ageHours).toBe(48);
-		expect(c.stale.feePerTvlThreshold).toBe(0.005);
-		expect(c.stale.checkIntervalHours).toBe(6);
-	});
-
-	it("honors stale overrides and clamps age/interval", () => {
-		const c = resolveAgentConfigFrom(
-			{
-				agent: {
-					stale: {
-						ageHours: 24,
-						feePerTvlThreshold: 0.001,
-						checkIntervalHours: 12,
-					},
-				},
-			},
-			{},
-		);
-		expect(c.stale.ageHours).toBe(24);
-		expect(c.stale.feePerTvlThreshold).toBe(0.001);
-		expect(c.stale.checkIntervalHours).toBe(12);
-		const clamped = resolveAgentConfigFrom(
-			{ agent: { stale: { ageHours: 0, checkIntervalHours: -5 } } },
-			{},
-		);
-		expect(clamped.stale.ageHours).toBe(1);
-		expect(clamped.stale.checkIntervalHours).toBe(1);
-	});
 });

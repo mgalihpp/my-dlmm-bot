@@ -334,6 +334,8 @@ async function retryClose(
 		rt.state.plans = rt.state.plans.filter((p) => p !== plan);
 		if (rt.state.oorSince[cand.pool] != null)
 			delete rt.state.oorSince[cand.pool];
+		if (rt.state.staleEvaluatedAt[cand.pool] != null)
+			delete rt.state.staleEvaluatedAt[cand.pool];
 		rt.state.executions.push({
 			at: new Date().toISOString(),
 			action: cand.action,
@@ -619,35 +621,38 @@ export function createAgent(bot: Bot, chatId: string): RuntimeAgent {
  */
 export function positionAgeHours(
 	createdAt: number | null | undefined,
+	nowMs = Date.now(),
 ): number | null {
 	if (createdAt == null || createdAt <= 0) return null;
 	const ms = createdAt < 1e12 ? createdAt * 1000 : createdAt;
-	const hours = Math.floor((Date.now() - ms) / 3_600_000);
+	const hours = Math.floor((nowMs - ms) / 3_600_000);
 	if (hours < 0 || hours > 24 * 365 * 10) return null;
 	return hours;
 }
+export const STALE_AGE_HOURS = 4;
+export const STALE_FEE_TVL_THRESHOLD = 0.01;
+export const STALE_CHECK_INTERVAL_HOURS = 1;
+
 export function isStaleCandidate(
 	ageHours: number | null,
 	feePerTvl24h: string | null | undefined,
-	staleCfg: { ageHours: number; feePerTvlThreshold: number },
 ): boolean {
 	if (ageHours == null) return false;
-	if (ageHours < staleCfg.ageHours) return false;
+	if (ageHours < STALE_AGE_HOURS) return false;
 	if (feePerTvl24h == null) return false;
 	const fee = Number(feePerTvl24h);
 	if (!Number.isFinite(fee)) return false;
-	return fee < staleCfg.feePerTvlThreshold;
+	return fee < STALE_FEE_TVL_THRESHOLD;
 }
 
 export function shouldEvaluateStale(
 	pool: string,
 	state: { staleEvaluatedAt?: Record<string, number> },
 	nowMs: number,
-	checkIntervalHours: number,
 ): boolean {
 	const last = state.staleEvaluatedAt?.[pool];
 	if (last == null) return true;
-	return nowMs - last >= checkIntervalHours * 3_600_000;
+	return nowMs - last >= STALE_CHECK_INTERVAL_HOURS * 3_600_000;
 }
 
 /**
@@ -778,7 +783,7 @@ async function evaluateTpSl(
 				maxPrice: pos.maxPrice,
 				poolActivePrice: pos.poolActivePrice,
 				distancePct,
-				positionAgeHours: positionAgeHours(pos.createdAt),
+				positionAgeHours: positionAgeHours(pos.createdAt, nowMs),
 				feePerTvl24h: pos.feePerTvl24h,
 				pnlUsd: pos.pnlUsd,
 				unrealizedPnlSol: pos.unrealizedPnl?.balancesSol ?? null,
@@ -792,15 +797,10 @@ async function evaluateTpSl(
 				oorDurationHours,
 			});
 		} else {
-			const ageHours = positionAgeHours(pos.createdAt);
+			const ageHours = positionAgeHours(pos.createdAt, nowMs);
 			if (
-				isStaleCandidate(ageHours, pos.feePerTvl24h, cfg.stale) &&
-				shouldEvaluateStale(
-					plan.pool,
-					rt.state,
-					nowMs,
-					cfg.stale.checkIntervalHours,
-				)
+				isStaleCandidate(ageHours, pos.feePerTvl24h) &&
+				shouldEvaluateStale(plan.pool, rt.state, nowMs)
 			) {
 				stalePositions.push({
 					pool: plan.pool,
@@ -969,28 +969,39 @@ async function evaluateTpSl(
 		} finally {
 			closeInFlight.delete(plan.positionAddress!);
 		}
-		// prune stale oorSince entries for pools no longer tracked
-		for (const pool of Object.keys(rt.state.oorSince)) {
-			if (!rt.state.plans.some((p) => p.pool === pool)) {
-				delete rt.state.oorSince[pool];
-				oorDirty = true;
-			}
+	}
+	// prune stale entries for pools no longer tracked (once per cycle)
+	for (const pool of Object.keys(rt.state.oorSince)) {
+		if (!rt.state.plans.some((p) => p.pool === pool)) {
+			delete rt.state.oorSince[pool];
+			oorDirty = true;
 		}
-		for (const pool of Object.keys(rt.state.staleEvaluatedAt)) {
-			if (!rt.state.plans.some((p) => p.pool === pool)) {
-				delete rt.state.staleEvaluatedAt[pool];
-				staleDirty = true;
-			}
+	}
+	for (const pool of Object.keys(rt.state.staleEvaluatedAt)) {
+		if (!rt.state.plans.some((p) => p.pool === pool)) {
+			delete rt.state.staleEvaluatedAt[pool];
+			staleDirty = true;
 		}
-		if (oorDirty || staleDirty) saveState(rt.state);
-		const allPositions = [...oorPositions, ...stalePositions];
-		if (opts.includeOor && allPositions.length > 0) {
+	}
+	if (oorDirty || staleDirty) saveState(rt.state);
+	const allPositions = [...oorPositions, ...stalePositions];
+	if (opts.includeOor && allPositions.length > 0) {
+		const degraded = await evaluateOor(
+			rt,
+			bot,
+			chatId,
+			cfg,
+			allPositions,
+			opts.myGen,
+		);
+		if (!degraded) {
 			const now = Date.now();
+			let touched = false;
 			for (const p of stalePositions) {
 				rt.state.staleEvaluatedAt[p.pool] = now;
+				touched = true;
 			}
-			if (stalePositions.length > 0) saveState(rt.state);
-			await evaluateOor(rt, bot, chatId, cfg, allPositions, opts.myGen);
+			if (touched) saveState(rt.state);
 		}
 	}
 }
@@ -1001,7 +1012,7 @@ async function evaluateOor(
 	cfg: AgentCfg,
 	positions: readonly OorPosition[],
 	myGen: number,
-) {
+): Promise<boolean> {
 	const oorCount = positions.filter((p) => !p.isStale).length;
 	const staleCount = positions.filter((p) => p.isStale).length;
 	const label =
@@ -1021,10 +1032,10 @@ async function evaluateOor(
 		} else {
 			logInfo(`position review: LLM degraded — ${positions.length} held`);
 		}
-		return;
+		return true;
 	}
 	for (const d of decisions) {
-		if (myGen !== rt.gen) return; // aborted before the close tx
+		if (myGen !== rt.gen) return true; // aborted before the close tx
 		const pos = positions.find((p) => p.pool === d.pool);
 		if (!pos) continue;
 		const plan = rt.state.plans.find(
@@ -1161,6 +1172,7 @@ async function evaluateOor(
 			closeInFlight.delete(plan.positionAddress!);
 		}
 	}
+	return false;
 }
 
 async function evaluatePlans(

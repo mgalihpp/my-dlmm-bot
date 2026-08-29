@@ -73,46 +73,39 @@ describe("prefetchPlansPnl", () => {
 });
 
 describe("isStaleCandidate", () => {
-	const staleCfg = { ageHours: 48, feePerTvlThreshold: 0.005 };
-	it("returns true when old and low fee", () => {
-		expect(isStaleCandidate(48, "0.001", staleCfg)).toBe(true);
-		expect(isStaleCandidate(72, "0.0049", staleCfg)).toBe(true);
+	it("returns true when old (>=4h) and low fee (<1%)", () => {
+		expect(isStaleCandidate(4, "0.001")).toBe(true);
+		expect(isStaleCandidate(72, "0.009")).toBe(true);
 	});
 	it("returns false when young or fee high or missing", () => {
-		expect(isStaleCandidate(24, "0.001", staleCfg)).toBe(false);
-		expect(isStaleCandidate(48, "0.01", staleCfg)).toBe(false);
-		expect(isStaleCandidate(null, "0.001", staleCfg)).toBe(false);
-		expect(isStaleCandidate(48, null, staleCfg)).toBe(false);
-		expect(isStaleCandidate(48, "bad", staleCfg)).toBe(false);
+		expect(isStaleCandidate(3, "0.001")).toBe(false);
+		expect(isStaleCandidate(4, "0.01")).toBe(false);
+		expect(isStaleCandidate(4, "0.02")).toBe(false);
+		expect(isStaleCandidate(null, "0.001")).toBe(false);
+		expect(isStaleCandidate(4, null)).toBe(false);
+		expect(isStaleCandidate(4, "bad")).toBe(false);
 	});
 });
 
 describe("shouldEvaluateStale", () => {
-	it("allows first evaluation and throttles within interval", () => {
+	it("allows first evaluation and throttles within 1h interval", () => {
 		const now = Date.now();
-		expect(shouldEvaluateStale("poolA", {}, now, 6)).toBe(true);
+		expect(shouldEvaluateStale("poolA", {}, now)).toBe(true);
 		expect(
-			shouldEvaluateStale(
-				"poolA",
-				{ staleEvaluatedAt: { poolA: now } },
-				now,
-				6,
-			),
+			shouldEvaluateStale("poolA", { staleEvaluatedAt: { poolA: now } }, now),
 		).toBe(false);
 		expect(
 			shouldEvaluateStale(
 				"poolA",
-				{ staleEvaluatedAt: { poolA: now - 7 * 3_600_000 } },
+				{ staleEvaluatedAt: { poolA: now - 2 * 3_600_000 } },
 				now,
-				6,
 			),
 		).toBe(true);
 		expect(
 			shouldEvaluateStale(
 				"poolA",
-				{ staleEvaluatedAt: { poolA: now - 5 * 3_600_000 } },
+				{ staleEvaluatedAt: { poolA: now - 0.5 * 3_600_000 } },
 				now,
-				6,
 			),
 		).toBe(false);
 	});
