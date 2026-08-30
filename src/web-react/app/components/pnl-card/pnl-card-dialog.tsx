@@ -215,8 +215,8 @@ export function PnlCardDialog({
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent
-				onClose={() => onOpenChange(false)}
-				className="max-w-[960px] gap-0 overflow-hidden border-zinc-800 bg-zinc-950 p-0"
+				showCloseButton={false}
+				className="max-w-[960px] gap-0 overflow-hidden border-zinc-800 bg-zinc-950 p-0 sm:max-w-[960px]"
 			>
 				<DialogDescription className="sr-only">
 					PnL card editor — preview and export 600x400 image
