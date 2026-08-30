@@ -200,6 +200,7 @@ export function PortfolioOverviewContent({
 								usd: data.summary.unrealizedUsd,
 							},
 					currency,
+					dateRange,
 				);
 			}
 		}
@@ -215,6 +216,7 @@ export function PortfolioOverviewContent({
 						usd: data.summary.unrealizedUsd,
 					},
 			currency,
+			dateRange,
 		);
 	}, [
 		filteredClosed,
@@ -222,6 +224,7 @@ export function PortfolioOverviewContent({
 		chartAggregated,
 		chartHasData,
 		bounded,
+		dateRange,
 		data.closed,
 		data.total,
 		data.summary,
@@ -246,7 +249,11 @@ export function PortfolioOverviewContent({
 				{topMetricsLoading ? (
 					<OverviewTopMetricsSkeleton />
 				) : (
-					<OverviewTopMetrics metrics={metrics} currency={currency} />
+					<OverviewTopMetrics
+						metrics={metrics}
+						currency={currency}
+						dateRange={dateRange}
+					/>
 				)}
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-stretch">
 					<div className="grid grid-rows-2 gap-2">

@@ -1,4 +1,5 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
+import { type ResolvedRange, secToLocalDate } from "./date-range.js";
 
 type PortfolioSnapshot = { pnlSol: number | null; pnlUsd: number | null };
 
@@ -45,6 +46,7 @@ export function computeOverviewMetricsFromRecords(
 	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
 	unrealized?: { sol: number; usd: number } | null,
 	currency: Currency = "sol",
+	resolvedRange?: ResolvedRange | null,
 ): OverviewMetrics {
 	let wins = 0;
 	let losses = 0;
@@ -57,6 +59,8 @@ export function computeOverviewMetricsFromRecords(
 	let dayLosses = 0;
 	const nowSec = Math.floor(Date.now() / 1000);
 	const dayStart = nowSec - 86400;
+	const isBounded = resolvedRange?.kind === "bounded";
+	const dailyPnl = isBounded ? new Map<string, number>() : null;
 
 	for (const r of records) {
 		const pnlSol = toNum(r.pnlSol as string | null | undefined);
@@ -70,7 +74,14 @@ export function computeOverviewMetricsFromRecords(
 			} else if (primary < 0) {
 				losses += 1;
 			}
-			if (closedAt != null && closedAt >= dayStart) {
+			if (isBounded) {
+				if (closedAt != null) {
+					const key = secToLocalDate(closedAt);
+					if (key !== null) {
+						dailyPnl!.set(key, (dailyPnl!.get(key) ?? 0) + primary);
+					}
+				}
+			} else if (closedAt != null && closedAt >= dayStart) {
 				if (primary > 0) dayWins += 1;
 				else if (primary < 0) dayLosses += 1;
 			}
@@ -85,10 +96,17 @@ export function computeOverviewMetricsFromRecords(
 		}
 	}
 
+	if (isBounded && dailyPnl !== null) {
+		for (const sum of dailyPnl.values()) {
+			if (sum > 0) dayWins += 1;
+			else if (sum < 0) dayLosses += 1;
+		}
+	}
+
 	const winLossTotal = wins + losses;
 	const winPct = winLossTotal > 0 ? (wins / winLossTotal) * 100 : null;
 	const dayTotal = dayWins + dayLosses;
-	const dayWinPct = dayTotal > 0 ? (dayWins / dayTotal) * 100 : winPct;
+	const dayWinPct = dayTotal > 0 ? (dayWins / dayTotal) * 100 : null;
 
 	const isSol = currency === "sol";
 	const grossProfitPrimary = isSol ? grossProfitSol : grossProfitUsd;
@@ -147,6 +165,7 @@ export function computeOverviewMetrics(
 	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
 	unrealized?: { sol: number; usd: number } | null,
 	currency: Currency = "sol",
+	resolvedRange?: ResolvedRange | null,
 ): OverviewMetrics {
 	const records: readonly PnlRecord[] = closed.map((p) => ({
 		pnlSol: p.pnlSol,
@@ -161,5 +180,6 @@ export function computeOverviewMetrics(
 		totalPnl,
 		unrealized,
 		currency,
+		resolvedRange,
 	);
 }

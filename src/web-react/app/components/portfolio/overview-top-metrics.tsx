@@ -15,6 +15,7 @@ import {
 	TooltipTrigger,
 } from "~/components/ui/tooltip";
 import type { Currency } from "~/lib/currency";
+import type { ResolvedRange } from "~/lib/date-range";
 import { fmtPct, formatNum } from "~/lib/format";
 import type { OverviewMetrics } from "~/lib/overview-analytics";
 
@@ -204,9 +205,11 @@ export const OverviewTopMetricsSkeleton = memo(
 export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	metrics,
 	currency,
+	dateRange,
 }: {
 	metrics: OverviewMetrics;
 	currency: Currency;
+	dateRange?: ResolvedRange | null;
 }) {
 	const isSol = currency === "sol";
 	const netPnl = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
@@ -372,8 +375,9 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									</button>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Same as Position win % but only for positions closed in the
-									last 24 hours.
+									{dateRange?.kind === "bounded"
+										? "Winning days vs losing days in the selected period (daily net PnL)."
+										: "Same as Position win % but only for positions closed in the last 24 hours."}
 								</TooltipContent>
 							</Tooltip>
 						</div>
