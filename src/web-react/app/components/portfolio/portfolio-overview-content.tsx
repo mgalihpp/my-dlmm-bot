@@ -1,3 +1,4 @@
+import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
@@ -24,6 +25,10 @@ type ClosedPositionsResponse =
 	| { ok: true; positions: PositionPnLData[]; month: string | null }
 	| { ok: false; error: string };
 
+type ClosedPoolsResponse =
+	| { ok: true; pools: readonly ClosedPool[] }
+	| { ok: false; error: string };
+
 export function PortfolioOverviewContent({
 	data,
 	currency,
@@ -35,13 +40,23 @@ export function PortfolioOverviewContent({
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (value: RangeFilter) => void;
 }) {
-	const closedAll = data.closedAll ?? data.closed?.pools ?? [];
+	const closedAllFetcher = useFetcher<ClosedPoolsResponse>();
+	useEffect(() => {
+		if (closedAllFetcher.state !== "idle" || closedAllFetcher.data) return;
+		closedAllFetcher.load("/api/closed-all");
+	}, [closedAllFetcher.data, closedAllFetcher.state, closedAllFetcher.load]);
+	const closedAll = useMemo(() => {
+		const d = closedAllFetcher.data;
+		if (d?.ok && Array.isArray(d.pools)) return d.pools;
+		return data.closedAll ?? data.closed?.pools ?? [];
+	}, [closedAllFetcher.data, data.closedAll, data.closed]);
 	const filteredClosed = useMemo(
 		() => filterClosedByRange(closedAll, dateRange),
 		[closedAll, dateRange],
 	);
 	const closedFetcher = useFetcher<ClosedPositionsResponse>();
 	const monthFetcher = useFetcher<ClosedPositionsResponse>();
+	const chartFetcher = useFetcher<ClosedPositionsResponse>();
 
 	useEffect(() => {
 		if (data.closedPositions && data.closedPositions.length > 0) return;
@@ -66,29 +81,116 @@ export function PortfolioOverviewContent({
 	);
 	const [month, setMonth] = useState(() => new Date());
 	const monthKey = `${month.getFullYear()}-${String(month.getMonth() + 1).padStart(2, "0")}`;
+	const currentMonthKey = useMemo(() => {
+		const now = new Date();
+		return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+	}, []);
 	const [monthCache, setMonthCache] = useState<
-		Map<string, readonly PositionPnLData[]>
+		Map<string, { data: readonly PositionPnLData[]; at: number }>
 	>(() => new Map());
-	const monthPositions = monthCache.get(monthKey) ?? [];
+	const monthPositions = monthCache.get(monthKey)?.data ?? [];
+	const chartMonths = useMemo(() => {
+		const months: string[] = [];
+		const now = new Date();
+		for (let i = 11; i >= 0; i--) {
+			const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+			months.push(
+				`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`,
+			);
+		}
+		return months;
+	}, []);
+	useEffect(() => {
+		const missing = [...chartMonths].reverse().find((k) => !monthCache.has(k));
+		if (!missing) return;
+		if (chartFetcher.state !== "idle") return;
+		chartFetcher.load(`/api/closed-positions?month=${missing}`);
+	}, [chartMonths, monthCache, chartFetcher]);
 
 	useEffect(() => {
-		if (monthCache.has(monthKey)) return;
+		const entry = monthCache.get(monthKey);
+		if (entry) {
+			const isCurrent = monthKey === currentMonthKey;
+			if (!isCurrent) return;
+			if (Date.now() - entry.at < 5 * 60 * 1000) return;
+		}
 		if (monthFetcher.state !== "idle") return;
 		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
-	}, [monthKey, monthCache, monthFetcher]);
+	}, [monthKey, monthCache, monthFetcher, currentMonthKey]);
 
 	useEffect(() => {
 		const d = monthFetcher.data as ClosedPositionsResponse | undefined;
 		if (!d?.ok || !Array.isArray((d as { positions?: unknown }).positions))
 			return;
 		const key = (d as { month?: string | null }).month ?? monthKey;
-		if (monthCache.has(key)) return;
+		const existing = monthCache.get(key);
+		if (existing) {
+			const isCurrent = key === currentMonthKey;
+			if (!isCurrent) return;
+			if (Date.now() - existing.at < 5 * 60 * 1000) return;
+		}
 		setMonthCache((prev) => {
 			const next = new Map(prev);
-			next.set(key, (d as { positions: PositionPnLData[] }).positions);
+			next.set(key, {
+				data: (d as { positions: PositionPnLData[] }).positions,
+				at: Date.now(),
+			});
 			return next;
 		});
-	}, [monthFetcher.data, monthCache, monthKey]);
+	}, [monthFetcher.data, monthCache, monthKey, currentMonthKey]);
+
+	useEffect(() => {
+		const d = chartFetcher.data as ClosedPositionsResponse | undefined;
+		if (!d?.ok || !Array.isArray((d as { positions?: unknown }).positions))
+			return;
+		const key = (d as { month?: string | null }).month ?? "";
+		if (!key || !/^\d{4}-\d{2}$/.test(key)) return;
+		const existing = monthCache.get(key);
+		if (existing) {
+			const isCurrent = key === currentMonthKey;
+			if (!isCurrent) return;
+			if (Date.now() - existing.at < 5 * 60 * 1000) return;
+		}
+		setMonthCache((prev) => {
+			const next = new Map(prev);
+			next.set(key, {
+				data: (d as { positions: PositionPnLData[] }).positions,
+				at: Date.now(),
+			});
+			return next;
+		});
+	}, [chartFetcher.data, monthCache, currentMonthKey]);
+
+	const chartAggregated = useMemo(
+		() => [...monthCache.values()].flatMap((v) => v.data),
+		[monthCache],
+	);
+	const filteredChartPositions = useMemo(
+		() => filterPositionsByRange(chartAggregated, dateRange),
+		[chartAggregated, dateRange],
+	);
+	const chartLoading =
+		chartFetcher.state !== "idle" && chartAggregated.length === 0;
+	const hasAllChartMonths = useMemo(
+		() => chartMonths.every((k) => monthCache.has(k)),
+		[chartMonths, monthCache],
+	);
+
+	useEffect(() => {
+		if (monthKey !== currentMonthKey) return;
+		const id = setInterval(() => {
+			const entry = monthCache.get(currentMonthKey);
+			if (!entry) return;
+			if (Date.now() - entry.at > 5 * 60 * 1000) {
+				setMonthCache((prev) => {
+					const next = new Map(prev);
+					next.delete(currentMonthKey);
+					return next;
+				});
+			}
+		}, 60 * 1000);
+		return () => clearInterval(id);
+	}, [monthKey, currentMonthKey, monthCache]);
 
 	const monthLoading =
 		monthFetcher.state !== "idle" && monthPositions.length === 0;
@@ -164,10 +266,18 @@ export function PortfolioOverviewContent({
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						{positionsLoading && filteredPositions.length === 0 ? (
+						{(chartAggregated.length > 0 ? chartLoading : positionsLoading) &&
+						(chartAggregated.length > 0
+							? filteredChartPositions.length === 0
+							: filteredPositions.length === 0) ? (
 							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
 						) : (
-							<DailyPnlChart closed={filteredPositions} currency={currency} />
+							<DailyPnlChart
+								closed={
+									chartAggregated.length > 0 ? filteredChartPositions : filteredPositions
+								}
+								currency={currency}
+							/>
 						)}
 					</Suspense>
 				</div>

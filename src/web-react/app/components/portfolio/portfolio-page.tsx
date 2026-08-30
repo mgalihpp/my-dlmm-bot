@@ -18,7 +18,7 @@ export type { Currency } from "~/lib/currency";
 export type RangeFilter = "all" | "in-range" | "oor";
 
 export function PortfolioPage() {
-	useAutoRefresh(10_000);
+	useAutoRefresh(30_000);
 	const data = useLoaderData<PortfolioPayload>();
 	const isNavigating = useIsNavigating();
 	const [searchParams, setSearchParams] = useSearchParams();

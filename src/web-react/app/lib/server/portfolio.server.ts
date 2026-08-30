@@ -2,11 +2,15 @@ import "~/lib/server/env.server";
 
 import type {
 	ClosedPool,
+	ClosedPortfolioResponse,
 	OpenPool,
 	OpenPortfolioTotals,
 	PortfolioTotal,
 } from "@vexis/domain/portfolio.js";
-import type { PositionPnLData } from "@vexis/domain/position.js";
+import type {
+	PositionPnLData,
+	PositionPnLResponse,
+} from "@vexis/domain/position.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
@@ -41,6 +45,27 @@ const iconCache = new Map<
 	}
 >();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
+
+const closedMonthCache = new Map<
+	string,
+	{ data: readonly PositionPnLData[]; at: number }
+>();
+const closedDayCache = new Map<
+	string,
+	{ data: readonly PositionPnLData[]; at: number }
+>();
+const closedWeekCache = new Map<
+	string,
+	{ data: readonly PositionPnLData[]; at: number }
+>();
+const closedPoolsCache = new Map<
+	string,
+	{ data: readonly ClosedPoolWithIcons[]; at: number }
+>();
+const CURRENT_MONTH_TTL_MS = 5 * 60 * 1000;
+const CURRENT_DAY_TTL_MS = 5 * 60 * 1000;
+const CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
+const CLOSED_POOLS_TTL_MS = 5 * 60 * 1000;
 
 export type { PortfolioTotal };
 
@@ -182,33 +207,25 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 > {
 	return Effect.gen(function* () {
 		const now = Date.now();
-		const out: Array<
-			T & {
-				tokenXIcon: string | null;
-				tokenYIcon: string | null;
-				mcap: number | null;
-			}
-		> = [];
+		const unique = new Map<string, T>();
+		for (const p of pools) {
+			if (!unique.has(p.poolAddress)) unique.set(p.poolAddress, p);
+		}
+		const uniquePools = [...unique.values()];
+		const fetched = new Map<
+			string,
+			{ x: string | null; y: string | null; mcap: number | null }
+		>();
 		yield* Effect.forEach(
-			pools,
+			uniquePools,
 			(pool) =>
 				Effect.gen(function* () {
-					const poolPrice = (pool as { poolPrice?: number }).poolPrice ?? null;
 					const cached = iconCache.get(pool.poolAddress);
 					if (cached && now - cached.at < ICON_CACHE_TTL_MS) {
-						out.push({
-							...pool,
-							tokenXIcon: cached.x ?? null,
-							tokenYIcon: cached.y ?? null,
-							mcap:
-								computeLiveMcap(
-									cached.mcap,
-									cached.price,
-									poolPrice,
-									solPrice,
-								) ??
-								cached.mcap ??
-								null,
+						fetched.set(pool.poolAddress, {
+							x: cached.x ?? null,
+							y: cached.y ?? null,
+							mcap: cached.mcap ?? null,
 						});
 						return;
 					}
@@ -216,12 +233,7 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 						.discoveryPoolByAddress(pool.poolAddress)
 						.pipe(Effect.either);
 					if (discovery._tag === "Left") {
-						out.push({
-							...pool,
-							tokenXIcon: null,
-							tokenYIcon: null,
-							mcap: null,
-						});
+						fetched.set(pool.poolAddress, { x: null, y: null, mcap: null });
 						return;
 					}
 					const d = discovery.right;
@@ -234,22 +246,28 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 						price: snapshotPrice,
 						at: now,
 					});
-					out.push({
-						...pool,
-						tokenXIcon: d.token_x?.icon ?? null,
-						tokenYIcon: d.token_y?.icon ?? null,
-						mcap:
-							computeLiveMcap(
-								snapshotMcap,
-								snapshotPrice,
-								poolPrice,
-								solPrice,
-							) ?? snapshotMcap,
+					fetched.set(pool.poolAddress, {
+						x: d.token_x?.icon ?? null,
+						y: d.token_y?.icon ?? null,
+						mcap: snapshotMcap,
 					});
 				}),
-			{ concurrency: 10 },
+			{ concurrency: 3 },
 		);
-		return out;
+		return pools.map((pool) => {
+			const poolPrice = (pool as { poolPrice?: number }).poolPrice ?? null;
+			const cached = iconCache.get(pool.poolAddress);
+			const entry = fetched.get(pool.poolAddress);
+			const baseMcap = entry?.mcap ?? cached?.mcap ?? null;
+			const basePrice = cached?.price ?? null;
+			return {
+				...pool,
+				tokenXIcon: entry?.x ?? null,
+				tokenYIcon: entry?.y ?? null,
+				mcap:
+					computeLiveMcap(baseMcap, basePrice, poolPrice, solPrice) ?? baseMcap,
+			};
+		});
 	});
 }
 
@@ -276,9 +294,114 @@ export interface PortfolioDeferred {
 
 export function fetchClosedPositions(
 	wallet: string,
-	opts?: { month?: string },
+	opts?: { month?: string; day?: string; week?: string },
 ): Promise<readonly PositionPnLData[]> {
-	const monthRange = (() => {
+	const getTodayKey = () => {
+		const d = new Date();
+		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+	};
+	const getWeekStart = (d: Date) => {
+		const day = d.getDay();
+		const diff = day === 0 ? -6 : 1 - day;
+		const mon = new Date(d);
+		mon.setDate(d.getDate() + diff);
+		mon.setHours(0, 0, 0, 0);
+		return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+	};
+	const normalizeWeek = (w: string): string | null => {
+		if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w;
+		return isoWeekToKey(w);
+	};
+	const cacheKey = (() => {
+		if (opts?.day) return `day:${wallet}:${opts.day}`;
+		if (opts?.week) {
+			const n = normalizeWeek(opts.week);
+			return n ? `week:${wallet}:${n}` : `week:${wallet}:${opts.week}`;
+		}
+		if (opts?.month) return `month:${wallet}:${opts.month}`;
+		return null;
+	})();
+	if (cacheKey) {
+		const now = Date.now();
+		if (opts?.day) {
+			const cached = closedDayCache.get(cacheKey);
+			if (cached) {
+				const isCurrent = opts.day === getTodayKey();
+				if (!isCurrent || now - cached.at < CURRENT_DAY_TTL_MS)
+					return Promise.resolve(cached.data);
+			}
+		} else if (opts?.week) {
+			const cached = closedWeekCache.get(cacheKey);
+			if (cached) {
+				const curWeek = getWeekStart(new Date());
+				const norm = normalizeWeek(opts.week);
+				const isCurrent = norm === curWeek;
+				if (!isCurrent || now - cached.at < CURRENT_WEEK_TTL_MS)
+					return Promise.resolve(cached.data);
+			}
+		} else if (opts?.month) {
+			const cached = closedMonthCache.get(cacheKey);
+			if (cached) {
+				const cur = new Date();
+				const curKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
+				const isCurrent = opts.month === curKey;
+				if (!isCurrent || now - cached.at < CURRENT_MONTH_TTL_MS)
+					return Promise.resolve(cached.data);
+			}
+		}
+	}
+	function isoWeekToKey(week: string): string | null {
+		const m = week.match(/^(\d{4})-W(\d{2})$/);
+		if (!m) return null;
+		const year = Number(m[1]);
+		const w = Number(m[2]);
+		const jan4 = new Date(year, 0, 4);
+		const day = jan4.getDay();
+		const diff = day === 0 ? -6 : 1 - day;
+		const mon1 = new Date(jan4);
+		mon1.setDate(jan4.getDate() + diff);
+		const target = new Date(mon1);
+		target.setDate(mon1.getDate() + (w - 1) * 7);
+		return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+	}
+	const periodRange = (() => {
+		if (opts?.day) {
+			const m = opts.day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+			if (!m) return null;
+			const y = Number(m[1]);
+			const mo = Number(m[2]);
+			const d = Number(m[3]);
+			if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+			const start = Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+			const end = start + 86400;
+			return { start, end };
+		}
+		if (opts?.week) {
+			let start: number | null = null;
+			const dayMatch = opts.week.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+			if (dayMatch) {
+				const y = Number(dayMatch[1]);
+				const mo = Number(dayMatch[2]);
+				const d = Number(dayMatch[3]);
+				start = Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+			} else {
+				const iso = isoWeekToKey(opts.week);
+				if (iso) {
+					const mm = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+					if (mm) {
+						start = Math.floor(
+							new Date(
+								Number(mm[1]),
+								Number(mm[2]) - 1,
+								Number(mm[3]),
+							).getTime() / 1000,
+						);
+					}
+				}
+			}
+			if (start == null) return null;
+			return { start, end: start + 7 * 86400 };
+		}
 		if (!opts?.month) return null;
 		const m = opts.month.match(/^(\d{4})-(\d{2})$/);
 		if (!m) return null;
@@ -298,56 +421,171 @@ export function fetchClosedPositions(
 			return [] as PositionPnLData[];
 		const pageSizeForAll = 50;
 		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
-		const maxPages = Math.min(totalPages, monthRange ? 20 : 40);
+		const maxPages = Math.min(totalPages, 40);
+		if (!periodRange) {
+			const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
+				api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
+					Effect.map((res) => res.pools as ClosedPool[]),
+					Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
+				),
+			);
+			const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
+			const rawPoolsAll = pages.flat() as ClosedPool[];
+			if (rawPoolsAll.length === 0) return [] as PositionPnLData[];
+			const effects = rawPoolsAll.map((pool) =>
+				api.positionPnl(pool.poolAddress, wallet, "closed", 1, 100).pipe(
+					Effect.flatMap((res) => {
+						const first = (res.positions as PositionPnLData[]).filter(
+							(p) => p.isClosed && p.closedAt != null,
+						);
+						if (!res.hasNext) return Effect.succeed(first);
+						const remaining = Math.ceil(res.totalCount / 100) - 1;
+						if (remaining <= 0) return Effect.succeed(first);
+						const pageEffects = Array.from({ length: remaining }, (_, i) =>
+							api
+								.positionPnl(pool.poolAddress, wallet, "closed", i + 2, 100)
+								.pipe(
+									Effect.map((r) =>
+										(r.positions as PositionPnLData[]).filter(
+											(p) => p.isClosed && p.closedAt != null,
+										),
+									),
+									Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+								),
+						);
+						return Effect.all(pageEffects, { concurrency: 2 }).pipe(
+							Effect.map((pg) => [...first, ...pg.flat()]),
+						);
+					}),
+					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+				),
+			);
+			const all = yield* Effect.all(effects, { concurrency: 3 });
+			return all.flat();
+		}
+		const rawPools: ClosedPool[] = [];
+		for (let page = 1; page <= maxPages; page++) {
+			const res = yield* api
+				.closedPortfolio(wallet, page, pageSizeForAll)
+				.pipe(
+					Effect.catchAll(() =>
+						Effect.succeed(null as unknown as ClosedPortfolioResponse),
+					),
+				);
+			if (res === null || res.pools.length === 0) continue;
+			rawPools.push(...(res.pools as ClosedPool[]));
+			const maxLast = res.pools.reduce(
+				(m: number, p: ClosedPool) =>
+					Math.max(m, (p.lastClosedAt as number | null) ?? -Infinity),
+				-Infinity,
+			);
+			if (Number.isFinite(maxLast) && maxLast < periodRange.start) break;
+			if (rawPools.length >= closedRes.totalCount) break;
+		}
+		if (rawPools.length === 0) return [] as PositionPnLData[];
+		const candidatePools = rawPools.filter((pool) => {
+			const last = (pool as unknown as { lastClosedAt?: number | null }).lastClosedAt;
+			return last != null && last >= periodRange.start;
+		});
+		if (candidatePools.length === 0) return [] as PositionPnLData[];
+		const allPositions: PositionPnLData[] = [];
+		for (const pool of candidatePools) {
+			const res = yield* api
+				.positionPnl(pool.poolAddress, wallet, "closed", 1, 100)
+				.pipe(
+					Effect.catchAll(() =>
+						Effect.succeed(null as unknown as PositionPnLResponse),
+					),
+				);
+			if (res === null) continue;
+			const first = (res.positions as PositionPnLData[]).filter(
+				(p) => p.isClosed && p.closedAt != null,
+			);
+			let collected: PositionPnLData[] = [...first];
+			if (res.hasNext) {
+				const remaining = Math.ceil(res.totalCount / 100) - 1;
+				for (let i = 0; i < remaining; i++) {
+					const pageRes = yield* api
+						.positionPnl(pool.poolAddress, wallet, "closed", i + 2, 100)
+						.pipe(
+							Effect.catchAll(() =>
+								Effect.succeed(null as unknown as PositionPnLResponse),
+							),
+						);
+					if (pageRes === null) continue;
+					const filtered = (pageRes.positions as PositionPnLData[]).filter(
+						(p) => p.isClosed && p.closedAt != null,
+					);
+					collected.push(...filtered);
+				}
+			}
+			allPositions.push(...collected);
+		}
+		return allPositions.filter(
+			(p) =>
+				p.closedAt != null &&
+				p.closedAt >= periodRange.start &&
+				p.closedAt < periodRange.end,
+		);
+	}).pipe(
+		Effect.provide(AppLayer),
+		Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+	);
+	const promise = Effect.runPromise(program).then((res) => {
+		if (cacheKey) {
+			if (opts?.day)
+				closedDayCache.set(cacheKey, { data: res, at: Date.now() });
+			else if (opts?.week)
+				closedWeekCache.set(cacheKey, { data: res, at: Date.now() });
+			else if (opts?.month)
+				closedMonthCache.set(cacheKey, { data: res, at: Date.now() });
+		}
+		return res;
+	});
+	return promise;
+}
+
+export function fetchAllClosedPools(
+	wallet: string,
+): Promise<readonly ClosedPoolWithIcons[]> {
+	const cached = closedPoolsCache.get(wallet);
+	if (cached && Date.now() - cached.at < CLOSED_POOLS_TTL_MS) {
+		return Promise.resolve(cached.data);
+	}
+	const program = Effect.gen(function* () {
+		const api = yield* MeteoraApi;
+		const closedRes = yield* api
+			.closedPortfolio(wallet, 1, 10)
+			.pipe(Effect.catchAll(() => Effect.succeed(null)));
+		if (closedRes === null || closedRes.totalCount === 0)
+			return [] as ClosedPoolWithIcons[];
+		const pageSizeForAll = 50;
+		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
+		const maxPages = Math.min(totalPages, 40);
 		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
 			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
 				Effect.map((res) => res.pools),
 				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
 			),
 		);
-		const pages = yield* Effect.all(poolEffects, { concurrency: 10 });
+		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
 		const rawPools = pages.flat() as ClosedPool[];
-		if (rawPools.length === 0) return [] as PositionPnLData[];
-		const effects = rawPools.map((pool) =>
-			api.positionPnl(pool.poolAddress, wallet, "closed", 1, 100).pipe(
-				Effect.flatMap((res) => {
-					const first = res.positions.filter(
-						(p) => p.isClosed && p.closedAt != null,
-					);
-					if (!res.hasNext) return Effect.succeed(first);
-					const remaining = Math.ceil(res.totalCount / 100) - 1;
-					if (remaining <= 0) return Effect.succeed(first);
-					const pageEffects = Array.from({ length: remaining }, (_, i) =>
-						api
-							.positionPnl(pool.poolAddress, wallet, "closed", i + 2, 100)
-							.pipe(
-								Effect.map((r) =>
-									r.positions.filter((p) => p.isClosed && p.closedAt != null),
-								),
-								Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-							),
-					);
-					return Effect.all(pageEffects, { concurrency: 3 }).pipe(
-						Effect.map((pg) => [...first, ...pg.flat()]),
-					);
-				}),
-				Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-			),
-		);
-		const all = yield* Effect.all(effects, { concurrency: 10 });
-		const flat = all.flat();
-		if (!monthRange) return flat;
-		return flat.filter(
-			(p) =>
-				p.closedAt != null &&
-				p.closedAt >= monthRange.start &&
-				p.closedAt < monthRange.end,
-		);
+		if (rawPools.length === 0) return [] as ClosedPoolWithIcons[];
+		// tanpa corrupted: kembalikan semua tanpa filter bulan, tanpa enrich ikon berat
+		return rawPools.map((p) => ({
+			...p,
+			tokenXIcon: null as string | null,
+			tokenYIcon: null as string | null,
+		})) as ClosedPoolWithIcons[];
 	}).pipe(
 		Effect.provide(AppLayer),
-		Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+		Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
 	);
-	return Effect.runPromise(program);
+	const promise = Effect.runPromise(program).then((res) => {
+		closedPoolsCache.set(wallet, { data: res, at: Date.now() });
+		return res;
+	});
+	return promise;
 }
 
 export function fetchPortfolioCritical(): Promise<
@@ -415,7 +653,7 @@ export function fetchPortfolioDeferred(
 					.totalPnl(wallet)
 					.pipe(Effect.catchAll(() => Effect.succeed(EMPTY_TOTAL))),
 			],
-			{ concurrency: "unbounded" },
+			{ concurrency: 3 },
 		);
 
 		// merge live positions into enriched pools (same as Dlmm.attachLivePositions without extra RPC)
@@ -472,7 +710,7 @@ export function fetchPortfolioDeferred(
 			}
 		}
 
-		const [openWithIcons, closedWithIcons, rawClosedAll] = yield* Effect.all(
+		const [openWithIcons, closedWithIcons] = yield* Effect.all(
 			[
 				enrichWithIcons(enrichedPnl, api, solPrice).pipe(
 					Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
@@ -484,32 +722,11 @@ export function fetchPortfolioDeferred(
 								Effect.succeed([] as ClosedPoolWithIcons[]),
 							),
 						),
-				Effect.gen(function* () {
-					if (closedRes === null || closedRes.totalCount === 0)
-						return [] as ClosedPool[];
-					const pageSizeForAll = 50;
-					const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
-					const maxPages = Math.min(totalPages, 40);
-					const effects = Array.from({ length: maxPages }, (_, idx) =>
-						api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
-							Effect.map((res) => res.pools),
-							Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-						),
-					);
-					const pages = yield* Effect.all(effects, { concurrency: 10 });
-					return pages.flat() as ClosedPool[];
-				}).pipe(Effect.catchAll(() => Effect.succeed([] as ClosedPool[]))),
 			],
-			{ concurrency: "unbounded" },
+			{ concurrency: 3 },
 		);
 
-		const closedAll =
-			rawClosedAll.length === 0
-				? ([] as ClosedPoolWithIcons[])
-				: yield* enrichWithIcons(rawClosedAll, api, solPrice).pipe(
-						Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
-					);
-
+		const closedAll: ClosedPoolWithIcons[] = [];
 		return {
 			pools: openWithIcons,
 			closed:
@@ -577,7 +794,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 					.fetchUserPositions(critical.wallet)
 					.pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
 			],
-			{ concurrency: "unbounded" },
+			{ concurrency: 3 },
 		);
 		const byPool = new Map<string, typeof live>();
 		for (const l of live as unknown as Array<{
@@ -826,7 +1043,7 @@ export function fetchOpenRanges(
 					}),
 					Effect.catchAll(() => Effect.succeed(undefined)),
 				),
-			{ concurrency: 10, discard: true },
+			{ concurrency: 3, discard: true },
 		);
 		return ranges;
 	}).pipe(

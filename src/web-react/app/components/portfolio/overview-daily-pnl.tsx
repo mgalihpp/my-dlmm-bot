@@ -100,28 +100,26 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 				.slice(-12)
 				.map((e) => ({ key: e.label, label: e.label, value: e.value }));
 		} else {
-			const now = new Date();
-			const monthBuckets = new Map<string, { label: string; value: number }>();
-			for (let i = 11; i >= 0; i--) {
-				const dt = new Date(now.getFullYear(), now.getMonth() - i, 1);
+			const map = new Map<
+				string,
+				{ label: string; value: number; ts: number }
+			>();
+			for (const d of deltas) {
+				const dt = new Date(d.ts * 1000);
 				const key = `${dt.getFullYear()}-${dt.getMonth()}`;
+				const ts = new Date(dt.getFullYear(), dt.getMonth(), 1).getTime();
 				const label = dt.toLocaleDateString("en-US", {
 					month: "short",
 					year: "numeric",
 				});
-				monthBuckets.set(key, { label, value: 0 });
+				const entry = map.get(key) ?? { label, value: 0, ts };
+				entry.value += d.delta;
+				map.set(key, entry);
 			}
-			for (const d of deltas) {
-				const dt = new Date(d.ts * 1000);
-				const key = `${dt.getFullYear()}-${dt.getMonth()}`;
-				const entry = monthBuckets.get(key);
-				if (entry) entry.value += d.delta;
-			}
-			buckets = [...monthBuckets.entries()].map(([key, e]) => ({
-				key,
-				label: e.label,
-				value: e.value,
-			}));
+			buckets = [...map.values()]
+				.sort((a, b) => a.ts - b.ts)
+				.slice(-12)
+				.map((e) => ({ key: e.label, label: e.label, value: e.value }));
 		}
 		const points = buckets.map((b) => ({ label: b.label, value: b.value }));
 		const config = {
