@@ -1,4 +1,4 @@
-export function formatNum(value: string | number, decimals = 2): string {
+export function formatNum(value: string | number, decimals = 3): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return String(value);
 	return n.toLocaleString("en-US", {
@@ -26,8 +26,7 @@ export function fmtSol(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	const decimals = Math.abs(n) >= 0.001 ? 4 : 8;
-	return `${formatNum(n, decimals)} SOL`;
+	return `${formatNum(n, 3)} SOL`;
 }
 
 export function fmtPnl(
@@ -149,8 +148,8 @@ export function fmtMc(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
-	if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-	if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
+	if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(3)}B`;
+	if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(3)}M`;
+	if (n >= 1_000) return `$${(n / 1_000).toFixed(3)}k`;
 	return `$${formatNum(n)}`;
 }

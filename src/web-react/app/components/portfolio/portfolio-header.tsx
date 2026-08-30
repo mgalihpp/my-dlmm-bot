@@ -16,15 +16,19 @@ export function PortfolioHeader({
 	onCurrencyChange,
 	onRefresh,
 	refreshing,
+	title,
 }: {
 	currency: Currency;
 	onCurrencyChange: (currency: Currency) => void;
 	onRefresh: () => void;
 	refreshing: boolean;
+	title?: string;
 }) {
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
-			<h1 className="text-2xl font-bold tracking-tight">{greeting()}</h1>
+			<h1 className="text-2xl font-bold tracking-tight">
+				{title ?? greeting()}
+			</h1>
 			<div className="flex items-center gap-2">
 				<Tabs
 					value={currency}

@@ -43,7 +43,7 @@ export function PortfolioContent({
 			<StatCards
 				summary={data.summary!}
 				total={data.total!}
-				history={data.history!}
+				history={[]}
 				currency={currency}
 				rangeFilter={rangeFilter}
 				onRangeFilterChange={onRangeFilterChange}
@@ -53,7 +53,14 @@ export function PortfolioContent({
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-64 w-full" />}
 					>
-						<EquityChart history={data.history!} currency={currency} />
+						<EquityChart
+							closed={
+								(data.closedAll ??
+									data.closed?.pools ??
+									[]) as unknown as import("@vexis/domain/portfolio.js").ClosedPool[]
+							}
+							currency={currency}
+						/>
 					</Suspense>
 				</div>
 				<Suspense fallback={<DonutCardSkeleton />}>

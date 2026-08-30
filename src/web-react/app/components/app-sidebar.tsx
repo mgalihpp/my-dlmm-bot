@@ -33,6 +33,11 @@ const data = {
 			title: "Portfolio",
 			url: "/portfolio",
 			icon: <PieChart />,
+			items: [
+				{ title: "Overview", url: "/portfolio" },
+				{ title: "Active Positions", url: "/portfolio/active" },
+				{ title: "Closed Positions", url: "/portfolio/closed" },
+			],
 		},
 		{
 			title: "Agent",

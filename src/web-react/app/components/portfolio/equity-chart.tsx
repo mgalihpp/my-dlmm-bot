@@ -1,5 +1,13 @@
-import { memo, useMemo } from "react";
-import { Area, AreaChart, CartesianGrid, ReferenceLine, XAxis } from "recharts";
+import type { ClosedPool } from "@vexis/domain/portfolio.js";
+import { memo, useMemo, useState } from "react";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	ReferenceLine,
+	XAxis,
+	YAxis,
+} from "recharts";
 import { CurrencyValue } from "~/components/currency-value";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -8,27 +16,25 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
-import { tsLocal } from "~/lib/format";
-import type { PortfolioSnapshot } from "~/lib/server/portfolio.server";
+import { buildCumulative } from "~/lib/cumulative-pnl";
 import type { Currency } from "./portfolio-page";
 
+type PnlMode = "fees" | "total";
+
 export const EquityChart = memo(function EquityChart({
-	history,
+	closed,
 	currency,
 }: {
-	history: readonly PortfolioSnapshot[];
+	closed: readonly ClosedPool[];
 	currency: Currency;
 }) {
+	const [mode, setMode] = useState<PnlMode>("total");
 	const { points, stops, positive, chartConfig } = useMemo(() => {
-		const points = history
-			.filter((s) =>
-				currency === "sol" ? s.pnlSol !== null : s.pnlUsd !== null,
-			)
-			.slice(-48)
-			.map((s) => ({
-				label: tsLocal(s.ts),
-				value: currency === "sol" ? (s.pnlSol as number) : (s.pnlUsd as number),
-			}));
+		const cum = buildCumulative(closed, currency);
+		const points = cum.map((p) => ({
+			label: p.label,
+			value: mode === "fees" ? p.cumFees : p.cumPnl,
+		}));
 
 		const lastValue = points.at(-1)?.value ?? 0;
 		const positive = lastValue >= 0;
@@ -67,7 +73,7 @@ export const EquityChart = memo(function EquityChart({
 		} satisfies ChartConfig;
 
 		return { points, stops, positive, chartConfig };
-	}, [history, currency]);
+	}, [closed, currency, mode]);
 
 	const last = points.at(-1);
 
@@ -75,7 +81,7 @@ export const EquityChart = memo(function EquityChart({
 		<Card className="h-full">
 			<CardHeader className="flex flex-row items-center justify-between gap-2">
 				<div className="flex items-baseline gap-2">
-					<CardTitle>PnL {currency.toUpperCase()}</CardTitle>
+					<CardTitle>Cumulative P&L</CardTitle>
 					<span
 						className={`text-xl font-semibold tabular-nums ${positive ? "text-emerald-500" : "text-red-500"}`}
 					>
@@ -86,12 +92,25 @@ export const EquityChart = memo(function EquityChart({
 						)}
 					</span>
 				</div>
+				<div className="flex overflow-hidden rounded-md border text-xs">
+					<button
+						onClick={() => setMode("fees")}
+						className={`px-2.5 py-1 transition-colors ${mode === "fees" ? "bg-orange-500 text-white" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+					>
+						Only fees
+					</button>
+					<button
+						onClick={() => setMode("total")}
+						className={`px-2.5 py-1 transition-colors ${mode === "total" ? "bg-orange-500 text-white" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
+					>
+						Total P&L
+					</button>
+				</div>
 			</CardHeader>
 			<CardContent>
 				{points.length < 2 ? (
 					<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-						No PnL history yet — snapshots appear once the page has been
-						refreshed a few times.
+						No closed positions yet.
 					</div>
 				) : (
 					<ChartContainer config={chartConfig} className="h-64 w-full">
@@ -106,6 +125,13 @@ export const EquityChart = memo(function EquityChart({
 								tickLine={false}
 								axisLine={false}
 								tickMargin={8}
+							/>
+							<YAxis
+								tickLine={false}
+								axisLine={false}
+								tickMargin={8}
+								width={56}
+								tickFormatter={(v: number) => `${v.toFixed(3)}`}
 							/>
 							<ChartTooltip
 								cursor={false}

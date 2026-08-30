@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
@@ -13,18 +13,18 @@ import {
 } from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { PortfolioHeader } from "./portfolio-header";
-import { PortfolioOverviewContent } from "./portfolio-overview-content";
+import { ClosedTableSkeleton } from "./portfolio-table-skeletons";
 
-export type { Currency } from "~/lib/currency";
-export type RangeFilter = "all" | "in-range" | "oor";
+const ClosedTable = lazy(() =>
+	import("./closed-table-grid").then((m) => ({ default: m.ClosedTable })),
+);
 
-export function PortfolioPage() {
+export function PortfolioClosedPage() {
 	useAutoRefresh(10_000);
 	const data = useLoaderData<PortfolioPayload>();
 	const isNavigating = useIsNavigating();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
-	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
 	const currency = resolveCurrency(
 		searchParams.get("currency"),
@@ -55,6 +55,17 @@ export function PortfolioPage() {
 		);
 	};
 
+	const onClosedPageChange = (page: number) =>
+		setSearchParams(
+			(current) => {
+				const next = new URLSearchParams(current);
+				if (page > 1) next.set("closedPage", String(page));
+				else next.delete("closedPage");
+				return next;
+			},
+			{ preventScrollReset: true },
+		);
+
 	if (isNavigating) {
 		return (
 			<DashboardShell title="Portfolio">
@@ -62,12 +73,12 @@ export function PortfolioPage() {
 			</DashboardShell>
 		);
 	}
-
 	if (!data.ok) {
 		return (
 			<DashboardShell title="Portfolio">
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<PortfolioHeader
+						title="Closed Positions"
 						currency={currency}
 						onCurrencyChange={() => {}}
 						onRefresh={revalidate}
@@ -83,17 +94,19 @@ export function PortfolioPage() {
 		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<PortfolioHeader
+					title="Closed Positions"
 					currency={currency}
 					onCurrencyChange={setCurrency}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
 				/>
-				<PortfolioOverviewContent
-					data={data}
-					currency={currency}
-					rangeFilter={rangeFilter}
-					onRangeFilterChange={setRangeFilter}
-				/>
+				<Suspense fallback={<ClosedTableSkeleton />}>
+					<ClosedTable
+						closed={data.closed!}
+						currency={currency}
+						onPageChange={onClosedPageChange}
+					/>
+				</Suspense>
 			</div>
 		</DashboardShell>
 	);

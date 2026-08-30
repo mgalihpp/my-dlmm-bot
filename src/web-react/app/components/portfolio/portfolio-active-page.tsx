@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
@@ -13,12 +13,14 @@ import {
 } from "~/lib/currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { PortfolioHeader } from "./portfolio-header";
-import { PortfolioOverviewContent } from "./portfolio-overview-content";
+import type { RangeFilter } from "./portfolio-page";
+import { PositionsTableSkeleton } from "./portfolio-table-skeletons";
 
-export type { Currency } from "~/lib/currency";
-export type RangeFilter = "all" | "in-range" | "oor";
+const PositionsTable = lazy(() =>
+	import("./positions-table-grid").then((m) => ({ default: m.PositionsTable })),
+);
 
-export function PortfolioPage() {
+export function PortfolioActivePage() {
 	useAutoRefresh(10_000);
 	const data = useLoaderData<PortfolioPayload>();
 	const isNavigating = useIsNavigating();
@@ -68,6 +70,7 @@ export function PortfolioPage() {
 			<DashboardShell title="Portfolio">
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<PortfolioHeader
+						title="Active Positions"
 						currency={currency}
 						onCurrencyChange={() => {}}
 						onRefresh={revalidate}
@@ -83,17 +86,21 @@ export function PortfolioPage() {
 		<DashboardShell title="Portfolio" wallet={data.wallet} rpc={data.rpc}>
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<PortfolioHeader
+					title="Active Positions"
 					currency={currency}
 					onCurrencyChange={setCurrency}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
 				/>
-				<PortfolioOverviewContent
-					data={data}
-					currency={currency}
-					rangeFilter={rangeFilter}
-					onRangeFilterChange={setRangeFilter}
-				/>
+				<Suspense fallback={<PositionsTableSkeleton />}>
+					<PositionsTable
+						pools={data.pools!}
+						rangeFilter={rangeFilter}
+						onRangeFilterChange={setRangeFilter}
+						currency={currency}
+						solPrice={data.solPrice}
+					/>
+				</Suspense>
 			</div>
 		</DashboardShell>
 	);

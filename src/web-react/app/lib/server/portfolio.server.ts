@@ -1,6 +1,5 @@
 import "~/lib/server/env.server";
 
-import { join } from "node:path";
 import type {
 	ClosedPool,
 	OpenPool,
@@ -19,14 +18,6 @@ import {
 import { Effect } from "effect";
 import { computeLiveMcap } from "~/lib/mcap";
 import { resolveWebConfig } from "./config";
-import { repoRoot } from "./env.server";
-import {
-	type PortfolioSnapshot,
-	readHistory,
-	recordSnapshot,
-} from "./portfolio-history";
-
-const HISTORY_FILE = join(repoRoot(), ".vexis-portfolio-history.json");
 
 export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
@@ -51,7 +42,7 @@ const iconCache = new Map<
 >();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
-export type { PortfolioSnapshot, PortfolioTotal };
+export type { PortfolioTotal };
 
 const EMPTY_TOTAL: PortfolioTotal = {
 	totalPnlUsd: "-",
@@ -166,13 +157,13 @@ export interface PortfolioPayload {
 	readonly total?: PortfolioTotal;
 	readonly summary?: PortfolioSummary;
 	readonly pools?: readonly OpenPoolWithIcons[];
-	readonly history?: readonly PortfolioSnapshot[];
 	readonly closed?: {
 		readonly pools: readonly ClosedPoolWithIcons[];
 		readonly page: number;
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
+	readonly closedAll?: readonly ClosedPoolWithIcons[];
 }
 
 function enrichWithIcons<T extends { readonly poolAddress: string }>(
@@ -270,7 +261,6 @@ export interface PortfolioCritical {
 	readonly total: OpenPortfolioTotals | null;
 	readonly summary: PortfolioSummary;
 	readonly pools: readonly OpenPool[];
-	readonly history: readonly PortfolioSnapshot[];
 }
 
 export interface PortfolioDeferred {
@@ -281,6 +271,7 @@ export interface PortfolioDeferred {
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
+	readonly closedAll: readonly ClosedPoolWithIcons[];
 	readonly total: PortfolioTotal;
 }
 
@@ -296,16 +287,6 @@ export function fetchPortfolioCritical(): Promise<
 			const res = yield* api.openPortfolio(wallet, 1, 10);
 			const apiTotals = res.total ?? null;
 			const summary = computePortfolioSummary(res.pools, apiTotals);
-			recordSnapshot(
-				{
-					ts: Math.floor(Date.now() / 1000),
-					pnlUsd: summary.unrealizedUsd,
-					pnlSol: summary.unrealizedSol,
-					balanceUsd: summary.openBalanceUsd,
-					feesUsd: summary.openFeesUsd,
-				},
-				HISTORY_FILE,
-			);
 			const payload: PortfolioCritical = {
 				ok: true as const,
 				wallet,
@@ -314,7 +295,6 @@ export function fetchPortfolioCritical(): Promise<
 				total: apiTotals,
 				summary,
 				pools: res.pools,
-				history: readHistory(HISTORY_FILE),
 			};
 			return payload;
 		}).pipe(
@@ -433,6 +413,28 @@ export function fetchPortfolioDeferred(
 			{ concurrency: "unbounded" },
 		);
 
+		const closedAll = yield* Effect.gen(function* () {
+			if (closedRes === null || closedRes.totalCount === 0)
+				return [] as ClosedPoolWithIcons[];
+			const pageSizeForAll = 50;
+			const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
+			const maxPages = Math.min(totalPages, 40);
+			const effects = Array.from({ length: maxPages }, (_, idx) =>
+				api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
+					Effect.flatMap((res) =>
+						enrichWithIcons(res.pools, api, solPrice).pipe(
+							Effect.catchAll(() =>
+								Effect.succeed([] as ClosedPoolWithIcons[]),
+							),
+						),
+					),
+					Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
+				),
+			);
+			const pages = yield* Effect.all(effects, { concurrency: 5 });
+			return pages.flat() as ClosedPoolWithIcons[];
+		}).pipe(Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])));
+
 		return {
 			pools: openWithIcons,
 			closed:
@@ -449,6 +451,7 @@ export function fetchPortfolioDeferred(
 							pageSize: closedRes.pageSize,
 							totalCount: closedRes.totalCount,
 						},
+			closedAll,
 			total,
 		} satisfies PortfolioDeferred;
 	}).pipe(
@@ -462,6 +465,7 @@ export function fetchPortfolioDeferred(
 					pageSize: 10,
 					totalCount: 0,
 				},
+				closedAll: [] as ClosedPoolWithIcons[],
 				total: EMPTY_TOTAL,
 			} satisfies PortfolioDeferred),
 		),
@@ -496,8 +500,8 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			total: deferred.total,
 			summary: critical.summary,
 			pools: deferred.pools,
-			history: critical.history,
 			closed: deferred.closed,
+			closedAll: deferred.closedAll,
 		} satisfies PortfolioPayload;
 	}).pipe(
 		Effect.catchAll((error) =>

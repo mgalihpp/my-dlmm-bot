@@ -3,6 +3,8 @@ import { index, type RouteConfig, route } from "@react-router/dev/routes";
 export default [
 	index("routes/login.tsx"),
 	route("portfolio", "routes/portfolio.tsx"),
+	route("portfolio/active", "routes/portfolio-active.tsx"),
+	route("portfolio/closed", "routes/portfolio-closed.tsx"),
 	route("pools", "routes/pools.tsx"),
 	route("agent", "routes/agent.tsx"),
 	route("settings", "routes/settings.tsx", [

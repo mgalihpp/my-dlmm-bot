@@ -18,10 +18,12 @@ import {
 } from "~/components/ui/card";
 import { fmtPct } from "~/lib/format";
 import type {
-	PortfolioSnapshot,
 	PortfolioSummary,
 	PortfolioTotal,
 } from "~/lib/server/portfolio.server";
+
+type PortfolioSnapshot = { balanceUsd: number | null };
+
 import { cn } from "~/lib/utils";
 import type { Currency, RangeFilter } from "./portfolio-page";
 
