@@ -17,7 +17,10 @@ import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { OverviewCalendar } from "./overview-calendar";
 import { DailyPnlChart } from "./overview-daily-pnl";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
-import { OverviewTopMetrics } from "./overview-top-metrics";
+import {
+	OverviewTopMetrics,
+	OverviewTopMetricsSkeleton,
+} from "./overview-top-metrics";
 import type { RangeFilter } from "./portfolio-page";
 
 const EquityChart = lazy(() =>
@@ -124,7 +127,8 @@ export function PortfolioOverviewContent({
 		const fetches = missing.map((key) =>
 			fetch(`/api/closed-positions?month=${key}`, {
 				credentials: "same-origin",
-			}).then((r) => r.json() as Promise<ClosedPositionsResponse>)
+			})
+				.then((r) => r.json() as Promise<ClosedPositionsResponse>)
 				.then((d) => {
 					if (cancelled) return;
 					if (
@@ -166,6 +170,10 @@ export function PortfolioOverviewContent({
 		[chartAggregated, dateRange],
 	);
 	const chartHasData = chartAggregated.length > 0;
+	const topMetricsLoading = useMemo(
+		() => !chartHasData && chartMonths.some((k) => !monthCache.has(k)),
+		[chartHasData, chartMonths, monthCache],
+	);
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(() => {
 		const hasPositions = chartHasData;
@@ -235,7 +243,11 @@ export function PortfolioOverviewContent({
 	return (
 		<div className="relative">
 			<div className="flex flex-col gap-2 px-4 pb-2 lg:px-6">
-				<OverviewTopMetrics metrics={metrics} currency={currency} />
+				{topMetricsLoading ? (
+					<OverviewTopMetricsSkeleton />
+				) : (
+					<OverviewTopMetrics metrics={metrics} currency={currency} />
+				)}
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-stretch">
 					<div className="grid grid-rows-2 gap-2">
 						{data.summary ? (

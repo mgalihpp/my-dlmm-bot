@@ -23,12 +23,9 @@ export {
 
 export function useIsNavigating(): boolean {
 	const navigation = useNavigation();
-	const { pathname } = useLocation();
-	return (
-		navigation.state === "loading" &&
-		navigation.location !== undefined &&
-		navigation.location.pathname !== pathname
-	);
+	const location = useLocation();
+	if (navigation.state !== "loading" || !navigation.location) return false;
+	return navigation.location.pathname !== location.pathname;
 }
 
 export function PageSkeleton() {

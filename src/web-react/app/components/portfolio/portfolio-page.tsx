@@ -1,8 +1,14 @@
 import { useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import {
+	useLoaderData,
+	useLocation,
+	useNavigation,
+	useRevalidator,
+	useSearchParams,
+} from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
+import { PageSkeleton } from "~/components/page-skeletons";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
 import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import {
@@ -20,7 +26,12 @@ export type RangeFilter = "all" | "in-range" | "oor";
 export function PortfolioPage() {
 	useAutoRefresh(30_000);
 	const data = useLoaderData<PortfolioPayload>();
-	const isNavigating = useIsNavigating();
+	const navigation = useNavigation();
+	const location = useLocation();
+	const isPageNavigating =
+		navigation.state === "loading" &&
+		navigation.location !== undefined &&
+		navigation.location.pathname !== location.pathname;
 	const [searchParams, setSearchParams] = useSearchParams();
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
@@ -34,7 +45,7 @@ export function PortfolioPage() {
 		});
 	};
 
-	if (isNavigating) {
+	if (isPageNavigating) {
 		return (
 			<DashboardShell title="Portfolio">
 				<PageSkeleton />

@@ -8,6 +8,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
+import { Skeleton } from "~/components/ui/skeleton";
 import {
 	Tooltip,
 	TooltipContent,
@@ -102,6 +103,103 @@ function FullDonut({
 		</ChartContainer>
 	);
 }
+
+export const OverviewTopMetricsSkeleton = memo(
+	function OverviewTopMetricsSkeleton() {
+		return (
+			<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+				<Card data-size="sm" className="py-3">
+					<CardContent className="flex h-full flex-col justify-center gap-1">
+						<div className="flex items-center gap-1.5">
+							<Skeleton className="h-3 w-14" />
+							<Skeleton className="size-3 rounded-full" />
+							<span className="ml-auto">
+								<Skeleton className="h-4 w-8 rounded" />
+							</span>
+						</div>
+						<Skeleton className="mt-1 h-7 w-28" />
+					</CardContent>
+				</Card>
+
+				<Card data-size="sm" className="py-3">
+					<CardContent className="grid h-full grid-cols-2 gap-2">
+						<div className="flex flex-col justify-center gap-1">
+							<div className="flex items-center gap-1.5">
+								<Skeleton className="h-3 w-20" />
+								<Skeleton className="size-3 rounded-full" />
+							</div>
+							<Skeleton className="h-7 w-16" />
+						</div>
+						<div className="flex flex-col items-center justify-center gap-1.5">
+							<Skeleton className="h-14 w-24 rounded-t-3xl" />
+							<div className="flex w-24 items-center justify-between gap-2">
+								<Skeleton className="h-3 w-6" />
+								<Skeleton className="h-3 w-6" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card data-size="sm" className="py-3">
+					<CardContent className="grid h-full grid-cols-2 gap-2">
+						<div className="flex flex-col justify-center gap-1">
+							<div className="flex items-center gap-1.5">
+								<Skeleton className="h-3 w-18" />
+								<Skeleton className="size-3 rounded-full" />
+							</div>
+							<Skeleton className="h-7 w-12" />
+						</div>
+						<div className="flex flex-col items-center justify-center gap-1">
+							<Skeleton className="size-16 rounded-full" />
+							<div className="mt-1 flex w-full items-center justify-between gap-2">
+								<Skeleton className="h-3 w-16" />
+								<Skeleton className="h-3 w-16" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card data-size="sm" className="py-3">
+					<CardContent className="grid h-full grid-cols-2 gap-2">
+						<div className="flex flex-col justify-center gap-1">
+							<div className="flex items-center gap-1.5">
+								<Skeleton className="h-3 w-16" />
+								<Skeleton className="size-3 rounded-full" />
+							</div>
+							<Skeleton className="h-7 w-14" />
+						</div>
+						<div className="flex flex-col items-center justify-center gap-1.5">
+							<Skeleton className="h-14 w-24 rounded-t-3xl" />
+							<div className="flex w-24 items-center justify-between gap-2">
+								<Skeleton className="h-3 w-6" />
+								<Skeleton className="h-3 w-6" />
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+
+				<Card data-size="sm" className="py-3">
+					<CardContent className="flex h-full flex-col justify-center gap-1">
+						<div className="flex items-center gap-1.5">
+							<Skeleton className="h-3 w-28" />
+							<Skeleton className="size-3 rounded-full" />
+						</div>
+						<div className="flex items-center gap-3">
+							<Skeleton className="h-7 w-10" />
+							<div className="flex flex-1 flex-col justify-center gap-1">
+								<Skeleton className="h-2 w-full rounded-full" />
+								<div className="flex w-full items-center justify-between">
+									<Skeleton className="h-3 w-16" />
+									<Skeleton className="h-3 w-16" />
+								</div>
+							</div>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		);
+	},
+);
 
 export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	metrics,
