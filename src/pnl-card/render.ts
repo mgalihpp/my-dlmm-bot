@@ -34,6 +34,33 @@ export const TIME_RANGE_LABEL: Record<PnlTimeRange, string> = {
 	allTime: "All Time",
 };
 
+let vexisLogoCache: HTMLImageElement | null = null;
+let vexisLogoLoading = false;
+
+function ensureVexisLogo(): HTMLImageElement | null {
+	if (typeof window === "undefined" || typeof Image === "undefined")
+		return null;
+	if (vexisLogoCache) return vexisLogoCache;
+	if (vexisLogoLoading) return null;
+	vexisLogoLoading = true;
+	const img = new Image();
+	img.src = "/logo.png";
+	img.onload = () => {
+		vexisLogoCache = img;
+	};
+	img.onerror = () => {
+		vexisLogoLoading = false;
+	};
+	if (img.complete && img.naturalWidth > 0) vexisLogoCache = img;
+	return vexisLogoCache;
+}
+
+function getVexisLogo(): HTMLImageElement | null {
+	if (vexisLogoCache?.complete && vexisLogoCache.naturalWidth > 0)
+		return vexisLogoCache;
+	return ensureVexisLogo();
+}
+
 function roundRect(
 	ctx: CanvasRenderingContext2D,
 	x: number,
@@ -193,25 +220,35 @@ function drawMetinaCard(
 	ctx.textAlign = "left";
 
 	const headerY = padY + 14;
-	const logoR = 14;
-	const logoX = padX + logoR;
-	const logoY = headerY;
-	ctx.beginPath();
-	ctx.arc(logoX, logoY, logoR, 0, Math.PI * 2);
-	ctx.fillStyle = "#ffffff";
-	ctx.fill();
-	ctx.fillStyle = "#0c0e12";
-	ctx.font = '700 13px "Syne", Arial, sans-serif';
-	ctx.textAlign = "center";
-	ctx.textBaseline = "middle";
-	ctx.fillText("V", logoX, logoY + 1);
-	ctx.textAlign = "left";
-	ctx.textBaseline = "alphabetic";
+	const logoSize = 28;
+	const logo = getVexisLogo();
+	if (logo) {
+		ctx.save();
+		ctx.beginPath();
+		roundRect(ctx, padX, headerY - 14, logoSize, logoSize, 6);
+		ctx.clip();
+		ctx.drawImage(logo, padX, headerY - 14, logoSize, logoSize);
+		ctx.restore();
+	} else {
+		const logoR = 14;
+		const logoX = padX + logoR;
+		const logoY = headerY;
+		ctx.beginPath();
+		ctx.arc(logoX, logoY, logoR, 0, Math.PI * 2);
+		ctx.fillStyle = "#ffffff";
+		ctx.fill();
+		ctx.fillStyle = "#0c0e12";
+		ctx.font = '700 13px "Syne", Arial, sans-serif';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillText("V", logoX, logoY + 1);
+		ctx.textAlign = "left";
+		ctx.textBaseline = "alphabetic";
+	}
 
 	ctx.fillStyle = "#ffffff";
 	ctx.font = '700 16px "Syne", Arial, sans-serif';
-	ctx.fillText("Vexis", padX + logoR * 2 + 10, headerY + 5);
-
+	ctx.fillText("Vexis", padX + logoSize + 10, headerY + 5);
 	ctx.textAlign = "right";
 	ctx.fillStyle = "rgba(255,255,255,0.45)";
 	ctx.font = '400 12px "Space Mono", monospace';
