@@ -33,7 +33,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	try {
 		const positions = await fetchClosedPositions(wallet, { day });
 		const now = new Date();
-		const curDayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+		const curDayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 		const isPast = day !== curDayKey;
 		const headers: Record<string, string> = isPast
 			? { "Cache-Control": "public, max-age=86400, immutable" }

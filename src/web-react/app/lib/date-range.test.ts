@@ -22,7 +22,7 @@ import {
 	writeDateFilterParams,
 } from "./date-range";
 
-const now = new Date(2026, 7, 30, 15, 45, 0);
+const now = new Date(Date.UTC(2026, 7, 30, 15, 45, 0));
 
 describe("date range presets", () => {
 	it("keeps the agreed preset order", () => {
@@ -82,11 +82,11 @@ describe("filterClosedByRange", () => {
 	const closed = [
 		{
 			id: "before",
-			lastClosedAt: new Date(2026, 7, 23, 23, 59).getTime() / 1000,
+			lastClosedAt: Date.UTC(2026, 7, 23, 23, 59) / 1000,
 		},
-		{ id: "start", lastClosedAt: new Date(2026, 7, 24, 0, 1).getTime() / 1000 },
-		{ id: "end", lastClosedAt: new Date(2026, 7, 30, 23, 59).getTime() / 1000 },
-		{ id: "after", lastClosedAt: new Date(2026, 8, 1).getTime() / 1000 },
+		{ id: "start", lastClosedAt: Date.UTC(2026, 7, 24, 0, 1) / 1000 },
+		{ id: "end", lastClosedAt: Date.UTC(2026, 7, 30, 23, 59) / 1000 },
+		{ id: "after", lastClosedAt: Date.UTC(2026, 8, 1, 0, 0) / 1000 },
 		{ id: "unknown", lastClosedAt: null },
 	] as const;
 

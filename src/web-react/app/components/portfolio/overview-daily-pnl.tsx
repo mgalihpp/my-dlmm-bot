@@ -51,21 +51,25 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 		let buckets: { key: string; label: string; value: number }[] = [];
 		if (timeframe === "daily") {
 			const now = new Date();
+			const baseUtc = Date.UTC(
+				now.getUTCFullYear(),
+				now.getUTCMonth(),
+				now.getUTCDate(),
+			);
 			const dayBuckets = new Map<string, { label: string; value: number }>();
 			for (let i = 29; i >= 0; i--) {
-				const dt = new Date(now);
-				dt.setHours(0, 0, 0, 0);
-				dt.setDate(dt.getDate() - i);
-				const key = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+				const dt = new Date(baseUtc - i * 86400000);
+				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
 				const label = dt.toLocaleDateString("en-US", {
 					month: "short",
 					day: "numeric",
+					timeZone: "UTC",
 				});
 				dayBuckets.set(key, { label, value: 0 });
 			}
 			for (const d of deltas) {
 				const dt = new Date(d.ts * 1000);
-				const key = `${dt.getFullYear()}-${dt.getMonth()}-${dt.getDate()}`;
+				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
 				const entry = dayBuckets.get(key);
 				if (entry) entry.value += d.delta;
 			}
@@ -81,11 +85,12 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 			>();
 			for (const d of deltas) {
 				const dt = new Date(d.ts * 1000);
-				const jan1 = new Date(dt.getFullYear(), 0, 1);
+				const jan1 = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
 				const week = Math.ceil(
-					((dt.getTime() - jan1.getTime()) / 86400000 + jan1.getDay() + 1) / 7,
+					((dt.getTime() - jan1.getTime()) / 86400000 + jan1.getUTCDay() + 1) /
+						7,
 				);
-				const key = `${dt.getFullYear()}-W${week}`;
+				const key = `${dt.getUTCFullYear()}-W${week}`;
 				const entry = map.get(key) ?? {
 					label: `W${week}`,
 					value: 0,
@@ -106,11 +111,12 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 			>();
 			for (const d of deltas) {
 				const dt = new Date(d.ts * 1000);
-				const key = `${dt.getFullYear()}-${dt.getMonth()}`;
-				const ts = new Date(dt.getFullYear(), dt.getMonth(), 1).getTime();
+				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`;
+				const ts = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1);
 				const label = dt.toLocaleDateString("en-US", {
 					month: "short",
 					year: "numeric",
+					timeZone: "UTC",
 				});
 				const entry = map.get(key) ?? { label, value: 0, ts };
 				entry.value += d.delta;

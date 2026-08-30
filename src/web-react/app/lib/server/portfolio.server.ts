@@ -298,15 +298,15 @@ export function fetchClosedPositions(
 ): Promise<readonly PositionPnLData[]> {
 	const getTodayKey = () => {
 		const d = new Date();
-		return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+		return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 	};
 	const getWeekStart = (d: Date) => {
-		const day = d.getDay();
+		const day = d.getUTCDay();
 		const diff = day === 0 ? -6 : 1 - day;
-		const mon = new Date(d);
-		mon.setDate(d.getDate() + diff);
-		mon.setHours(0, 0, 0, 0);
-		return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+		const mon = new Date(
+			Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
+		);
+		return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
 	};
 	const normalizeWeek = (w: string): string | null => {
 		if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w;
@@ -343,7 +343,7 @@ export function fetchClosedPositions(
 			const cached = closedMonthCache.get(cacheKey);
 			if (cached) {
 				const cur = new Date();
-				const curKey = `${cur.getFullYear()}-${String(cur.getMonth() + 1).padStart(2, "0")}`;
+				const curKey = `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, "0")}`;
 				const isCurrent = opts.month === curKey;
 				if (!isCurrent || now - cached.at < CURRENT_MONTH_TTL_MS)
 					return Promise.resolve(cached.data);
@@ -355,14 +355,18 @@ export function fetchClosedPositions(
 		if (!m) return null;
 		const year = Number(m[1]);
 		const w = Number(m[2]);
-		const jan4 = new Date(year, 0, 4);
-		const day = jan4.getDay();
+		const jan4 = new Date(Date.UTC(year, 0, 4));
+		const day = jan4.getUTCDay();
 		const diff = day === 0 ? -6 : 1 - day;
-		const mon1 = new Date(jan4);
-		mon1.setDate(jan4.getDate() + diff);
-		const target = new Date(mon1);
-		target.setDate(mon1.getDate() + (w - 1) * 7);
-		return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+		const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
+		const target = new Date(
+			Date.UTC(
+				mon1.getUTCFullYear(),
+				mon1.getUTCMonth(),
+				mon1.getUTCDate() + (w - 1) * 7,
+			),
+		);
+		return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
 	}
 	const periodRange = (() => {
 		if (opts?.day) {
@@ -372,7 +376,7 @@ export function fetchClosedPositions(
 			const mo = Number(m[2]);
 			const d = Number(m[3]);
 			if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-			const start = Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+			const start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
 			const end = start + 86400;
 			return { start, end };
 		}
@@ -383,18 +387,14 @@ export function fetchClosedPositions(
 				const y = Number(dayMatch[1]);
 				const mo = Number(dayMatch[2]);
 				const d = Number(dayMatch[3]);
-				start = Math.floor(new Date(y, mo - 1, d).getTime() / 1000);
+				start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
 			} else {
 				const iso = isoWeekToKey(opts.week);
 				if (iso) {
 					const mm = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
 					if (mm) {
 						start = Math.floor(
-							new Date(
-								Number(mm[1]),
-								Number(mm[2]) - 1,
-								Number(mm[3]),
-							).getTime() / 1000,
+							Date.UTC(Number(mm[1]), Number(mm[2]) - 1, Number(mm[3])) / 1000,
 						);
 					}
 				}
@@ -408,8 +408,8 @@ export function fetchClosedPositions(
 		const y = Number(m[1]);
 		const mo = Number(m[2]);
 		if (mo < 1 || mo > 12) return null;
-		const start = Math.floor(new Date(y, mo - 1, 1).getTime() / 1000);
-		const end = Math.floor(new Date(y, mo, 1).getTime() / 1000);
+		const start = Math.floor(Date.UTC(y, mo - 1, 1) / 1000);
+		const end = Math.floor(Date.UTC(y, mo, 1) / 1000);
 		return { start, end };
 	})();
 	const program = Effect.gen(function* () {
@@ -450,7 +450,9 @@ export function fetchClosedPositions(
 											(p) => p.isClosed && p.closedAt != null,
 										),
 									),
-									Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+									Effect.catchAll(() =>
+										Effect.succeed([] as PositionPnLData[]),
+									),
 								),
 						);
 						return Effect.all(pageEffects, { concurrency: 2 }).pipe(
@@ -484,7 +486,8 @@ export function fetchClosedPositions(
 		}
 		if (rawPools.length === 0) return [] as PositionPnLData[];
 		const candidatePools = rawPools.filter((pool) => {
-			const last = (pool as unknown as { lastClosedAt?: number | null }).lastClosedAt;
+			const last = (pool as unknown as { lastClosedAt?: number | null })
+				.lastClosedAt;
 			return last != null && last >= periodRange.start;
 		});
 		if (candidatePools.length === 0) return [] as PositionPnLData[];
@@ -501,7 +504,7 @@ export function fetchClosedPositions(
 			const first = (res.positions as PositionPnLData[]).filter(
 				(p) => p.isClosed && p.closedAt != null,
 			);
-			let collected: PositionPnLData[] = [...first];
+			const collected: PositionPnLData[] = [...first];
 			if (res.hasNext) {
 				const remaining = Math.ceil(res.totalCount / 100) - 1;
 				for (let i = 0; i < remaining; i++) {

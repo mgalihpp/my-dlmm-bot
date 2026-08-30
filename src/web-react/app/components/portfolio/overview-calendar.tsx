@@ -8,11 +8,13 @@ import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
 
 function startOfMonth(date: Date) {
-	return new Date(date.getFullYear(), date.getMonth(), 1);
+	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
 
 function daysInMonth(date: Date) {
-	return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+	return new Date(
+		Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
+	).getUTCDate();
 }
 export const OverviewCalendar = memo(function OverviewCalendar({
 	closed,
@@ -30,10 +32,10 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	const [mode, setMode] = useState<"fees" | "total">("total");
 
 	const { cells, monthlyPnl, monthlyDays } = useMemo(() => {
-		const year = month.getFullYear();
-		const mon = month.getMonth();
+		const year = month.getUTCFullYear();
+		const mon = month.getUTCMonth();
 		const dim = daysInMonth(month);
-		const firstDow = startOfMonth(month).getDay();
+		const firstDow = startOfMonth(month).getUTCDay();
 		const byDay = new Map<
 			number,
 			{ pnl: number; count: number; wins: number }
@@ -55,8 +57,8 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 		for (const pos of closed) {
 			if (pos.closedAt == null) continue;
 			const d = new Date(pos.closedAt * 1000);
-			if (d.getFullYear() !== year || d.getMonth() !== mon) continue;
-			const day = d.getDate();
+			if (d.getUTCFullYear() !== year || d.getUTCMonth() !== mon) continue;
+			const day = d.getUTCDate();
 			const val = getVal(pos);
 			monthlyPnl += val;
 			seenDays.add(day);
@@ -96,6 +98,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	const monthLabel = month.toLocaleDateString("en-US", {
 		month: "long",
 		year: "numeric",
+		timeZone: "UTC",
 	});
 
 	return (
@@ -141,7 +144,13 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							className="size-6"
 							onClick={() =>
 								onMonthChange(
-									new Date(month.getFullYear(), month.getMonth() - 1, 1),
+									new Date(
+										Date.UTC(
+											month.getUTCFullYear(),
+											month.getUTCMonth() - 1,
+											1,
+										),
+									),
 								)
 							}
 						>
@@ -156,7 +165,13 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							className="size-6"
 							onClick={() =>
 								onMonthChange(
-									new Date(month.getFullYear(), month.getMonth() + 1, 1),
+									new Date(
+										Date.UTC(
+											month.getUTCFullYear(),
+											month.getUTCMonth() + 1,
+											1,
+										),
+									),
 								)
 							}
 						>

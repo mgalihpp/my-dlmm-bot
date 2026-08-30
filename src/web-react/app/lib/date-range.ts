@@ -105,13 +105,11 @@ function localDateFromParts(
 		throw new RangeError("Invalid local date");
 	}
 
-	const date = new Date(0);
-	date.setHours(0, 0, 0, 0);
-	date.setFullYear(year, month - 1, day);
+	const date = new Date(Date.UTC(year, month - 1, day));
 	if (
-		date.getFullYear() !== year ||
-		date.getMonth() !== month - 1 ||
-		date.getDate() !== day
+		date.getUTCFullYear() !== year ||
+		date.getUTCMonth() !== month - 1 ||
+		date.getUTCDate() !== day
 	) {
 		throw new RangeError("Invalid local date");
 	}
@@ -146,25 +144,22 @@ export function parseLocalDate(input: string): LocalDate | null {
 
 function localDateToDate(date: LocalDate): Date {
 	const [year, month, day] = date.split("-").map(Number);
-	const result = new Date(0);
-	result.setHours(0, 0, 0, 0);
-	result.setFullYear(year, month - 1, day);
-	return result;
+	return new Date(Date.UTC(year, month - 1, day));
 }
 
 export function formatLocalDateKey(date: Date): LocalDate {
 	if (Number.isNaN(date.getTime())) throw new RangeError("Invalid date");
 	return localDateFromParts(
-		date.getFullYear(),
-		date.getMonth() + 1,
-		date.getDate(),
+		date.getUTCFullYear(),
+		date.getUTCMonth() + 1,
+		date.getUTCDate(),
 	);
 }
 
 function addDays(date: LocalDate, amount: number): LocalDate {
 	if (!Number.isSafeInteger(amount)) throw new RangeError("Invalid day offset");
 	const result = localDateToDate(date);
-	result.setDate(result.getDate() + amount);
+	result.setUTCDate(result.getUTCDate() + amount);
 	return formatLocalDateKey(result);
 }
 
@@ -173,30 +168,27 @@ function today(now: Date): LocalDate {
 }
 
 function firstOfMonth(now: Date): LocalDate {
-	return makeLocalDate(now.getFullYear(), now.getMonth() + 1, 1);
+	return makeLocalDate(now.getUTCFullYear(), now.getUTCMonth() + 1, 1);
 }
 
 function firstOfPreviousMonth(now: Date): LocalDate {
-	const result = new Date(0);
-	result.setHours(0, 0, 0, 0);
-	result.setFullYear(now.getFullYear(), now.getMonth() - 1, 1);
-	return formatLocalDateKey(result);
+	return makeLocalDate(now.getUTCFullYear(), now.getUTCMonth(), 1);
 }
 
 function lastOfPreviousMonth(now: Date): LocalDate {
-	const result = new Date(0);
-	result.setHours(0, 0, 0, 0);
-	result.setFullYear(now.getFullYear(), now.getMonth(), 0);
-	return formatLocalDateKey(result);
+	const y = now.getUTCFullYear();
+	const m = now.getUTCMonth();
+	const last = new Date(Date.UTC(y, m, 0));
+	return formatLocalDateKey(last);
 }
 
 function firstOfQuarter(now: Date): LocalDate {
-	const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
-	return makeLocalDate(now.getFullYear(), quarterMonth + 1, 1);
+	const quarterMonth = Math.floor(now.getUTCMonth() / 3) * 3;
+	return makeLocalDate(now.getUTCFullYear(), quarterMonth + 1, 1);
 }
 
 function firstOfYear(now: Date): LocalDate {
-	return makeLocalDate(now.getFullYear(), 1, 1);
+	return makeLocalDate(now.getUTCFullYear(), 1, 1);
 }
 
 function lastOfYear(year: number): LocalDate {
@@ -204,7 +196,7 @@ function lastOfYear(year: number): LocalDate {
 }
 
 function lastSunday(now: Date): LocalDate {
-	return addDays(today(now), -now.getDay());
+	return addDays(today(now), -now.getUTCDay());
 }
 
 export const DATE_RANGE_PRESETS: readonly PresetDefinition[] = [
@@ -278,8 +270,8 @@ export const DATE_RANGE_PRESETS: readonly PresetDefinition[] = [
 		label: "Last calendar year",
 		resolve: (now) =>
 			bounded(
-				makeLocalDate(now.getFullYear() - 1, 1, 1),
-				lastOfYear(now.getFullYear() - 1),
+				makeLocalDate(now.getUTCFullYear() - 1, 1, 1),
+				lastOfYear(now.getUTCFullYear() - 1),
 			),
 	},
 ];
@@ -421,8 +413,8 @@ export function monthMatrix(
 	}
 
 	const first = makeLocalDate(year, monthIndex + 1, 1);
-	const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
-	const leading = localDateToDate(first).getDay();
+	const daysInMonth = new Date(Date.UTC(year, monthIndex + 1, 0)).getUTCDate();
+	const leading = localDateToDate(first).getUTCDay();
 	const cells: Array<LocalDate | null> = [
 		...Array.from({ length: leading }, () => null),
 		...Array.from({ length: daysInMonth }, (_, index) =>

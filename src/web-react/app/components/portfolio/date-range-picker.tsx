@@ -38,13 +38,14 @@ function draftFromValue(value: DateFilterState): DateRangeDraft {
 
 function localDateMonth(date: LocalDate): Date {
 	const [year, month] = date.split("-").map(Number);
-	return new Date(year, month - 1, 1);
+	return new Date(Date.UTC(year, month - 1, 1));
 }
 
 function monthTitle(month: Date): string {
 	return month.toLocaleDateString("en-US", {
 		month: "long",
 		year: "numeric",
+		timeZone: "UTC",
 	});
 }
 
@@ -74,8 +75,8 @@ function updateTextDate(value: string): LocalDate | null {
 
 function shiftDate(date: LocalDate, amount: number): LocalDate {
 	const [year, month, day] = date.split("-").map(Number);
-	const result = new Date(year, month - 1, day);
-	result.setDate(result.getDate() + amount);
+	const result = new Date(Date.UTC(year, month - 1, day));
+	result.setUTCDate(result.getUTCDate() + amount);
 	return formatLocalDateKey(result);
 }
 
@@ -96,7 +97,7 @@ export function DateRangePicker({
 	const [toText, setToText] = useState(() => dateValue(initialDates[1]));
 	const [month, setMonth] = useState(() =>
 		initialDates[0] === null
-			? new Date(now.getFullYear(), now.getMonth(), 1)
+			? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
 			: localDateMonth(initialDates[0]),
 	);
 	const [hoverDate, setHoverDate] = useState<LocalDate | null>(null);
@@ -111,7 +112,7 @@ export function DateRangePicker({
 		setHoverDate(null);
 		setMonth(
 			from === null
-				? new Date(now.getFullYear(), now.getMonth(), 1)
+				? new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1))
 				: localDateMonth(from),
 		);
 	};
@@ -225,14 +226,14 @@ export function DateRangePicker({
 
 	const renderMonth = (visibleMonth: Date) => {
 		const matrix = monthMatrix(
-			visibleMonth.getFullYear(),
-			visibleMonth.getMonth(),
+			visibleMonth.getUTCFullYear(),
+			visibleMonth.getUTCMonth(),
 		);
 		let slot = 0;
 		return (
 			<div
 				className="min-w-0 flex-1"
-				key={`${visibleMonth.getFullYear()}-${visibleMonth.getMonth()}`}
+				key={`${visibleMonth.getUTCFullYear()}-${visibleMonth.getUTCMonth()}`}
 			>
 				<div className="mb-2 text-center text-xs font-medium">
 					{monthTitle(visibleMonth)}
@@ -406,7 +407,13 @@ export function DateRangePicker({
 								aria-label="Previous month"
 								onClick={() =>
 									setMonth(
-										new Date(month.getFullYear(), month.getMonth() - 1, 1),
+										new Date(
+											Date.UTC(
+												month.getUTCFullYear(),
+												month.getUTCMonth() - 1,
+												1,
+											),
+										),
 									)
 								}
 							>
@@ -414,7 +421,9 @@ export function DateRangePicker({
 							</Button>
 							{renderMonth(month)}
 							{renderMonth(
-								new Date(month.getFullYear(), month.getMonth() + 1, 1),
+								new Date(
+									Date.UTC(month.getUTCFullYear(), month.getUTCMonth() + 1, 1),
+								),
 							)}
 							<Button
 								variant="ghost"
@@ -422,7 +431,13 @@ export function DateRangePicker({
 								aria-label="Next month"
 								onClick={() =>
 									setMonth(
-										new Date(month.getFullYear(), month.getMonth() + 1, 1),
+										new Date(
+											Date.UTC(
+												month.getUTCFullYear(),
+												month.getUTCMonth() + 1,
+												1,
+											),
+										),
 									)
 								}
 							>

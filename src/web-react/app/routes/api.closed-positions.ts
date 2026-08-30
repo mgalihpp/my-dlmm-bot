@@ -65,14 +65,15 @@ export async function loader({ request }: Route.LoaderArgs) {
 					: undefined;
 		const positions = await fetchClosedPositions(wallet, opts);
 		const now = new Date();
-		const curMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-		const curDayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+		const curMonthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+		const curDayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
 		const toMonday = (d: Date) => {
-			const dayNum = d.getDay();
+			const dayNum = d.getUTCDay();
 			const diff = dayNum === 0 ? -6 : 1 - dayNum;
-			const mon = new Date(d);
-			mon.setDate(d.getDate() + diff);
-			return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+			const mon = new Date(
+				Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
+			);
+			return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
 		};
 		const weekStart = toMonday(now);
 		const normalizeWeekParam = (w: string): string | null => {
@@ -81,14 +82,18 @@ export async function loader({ request }: Route.LoaderArgs) {
 			if (!m) return null;
 			const year = Number(m[1]);
 			const ww = Number(m[2]);
-			const jan4 = new Date(year, 0, 4);
-			const day = jan4.getDay();
+			const jan4 = new Date(Date.UTC(year, 0, 4));
+			const day = jan4.getUTCDay();
 			const diff = day === 0 ? -6 : 1 - day;
-			const mon1 = new Date(jan4);
-			mon1.setDate(jan4.getDate() + diff);
-			const target = new Date(mon1);
-			target.setDate(mon1.getDate() + (ww - 1) * 7);
-			return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+			const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
+			const target = new Date(
+				Date.UTC(
+					mon1.getUTCFullYear(),
+					mon1.getUTCMonth(),
+					mon1.getUTCDate() + (ww - 1) * 7,
+				),
+			);
+			return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
 		};
 		const weekNorm = week ? (normalizeWeekParam(week) ?? week) : null;
 		const isPast =

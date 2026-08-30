@@ -7,11 +7,16 @@ import { hasValidSession } from "~/lib/server/session.server";
 import type { Route } from "./+types/api.weekly-positions";
 
 function toMonday(date: Date): string {
-	const day = date.getDay();
+	const day = date.getUTCDay();
 	const diff = day === 0 ? -6 : 1 - day;
-	const mon = new Date(date);
-	mon.setDate(date.getDate() + diff);
-	return `${mon.getFullYear()}-${String(mon.getMonth() + 1).padStart(2, "0")}-${String(mon.getDate()).padStart(2, "0")}`;
+	const mon = new Date(
+		Date.UTC(
+			date.getUTCFullYear(),
+			date.getUTCMonth(),
+			date.getUTCDate() + diff,
+		),
+	);
+	return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
 }
 
 function normalizeWeek(week: string): string | null {
@@ -20,14 +25,18 @@ function normalizeWeek(week: string): string | null {
 	if (!m) return null;
 	const year = Number(m[1]);
 	const w = Number(m[2]);
-	const jan4 = new Date(year, 0, 4);
-	const day = jan4.getDay();
+	const jan4 = new Date(Date.UTC(year, 0, 4));
+	const day = jan4.getUTCDay();
 	const diff = day === 0 ? -6 : 1 - day;
-	const mon1 = new Date(jan4);
-	mon1.setDate(jan4.getDate() + diff);
-	const target = new Date(mon1);
-	target.setDate(mon1.getDate() + (w - 1) * 7);
-	return `${target.getFullYear()}-${String(target.getMonth() + 1).padStart(2, "0")}-${String(target.getDate()).padStart(2, "0")}`;
+	const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
+	const target = new Date(
+		Date.UTC(
+			mon1.getUTCFullYear(),
+			mon1.getUTCMonth(),
+			mon1.getUTCDate() + (w - 1) * 7,
+		),
+	);
+	return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
