@@ -47,6 +47,7 @@ export function OpenPositionCard({
 					: (pool.pnlSolPctChange ?? pool.pnlPctChange),
 			pairName: pair(pool.tokenX, pool.tokenY),
 			poolAddress: pool.poolAddress,
+			tokenLogoUrl: proxiedIconUrl(pool.tokenXIcon ?? pool.tokenYIcon) ?? null,
 		});
 		onPnlCard(data);
 	};
