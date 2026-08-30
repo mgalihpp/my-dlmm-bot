@@ -227,7 +227,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 								const isPositive = raw >= 0;
 								const unit = currency === "sol" ? "SOL" : "USD";
 								const rowLabel = mode === "fees" ? "Fees" : "P&L";
-								const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(2)} ${unit}`;
+								const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(3)} ${unit}`;
 								const labelText =
 									typeof label === "string" ? label : String(label ?? "");
 								return (
