@@ -1,3 +1,18 @@
+export type PnlTimeRange =
+	| "daily"
+	| "weekly"
+	| "monthly"
+	| "yearly"
+	| "allTime";
+
+export interface CardStyle {
+	readonly background?: string;
+	readonly texture?: "off" | "dots" | "grid" | "lines" | "noise";
+	readonly textureOpacity?: number;
+	readonly textureZoom?: number;
+	readonly showDetails?: boolean;
+}
+
 export interface PnlCardStats {
 	readonly winRate: number | null;
 	readonly totalClosed: number;
@@ -21,6 +36,8 @@ export interface PnlSummaryCardData {
 	readonly feesSol: string;
 	readonly depositsSol: string;
 	readonly withdrawalsSol: string;
+	readonly timeRange: PnlTimeRange;
+	readonly timeRangeLabel: string;
 }
 
 export interface PnlPositionCardData {
@@ -46,4 +63,5 @@ export type PnlCardData = PnlSummaryCardData | PnlPositionCardData;
 export interface PnlCardRenderOpts {
 	readonly width?: number;
 	readonly height?: number;
+	readonly style?: CardStyle;
 }

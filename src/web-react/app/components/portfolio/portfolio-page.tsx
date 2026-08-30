@@ -134,6 +134,9 @@ export function PortfolioPage() {
 				open={pnlCardOpen}
 				onOpenChange={setPnlCardOpen}
 				data={pnlCardData}
+				wallet={data.ok ? data.wallet : undefined}
+				total={data.ok ? (data.total ?? undefined) : undefined}
+				closedPools={data.ok ? (data.closed?.pools ?? []) : undefined}
 			/>
 		</DashboardShell>
 	);

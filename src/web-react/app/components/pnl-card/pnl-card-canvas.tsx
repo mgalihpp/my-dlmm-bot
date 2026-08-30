@@ -1,16 +1,17 @@
 import { useEffect, useRef } from "react";
-import {
-	CARD_HEIGHT,
-	CARD_WIDTH,
-	drawPnlCard,
-} from "../../../../pnl-card/render.js";
-import type { PnlCardData } from "../../../../pnl-card/types.js";
+import { drawPnlCard } from "../../../../pnl-card/render.js";
+import type { CardStyle, PnlCardData } from "../../../../pnl-card/types.js";
+
+export const CARD_WIDTH = 600;
+export const CARD_HEIGHT = 400;
 
 export function PnlCardCanvas({
 	data,
+	style,
 	className,
 }: {
 	data: PnlCardData;
+	style?: CardStyle;
 	className?: string;
 }) {
 	const ref = useRef<HTMLCanvasElement>(null);
@@ -22,8 +23,9 @@ export function PnlCardCanvas({
 		if (!ctx) return;
 		canvas.width = CARD_WIDTH;
 		canvas.height = CARD_HEIGHT;
-		drawPnlCard(ctx, data);
-	}, [data]);
+		drawPnlCard(ctx, data, { width: CARD_WIDTH, height: CARD_HEIGHT, style });
+	}, [data, style]);
+
 	return (
 		<canvas
 			ref={ref}
@@ -40,5 +42,3 @@ export function PnlCardCanvas({
 		/>
 	);
 }
-
-export { CARD_HEIGHT, CARD_WIDTH };

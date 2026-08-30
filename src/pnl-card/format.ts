@@ -1,5 +1,5 @@
 import type { ClosedPool } from "../domain/portfolio.js";
-import type { PnlCardStats } from "./types.js";
+import type { PnlCardStats, PnlTimeRange } from "./types.js";
 
 export const PNL_GREEN = "#22c55e";
 export const PNL_RED = "#ef4444";
@@ -147,5 +147,35 @@ export function sumSolField(
 	return sum.toLocaleString("en-US", {
 		minimumFractionDigits: 4,
 		maximumFractionDigits: 4,
+	});
+}
+export function filterByTimeRange(
+	pools: readonly ClosedPool[],
+	range: PnlTimeRange,
+): readonly ClosedPool[] {
+	if (range === "allTime") return pools;
+	const nowMs = Date.now();
+	let windowMs: number;
+	switch (range) {
+		case "daily":
+			windowMs = 24 * 60 * 60 * 1000;
+			break;
+		case "weekly":
+			windowMs = 7 * 24 * 60 * 60 * 1000;
+			break;
+		case "monthly":
+			windowMs = 30 * 24 * 60 * 60 * 1000;
+			break;
+		case "yearly":
+			windowMs = 365 * 24 * 60 * 60 * 1000;
+			break;
+		default:
+			return pools;
+	}
+	const cutoff = nowMs - windowMs;
+	return pools.filter((p) => {
+		if (p.lastClosedAt === null || p.lastClosedAt === undefined) return false;
+		const ts = p.lastClosedAt > 1e12 ? p.lastClosedAt : p.lastClosedAt * 1000;
+		return ts >= cutoff;
 	});
 }
