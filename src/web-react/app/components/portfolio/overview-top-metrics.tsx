@@ -8,6 +8,11 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "~/components/ui/tooltip";
 import type { Currency } from "~/lib/currency";
 import { fmtPct, formatNum } from "~/lib/format";
 import type { OverviewMetrics } from "~/lib/overview-analytics";
@@ -144,7 +149,21 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 				<CardContent className="flex h-full flex-col justify-center gap-1">
 					<div className="flex items-center gap-1.5">
 						<span className="text-xs text-muted-foreground">Net P&L</span>
-						<InfoIcon className="size-3 text-muted-foreground/50" />
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Net P&L info"
+									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								>
+									<InfoIcon className="size-3" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Realized PnL from closed positions plus unrealized PnL from open
+								positions. Badge shows total closed count.
+							</TooltipContent>
+						</Tooltip>
 						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
 							{metrics.totalClosed}
 						</span>
@@ -162,7 +181,21 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 							<span className="text-xs text-muted-foreground">
 								Position win %
 							</span>
-							<InfoIcon className="size-3 text-muted-foreground/50" />
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										aria-label="Position win % info"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									>
+										<InfoIcon className="size-3" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									Wins divided by total closed positions (breakeven excluded).
+									Half-donut shows wins vs losses.
+								</TooltipContent>
+							</Tooltip>
 						</div>
 						<span className="font-bold text-2xl text-foreground">
 							{winPctLabel}
@@ -185,7 +218,21 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 							<span className="text-xs text-muted-foreground">
 								Profit factor
 							</span>
-							<InfoIcon className="size-3 text-muted-foreground/50" />
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										aria-label="Profit factor info"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									>
+										<InfoIcon className="size-3" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									Gross profit divided by absolute gross loss. Above 1.0 means
+									winners outweigh losers.
+								</TooltipContent>
+							</Tooltip>
 						</div>
 						<span className="font-bold text-2xl text-foreground">
 							{profitFactorLabel}
@@ -213,7 +260,21 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 					<div className="flex flex-col justify-center gap-1">
 						<div className="flex items-center gap-1.5">
 							<span className="text-xs text-muted-foreground">Day win %</span>
-							<InfoIcon className="size-3 text-muted-foreground/50" />
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<button
+										type="button"
+										aria-label="Day win % info"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									>
+										<InfoIcon className="size-3" />
+									</button>
+								</TooltipTrigger>
+								<TooltipContent className="max-w-xs">
+									Same as Position win % but only for positions closed in the
+									last 24 hours.
+								</TooltipContent>
+							</Tooltip>
 						</div>
 						<span className="font-bold text-2xl text-foreground">
 							{dayWinPctLabel}
@@ -235,7 +296,21 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 						<span className="text-xs text-muted-foreground">
 							Avg win/loss position
 						</span>
-						<InfoIcon className="size-3 text-muted-foreground/50" />
+						<Tooltip>
+							<TooltipTrigger asChild>
+								<button
+									type="button"
+									aria-label="Avg win/loss info"
+									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								>
+									<InfoIcon className="size-3" />
+								</button>
+							</TooltipTrigger>
+							<TooltipContent className="max-w-xs">
+								Ratio of average winning PnL to average losing PnL (absolute).
+								Bar shows relative size of avg win vs avg loss.
+							</TooltipContent>
+						</Tooltip>
 					</div>
 					<div className="flex items-center gap-3">
 						<span className="font-bold text-2xl text-foreground">

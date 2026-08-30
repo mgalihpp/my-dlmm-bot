@@ -33,11 +33,19 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 	const [mode, setMode] = useState<"fees" | "total">("total");
 	const { points, config } = useMemo(() => {
 		const getVal = (p: ClosedPool) => {
-			if (mode === "fees") return Number(currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee) || 0;
+			if (mode === "fees")
+				return (
+					Number(
+						currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee,
+					) || 0
+				);
 			return Number(currency === "sol" ? p.pnlSol : p.pnlUsd) || 0;
 		};
 		const deltas = closed
-			.filter((p): p is ClosedPool & { lastClosedAt: number } => p.lastClosedAt != null)
+			.filter(
+				(p): p is ClosedPool & { lastClosedAt: number } =>
+					p.lastClosedAt != null,
+			)
 			.map((p) => ({ ts: p.lastClosedAt, delta: getVal(p) }));
 		let buckets: { key: string; label: string; value: number }[] = [];
 		if (timeframe === "daily") {
@@ -185,11 +193,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 							<ToggleGroupItem value="fees" aria-label="Only fees">
 								Only fees
 							</ToggleGroupItem>
-							<ToggleGroupItem
-								value="total"
-								aria-label="Total P&L"
-								className="data-[state=on]:bg-orange-500 data-[state=on]:text-white"
-							>
+							<ToggleGroupItem value="total" aria-label="Total P&L">
 								Total P&L
 							</ToggleGroupItem>
 						</ToggleGroup>
@@ -209,7 +213,11 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 						<YAxis tickLine={false} axisLine={false} />
 						<ChartTooltip
 							cursor={{ fill: "hsl(var(--muted) / 0.15)" }}
-							content={(props: { active?: boolean; payload?: ReadonlyArray<{ value?: unknown }>; label?: unknown }) => {
+							content={(props: {
+								active?: boolean;
+								payload?: ReadonlyArray<{ value?: unknown }>;
+								label?: unknown;
+							}) => {
 								const { active, payload, label } = props;
 								if (!active || !payload || payload.length === 0) return null;
 								const first = payload[0];
@@ -220,16 +228,23 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 								const unit = currency === "sol" ? "SOL" : "USD";
 								const rowLabel = mode === "fees" ? "Fees" : "P&L";
 								const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(2)} ${unit}`;
-								const labelText = typeof label === "string" ? label : String(label ?? "");
+								const labelText =
+									typeof label === "string" ? label : String(label ?? "");
 								return (
 									<div className="min-w-[160px] rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-xs shadow-xl">
 										<div className="flex items-center justify-between gap-6">
 											<span className="text-zinc-400">Date</span>
-											<span className="font-medium text-white">{labelText}</span>
+											<span className="font-medium text-white">
+												{labelText}
+											</span>
 										</div>
 										<div className="mt-1 flex items-center justify-between gap-6">
 											<span className="text-zinc-400">{rowLabel}</span>
-											<span className={`font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}>{formatted}</span>
+											<span
+												className={`font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}
+											>
+												{formatted}
+											</span>
 										</div>
 									</div>
 								);

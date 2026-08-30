@@ -36,7 +36,12 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 		let monthlyPnl = 0;
 		const seenDays = new Set<number>();
 		const getVal = (p: ClosedPool) => {
-			if (mode === "fees") return Number(currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee) || 0;
+			if (mode === "fees")
+				return (
+					Number(
+						currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee,
+					) || 0
+				);
 			return Number(currency === "sol" ? p.pnlSol : p.pnlUsd) || 0;
 		};
 

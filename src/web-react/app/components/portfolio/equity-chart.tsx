@@ -16,6 +16,7 @@ import {
 	ChartTooltip,
 	ChartTooltipContent,
 } from "~/components/ui/chart";
+import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import { buildCumulative } from "~/lib/cumulative-pnl";
 import type { Currency } from "./portfolio-page";
 
@@ -92,20 +93,23 @@ export const EquityChart = memo(function EquityChart({
 						)}
 					</span>
 				</div>
-				<div className="flex overflow-hidden rounded-md border text-xs">
-					<button
-						onClick={() => setMode("fees")}
-						className={`px-2.5 py-1 transition-colors ${mode === "fees" ? "bg-orange-500 text-white" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
-					>
+				<ToggleGroup
+					type="single"
+					value={mode}
+					onValueChange={(v) => {
+						if (v === "fees" || v === "total") setMode(v);
+					}}
+					size="sm"
+					variant="outline"
+					spacing={0}
+				>
+					<ToggleGroupItem value="fees" aria-label="Only fees">
 						Only fees
-					</button>
-					<button
-						onClick={() => setMode("total")}
-						className={`px-2.5 py-1 transition-colors ${mode === "total" ? "bg-orange-500 text-white" : "bg-transparent text-muted-foreground hover:text-foreground"}`}
-					>
+					</ToggleGroupItem>
+					<ToggleGroupItem value="total" aria-label="Total P&L">
 						Total P&L
-					</button>
-				</div>
+					</ToggleGroupItem>
+				</ToggleGroup>
 			</CardHeader>
 			<CardContent>
 				{points.length < 2 ? (
