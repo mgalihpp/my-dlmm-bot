@@ -1,5 +1,5 @@
 import { ChevronRight } from "lucide-react";
-import { useState } from "react";
+import { memo, useCallback, useState } from "react";
 import { NavLink, useLocation } from "react-router";
 import {
 	SidebarGroup,
@@ -26,7 +26,7 @@ type NavItem = {
 	items?: NavSubItem[];
 };
 
-export function NavMain({ items }: { items: NavItem[] }) {
+function NavMainInner({ items }: { items: NavItem[] }) {
 	const { pathname } = useLocation();
 
 	return (
@@ -68,7 +68,9 @@ export function NavMain({ items }: { items: NavItem[] }) {
 	);
 }
 
-function CollapsibleNavItem({
+export const NavMain = memo(NavMainInner);
+
+const CollapsibleNavItem = memo(function CollapsibleNavItem({
 	item,
 	isParentActive,
 	pathname,
@@ -77,14 +79,15 @@ function CollapsibleNavItem({
 	isParentActive: boolean;
 	pathname: string;
 }) {
-	const [open, setOpen] = useState(isParentActive);
+	const [open, setOpen] = useState(() => isParentActive);
+	const toggle = useCallback(() => setOpen((v) => !v), []);
 
 	return (
 		<SidebarMenuItem>
 			<SidebarMenuButton
 				tooltip={item.title}
 				isActive={isParentActive}
-				onClick={() => setOpen((v) => !v)}
+				onClick={toggle}
 				className="justify-between"
 			>
 				<span className="flex items-center gap-2">
@@ -113,4 +116,4 @@ function CollapsibleNavItem({
 			)}
 		</SidebarMenuItem>
 	);
-}
+});

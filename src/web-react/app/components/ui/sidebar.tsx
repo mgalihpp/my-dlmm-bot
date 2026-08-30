@@ -71,9 +71,16 @@ function SidebarProvider({
 	// We use openProp and setOpenProp for control from outside the component.
 	const [_open, _setOpen] = React.useState(defaultOpen);
 	const open = openProp ?? _open;
+	const openRef = React.useRef(open);
+	React.useEffect(() => {
+		openRef.current = open;
+	}, [open]);
 	const setOpen = React.useCallback(
 		(value: boolean | ((value: boolean) => boolean)) => {
-			const openState = typeof value === "function" ? value(open) : value;
+			const openState =
+				typeof value === "function"
+					? (value as (v: boolean) => boolean)(openRef.current)
+					: value;
 			if (setOpenProp) {
 				setOpenProp(openState);
 			} else {
@@ -84,13 +91,19 @@ function SidebarProvider({
 			// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API is not supported in Firefox/Safari.
 			document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 		},
-		[setOpenProp, open],
+		[setOpenProp],
 	);
 
 	// Helper to toggle the sidebar.
+	const isMobileRef = React.useRef(isMobile);
+	React.useEffect(() => {
+		isMobileRef.current = isMobile;
+	}, [isMobile]);
 	const toggleSidebar = React.useCallback(() => {
-		return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-	}, [isMobile, setOpen]);
+		return isMobileRef.current
+			? setOpenMobile((o) => !o)
+			: setOpen((o) => !o);
+	}, [setOpen]);
 
 	// Adds a keyboard shortcut to toggle the sidebar.
 	React.useEffect(() => {

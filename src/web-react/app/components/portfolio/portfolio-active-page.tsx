@@ -26,6 +26,11 @@ export function PortfolioActivePage() {
 	const iconsFetcher = useFetcher<typeof poolIconsLoader>();
 	const rangesLoading = rangesFetcher.state !== "idle";
 
+	const poolAddrsKey = useMemo(
+		() => data.pools?.map((p) => p.poolAddress).join(",") ?? "",
+		[data.pools],
+	);
+
 	useEffect(() => {
 		if (!data.pools || data.pools.length === 0) return;
 		const hasRanges = data.pools.some(
@@ -33,9 +38,29 @@ export function PortfolioActivePage() {
 		);
 		if (hasRanges) return;
 		if (rangesFetcher.state !== "idle") return;
-		const addrs = data.pools.map((p) => p.poolAddress).join(",");
-		rangesFetcher.load(`/api/open-ranges?pools=${encodeURIComponent(addrs)}`);
-	}, [data.pools, rangesFetcher]);
+		const cached = rangesFetcher.data as
+			| { ok?: boolean; ranges?: Record<string, unknown> }
+			| undefined;
+		if (cached !== undefined) {
+			if (cached.ok && cached.ranges) {
+				const allCovered = data.pools.every(
+					(p) => cached.ranges?.[p.poolAddress] !== undefined,
+				);
+				if (allCovered) return;
+			} else {
+				return;
+			}
+		}
+		rangesFetcher.load(
+			`/api/open-ranges?pools=${encodeURIComponent(poolAddrsKey)}`,
+		);
+	}, [
+		data.pools,
+		poolAddrsKey,
+		rangesFetcher.state,
+		rangesFetcher.data,
+		rangesFetcher.load,
+	]);
 
 	useEffect(() => {
 		if (!data.pools || data.pools.length === 0) return;
@@ -44,9 +69,31 @@ export function PortfolioActivePage() {
 		);
 		if (!needsIcons) return;
 		if (iconsFetcher.state !== "idle") return;
-		const addrs = data.pools.map((p) => p.poolAddress).join(",");
-		iconsFetcher.load(`/api/pool-icons?pools=${encodeURIComponent(addrs)}`);
-	}, [data.pools, iconsFetcher]);
+		const cached = iconsFetcher.data as
+			| {
+					ok?: boolean;
+					icons?: { poolAddress: string }[];
+			  }
+			| undefined;
+		if (cached !== undefined) {
+			if (cached.ok && Array.isArray(cached.icons)) {
+				const hitSet = new Set(cached.icons.map((x) => x.poolAddress));
+				const allCovered = data.pools.every((p) => hitSet.has(p.poolAddress));
+				if (allCovered) return;
+			} else {
+				return;
+			}
+		}
+		iconsFetcher.load(
+			`/api/pool-icons?pools=${encodeURIComponent(poolAddrsKey)}`,
+		);
+	}, [
+		data.pools,
+		poolAddrsKey,
+		iconsFetcher.state,
+		iconsFetcher.data,
+		iconsFetcher.load,
+	]);
 
 	const pools = useMemo(() => {
 		let result = data.pools ?? [];

@@ -1,5 +1,6 @@
 import type { LucideIcon } from "lucide-react";
 import { Bot, CandlestickChart, PieChart, Settings2Icon } from "lucide-react";
+import { memo } from "react";
 import { NavLink } from "react-router";
 import { cn } from "~/lib/utils";
 
@@ -14,7 +15,7 @@ export const MOBILE_NAV_ITEMS: {
 	{ title: "Settings", url: "/settings", icon: Settings2Icon },
 ];
 
-export function MobileBottomNav() {
+function MobileBottomNavInner() {
 	return (
 		<nav
 			aria-label="Mobile navigation"
@@ -45,3 +46,5 @@ export function MobileBottomNav() {
 		</nav>
 	);
 }
+
+export const MobileBottomNav = memo(MobileBottomNavInner);
