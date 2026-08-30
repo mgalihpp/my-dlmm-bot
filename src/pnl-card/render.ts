@@ -6,7 +6,8 @@ import {
 	filterByTimeRange,
 	formatCardUsd,
 	formatClosedAgo,
-	pnlCardSign,
+	formatPnlForDisplay,
+	pnlCardColor,
 	sumSolField,
 } from "./format.js";
 import type {
@@ -59,6 +60,25 @@ function getVexisLogo(): HTMLImageElement | null {
 	if (vexisLogoCache?.complete && vexisLogoCache.naturalWidth > 0)
 		return vexisLogoCache;
 	return ensureVexisLogo();
+}
+
+const tokenLogoCache = new Map<string, HTMLImageElement>();
+
+function getTokenLogo(url: string | null | undefined): HTMLImageElement | null {
+	if (!url) return null;
+	if (typeof window === "undefined" || typeof Image === "undefined")
+		return null;
+	const cached = tokenLogoCache.get(url);
+	if (cached?.complete && cached.naturalWidth > 0) return cached;
+	if (cached) return null;
+	const img = new Image();
+	img.crossOrigin = "anonymous";
+	img.src = url;
+	img.onload = () => tokenLogoCache.set(url, img);
+	img.onerror = () => tokenLogoCache.delete(url);
+	tokenLogoCache.set(url, img);
+	if (img.complete && img.naturalWidth > 0) return img;
+	return null;
 }
 
 function roundRect(
@@ -163,7 +183,7 @@ function textureForStyle(
 	ctx.restore();
 }
 
-function drawMetinaShell(
+function drawCardShell(
 	ctx: CanvasRenderingContext2D,
 	style: CardStyle | undefined,
 	w: number,
@@ -196,17 +216,47 @@ export function drawPnlCard(
 ): void {
 	const width = opts?.width ?? CARD_WIDTH;
 	const height = opts?.height ?? CARD_HEIGHT;
-	drawMetinaCard(ctx, data, width, height, opts?.style);
+	if (data.mode === "position") {
+		drawPositionCard(
+			ctx,
+			data as PnlPositionCardData,
+			width,
+			height,
+			opts?.style,
+			opts,
+		);
+	} else {
+		drawSummaryCard(
+			ctx,
+			data as PnlSummaryCardData,
+			width,
+			height,
+			opts?.style,
+			opts,
+		);
+	}
 }
 
-function drawMetinaCard(
-	ctx: CanvasRenderingContext2D,
+function resolvePnlDisplayText(
 	data: PnlCardData,
+	opts: PnlCardRenderOpts | undefined,
+): string {
+	return formatPnlForDisplay(
+		data,
+		opts?.displayMode ?? "amount",
+		opts?.currency ?? "sol",
+	);
+}
+
+function drawSummaryCard(
+	ctx: CanvasRenderingContext2D,
+	data: PnlSummaryCardData,
 	width: number,
 	height: number,
 	style: CardStyle | undefined,
+	opts: PnlCardRenderOpts | undefined,
 ): void {
-	drawMetinaShell(ctx, style, width, height);
+	drawCardShell(ctx, style, width, height);
 
 	const padX = 36;
 	const padY = 32;
@@ -255,8 +305,6 @@ function drawMetinaCard(
 	ctx.fillText("vexis.id", padX + innerW, headerY + 5);
 	ctx.textAlign = "left";
 
-	const isPosition = data.mode === "position";
-
 	const dateY = headerY + 36;
 	ctx.fillStyle = "#ffffff";
 	ctx.font = '700 30px "Syne", Arial, sans-serif';
@@ -267,43 +315,23 @@ function drawMetinaCard(
 	ctx.fillStyle = "rgba(255,255,255,0.5)";
 	ctx.font = '400 13px "Space Mono", monospace';
 	const walletShort = data.walletShort ?? shortAddr(data.wallet, 4);
-	const countText = isPosition
-		? `${(data as PnlPositionCardData).pairName} · ${walletShort}`
-		: `${data.positionCount} Positions · ${walletShort}`;
+	const countText = `${data.positionCount} Positions · ${walletShort}`;
 	ctx.fillText(fitText(ctx, countText, leftW), padX, countsY);
 
 	const labelY = countsY + 30;
 	ctx.fillStyle = "rgba(255,255,255,0.45)";
 	ctx.font = '400 11px "Space Mono", monospace';
 	setLetterSpacing(ctx, 2);
-	let rangeLabel: string;
-	if (!isPosition) {
-		const d = data as PnlSummaryCardData;
-		const lbl =
-			d.timeRangeLabel ??
-			TIME_RANGE_LABEL[d.timeRange ?? "allTime"] ??
-			"All Time";
-		rangeLabel = `${lbl.toUpperCase()} P&L`;
-	} else {
-		rangeLabel = "POSITION P&L";
-	}
+	const lbl =
+		data.timeRangeLabel ??
+		TIME_RANGE_LABEL[data.timeRange ?? "allTime"] ??
+		"All Time";
+	const rangeLabel = `${lbl.toUpperCase()} P&L`;
 	ctx.fillText(fitText(ctx, rangeLabel, leftW), padX, labelY);
 	setLetterSpacing(ctx, 0);
 
-	const pnlRaw = data.pnlPct ?? data.pnlUsd;
-	const sign = pnlCardSign(pnlRaw);
-	const pnlColor = sign > 0 ? "#22c55e" : sign < 0 ? "#ef4444" : "#94a3b8";
-	let pnlText: string;
-	if (data.pnlPct && data.pnlPct !== "n/a") {
-		pnlText = data.pnlPct.includes("%") ? data.pnlPct : `${data.pnlPct}%`;
-		if (!pnlText.startsWith("+") && !pnlText.startsWith("-") && sign > 0)
-			pnlText = `+${pnlText}`;
-	} else {
-		const sol = (data as PnlCardData).pnlSol;
-		pnlText = sol && sol !== "n/a" ? sol : (pnlRaw ?? "0%");
-		if (pnlText !== "n/a" && !pnlText.includes("%") && pnlText !== "0%")
-			pnlText = `${pnlText}%`;
-	}
+	const pnlText = resolvePnlDisplayText(data, opts);
+	const pnlColor = pnlCardColor(pnlText);
 	const bigY = labelY + 36;
 	ctx.fillStyle = pnlColor;
 	ctx.font = '800 36px "Syne", Arial, sans-serif';
@@ -314,8 +342,19 @@ function drawMetinaCard(
 	const usdY = bigY + 18;
 	ctx.fillStyle = "rgba(255,255,255,0.55)";
 	ctx.font = '400 14px "Space Mono", monospace';
-	const usdText = data.pnlUsd ?? "n/a";
-	ctx.fillText(fitText(ctx, usdText, leftW), padX, usdY);
+	const secondary =
+		opts?.displayMode === "percent"
+			? data.pnlUsd
+			: opts?.currency === "usd" || opts?.currency === "idr"
+				? (data.pnlPct ?? "")
+				: data.pnlUsd;
+	const usdText =
+		secondary && secondary !== "n/a" ? secondary : (data.pnlUsd ?? "n/a");
+	if (opts?.displayMode === "percent" || opts?.currency !== "sol") {
+		ctx.fillText(fitText(ctx, usdText, leftW), padX, usdY);
+	} else {
+		ctx.fillText(fitText(ctx, data.pnlUsd ?? "n/a", leftW), padX, usdY);
+	}
 
 	if (showDetails) {
 		const detailsTop = labelY;
@@ -337,64 +376,271 @@ function drawMetinaCard(
 		const labelFont = '400 10px "Space Mono", monospace';
 		const valueFont = '600 13px "Space Mono", monospace';
 
-		if (!isPosition) {
-			const d = data as PnlSummaryCardData;
-			const win =
-				d.stats.winRate === null
-					? "n/a"
-					: `${(d.stats.winRate * 100).toFixed(1)}%`;
-			const rows: Array<{ label: string; value: string }> = [
-				{ label: "Fees", value: `${d.feesSol} SOL` },
-				{ label: "Deposits", value: `${d.depositsSol} SOL` },
-				{ label: "Withdrawals", value: `${d.withdrawalsSol} SOL` },
-				{ label: "Win rate", value: win },
-			];
-			rows.forEach((row, i) => {
-				const y = rowStart + i * rowGap;
-				ctx.fillStyle = "rgba(255,255,255,0.45)";
-				ctx.font = labelFont;
-				setLetterSpacing(ctx, 1);
-				ctx.fillText(row.label.toUpperCase(), rightX, y);
-				setLetterSpacing(ctx, 0);
-				ctx.fillStyle = "#ffffff";
-				ctx.font = valueFont;
-				ctx.fillText(fitText(ctx, row.value, rightW), rightX, y + 16);
-			});
-		} else {
-			const d = data as PnlPositionCardData;
-			const rows: Array<{ label: string; value: string }> = [
-				{ label: "Pair", value: d.pairName },
-				{ label: "Sent", value: d.sent },
-				{ label: "Received", value: d.received },
-				{ label: "Duration", value: d.closedAgo ?? "n/a" },
-			];
-			rows.forEach((row, i) => {
-				const y = rowStart + i * rowGap;
-				ctx.fillStyle = "rgba(255,255,255,0.45)";
-				ctx.font = labelFont;
-				setLetterSpacing(ctx, 1);
-				ctx.fillText(row.label.toUpperCase(), rightX, y);
-				setLetterSpacing(ctx, 0);
-				ctx.fillStyle = "#ffffff";
-				ctx.font = valueFont;
-				ctx.fillText(fitText(ctx, row.value, rightW), rightX, y + 16);
-			});
-		}
+		const win =
+			data.stats.winRate === null
+				? "n/a"
+				: `${(data.stats.winRate * 100).toFixed(1)}%`;
+		const rows: Array<{ label: string; value: string }> = [
+			{ label: "Fees", value: `${data.feesSol} SOL` },
+			{ label: "Deposits", value: `${data.depositsSol} SOL` },
+			{ label: "Withdrawals", value: `${data.withdrawalsSol} SOL` },
+			{ label: "Win rate", value: win },
+		];
+		rows.forEach((row, i) => {
+			const y = rowStart + i * rowGap;
+			ctx.fillStyle = "rgba(255,255,255,0.45)";
+			ctx.font = labelFont;
+			setLetterSpacing(ctx, 1);
+			ctx.fillText(row.label.toUpperCase(), rightX, y);
+			setLetterSpacing(ctx, 0);
+			ctx.fillStyle = "#ffffff";
+			ctx.font = valueFont;
+			ctx.fillText(fitText(ctx, row.value, rightW), rightX, y + 16);
+		});
 
 		const footY = height - padY - 2;
 		ctx.fillStyle = "rgba(255,255,255,0.28)";
 		ctx.font = '400 10px "Space Mono", monospace';
 		ctx.textAlign = "right";
-		const ts = isPosition ? "" : (data as PnlSummaryCardData).timestampUtc;
-		if (ts) ctx.fillText(fitText(ctx, ts, rightW), rightX + rightW, footY);
+		if (data.timestampUtc)
+			ctx.fillText(
+				fitText(ctx, data.timestampUtc, rightW),
+				rightX + rightW,
+				footY,
+			);
 		ctx.textAlign = "left";
 	} else {
 		const footY = height - padY - 2;
 		ctx.fillStyle = "rgba(255,255,255,0.28)";
 		ctx.font = '400 10px "Space Mono", monospace';
-		const ts = !isPosition ? (data as PnlSummaryCardData).timestampUtc : "";
-		if (ts) ctx.fillText(fitText(ctx, ts, leftW), padX, footY);
+		if (data.timestampUtc)
+			ctx.fillText(fitText(ctx, data.timestampUtc, leftW), padX, footY);
 	}
+}
+
+function drawPositionCard(
+	ctx: CanvasRenderingContext2D,
+	data: PnlPositionCardData,
+	width: number,
+	height: number,
+	style: CardStyle | undefined,
+	opts: PnlCardRenderOpts | undefined,
+): void {
+	drawCardShell(ctx, style, width, height);
+
+	const pad = 24;
+	const innerW = width - pad * 2;
+
+	ctx.textBaseline = "alphabetic";
+	ctx.textAlign = "left";
+
+	const headerY = pad + 14;
+	const logoSize = 20;
+	const logo = getVexisLogo();
+	if (logo) {
+		ctx.save();
+		ctx.beginPath();
+		roundRect(ctx, pad, headerY - 10, logoSize, logoSize, 5);
+		ctx.clip();
+		ctx.drawImage(logo, pad, headerY - 10, logoSize, logoSize);
+		ctx.restore();
+	} else {
+		const r = 10;
+		const cx = pad + r;
+		const cy = headerY;
+		ctx.beginPath();
+		ctx.arc(cx, cy, r, 0, Math.PI * 2);
+		ctx.fillStyle = "#ffffff";
+		ctx.fill();
+		ctx.fillStyle = "#0c0e12";
+		ctx.font = '700 11px "Syne", Arial, sans-serif';
+		ctx.textAlign = "center";
+		ctx.textBaseline = "middle";
+		ctx.fillText("V", cx, cy + 1);
+		ctx.textAlign = "left";
+		ctx.textBaseline = "alphabetic";
+	}
+
+	ctx.fillStyle = "#ffffff";
+	ctx.font = '700 12px "Syne", Arial, sans-serif';
+	setLetterSpacing(ctx, 1.2);
+	ctx.fillText("VEXIS", pad + logoSize + 8, headerY + 4);
+	setLetterSpacing(ctx, 0);
+
+	ctx.textAlign = "right";
+	ctx.fillStyle = "rgba(255,255,255,0.55)";
+	ctx.font = '400 11px "Space Mono", monospace';
+	const globeX = pad + innerW - 52;
+	ctx.beginPath();
+	ctx.arc(globeX, headerY, 7, 0, Math.PI * 2);
+	ctx.strokeStyle = "rgba(255,255,255,0.35)";
+	ctx.lineWidth = 1;
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.ellipse(globeX, headerY, 3.5, 7, 0, 0, Math.PI * 2);
+	ctx.stroke();
+	ctx.beginPath();
+	ctx.moveTo(globeX - 7, headerY);
+	ctx.lineTo(globeX + 7, headerY);
+	ctx.stroke();
+	ctx.fillStyle = "rgba(255,255,255,0.45)";
+	ctx.textAlign = "right";
+	ctx.fillText("vexis.id", pad + innerW, headerY + 4);
+	ctx.textAlign = "left";
+
+	const closedAgoY = 112;
+	ctx.fillStyle = "rgba(255,255,255,0.45)";
+	ctx.font = '600 13px "Space Mono", monospace';
+	setLetterSpacing(ctx, 1.4);
+	const closedText = (data.closedAgo ?? "—").toUpperCase();
+	ctx.fillText(fitText(ctx, closedText, innerW), pad, closedAgoY);
+	setLetterSpacing(ctx, 0);
+
+	const pairY = 150;
+	const pairText = (data.pairName ?? data.title ?? "—").toUpperCase();
+	ctx.fillStyle = "#ffffff";
+	ctx.font = '800 30px "Syne", Arial, sans-serif';
+	setLetterSpacing(ctx, -0.5);
+	const pairMaxW = innerW - 48;
+	const renderedPair = fitText(ctx, pairText, pairMaxW);
+	ctx.fillText(renderedPair, pad, pairY);
+	setLetterSpacing(ctx, 0);
+
+	const tokenLogo = getTokenLogo(data.tokenLogoUrl ?? null);
+	if (tokenLogo) {
+		const textW = ctx.measureText(renderedPair).width;
+		const iconSize = 28;
+		const iconX = pad + textW + 10;
+		const iconY = pairY - 22;
+		if (iconX + iconSize < pad + innerW) {
+			ctx.save();
+			ctx.beginPath();
+			ctx.arc(
+				iconX + iconSize / 2,
+				iconY + iconSize / 2,
+				iconSize / 2,
+				0,
+				Math.PI * 2,
+			);
+			ctx.clip();
+			ctx.drawImage(tokenLogo, iconX, iconY, iconSize, iconSize);
+			ctx.restore();
+			ctx.save();
+			ctx.beginPath();
+			ctx.arc(
+				iconX + iconSize / 2,
+				iconY + iconSize / 2,
+				iconSize / 2,
+				0,
+				Math.PI * 2,
+			);
+			ctx.strokeStyle = "rgba(255,255,255,0.12)";
+			ctx.lineWidth = 1;
+			ctx.stroke();
+			ctx.restore();
+		}
+	}
+
+	const pnlText = resolvePnlDisplayText(data, opts);
+	const pnlColor = pnlCardColor(pnlText);
+	const pnlY = 200;
+	ctx.fillStyle = pnlColor;
+	ctx.font = '800 48px "Syne", Arial, sans-serif';
+	setLetterSpacing(ctx, -1.2);
+	ctx.fillText(fitText(ctx, pnlText, innerW), pad, pnlY);
+	setLetterSpacing(ctx, 0);
+
+	const metricsLabelY = 256;
+	const metricsValueY = 276;
+	const colGap = 32;
+	let colX = pad;
+
+	const cols: Array<{ label: string; value: string }> = [
+		{ label: "Sent", value: data.sent ?? "n/a" },
+		{ label: "Received", value: data.received ?? "n/a" },
+		{
+			label: "PNL",
+			value:
+				data.pnlPct && data.pnlPct !== "n/a"
+					? data.pnlPct.includes("%")
+						? data.pnlPct
+						: `${data.pnlPct}%`
+					: pnlText,
+		},
+	];
+
+	if (opts?.displayMode === "amount") {
+		cols[2].value = pnlText;
+	}
+
+	cols.forEach((col) => {
+		ctx.fillStyle = "rgba(255,255,255,0.38)";
+		ctx.font = '400 10px "Space Mono", monospace';
+		setLetterSpacing(ctx, 1);
+		ctx.fillText(col.label.toUpperCase(), colX, metricsLabelY);
+		setLetterSpacing(ctx, 0);
+		ctx.fillStyle = col.label === "PNL" ? pnlColor : "#ffffff";
+		ctx.font =
+			col.label === "PNL"
+				? '700 15px "Space Mono", monospace'
+				: '600 15px "Space Mono", monospace';
+		const w = ctx.measureText(col.value).width;
+		ctx.fillText(fitText(ctx, col.value, 140), colX, metricsValueY);
+		colX += Math.max(w + colGap, 110);
+	});
+
+	const socialsX = width - pad - 120;
+	const socialsY = metricsLabelY - 2;
+	const socials: string[] = ["VEXIS", "@vexis.id", "vexis.id"];
+	const iconR = 6;
+	socials.forEach((label, i) => {
+		const y = socialsY + i * 18;
+		ctx.beginPath();
+		ctx.arc(socialsX, y, iconR, 0, Math.PI * 2);
+		ctx.fillStyle = "rgba(255,255,255,0.08)";
+		ctx.fill();
+		ctx.strokeStyle = "rgba(255,255,255,0.18)";
+		ctx.lineWidth = 1;
+		ctx.stroke();
+		ctx.fillStyle = "rgba(255,255,255,0.42)";
+		ctx.font = '400 10px "Space Mono", monospace';
+		ctx.textAlign = "left";
+		ctx.fillText(label, socialsX + 14, y + 3);
+	});
+
+	const footY = height - pad - 10;
+	const avatarR = 14;
+	const centerX = width / 2;
+	ctx.beginPath();
+	ctx.arc(centerX - 44, footY, avatarR, 0, Math.PI * 2);
+	ctx.fillStyle = "rgba(255,255,255,0.12)";
+	ctx.fill();
+	ctx.strokeStyle = "rgba(255,255,255,0.18)";
+	ctx.lineWidth = 1;
+	ctx.stroke();
+	ctx.fillStyle = "rgba(255,255,255,0.95)";
+	ctx.font = '600 11px "Syne", Arial, sans-serif';
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.fillText(
+		(data.traderLabel?.[0] ?? "V").toUpperCase(),
+		centerX - 44,
+		footY + 1,
+	);
+	ctx.textBaseline = "alphabetic";
+	ctx.textAlign = "left";
+
+	ctx.fillStyle = "rgba(255,255,255,0.85)";
+	ctx.font = '600 12px "Space Mono", monospace';
+	ctx.textAlign = "left";
+	ctx.fillText(data.traderLabel ?? "", centerX - 44 + avatarR + 8, footY + 4);
+
+	ctx.fillStyle = "rgba(255,255,255,0.32)";
+	ctx.font = '400 10px "Space Mono", monospace';
+	ctx.textAlign = "right";
+	const walletShort = data.walletShort ?? shortAddr(data.wallet, 4);
+	ctx.fillText(walletShort, centerX + 80, footY + 4);
+	ctx.textAlign = "left";
 }
 
 function formatSolForCard(value: string | number | null | undefined): string {
@@ -489,6 +735,7 @@ export function createPnlCardDataFromPosition(params: {
 	pairName: string;
 	poolAddress: string;
 	closedPools?: readonly ClosedPool[];
+	tokenLogoUrl?: string | null;
 }): PnlPositionCardData {
 	const walletShort = shortAddr(params.wallet, 4);
 	const pool = params.closedPools?.find(
@@ -529,6 +776,7 @@ export function createPnlCardDataFromPosition(params: {
 		received,
 		closedAgo,
 		traderLabel: walletShort,
+		tokenLogoUrl: params.tokenLogoUrl ?? null,
 	};
 }
 

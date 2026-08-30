@@ -1,5 +1,10 @@
 import type { ClosedPool } from "../domain/portfolio.js";
-import type { PnlCardStats, PnlTimeRange } from "./types.js";
+import type {
+	PnlCardStats,
+	PnlCurrency,
+	PnlDisplayMode,
+	PnlTimeRange,
+} from "./types.js";
 
 export const PNL_GREEN = "#22c55e";
 export const PNL_RED = "#ef4444";
@@ -83,6 +88,60 @@ export function formatClosedAgo(lastClosedAt: number | null): string | null {
 	const days = Math.floor(hours / 24);
 	return `${days}D AGO`;
 }
+
+export function formatCardIdr(
+	value: string | number | null | undefined,
+	usdToIdrRate = 16500,
+): string {
+	if (value === null || value === undefined) return "n/a";
+	const n =
+		typeof value === "number"
+			? value
+			: Number.parseFloat(String(value).replace(/[^0-9.\-+]/g, ""));
+	if (Number.isNaN(n)) return String(value);
+	const idr = n * usdToIdrRate;
+	const abs = Math.abs(idr).toLocaleString("en-US", {
+		minimumFractionDigits: 0,
+		maximumFractionDigits: 0,
+	});
+	if (idr > 0) return `+Rp${abs}`;
+	if (idr < 0) return `-Rp${abs}`;
+	return `Rp${abs}`;
+}
+
+export function formatPnlForDisplay(
+	data: {
+		readonly pnlUsd: string;
+		readonly pnlSol: string;
+		readonly pnlPct: string | null;
+	},
+	displayMode: PnlDisplayMode = "amount",
+	currency: PnlCurrency = "sol",
+): string {
+	if (displayMode === "percent") {
+		if (data.pnlPct && data.pnlPct !== "n/a")
+			return data.pnlPct.includes("%") ? data.pnlPct : `${data.pnlPct}%`;
+		return "n/a";
+	}
+	if (currency === "usd") return data.pnlUsd ?? "n/a";
+	if (currency === "idr") return formatCardIdr(data.pnlUsd);
+	return data.pnlSol ?? data.pnlUsd ?? "n/a";
+}
+
+export type PnlDisplayFormatter = (
+	data: {
+		readonly pnlUsd: string;
+		readonly pnlSol: string;
+		readonly pnlPct: string | null;
+	},
+	currency?: PnlCurrency,
+) => string;
+
+export const pnlDisplayRegistry: Record<PnlDisplayMode, PnlDisplayFormatter> = {
+	amount: (data, currency) =>
+		formatPnlForDisplay(data, "amount", currency ?? "sol"),
+	percent: (data) => formatPnlForDisplay(data, "percent"),
+};
 
 export function computeClosedStats(pools: readonly ClosedPool[]): PnlCardStats {
 	const totalClosed = pools.length;

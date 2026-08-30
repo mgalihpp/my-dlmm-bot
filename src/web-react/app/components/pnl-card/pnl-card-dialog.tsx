@@ -15,6 +15,7 @@ import { createPnlCardDataFromTotal } from "../../../../pnl-card/render.js";
 import type {
 	CardStyle,
 	PnlCardData,
+	PnlDisplayMode,
 	PnlTimeRange,
 } from "../../../../pnl-card/types.js";
 import { PnlCardCanvas } from "./pnl-card-canvas.js";
@@ -123,6 +124,7 @@ export function PnlCardDialog({
 	const [zoom, setZoom] = useState(1);
 	const [showDetails, setShowDetails] = useState(true);
 	const [currency, setCurrency] = useState<CurrencyToggle>("usd");
+	const [displayMode, setDisplayMode] = useState<PnlDisplayMode>("amount");
 	const [timeRange, setTimeRange] = useState<PnlTimeRange>("daily");
 	const [derivedData, setDerivedData] = useState<PnlCardData | null>(data);
 	useEffect(() => {
@@ -179,6 +181,10 @@ export function PnlCardDialog({
 		return deriveDisplayData(baseForDisplay, currency);
 	}, [baseForDisplay, currency]);
 
+	const renderOpts = useMemo(
+		() => ({ displayMode, currency }) as const,
+		[displayMode, currency],
+	);
 	const handleDownload = useCallback(() => {
 		const canvas = document.querySelector<HTMLCanvasElement>(
 			"[data-pnl-card-canvas]",
@@ -223,9 +229,16 @@ export function PnlCardDialog({
 				</DialogDescription>
 				<div className="flex flex-col">
 					<div className="flex items-center justify-between border-b border-zinc-800 px-5 py-4">
-						<DialogTitle className="text-base font-semibold text-white">
-							Share daily P&amp;L
-						</DialogTitle>
+						<div className="flex items-center gap-3">
+							<img
+								src="/logo.png"
+								alt="Vexis"
+								className="h-7 w-7 rounded-md object-contain"
+							/>
+							<DialogTitle className="text-base font-semibold text-white">
+								Share daily P&amp;L
+							</DialogTitle>
+						</div>
 						<button
 							type="button"
 							onClick={() => onOpenChange(false)}
@@ -252,21 +265,39 @@ export function PnlCardDialog({
 					<div className="flex flex-col lg:flex-row">
 						<div className="flex flex-1 flex-col bg-[#09090b] p-4">
 							<div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-								<div className="flex rounded-full bg-zinc-800 p-1">
-									{(["sol", "usd", "idr"] as const).map((c) => (
-										<button
-											key={c}
-											type="button"
-											onClick={() => setCurrency(c)}
-											className={
-												currency === c
-													? "rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
-													: "rounded-full px-4 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
-											}
-										>
-											{c.toUpperCase()}
-										</button>
-									))}
+								<div className="flex flex-wrap items-center gap-2">
+									<div className="flex rounded-full bg-zinc-800 p-1">
+										{(["sol", "usd", "idr"] as const).map((c) => (
+											<button
+												key={c}
+												type="button"
+												onClick={() => setCurrency(c)}
+												className={
+													currency === c
+														? "rounded-full bg-white px-4 py-1.5 text-xs font-semibold text-black"
+														: "rounded-full px-4 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+												}
+											>
+												{c.toUpperCase()}
+											</button>
+										))}
+									</div>
+									<div className="flex rounded-full bg-zinc-800 p-1">
+										{(["amount", "percent"] as const).map((m) => (
+											<button
+												key={m}
+												type="button"
+												onClick={() => setDisplayMode(m)}
+												className={
+													displayMode === m
+														? "rounded-full bg-orange-500 px-4 py-1.5 text-xs font-semibold text-white"
+														: "rounded-full px-4 py-1.5 text-xs font-medium text-zinc-400 hover:text-zinc-200"
+												}
+											>
+												{m === "amount" ? "Amount" : "Percent"}
+											</button>
+										))}
+									</div>
 								</div>
 								{isSummary ? (
 									<div className="flex rounded-full bg-zinc-800 p-1">
@@ -292,6 +323,8 @@ export function PnlCardDialog({
 								<PnlCardCanvas
 									data={displayData}
 									style={cardStyle}
+									displayMode={renderOpts.displayMode}
+									currency={renderOpts.currency}
 									className="w-full max-w-[600px] rounded-lg shadow-2xl"
 								/>
 							</div>

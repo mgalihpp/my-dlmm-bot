@@ -1,10 +1,12 @@
+export type PnlDisplayMode = "amount" | "percent";
+export type PnlCurrency = "sol" | "usd" | "idr";
+
 export type PnlTimeRange =
 	| "daily"
 	| "weekly"
 	| "monthly"
 	| "yearly"
 	| "allTime";
-
 export interface CardStyle {
 	readonly background?: string;
 	readonly texture?: "off" | "dots" | "grid" | "lines" | "noise";
@@ -56,6 +58,7 @@ export interface PnlPositionCardData {
 	readonly received: string;
 	readonly closedAgo: string | null;
 	readonly traderLabel: string;
+	readonly tokenLogoUrl?: string | null;
 }
 
 export type PnlCardData = PnlSummaryCardData | PnlPositionCardData;
@@ -64,4 +67,6 @@ export interface PnlCardRenderOpts {
 	readonly width?: number;
 	readonly height?: number;
 	readonly style?: CardStyle;
+	readonly displayMode?: PnlDisplayMode;
+	readonly currency?: PnlCurrency;
 }
