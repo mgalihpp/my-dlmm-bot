@@ -115,7 +115,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	const netPnlLabel =
 		netPnl == null
 			? "—"
-			: `${netPnl >= 0 ? "" : ""}${formatNum(netPnl)} ${isSol ? "SOL" : "USD"}`;
+			: `${netPnl >= 0 ? "" : ""}${formatNum(netPnl, isSol ? 3 : 2)} ${isSol ? "SOL" : "USD"}`;
 	const netPnlColor =
 		netPnl == null
 			? "text-foreground"
@@ -127,18 +127,19 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	const dayWinPctLabel =
 		metrics.dayWinPct == null ? "—" : fmtPct(metrics.dayWinPct);
 	const profitFactorLabel =
-		metrics.profitFactor == null ? "—" : metrics.profitFactor.toFixed(3);
+		metrics.profitFactor == null ? "—" : metrics.profitFactor.toFixed(2);
 	const avgRatioLabel =
-		metrics.avgRatio == null ? "—" : metrics.avgRatio.toFixed(3);
+		metrics.avgRatio == null ? "—" : metrics.avgRatio.toFixed(2);
 
 	const unit = isSol ? "SOL" : "USD";
 	const avgWinLabel =
-		metrics.avgWinSol == null ? "—" : `${formatNum(metrics.avgWinSol)} ${unit}`;
+		metrics.avgWinSol == null
+			? "—"
+			: `${formatNum(metrics.avgWinSol, isSol ? 3 : 2)} ${unit}`;
 	const avgLossLabel =
 		metrics.avgLossSol == null
 			? "—"
-			: `${formatNum(metrics.avgLossSol)} ${unit}`;
-
+			: `${formatNum(metrics.avgLossSol, isSol ? 3 : 2)} ${unit}`;
 	const posPct =
 		metrics.avgWinSol != null && metrics.avgLossSol != null
 			? (Math.abs(metrics.avgWinSol) /
@@ -247,10 +248,10 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 						<FullDonut grossProfit={grossProfit} grossLoss={grossLoss} />
 						<div className="mt-1 flex w-full items-center justify-between gap-2 text-[10px]">
 							<span className="text-emerald-500">
-								{formatNum(grossProfit)} {unit}
+								{formatNum(grossProfit, isSol ? 3 : 2)} {unit}
 							</span>
 							<span className="text-red-500">
-								{formatNum(grossLoss)} {unit}
+								{formatNum(grossLoss, isSol ? 3 : 2)} {unit}
 							</span>
 						</div>
 					</div>

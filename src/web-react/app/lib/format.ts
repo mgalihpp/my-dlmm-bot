@@ -1,4 +1,4 @@
-export function formatNum(value: string | number, decimals = 3): string {
+export function formatNum(value: string | number, decimals = 2): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return String(value);
 	return n.toLocaleString("en-US", {
@@ -11,7 +11,7 @@ export function fmtUsd(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	return `$${formatNum(n)}`;
+	return `$${formatNum(n, 2)}`;
 }
 
 export function fmtPct(value: string | number | null | undefined): string {
@@ -19,7 +19,7 @@ export function fmtPct(value: string | number | null | undefined): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
 	const sign = n > 0 ? "+" : "";
-	return `${sign}${formatNum(n)}%`;
+	return `${sign}${formatNum(n, 2)}%`;
 }
 
 export function fmtSol(value: string | number | null | undefined): string {

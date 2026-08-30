@@ -12,15 +12,15 @@ import {
 
 describe("fmtPnl", () => {
 	it("keeps each PnL column in its own unit", () => {
-		expect(fmtPnl("12", "0.1", "usd")).toBe("$12.000");
+		expect(fmtPnl("12", "0.1", "usd")).toBe("$12.00");
 		expect(fmtPnl("12", "0.1", "sol")).toBe("0.100 SOL");
 	});
 });
 
 describe("fmtPnlPct", () => {
 	it("uses the percentage matching the selected currency", () => {
-		expect(fmtPnlPct("12", "8", "usd")).toBe("+12.000%");
-		expect(fmtPnlPct("12", "8", "sol")).toBe("+8.000%");
+		expect(fmtPnlPct("12", "8", "usd")).toBe("+12.00%");
+		expect(fmtPnlPct("12", "8", "sol")).toBe("+8.00%");
 	});
 });
 

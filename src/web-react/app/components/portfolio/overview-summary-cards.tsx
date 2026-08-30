@@ -27,7 +27,7 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 	const pnlPct = isSol ? summary.unrealizedSolPct : summary.unrealizedPct;
 	const positive = pnl >= 0;
 	const unit = isSol ? "SOL" : "USD";
-	const fmt = (value: number) => `${formatNum(value, 3)} ${unit}`;
+	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
 
 	return (
 		<Card data-size="sm" className="py-3">
@@ -97,7 +97,7 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 							className={`rounded px-1.5 py-0.5 text-xs ${positive ? "bg-emerald-500/20 text-emerald-500" : "bg-red-500/20 text-red-500"}`}
 						>
 							{pnlPct >= 0 ? "+" : ""}
-							{pnlPct.toFixed(3)}%
+							{pnlPct.toFixed(2)}%
 						</span>
 						<span
 							className={`font-bold text-base ${positive ? "text-emerald-500" : "text-red-500"}`}
@@ -129,10 +129,9 @@ export const PerformanceCard = memo(function PerformanceCard({
 		: Number.parseFloat(total?.totalPnlUsd ?? "0") || 0;
 	const positive = totalPnl >= 0;
 	const unit = isSol ? "SOL" : "USD";
-	const fmt = (value: number) => `${formatNum(value, 3)} ${unit}`;
-
+	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
 	const winRateLabel =
-		metrics.winPct == null ? "—" : `${metrics.winPct.toFixed(3)}%`;
+		metrics.winPct == null ? "—" : `${metrics.winPct.toFixed(2)}%`;
 
 	return (
 		<Card data-size="sm" className="py-3">
