@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo } from "react";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
+import { filterClosedByRange, type ResolvedRange } from "~/lib/date-range";
 import { computeOverviewMetrics } from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { OverviewCalendar } from "./overview-calendar";
@@ -16,26 +17,35 @@ const EquityChart = lazy(() =>
 export function PortfolioOverviewContent({
 	data,
 	currency,
+	dateRange,
 }: {
 	data: PortfolioPayload;
 	currency: Currency;
+	dateRange: ResolvedRange;
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (value: RangeFilter) => void;
 }) {
+	const closedAll = data.closedAll ?? data.closed?.pools ?? [];
+	const filteredClosed = useMemo(
+		() => filterClosedByRange(closedAll, dateRange),
+		[closedAll, dateRange],
+	);
+	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(
 		() =>
 			computeOverviewMetrics(
-				(data.closedAll ??
-					data.closed?.pools ??
-					[]) as unknown as import("@vexis/domain/portfolio.js").ClosedPool[],
+				filteredClosed,
 				[],
-				data.closed?.totalCount ?? 0,
-				data.total ?? null,
-				data.summary
-					? { sol: data.summary.unrealizedSol, usd: data.summary.unrealizedUsd }
-					: null,
+				bounded ? filteredClosed.length : (data.closed?.totalCount ?? 0),
+				bounded ? null : (data.total ?? null),
+				bounded || !data.summary
+					? null
+					: {
+							sol: data.summary.unrealizedSol,
+							usd: data.summary.unrealizedUsd,
+						},
 			),
-		[data.closedAll, data.closed, data.total, data.summary],
+		[filteredClosed, bounded, data.closed, data.total, data.summary],
 	);
 
 	if (!data.summary && !data.closed) {
@@ -58,7 +68,7 @@ export function PortfolioOverviewContent({
 								<ActiveSummaryCard summary={data.summary} currency={currency} />
 								<PerformanceCard
 									summary={data.summary}
-									total={data.total ?? null}
+									total={bounded ? null : (data.total ?? null)}
 									metrics={metrics}
 									currency={currency}
 								/>
@@ -70,40 +80,19 @@ export function PortfolioOverviewContent({
 						)}
 					</div>
 					<div className="lg:col-span-2">
-						<OverviewCalendar
-							closed={
-								(data.closedAll ??
-									data.closed?.pools ??
-								[]) as unknown as import("@vexis/domain/portfolio.js").ClosedPool[]
-							}
-							currency={currency}
-						/>
+						<OverviewCalendar closed={filteredClosed} currency={currency} />
 					</div>
 				</div>
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						<EquityChart
-							closed={
-								(data.closedAll ??
-									data.closed?.pools ??
-									[]) as unknown as import("@vexis/domain/portfolio.js").ClosedPool[]
-							}
-							currency={currency}
-						/>
+						<EquityChart closed={filteredClosed} currency={currency} />
 					</Suspense>
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						<DailyPnlChart
-							closed={
-								(data.closedAll ??
-									data.closed?.pools ??
-									[]) as unknown as import("@vexis/domain/portfolio.js").ClosedPool[]
-							}
-							currency={currency}
-						/>
+						<DailyPnlChart closed={filteredClosed} currency={currency} />
 					</Suspense>
 				</div>
 			</div>

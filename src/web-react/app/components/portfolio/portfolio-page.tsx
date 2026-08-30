@@ -11,6 +11,11 @@ import {
 	resolveCurrency,
 	writeStoredCurrency,
 } from "~/lib/currency";
+import {
+	parseDateFilterParams,
+	resolveDateFilter,
+	writeDateFilterParams,
+} from "~/lib/date-range";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { PortfolioHeader } from "./portfolio-header";
 import { PortfolioOverviewContent } from "./portfolio-overview-content";
@@ -30,6 +35,8 @@ export function PortfolioPage() {
 		searchParams.get("currency"),
 		storedCurrency,
 	);
+	const dateFilter = parseDateFilterParams(searchParams);
+	const dateRange = resolveDateFilter(dateFilter, new Date());
 
 	useEffect(() => {
 		setStoredCurrency(
@@ -55,6 +62,12 @@ export function PortfolioPage() {
 		);
 	};
 
+	const applyDateFilter = (value: typeof dateFilter) => {
+		setSearchParams((current) => writeDateFilterParams(current, value), {
+			preventScrollReset: true,
+		});
+	};
+
 	if (isNavigating) {
 		return (
 			<DashboardShell title="Portfolio">
@@ -70,6 +83,8 @@ export function PortfolioPage() {
 					<PortfolioHeader
 						currency={currency}
 						onCurrencyChange={() => {}}
+						dateFilter={dateFilter}
+						onDateFilterApply={applyDateFilter}
 						onRefresh={revalidate}
 						refreshing={state === "loading"}
 					/>
@@ -85,12 +100,15 @@ export function PortfolioPage() {
 				<PortfolioHeader
 					currency={currency}
 					onCurrencyChange={setCurrency}
+					dateFilter={dateFilter}
+					onDateFilterApply={applyDateFilter}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
 				/>
 				<PortfolioOverviewContent
 					data={data}
 					currency={currency}
+					dateRange={dateRange}
 					rangeFilter={rangeFilter}
 					onRangeFilterChange={setRangeFilter}
 				/>
