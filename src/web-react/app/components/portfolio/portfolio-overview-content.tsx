@@ -57,31 +57,8 @@ export function PortfolioOverviewContent({
 		() => filterClosedByRange(closedAll, dateRange),
 		[closedAll, dateRange],
 	);
-	const closedFetcher = useFetcher<ClosedPositionsResponse>();
 	const monthFetcher = useFetcher<ClosedPositionsResponse>();
-	const chartFetcher = useFetcher<ClosedPositionsResponse>();
 
-	useEffect(() => {
-		if (data.closedPositions && data.closedPositions.length > 0) return;
-		if (closedFetcher.state !== "idle" || closedFetcher.data) return;
-		closedFetcher.load("/api/closed-positions");
-	}, [data.closedPositions, closedFetcher]);
-
-	const closedPositions = useMemo(() => {
-		if (data.closedPositions && data.closedPositions.length > 0)
-			return data.closedPositions;
-		const d = closedFetcher.data;
-		if (d?.ok && Array.isArray(d.positions)) return d.positions;
-		return [] as readonly PositionPnLData[];
-	}, [data.closedPositions, closedFetcher.data]);
-
-	const positionsLoading =
-		closedFetcher.state !== "idle" && closedPositions.length === 0;
-
-	const filteredPositions = useMemo(
-		() => filterPositionsByRange(closedPositions, dateRange),
-		[closedPositions, dateRange],
-	);
 	const [month, setMonth] = useState(() => new Date());
 	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
 	const currentMonthKey = useMemo(() => {
@@ -105,12 +82,6 @@ export function PortfolioOverviewContent({
 		}
 		return months;
 	}, []);
-	useEffect(() => {
-		const missing = [...chartMonths].reverse().find((k) => !monthCache.has(k));
-		if (!missing) return;
-		if (chartFetcher.state !== "idle") return;
-		chartFetcher.load(`/api/closed-positions?month=${missing}`);
-	}, [chartMonths, monthCache, chartFetcher]);
 
 	useEffect(() => {
 		const entry = monthCache.get(monthKey);
@@ -145,26 +116,46 @@ export function PortfolioOverviewContent({
 	}, [monthFetcher.data, monthCache, monthKey, currentMonthKey]);
 
 	useEffect(() => {
-		const d = chartFetcher.data as ClosedPositionsResponse | undefined;
-		if (!d?.ok || !Array.isArray((d as { positions?: unknown }).positions))
-			return;
-		const key = (d as { month?: string | null }).month ?? "";
-		if (!key || !/^\d{4}-\d{2}$/.test(key)) return;
-		const existing = monthCache.get(key);
-		if (existing) {
-			const isCurrent = key === currentMonthKey;
-			if (!isCurrent) return;
-			if (Date.now() - existing.at < 5 * 60 * 1000) return;
-		}
-		setMonthCache((prev) => {
-			const next = new Map(prev);
-			next.set(key, {
-				data: (d as { positions: PositionPnLData[] }).positions,
-				at: Date.now(),
-			});
-			return next;
-		});
-	}, [chartFetcher.data, monthCache, currentMonthKey]);
+		const missing = chartMonths.filter(
+			(k) => !monthCache.has(k) && k !== monthKey,
+		);
+		if (missing.length === 0) return;
+		let cancelled = false;
+		const fetches = missing.map((key) =>
+			fetch(`/api/closed-positions?month=${key}`, {
+				credentials: "same-origin",
+			}).then((r) => r.json() as Promise<ClosedPositionsResponse>)
+				.then((d) => {
+					if (cancelled) return;
+					if (
+						!d?.ok ||
+						!Array.isArray((d as { positions?: unknown }).positions)
+					)
+						return;
+					const k = (d as { month?: string | null }).month ?? key;
+					if (!/^\d{4}-\d{2}$/.test(k)) return;
+					setMonthCache((prev) => {
+						const existing = prev.get(k);
+						if (existing) {
+							const isCurrent = k === currentMonthKey;
+							if (!isCurrent) return prev;
+							if (Date.now() - existing.at < 5 * 60 * 1000) return prev;
+						}
+						const next = new Map(prev);
+						next.set(k, {
+							data: (d as { positions: PositionPnLData[] }).positions,
+							at: Date.now(),
+						});
+						return next;
+					});
+				})
+				.catch(() => {}),
+		);
+		void Promise.all(fetches);
+		return () => {
+			cancelled = true;
+		};
+	}, [chartMonths, monthCache, monthKey, currentMonthKey]);
 
 	const chartAggregated = useMemo(
 		() => [...monthCache.values()].flatMap((v) => v.data),
@@ -174,54 +165,35 @@ export function PortfolioOverviewContent({
 		() => filterPositionsByRange(chartAggregated, dateRange),
 		[chartAggregated, dateRange],
 	);
-	const chartLoading =
-		chartFetcher.state !== "idle" && chartAggregated.length === 0;
-	const _hasAllChartMonths = useMemo(
-		() => chartMonths.every((k) => monthCache.has(k)),
-		[chartMonths, monthCache],
-	);
-
-	useEffect(() => {
-		if (monthKey !== currentMonthKey) return;
-		const id = setInterval(() => {
-			const entry = monthCache.get(currentMonthKey);
-			if (!entry) return;
-			if (Date.now() - entry.at > 5 * 60 * 1000) {
-				setMonthCache((prev) => {
-					const next = new Map(prev);
-					next.delete(currentMonthKey);
-					return next;
-				});
-			}
-		}, 60 * 1000);
-		return () => clearInterval(id);
-	}, [monthKey, currentMonthKey, monthCache]);
-
-	const monthLoading =
-		monthFetcher.state !== "idle" && monthPositions.length === 0;
+	const chartHasData = chartAggregated.length > 0;
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(() => {
-		const hasPositions = closedPositions.length > 0;
+		const hasPositions = chartHasData;
 		if (hasPositions) {
-			const records = filteredPositions.map((p) => ({
+			const source = filteredChartPositions;
+			const records = source.map((p) => ({
 				pnlSol: p.pnlSol,
 				pnlUsd: p.pnlUsd,
 				closedAt: p.closedAt,
 			}));
-			const total = bounded ? filteredPositions.length : closedPositions.length;
-			return computeOverviewMetricsFromRecords(
-				records,
-				[],
-				total,
-				bounded ? null : (data.total ?? null),
-				bounded || !data.summary
-					? null
-					: {
-							sol: data.summary.unrealizedSol,
-							usd: data.summary.unrealizedUsd,
-						},
-				currency,
-			);
+			const total = bounded
+				? filteredChartPositions.length
+				: chartAggregated.length;
+			if (total > 0 || filteredChartPositions.length > 0) {
+				return computeOverviewMetricsFromRecords(
+					records,
+					[],
+					total,
+					bounded ? null : (data.total ?? null),
+					bounded || !data.summary
+						? null
+						: {
+								sol: data.summary.unrealizedSol,
+								usd: data.summary.unrealizedUsd,
+							},
+					currency,
+				);
+			}
 		}
 		return computeOverviewMetrics(
 			filteredClosed,
@@ -238,8 +210,9 @@ export function PortfolioOverviewContent({
 		);
 	}, [
 		filteredClosed,
-		filteredPositions,
-		closedPositions,
+		filteredChartPositions,
+		chartAggregated,
+		chartHasData,
 		bounded,
 		data.closed,
 		data.total,
@@ -255,6 +228,9 @@ export function PortfolioOverviewContent({
 			</div>
 		);
 	}
+
+	const monthLoading =
+		monthFetcher.state !== "idle" && monthPositions.length === 0;
 
 	return (
 		<div className="relative">
@@ -298,27 +274,20 @@ export function PortfolioOverviewContent({
 					>
 						<EquityChart
 							closed={filteredClosed}
-							positions={filteredPositions}
+							positions={filteredChartPositions}
 							currency={currency}
 						/>
 					</Suspense>
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						{(chartAggregated.length > 0 ? chartLoading : positionsLoading) &&
-						(chartAggregated.length > 0
-							? filteredChartPositions.length === 0
-							: filteredPositions.length === 0) ? (
-							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
-						) : (
+						{chartHasData ? (
 							<DailyPnlChart
-								closed={
-									chartAggregated.length > 0
-										? filteredChartPositions
-										: filteredPositions
-								}
+								closed={filteredChartPositions}
 								currency={currency}
 							/>
+						) : (
+							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
 						)}
 					</Suspense>
 				</div>
