@@ -9,7 +9,10 @@ import {
 	filterPositionsByRange,
 	type ResolvedRange,
 } from "~/lib/date-range";
-import { computeOverviewMetrics } from "~/lib/overview-analytics";
+import {
+	computeOverviewMetrics,
+	computeOverviewMetricsFromRecords,
+} from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { OverviewCalendar } from "./overview-calendar";
 import { DailyPnlChart } from "./overview-daily-pnl";
@@ -171,7 +174,7 @@ export function PortfolioOverviewContent({
 	);
 	const chartLoading =
 		chartFetcher.state !== "idle" && chartAggregated.length === 0;
-	const hasAllChartMonths = useMemo(
+	const _hasAllChartMonths = useMemo(
 		() => chartMonths.every((k) => monthCache.has(k)),
 		[chartMonths, monthCache],
 	);
@@ -195,12 +198,19 @@ export function PortfolioOverviewContent({
 	const monthLoading =
 		monthFetcher.state !== "idle" && monthPositions.length === 0;
 	const bounded = dateRange.kind === "bounded";
-	const metrics = useMemo(
-		() =>
-			computeOverviewMetrics(
-				filteredClosed,
+	const metrics = useMemo(() => {
+		const hasPositions = closedPositions.length > 0;
+		if (hasPositions) {
+			const records = filteredPositions.map((p) => ({
+				pnlSol: p.pnlSol,
+				pnlUsd: p.pnlUsd,
+				closedAt: p.closedAt,
+			}));
+			const total = bounded ? filteredPositions.length : closedPositions.length;
+			return computeOverviewMetricsFromRecords(
+				records,
 				[],
-				bounded ? filteredClosed.length : (data.closed?.totalCount ?? 0),
+				total,
 				bounded ? null : (data.total ?? null),
 				bounded || !data.summary
 					? null
@@ -208,9 +218,32 @@ export function PortfolioOverviewContent({
 							sol: data.summary.unrealizedSol,
 							usd: data.summary.unrealizedUsd,
 						},
-			),
-		[filteredClosed, bounded, data.closed, data.total, data.summary],
-	);
+				currency,
+			);
+		}
+		return computeOverviewMetrics(
+			filteredClosed,
+			[],
+			bounded ? filteredClosed.length : (data.closed?.totalCount ?? 0),
+			bounded ? null : (data.total ?? null),
+			bounded || !data.summary
+				? null
+				: {
+						sol: data.summary.unrealizedSol,
+						usd: data.summary.unrealizedUsd,
+					},
+			currency,
+		);
+	}, [
+		filteredClosed,
+		filteredPositions,
+		closedPositions,
+		bounded,
+		data.closed,
+		data.total,
+		data.summary,
+		currency,
+	]);
 
 	if (!data.summary && !data.closed) {
 		return (
@@ -261,7 +294,11 @@ export function PortfolioOverviewContent({
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						<EquityChart closed={filteredClosed} currency={currency} />
+						<EquityChart
+							closed={filteredClosed}
+							positions={filteredPositions}
+							currency={currency}
+						/>
 					</Suspense>
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
@@ -274,7 +311,9 @@ export function PortfolioOverviewContent({
 						) : (
 							<DailyPnlChart
 								closed={
-									chartAggregated.length > 0 ? filteredChartPositions : filteredPositions
+									chartAggregated.length > 0
+										? filteredChartPositions
+										: filteredPositions
 								}
 								currency={currency}
 							/>

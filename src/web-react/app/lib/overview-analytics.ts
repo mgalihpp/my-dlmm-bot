@@ -2,6 +2,15 @@ import type { ClosedPool } from "@vexis/domain/portfolio.js";
 
 type PortfolioSnapshot = { pnlSol: number | null; pnlUsd: number | null };
 
+export type Currency = "sol" | "usd";
+
+export type PnlRecord = {
+	readonly pnlSol: string | number | null | undefined;
+	readonly pnlUsd: string | number | null | undefined;
+	readonly closedAt: number | null | undefined;
+	readonly lastClosedAt?: number | null | undefined;
+};
+
 export interface OverviewMetrics {
 	readonly netPnlSol: number | null;
 	readonly netPnlUsd: number | null;
@@ -22,18 +31,20 @@ export interface OverviewMetrics {
 	readonly dayWinPct: number | null;
 }
 
-function toNum(value: string | null | undefined): number | null {
+function toNum(value: string | number | null | undefined): number | null {
 	if (value == null) return null;
-	const n = Number.parseFloat(value);
+	const n =
+		typeof value === "number" ? value : Number.parseFloat(value as string);
 	return Number.isNaN(n) ? null : n;
 }
 
-export function computeOverviewMetrics(
-	closed: readonly ClosedPool[],
+export function computeOverviewMetricsFromRecords(
+	records: readonly PnlRecord[],
 	history: readonly PortfolioSnapshot[],
 	totalClosed: number,
 	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
 	unrealized?: { sol: number; usd: number } | null,
+	currency: Currency = "sol",
 ): OverviewMetrics {
 	let wins = 0;
 	let losses = 0;
@@ -47,21 +58,26 @@ export function computeOverviewMetrics(
 	const nowSec = Math.floor(Date.now() / 1000);
 	const dayStart = nowSec - 86400;
 
-	for (const pool of closed) {
-		const pnlSol = toNum(pool.pnlSol);
-		const pnlUsd = toNum(pool.pnlUsd);
-		if (pnlSol !== null) {
-			if (pnlSol > 0) {
+	for (const r of records) {
+		const pnlSol = toNum(r.pnlSol as string | null | undefined);
+		const pnlUsd = toNum(r.pnlUsd as string | null | undefined);
+		const closedAt = r.closedAt ?? r.lastClosedAt ?? null;
+		const primary = currency === "sol" ? pnlSol : pnlUsd;
+
+		if (primary !== null) {
+			if (primary > 0) {
 				wins += 1;
-				grossProfitSol += pnlSol;
-			} else if (pnlSol < 0) {
+			} else if (primary < 0) {
 				losses += 1;
-				grossLossSol += pnlSol;
 			}
-			if (pool.lastClosedAt != null && pool.lastClosedAt >= dayStart) {
-				if (pnlSol > 0) dayWins += 1;
-				else if (pnlSol < 0) dayLosses += 1;
+			if (closedAt != null && closedAt >= dayStart) {
+				if (primary > 0) dayWins += 1;
+				else if (primary < 0) dayLosses += 1;
 			}
+		}
+		if (pnlSol !== null) {
+			if (pnlSol > 0) grossProfitSol += pnlSol;
+			else if (pnlSol < 0) grossLossSol += pnlSol;
 		}
 		if (pnlUsd !== null) {
 			if (pnlUsd > 0) grossProfitUsd += pnlUsd;
@@ -74,10 +90,15 @@ export function computeOverviewMetrics(
 	const dayTotal = dayWins + dayLosses;
 	const dayWinPct = dayTotal > 0 ? (dayWins / dayTotal) * 100 : winPct;
 
+	const isSol = currency === "sol";
+	const grossProfitPrimary = isSol ? grossProfitSol : grossProfitUsd;
+	const grossLossPrimary = isSol ? grossLossSol : grossLossUsd;
 	const profitFactor =
-		grossLossSol !== 0 ? grossProfitSol / Math.abs(grossLossSol) : null;
-	const avgWinSol = wins > 0 ? grossProfitSol / wins : null;
-	const avgLossSol = losses > 0 ? grossLossSol / losses : null;
+		grossLossPrimary !== 0
+			? grossProfitPrimary / Math.abs(grossLossPrimary)
+			: null;
+	const avgWinSol = wins > 0 ? grossProfitPrimary / wins : null;
+	const avgLossSol = losses > 0 ? grossLossPrimary / losses : null;
 	const avgRatio =
 		avgWinSol !== null && avgLossSol !== null && avgLossSol !== 0
 			? avgWinSol / Math.abs(avgLossSol)
@@ -117,4 +138,28 @@ export function computeOverviewMetrics(
 		dayLosses,
 		dayWinPct,
 	};
+}
+
+export function computeOverviewMetrics(
+	closed: readonly ClosedPool[],
+	history: readonly PortfolioSnapshot[],
+	totalClosed: number,
+	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
+	unrealized?: { sol: number; usd: number } | null,
+	currency: Currency = "sol",
+): OverviewMetrics {
+	const records: readonly PnlRecord[] = closed.map((p) => ({
+		pnlSol: p.pnlSol,
+		pnlUsd: p.pnlUsd,
+		closedAt: p.lastClosedAt,
+		lastClosedAt: p.lastClosedAt,
+	}));
+	return computeOverviewMetricsFromRecords(
+		records,
+		history,
+		totalClosed,
+		totalPnl,
+		unrealized,
+		currency,
+	);
 }

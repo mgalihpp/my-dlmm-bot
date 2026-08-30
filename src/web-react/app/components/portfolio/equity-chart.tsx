@@ -1,4 +1,5 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
+import type { PositionPnLData } from "@vexis/domain/position.js";
 import { memo, useMemo, useState } from "react";
 import {
 	Area,
@@ -17,21 +18,29 @@ import {
 	ChartTooltipContent,
 } from "~/components/ui/chart";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
-import { buildCumulative } from "~/lib/cumulative-pnl";
+import {
+	buildCumulative,
+	buildCumulativeFromPositions,
+} from "~/lib/cumulative-pnl";
 import type { Currency } from "./portfolio-page";
 
 type PnlMode = "fees" | "total";
 
 export const EquityChart = memo(function EquityChart({
 	closed,
+	positions,
 	currency,
 }: {
 	closed: readonly ClosedPool[];
+	positions?: readonly PositionPnLData[];
 	currency: Currency;
 }) {
 	const [mode, setMode] = useState<PnlMode>("total");
 	const { points, stops, positive, chartConfig } = useMemo(() => {
-		const cum = buildCumulative(closed, currency);
+		const cum =
+			positions && positions.length > 0
+				? buildCumulativeFromPositions(positions, currency)
+				: buildCumulative(closed, currency);
 		const points = cum.map((p) => ({
 			label: p.label,
 			value: mode === "fees" ? p.cumFees : p.cumPnl,
@@ -74,7 +83,7 @@ export const EquityChart = memo(function EquityChart({
 		} satisfies ChartConfig;
 
 		return { points, stops, positive, chartConfig };
-	}, [closed, currency, mode]);
+	}, [closed, currency, mode, positions]);
 
 	const last = points.at(-1);
 

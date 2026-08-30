@@ -131,10 +131,13 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	const avgRatioLabel =
 		metrics.avgRatio == null ? "—" : metrics.avgRatio.toFixed(3);
 
+	const unit = isSol ? "SOL" : "USD";
 	const avgWinLabel =
-		metrics.avgWinSol == null ? "—" : `${formatNum(metrics.avgWinSol)} SOL`;
+		metrics.avgWinSol == null ? "—" : `${formatNum(metrics.avgWinSol)} ${unit}`;
 	const avgLossLabel =
-		metrics.avgLossSol == null ? "—" : `${formatNum(metrics.avgLossSol)} SOL`;
+		metrics.avgLossSol == null
+			? "—"
+			: `${formatNum(metrics.avgLossSol)} ${unit}`;
 
 	const posPct =
 		metrics.avgWinSol != null && metrics.avgLossSol != null
@@ -142,6 +145,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 					(Math.abs(metrics.avgWinSol) + Math.abs(metrics.avgLossSol))) *
 				100
 			: 50;
+	const grossProfit = isSol ? metrics.grossProfitSol : metrics.grossProfitUsd;
+	const grossLoss = isSol ? metrics.grossLossSol : metrics.grossLossUsd;
 
 	return (
 		<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
@@ -229,8 +234,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									</button>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Gross profit divided by absolute gross loss. Above 1.0 means
-									winners outweigh losers.
+									Gross profit divided by absolute gross loss in {unit}. Above
+									1.0 means winners outweigh losers.
 								</TooltipContent>
 							</Tooltip>
 						</div>
@@ -239,16 +244,13 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 						</span>
 					</div>
 					<div className="flex flex-col items-center justify-center">
-						<FullDonut
-							grossProfit={metrics.grossProfitSol}
-							grossLoss={metrics.grossLossSol}
-						/>
+						<FullDonut grossProfit={grossProfit} grossLoss={grossLoss} />
 						<div className="mt-1 flex w-full items-center justify-between gap-2 text-[10px]">
 							<span className="text-emerald-500">
-								{formatNum(metrics.grossProfitSol)} SOL
+								{formatNum(grossProfit)} {unit}
 							</span>
 							<span className="text-red-500">
-								{formatNum(metrics.grossLossSol)} SOL
+								{formatNum(grossLoss)} {unit}
 							</span>
 						</div>
 					</div>
