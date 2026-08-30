@@ -228,7 +228,7 @@ function drawAlphaLeft(
 	const topY = cy + 28;
 
 	ctx.fillStyle = "rgba(255,255,255,0.72)";
-	ctx.font = '400 16px "Space Mono", monospace';
+	ctx.font = '400 19px "Space Mono", monospace';
 	ctx.textBaseline = "alphabetic";
 	ctx.textAlign = "left";
 	ctx.fillText("┌ vexis ┘", leftX, topY + 16);
@@ -242,7 +242,7 @@ function drawAlphaLeft(
 		? (data as PnlPositionCardData).pairName
 		: "VEXIS";
 	const ticker = tickerRaw.split("/")[0].toUpperCase().slice(0, 10) || "VEXIS";
-	const circleR = 16;
+	const circleR = 18;
 	const circleX = leftX + circleR;
 	const circleY = tokenY - 8;
 	ctx.beginPath();
@@ -258,7 +258,7 @@ function drawAlphaLeft(
 	ctx.textBaseline = "alphabetic";
 
 	ctx.fillStyle = "#ffffff";
-	ctx.font = '800 42px "Syne", Arial, sans-serif';
+	ctx.font = '800 50px "Syne", Arial, sans-serif';
 	const tickerX = leftX + circleR * 2 + 12;
 	ctx.fillText(
 		fitText(ctx, ticker, leftW - (tickerX - leftX)),
@@ -280,18 +280,17 @@ function drawAlphaLeft(
 		if (pnlText !== "n/a" && !pnlText.includes("%") && pnlText !== "0%")
 			pnlText = `${pnlText}%`;
 	}
-	const bigY = tokenY + 86;
+	const bigY = tokenY + 94;
 	ctx.fillStyle = pnlColor;
-	ctx.font = '800 76px "Syne", Arial, sans-serif';
+	ctx.font = '800 92px "Syne", Arial, sans-serif';
 	setLetterSpacing(ctx, -2);
 	ctx.fillText(fitText(ctx, pnlText, leftW), leftX, bigY);
 	setLetterSpacing(ctx, 0);
 
-	const gridY = bigY + 34;
+	const gridY = bigY + 38;
 	const colGap = leftW / 2;
-	const labelFont = '400 13px "Space Mono", monospace';
-	const valueFont = '600 15px "Space Mono", monospace';
-
+	const labelFont = '400 14px "Space Mono", monospace';
+	const valueFont = '600 18px "Space Mono", monospace';
 	if (isPosition) {
 		const d = data as PnlPositionCardData;
 		const cols: Array<{ label: string; value: string }> = [
@@ -348,12 +347,11 @@ function drawAlphaLeft(
 			ctx.fillText(fitText(ctx, col.value, colGap - 12), x, row2Y + 20);
 		});
 	}
-
 	const quoteY = cy + ch - 36;
 	ctx.fillStyle = "#ffffff";
-	ctx.font = '400 13px "Space Mono", monospace';
+	ctx.font = '400 15px "Space Mono", monospace';
 	ctx.fillText("- Was it life change", leftX, quoteY);
-	ctx.fillText("money? Maybe...", leftX, quoteY + 16);
+	ctx.fillText("money? Maybe...", leftX, quoteY + 18);
 }
 
 function formatSolForCard(value: string | number | null | undefined): string {
