@@ -31,7 +31,6 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 	) {
 		return new Response("blocked host", { status: 400 });
 	}
-
 	let upstream: Response;
 	try {
 		upstream = await fetch(parsed.toString(), {
@@ -39,10 +38,16 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 			signal: AbortSignal.timeout(4000),
 		});
 	} catch {
-		return new Response("upstream timeout", { status: 504 });
+		return new Response(null, {
+			status: 204,
+			headers: { "Cache-Control": "public, max-age=60" },
+		});
 	}
 	if (!upstream.ok || !upstream.body) {
-		return new Response("upstream error", { status: upstream.status || 502 });
+		return new Response(null, {
+			status: 204,
+			headers: { "Cache-Control": "public, max-age=60" },
+		});
 	}
 
 	const contentType = upstream.headers.get("content-type") ?? "image/png";

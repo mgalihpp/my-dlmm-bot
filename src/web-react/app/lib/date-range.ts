@@ -326,6 +326,21 @@ export function filterClosedByRange<
 	});
 }
 
+export function filterPositionsByRange<
+	T extends { readonly closedAt: number | null },
+>(positions: readonly T[], range: ResolvedRange): readonly T[] {
+	if (range.kind === "all") return positions;
+	return positions.filter((pos) => {
+		if (pos.closedAt === null) return false;
+		const date = secToLocalDate(pos.closedAt);
+		return (
+			date !== null &&
+			compareLocalDate(range.from, date) <= 0 &&
+			compareLocalDate(date, range.to) <= 0
+		);
+	});
+}
+
 export function parseMonthDayYear(input: string): LocalDate | null {
 	const match = /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/.exec(input);
 	if (match === null) return null;

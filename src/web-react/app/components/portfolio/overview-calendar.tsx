@@ -1,5 +1,5 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: calendar grid uses positional keys
-import type { ClosedPool } from "@vexis/domain/portfolio.js";
+import type { PositionPnLData } from "@vexis/domain/position.js";
 import { ChevronLeftIcon, ChevronRightIcon, ShareIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -17,11 +17,16 @@ function daysInMonth(date: Date) {
 export const OverviewCalendar = memo(function OverviewCalendar({
 	closed,
 	currency = "sol",
+	month,
+	onMonthChange,
+	loading = false,
 }: {
-	closed: readonly ClosedPool[];
+	closed: readonly PositionPnLData[];
 	currency?: Currency;
+	month: Date;
+	onMonthChange: (d: Date) => void;
+	loading?: boolean;
 }) {
-	const [month, setMonth] = useState(() => new Date(2026, 7, 1));
 	const [mode, setMode] = useState<"fees" | "total">("total");
 
 	const { cells, monthlyPnl, monthlyDays } = useMemo(() => {
@@ -35,22 +40,24 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 		>();
 		let monthlyPnl = 0;
 		const seenDays = new Set<number>();
-		const getVal = (p: ClosedPool) => {
+		const getVal = (p: PositionPnLData) => {
 			if (mode === "fees")
 				return (
 					Number(
-						currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee,
+						currency === "sol"
+							? (p.allTimeFees.total.sol ?? "0")
+							: p.allTimeFees.total.usd,
 					) || 0
 				);
-			return Number(currency === "sol" ? p.pnlSol : p.pnlUsd) || 0;
+			return Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
 		};
 
-		for (const pool of closed) {
-			if (pool.lastClosedAt == null) continue;
-			const d = new Date(pool.lastClosedAt * 1000);
+		for (const pos of closed) {
+			if (pos.closedAt == null) continue;
+			const d = new Date(pos.closedAt * 1000);
 			if (d.getFullYear() !== year || d.getMonth() !== mon) continue;
 			const day = d.getDate();
-			const val = getVal(pool);
+			const val = getVal(pos);
 			monthlyPnl += val;
 			seenDays.add(day);
 			const entry = byDay.get(day) ?? { pnl: 0, count: 0, wins: 0 };
@@ -59,7 +66,6 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 			if (val > 0) entry.wins += 1;
 			byDay.set(day, entry);
 		}
-
 		const cells: Array<{
 			day: number | null;
 			pnl: number | null;
@@ -134,7 +140,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							size="icon"
 							className="size-6"
 							onClick={() =>
-								setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))
+								onMonthChange(
+									new Date(month.getFullYear(), month.getMonth() - 1, 1),
+								)
 							}
 						>
 							<ChevronLeftIcon className="size-3.5" />
@@ -147,7 +155,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							size="icon"
 							className="size-6"
 							onClick={() =>
-								setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))
+								onMonthChange(
+									new Date(month.getFullYear(), month.getMonth() + 1, 1),
+								)
 							}
 						>
 							<ChevronRightIcon className="size-3.5" />
@@ -156,20 +166,28 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							variant="outline"
 							size="sm"
 							className="ml-2 h-6 text-xs"
-							onClick={() => setMonth(new Date())}
+							onClick={() => onMonthChange(new Date())}
 						>
 							This month
 						</Button>
 					</div>
 					<div className="flex items-center gap-2 text-xs">
 						<span className="text-muted-foreground">Monthly:</span>
-						<span
-							className={`font-semibold ${monthlyPnl >= 0 ? "text-emerald-500" : "text-red-500"}`}
-						>
-							{monthlyPnl >= 0 ? "+" : ""}
-							{monthlyPnl.toFixed(3)} SOL
-						</span>
-						<span className="text-muted-foreground">{monthlyDays} days</span>
+						{loading ? (
+							<span className="text-muted-foreground">loading...</span>
+						) : (
+							<>
+								<span
+									className={`font-semibold ${monthlyPnl >= 0 ? "text-emerald-500" : "text-red-500"}`}
+								>
+									{monthlyPnl >= 0 ? "+" : ""}
+									{monthlyPnl.toFixed(3)} {currency === "sol" ? "SOL" : "USD"}
+								</span>
+								<span className="text-muted-foreground">
+									{monthlyDays} days
+								</span>
+							</>
+						)}
 					</div>
 				</div>
 				<div className="mt-3 flex gap-2">
@@ -222,7 +240,8 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 																className={`text-[10px] font-bold leading-none sm:text-sm ${textColor}`}
 															>
 																{cell.pnl! >= 0 ? "+" : ""}
-																{cell.pnl!.toFixed(3)} SOL
+																{cell.pnl!.toFixed(3)}{" "}
+																{currency === "sol" ? "SOL" : "USD"}
 															</span>
 															<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
 																{cell.count} positions

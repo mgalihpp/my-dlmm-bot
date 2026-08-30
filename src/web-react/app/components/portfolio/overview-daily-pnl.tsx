@@ -1,4 +1,4 @@
-import type { ClosedPool } from "@vexis/domain/portfolio.js";
+import type { PositionPnLData } from "@vexis/domain/position.js";
 import { ShareIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import {
@@ -24,7 +24,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 	closed,
 	currency,
 }: {
-	closed: readonly ClosedPool[];
+	closed: readonly PositionPnLData[];
 	currency: Currency;
 }) {
 	const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">(
@@ -32,21 +32,22 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 	);
 	const [mode, setMode] = useState<"fees" | "total">("total");
 	const { points, config } = useMemo(() => {
-		const getVal = (p: ClosedPool) => {
+		const getVal = (p: PositionPnLData) => {
 			if (mode === "fees")
 				return (
 					Number(
-						currency === "sol" ? (p.totalFeeSol ?? p.totalFee) : p.totalFee,
+						currency === "sol"
+							? (p.allTimeFees.total.sol ?? "0")
+							: p.allTimeFees.total.usd,
 					) || 0
 				);
-			return Number(currency === "sol" ? p.pnlSol : p.pnlUsd) || 0;
+			return Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
 		};
 		const deltas = closed
 			.filter(
-				(p): p is ClosedPool & { lastClosedAt: number } =>
-					p.lastClosedAt != null,
+				(p): p is PositionPnLData & { closedAt: number } => p.closedAt != null,
 			)
-			.map((p) => ({ ts: p.lastClosedAt, delta: getVal(p) }));
+			.map((p) => ({ ts: p.closedAt, delta: getVal(p) }));
 		let buckets: { key: string; label: string; value: number }[] = [];
 		if (timeframe === "daily") {
 			const now = new Date();

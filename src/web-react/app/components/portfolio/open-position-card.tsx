@@ -20,11 +20,13 @@ export function OpenPositionCard({
 	onDetails,
 	currency,
 	solPrice,
+	rangesLoading = false,
 }: {
 	pool: OpenPoolWithIcons;
 	onDetails: () => void;
 	currency: Currency;
 	solPrice: number | null;
+	rangesLoading?: boolean;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 	return (
@@ -123,6 +125,7 @@ export function OpenPositionCard({
 					ranges={pool.positionsRange ?? []}
 					current={pool.poolPrice}
 					mcap={pool.mcap ?? null}
+					loading={rangesLoading}
 				/>
 			</div>
 			<div className="mt-3 flex items-center justify-between">

@@ -40,12 +40,14 @@ function PositionsTableView({
 	onRangeFilterChange,
 	currency,
 	solPrice,
+	rangesLoading = false,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (filter: RangeFilter) => void;
 	currency: Currency;
 	solPrice: number | null;
+	rangesLoading?: boolean;
 }) {
 	const isMobile = useIsMobile();
 	const [search, setSearch] = useState("");
@@ -170,6 +172,7 @@ function PositionsTableView({
 								currency={currency}
 								solPrice={solPrice}
 								onDetails={() => setSelectedCard(pool)}
+								rangesLoading={rangesLoading}
 							/>
 						))}
 					</div>
@@ -183,6 +186,7 @@ function PositionsTableView({
 						sortKey={sortKey}
 						sortDir={sortDir}
 						onSort={toggleSort}
+						rangesLoading={rangesLoading}
 					/>
 				)}
 			</CardContent>

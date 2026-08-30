@@ -63,6 +63,7 @@ export function PositionsTableBody({
 	sortKey,
 	sortDir,
 	onSort,
+	rangesLoading = false,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	expanded: string | null;
@@ -72,6 +73,7 @@ export function PositionsTableBody({
 	sortKey: SortKey;
 	sortDir: SortDir;
 	onSort: (key: SortKey) => void;
+	rangesLoading?: boolean;
 }) {
 	return (
 		<div className="overflow-x-auto">
@@ -79,32 +81,12 @@ export function PositionsTableBody({
 				<TableHeader className="bg-muted/50">
 					<TableRow>
 						<TableHead className="w-8" />
-						<SortableHead
-							label="Pool"
-							k="pair"
-							{...{ sortKey, sortDir, onSort }}
-						/>
+						<SortableHead label="Pool" k="pair" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
 						<TableHead>Bin</TableHead>
-						<SortableHead
-							label="Balance"
-							k="balances"
-							{...{ sortKey, sortDir, onSort }}
-						/>
-						<SortableHead
-							label="Fees"
-							k="fees"
-							{...{ sortKey, sortDir, onSort }}
-						/>
-						<SortableHead
-							label="PnL USD"
-							k="pnl"
-							{...{ sortKey, sortDir, onSort }}
-						/>
-						<SortableHead
-							label="PnL SOL"
-							k="pnlSol"
-							{...{ sortKey, sortDir, onSort }}
-						/>
+						<SortableHead label="Balance" k="balances" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+						<SortableHead label="Fees" k="fees" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+						<SortableHead label="PnL USD" k="pnl" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
+						<SortableHead label="PnL SOL" k="pnlSol" sortKey={sortKey} sortDir={sortDir} onSort={onSort} />
 						<TableHead>Range</TableHead>
 						<TableHead className="min-w-40">Visual Range</TableHead>
 						<TableHead>Close</TableHead>
@@ -112,8 +94,7 @@ export function PositionsTableBody({
 				</TableHeader>
 				<TableBody>
 					{pools.map((pool) => {
-						const oor =
-							pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+						const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 						const pnlUsd = parseFloat(pool.pnl);
 						const pnlSol = pool.pnlSol != null ? parseFloat(pool.pnlSol) : null;
 						const isOpen = expanded === pool.poolAddress;
@@ -121,9 +102,7 @@ export function PositionsTableBody({
 							<Fragment key={pool.poolAddress}>
 								<TableRow
 									className="cursor-pointer"
-									onClick={() =>
-										onExpandedChange(isOpen ? null : pool.poolAddress)
-									}
+									onClick={() => onExpandedChange(isOpen ? null : pool.poolAddress)}
 								>
 									<TableCell>
 										<ChevronDownIcon
@@ -138,57 +117,27 @@ export function PositionsTableBody({
 									</TableCell>
 									<TableCell className="tabular-nums">{pool.binStep}</TableCell>
 									<TableCell className="tabular-nums">
-										<PortfolioAmount
-											usd={pool.balances}
-											currency={currency}
-											solPrice={solPrice}
-										/>
+										<PortfolioAmount usd={pool.balances} currency={currency} solPrice={solPrice} />
 									</TableCell>
 									<TableCell className="tabular-nums">
-										<PortfolioAmount
-											usd={pool.unclaimedFees}
-											currency={currency}
-											solPrice={solPrice}
-										/>
+										<PortfolioAmount usd={pool.unclaimedFees} currency={currency} solPrice={solPrice} />
 									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
-									>
-										<PortfolioAmount
-											usd={pool.pnl}
-											sol={pool.pnlSol}
-											currency="usd"
-											solPrice={solPrice}
-										/>
-										<div className="text-xs text-muted-foreground">
-											{fmtPct(parseFloat(pool.pnlPctChange))}
-										</div>
+									<TableCell className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+										<PortfolioAmount usd={pool.pnl} sol={pool.pnlSol} currency="usd" solPrice={solPrice} />
+										<div className="text-xs text-muted-foreground">{fmtPct(parseFloat(pool.pnlPctChange))}</div>
 									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
-									>
-										<PortfolioAmount
-											usd={pool.pnlSol}
-											sol={pool.pnlSol}
-											currency="sol"
-											solPrice={solPrice}
-										/>
+									<TableCell className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+										<PortfolioAmount usd={pool.pnlSol} sol={pool.pnlSol} currency="sol" solPrice={solPrice} />
 										<div className="text-xs text-muted-foreground">
-											{pool.pnlSolPctChange != null
-												? fmtPct(parseFloat(pool.pnlSolPctChange))
-												: "-"}
+											{pool.pnlSolPctChange != null ? fmtPct(parseFloat(pool.pnlSolPctChange)) : "-"}
 										</div>
 									</TableCell>
 									<TableCell>
-										<Badge
-											variant={oor ? "destructive" : "default"}
-											className="gap-1"
-										>
+										<Badge variant={oor ? "destructive" : "default"} className="gap-1">
 											{oor ? "OOR" : "IN RANGE"}
 										</Badge>
 										<div className="mt-1 text-xs text-muted-foreground">
-											{pool.openPositionCount} position
-											{pool.openPositionCount === 1 ? "" : "s"}
+											{pool.openPositionCount} position{pool.openPositionCount === 1 ? "" : "s"}
 										</div>
 									</TableCell>
 									<TableCell>
@@ -196,6 +145,7 @@ export function PositionsTableBody({
 											ranges={pool.positionsRange ?? []}
 											current={pool.poolPrice}
 											mcap={pool.mcap ?? null}
+											loading={rangesLoading}
 										/>
 									</TableCell>
 									<TableCell>

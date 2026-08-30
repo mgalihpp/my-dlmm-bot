@@ -54,6 +54,7 @@ export function RangeVisual({
 	current,
 	mcap,
 	className,
+	loading = false,
 }: {
 	ranges: readonly {
 		minPrice: string;
@@ -63,19 +64,18 @@ export function RangeVisual({
 	current: number | null | undefined;
 	mcap?: number | null;
 	className?: string;
+	loading?: boolean;
 }) {
-	const prices = ranges.flatMap((r) => [
-		Number(r.minPrice),
-		Number(r.maxPrice),
-	]);
+	const prices = ranges.flatMap((r) => [Number(r.minPrice), Number(r.maxPrice)]);
 	const min = Math.min(...prices);
 	const max = Math.max(...prices);
-	if (
-		ranges.length === 0 ||
-		!Number.isFinite(min) ||
-		!Number.isFinite(max) ||
-		max <= min
-	) {
+	if (ranges.length === 0) {
+		if (loading) {
+			return <span className="inline-block h-4 w-24 animate-pulse rounded bg-muted" />;
+		}
+		return <span className="text-xs text-muted-foreground">—</span>;
+	}
+	if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
 		return <span className="text-xs text-muted-foreground">—</span>;
 	}
 	const pad = (max - min) * 0.04;
