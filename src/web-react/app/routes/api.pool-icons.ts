@@ -15,7 +15,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 		.filter(Boolean)
 		.slice(0, 20);
 	if (pools.length === 0) {
-		return Response.json({ ok: false, error: "missing pools param" }, { status: 400 });
+		return Response.json(
+			{ ok: false, error: "missing pools param" },
+			{ status: 400 },
+		);
 	}
 	try {
 		const icons = await fetchPoolIcons(pools);

@@ -1,10 +1,11 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import { SearchIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ViewSwitcher } from "~/components/view-switcher";
+import { useViewPreference } from "~/hooks/use-view-preference";
 import {
 	type Currency,
 	matchesSearch,
@@ -14,12 +15,6 @@ import {
 	type SortDir,
 	sortPools,
 } from "~/lib/pools";
-import {
-	getDefaultViewMode,
-	readViewPreference,
-	type ViewMode,
-	writeViewPreference,
-} from "~/lib/view-preference";
 import { PoolCard } from "./pool-card";
 import { PoolsTableBody } from "./pools-table-body";
 
@@ -38,22 +33,7 @@ export function PoolsTable({
 	const [bucket, setBucket] = useState<OrganicBucket>("all");
 	const [sortKey, setSortKey] = useState<PoolSortKey>("tvl");
 	const [sortDir, setSortDir] = useState<SortDir>("desc");
-	const [viewMode, setViewMode] = useState<ViewMode>("table");
-
-	useEffect(() => {
-		setViewMode(
-			readViewPreference(
-				window.localStorage,
-				"vexis:pools:results-view",
-				getDefaultViewMode(window.innerWidth),
-			),
-		);
-	}, []);
-
-	const changeViewMode = (mode: ViewMode) => {
-		setViewMode(mode);
-		writeViewPreference(window.localStorage, "vexis:pools:results-view", mode);
-	};
+	const [viewMode, setViewMode] = useViewPreference("vexis:pools:results-view");
 
 	const rows = useMemo(() => {
 		const filtered = pools.filter(
@@ -62,14 +42,22 @@ export function PoolsTable({
 		return sortPools(filtered, sortKey, sortDir);
 	}, [pools, search, bucket, sortKey, sortDir]);
 
-	const toggleSort = (key: PoolSortKey) => {
-		if (sortKey === key) {
-			setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-		} else {
-			setSortKey(key);
-			setSortDir("desc");
-		}
-	};
+	const toggleSort = useCallback(
+		(key: PoolSortKey) => {
+			if (sortKey === key) {
+				setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+			} else {
+				setSortKey(key);
+				setSortDir("desc");
+			}
+		},
+		[sortKey],
+	);
+
+	const changeViewMode = useCallback(
+		(mode: typeof viewMode) => setViewMode(mode),
+		[setViewMode],
+	);
 
 	return (
 		<Card className="mx-4 lg:mx-6">

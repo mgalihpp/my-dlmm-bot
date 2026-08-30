@@ -1,3 +1,4 @@
+import * as React from "react";
 import { useEffect } from "react";
 import { useRevalidator } from "react-router";
 
@@ -12,12 +13,15 @@ export function canAutoRefresh(
 
 export function useAutoRefresh(intervalMs = 10_000): void {
 	const { revalidate, state } = useRevalidator();
+	const stateRef = React.useRef(state);
+	stateRef.current = state;
 
 	useEffect(() => {
 		const refresh = () => {
-			if (canAutoRefresh(state, document.visibilityState)) revalidate();
+			if (canAutoRefresh(stateRef.current, document.visibilityState))
+				revalidate();
 		};
 		const timer = window.setInterval(refresh, intervalMs);
 		return () => window.clearInterval(timer);
-	}, [intervalMs, revalidate, state]);
+	}, [intervalMs, revalidate]);
 }

@@ -1,4 +1,4 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	Sheet,
@@ -8,14 +8,9 @@ import {
 	SheetTitle,
 } from "~/components/ui/sheet";
 import { useIsMobile } from "~/hooks/use-mobile";
+import { useViewPreference } from "~/hooks/use-view-preference";
 import { pair, shortAddr } from "~/lib/format";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
-import {
-	getDefaultViewMode,
-	readViewPreference,
-	type ViewMode,
-	writeViewPreference,
-} from "~/lib/view-preference";
 import { OpenPositionCard } from "./open-position-card";
 import type { Currency, RangeFilter } from "./portfolio-page";
 import { PositionsCardDetail } from "./positions-detail";
@@ -57,24 +52,9 @@ function PositionsTableView({
 	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
 		null,
 	);
-	const [viewMode, setViewMode] = useState<ViewMode>("table");
-	const [viewReady, setViewReady] = useState(false);
-
-	useEffect(() => {
-		setViewMode(
-			readViewPreference(
-				window.localStorage,
-				"vexis:portfolio:open-view",
-				getDefaultViewMode(window.innerWidth),
-			),
-		);
-		setViewReady(true);
-	}, []);
-
-	const changeViewMode = (mode: ViewMode) => {
-		setViewMode(mode);
-		writeViewPreference(window.localStorage, "vexis:portfolio:open-view", mode);
-	};
+	const [viewMode, setViewMode] = useViewPreference(
+		"vexis:portfolio:open-view",
+	);
 	const filtered = useMemo(() => {
 		let rows = pools;
 		if (rangeFilter !== "all")
@@ -150,7 +130,7 @@ function PositionsTableView({
 				</div>
 				<PositionsTableToolbar
 					viewMode={viewMode}
-					onViewModeChange={changeViewMode}
+					onViewModeChange={setViewMode}
 					rangeFilter={rangeFilter}
 					onRangeFilterChange={onRangeFilterChange}
 					rangeCounts={rangeCounts}
@@ -163,7 +143,7 @@ function PositionsTableView({
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No open positions{search ? " matching the search" : ""}.
 					</div>
-				) : !viewReady ? null : viewMode === "card" ? (
+				) : viewMode === "card" ? (
 					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
 						{filtered.map((pool) => (
 							<OpenPositionCard

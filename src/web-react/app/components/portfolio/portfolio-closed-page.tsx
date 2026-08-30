@@ -1,16 +1,10 @@
-import { lazy, Suspense, useEffect, useState } from "react";
+import { lazy, Suspense } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
-import type { Currency } from "~/lib/currency";
-import {
-	PORTFOLIO_CURRENCY_STORAGE_KEY,
-	readStoredCurrency,
-	resolveCurrency,
-	writeStoredCurrency,
-} from "~/lib/currency";
+import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { PortfolioHeader } from "./portfolio-header";
 import { ClosedTableSkeleton } from "./portfolio-table-skeletons";
@@ -23,37 +17,9 @@ export function PortfolioClosedPage() {
 	useAutoRefresh(10_000);
 	const data = useLoaderData<PortfolioPayload>();
 	const isNavigating = useIsNavigating();
-	const [searchParams, setSearchParams] = useSearchParams();
-	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
+	const [, setSearchParams] = useSearchParams();
 	const { revalidate, state } = useRevalidator();
-	const currency = resolveCurrency(
-		searchParams.get("currency"),
-		storedCurrency,
-	);
-
-	useEffect(() => {
-		setStoredCurrency(
-			readStoredCurrency(window.localStorage, PORTFOLIO_CURRENCY_STORAGE_KEY),
-		);
-	}, []);
-
-	const setCurrency = (value: Currency) => {
-		writeStoredCurrency(
-			window.localStorage,
-			PORTFOLIO_CURRENCY_STORAGE_KEY,
-			value,
-		);
-		setStoredCurrency(value);
-		setSearchParams(
-			(current) => {
-				const next = new URLSearchParams(current);
-				if (value === "usd") next.delete("currency");
-				else next.set("currency", value);
-				return next;
-			},
-			{ preventScrollReset: true },
-		);
-	};
+	const [currency, setCurrency] = useStoredCurrency("portfolio");
 
 	const onClosedPageChange = (page: number) =>
 		setSearchParams(

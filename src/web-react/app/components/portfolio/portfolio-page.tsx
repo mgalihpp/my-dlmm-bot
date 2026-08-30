@@ -1,16 +1,10 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
-import type { Currency } from "~/lib/currency";
-import {
-	PORTFOLIO_CURRENCY_STORAGE_KEY,
-	readStoredCurrency,
-	resolveCurrency,
-	writeStoredCurrency,
-} from "~/lib/currency";
+import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import {
 	parseDateFilterParams,
 	resolveDateFilter,
@@ -28,39 +22,11 @@ export function PortfolioPage() {
 	const data = useLoaderData<PortfolioPayload>();
 	const isNavigating = useIsNavigating();
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
 	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
-	const currency = resolveCurrency(
-		searchParams.get("currency"),
-		storedCurrency,
-	);
+	const [currency, setCurrency] = useStoredCurrency("portfolio");
 	const dateFilter = parseDateFilterParams(searchParams);
 	const dateRange = resolveDateFilter(dateFilter, new Date());
-
-	useEffect(() => {
-		setStoredCurrency(
-			readStoredCurrency(window.localStorage, PORTFOLIO_CURRENCY_STORAGE_KEY),
-		);
-	}, []);
-
-	const setCurrency = (value: Currency) => {
-		writeStoredCurrency(
-			window.localStorage,
-			PORTFOLIO_CURRENCY_STORAGE_KEY,
-			value,
-		);
-		setStoredCurrency(value);
-		setSearchParams(
-			(current) => {
-				const next = new URLSearchParams(current);
-				if (value === "usd") next.delete("currency");
-				else next.set("currency", value);
-				return next;
-			},
-			{ preventScrollReset: true },
-		);
-	};
 
 	const applyDateFilter = (value: typeof dateFilter) => {
 		setSearchParams((current) => writeDateFilterParams(current, value), {

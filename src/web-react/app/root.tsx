@@ -7,10 +7,13 @@ import {
 	ScrollRestoration,
 	useNavigation,
 } from "react-router";
-import { TopLoadingIndicator } from "~/components/top-loading-indicator";
 import { DashboardShell } from "~/components/dashboard-shell";
 import { PageSkeleton } from "~/components/page-skeletons";
-import { ClosedTableSkeleton, PositionsTableSkeleton } from "~/components/portfolio/portfolio-table-skeletons";
+import {
+	ClosedTableSkeleton,
+	PositionsTableSkeleton,
+} from "~/components/portfolio/portfolio-table-skeletons";
+import { TopLoadingIndicator } from "~/components/top-loading-indicator";
 import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { useTheme } from "~/hooks/use-theme";
@@ -89,7 +92,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
 export default function App() {
 	useTheme();
 	const navigation = useNavigation();
-	const isNavigating = navigation.state !== "idle" && navigation.location != null;
+	const isNavigating =
+		navigation.state !== "idle" && navigation.location != null;
 	return (
 		<TooltipProvider delayDuration={0}>
 			<TopLoadingIndicator />
@@ -107,7 +111,9 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
 	if (isRouteErrorResponse(error)) {
 		message = error.status === 404 ? "404" : "Error";
 		details =
-			error.status === 404 ? "The requested page could not be found." : error.statusText || details;
+			error.status === 404
+				? "The requested page could not be found."
+				: error.statusText || details;
 	} else if (error && error instanceof Error) {
 		details = error.message;
 		stack = error.stack;

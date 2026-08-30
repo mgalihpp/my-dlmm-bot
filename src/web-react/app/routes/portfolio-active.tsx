@@ -1,6 +1,6 @@
 import { PortfolioActivePage } from "~/components/portfolio/portfolio-active-page";
-import { RouteError } from "~/components/route-error";
 import { PositionsTableSkeleton } from "~/components/portfolio/portfolio-table-skeletons";
+import { RouteError } from "~/components/route-error";
 import { closePosition } from "~/lib/server/close.server";
 import { fetchActivePortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
@@ -25,7 +25,9 @@ export function HydrateFallback() {
 	);
 }
 
-export const meta: Route.MetaFunction = () => [{ title: "Active Positions | Vexis" }];
+export const meta: Route.MetaFunction = () => [
+	{ title: "Active Positions | Vexis" },
+];
 export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
 export async function loader(_args: Route.LoaderArgs) {

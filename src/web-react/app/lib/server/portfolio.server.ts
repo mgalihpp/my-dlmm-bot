@@ -43,6 +43,7 @@ const iconCache = new Map<
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
 export type { PortfolioTotal };
+
 const EMPTY_TOTAL: PortfolioTotal = {
 	totalPnlUsd: "-",
 	totalPnlSol: "-",
@@ -548,9 +549,13 @@ export function fetchPortfolioDeferred(
 }
 export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
-		const critical = yield* Effect.tryPromise(() => fetchPortfolioCritical()).pipe(
+		const critical = yield* Effect.tryPromise(() =>
+			fetchPortfolioCritical(),
+		).pipe(
 			Effect.flatMap((c) =>
-				c.ok ? Effect.succeed(c as PortfolioCritical) : Effect.fail(new Error((c as { error: string }).error)),
+				c.ok
+					? Effect.succeed(c as PortfolioCritical)
+					: Effect.fail(new Error((c as { error: string }).error)),
 			),
 		);
 		const api = yield* MeteoraApi;
@@ -558,9 +563,19 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 		const [enrichedPnl, live] = yield* Effect.all(
 			[
 				api
-					.enrichOpenPortfolioPnl([...critical.pools] as OpenPool[], critical.wallet, { withRanges: false })
-					.pipe(Effect.catchAll(() => Effect.succeed([...critical.pools] as OpenPool[]))),
-				dlmm.fetchUserPositions(critical.wallet).pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
+					.enrichOpenPortfolioPnl(
+						[...critical.pools] as OpenPool[],
+						critical.wallet,
+						{ withRanges: false },
+					)
+					.pipe(
+						Effect.catchAll(() =>
+							Effect.succeed([...critical.pools] as OpenPool[]),
+						),
+					),
+				dlmm
+					.fetchUserPositions(critical.wallet)
+					.pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
 			],
 			{ concurrency: "unbounded" },
 		);
@@ -625,7 +640,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 			rpc: critical.rpc,
 			solPrice: critical.solPrice,
 			summary: critical.summary,
-			total: critical.total,
+			total: critical.total as unknown as PortfolioTotal,
 			pools: poolsWithoutIcons,
 		} satisfies PortfolioPayload;
 	}).pipe(
@@ -642,14 +657,19 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 }
 
 export function fetchPoolIcons(poolAddresses: readonly string[]): Promise<
-	readonly { poolAddress: string; tokenXIcon: string | null; tokenYIcon: string | null; mcap: number | null }[]
+	readonly {
+		poolAddress: string;
+		tokenXIcon: string | null;
+		tokenYIcon: string | null;
+		mcap: number | null;
+	}[]
 > {
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
 		const config = yield* AppConfig;
-		const current = yield* config.get;
+		yield* config.get;
 		const solPrice = yield* api
-			.openPortfolio((yield* config.wallet()), 1, 1)
+			.openPortfolio(yield* config.wallet(), 1, 1)
 			.pipe(
 				Effect.map((r) => parseNum(r.solPrice)),
 				Effect.catchAll(() => Effect.succeed(null as number | null)),
@@ -670,7 +690,6 @@ export function fetchPoolIcons(poolAddresses: readonly string[]): Promise<
 	);
 	return Effect.runPromise(program);
 }
-
 
 export function fetchClosedPortfolio(
 	closedPage: number,
@@ -755,7 +774,8 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			pools: deferred.pools,
 			closed: deferred.closed,
 			closedAll: deferred.closedAll,
-			closedPositions: deferred.closedPositions,
+			closedPositions: (deferred as unknown as { closedPositions?: unknown })
+				.closedPositions as PortfolioPayload["closedPositions"],
 		} satisfies PortfolioPayload;
 	}).pipe(
 		Effect.catchAll((error) =>
@@ -769,7 +789,14 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 	return Effect.runPromise(program);
 }
 
-export function fetchOpenRanges(poolAddresses?: readonly string[]): Promise<Record<string, { minPrice: string; maxPrice: string; poolActivePrice: string }[]>> {
+export function fetchOpenRanges(
+	poolAddresses?: readonly string[],
+): Promise<
+	Record<
+		string,
+		{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
+	>
+> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const wallet = yield* config.wallet();
@@ -781,23 +808,24 @@ export function fetchOpenRanges(poolAddresses?: readonly string[]): Promise<Reco
 			const openRes = yield* api.openPortfolio(wallet, 1, 50);
 			pools = openRes.pools;
 		}
-		const ranges: Record<string, { minPrice: string; maxPrice: string; poolActivePrice: string }[]> = {};
+		const ranges: Record<
+			string,
+			{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
+		> = {};
 		yield* Effect.forEach(
 			pools,
 			(pool) =>
-				api
-					.positionPnl(pool.poolAddress, wallet, "open")
-					.pipe(
-						Effect.map((res) => {
-							ranges[pool.poolAddress] = res.positions.map((p) => ({
-								address: p.positionAddress,
-								minPrice: p.minPrice,
-								maxPrice: p.maxPrice,
-								poolActivePrice: p.poolActivePrice,
-							})) as never;
-						}),
-						Effect.catchAll(() => Effect.succeed(undefined)),
-					),
+				api.positionPnl(pool.poolAddress, wallet, "open").pipe(
+					Effect.map((res) => {
+						ranges[pool.poolAddress] = res.positions.map((p) => ({
+							address: p.positionAddress,
+							minPrice: p.minPrice,
+							maxPrice: p.maxPrice,
+							poolActivePrice: p.poolActivePrice,
+						})) as never;
+					}),
+					Effect.catchAll(() => Effect.succeed(undefined)),
+				),
 			{ concurrency: 10, discard: true },
 		);
 		return ranges;

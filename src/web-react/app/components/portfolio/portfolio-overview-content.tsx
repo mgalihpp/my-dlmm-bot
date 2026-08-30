@@ -1,5 +1,6 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { useFetcher } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
 import {
@@ -19,6 +20,10 @@ const EquityChart = lazy(() =>
 	import("./equity-chart").then((m) => ({ default: m.EquityChart })),
 );
 
+type ClosedPositionsResponse =
+	| { ok: true; positions: PositionPnLData[]; month: string | null }
+	| { ok: false; error: string };
+
 export function PortfolioOverviewContent({
 	data,
 	currency,
@@ -35,33 +40,26 @@ export function PortfolioOverviewContent({
 		() => filterClosedByRange(closedAll, dateRange),
 		[closedAll, dateRange],
 	);
-	const [fetchedPositions, setFetchedPositions] = useState<
-		readonly PositionPnLData[] | null
-	>(null);
-	const [positionsLoading, setPositionsLoading] = useState(false);
+	const closedFetcher = useFetcher<ClosedPositionsResponse>();
+	const monthFetcher = useFetcher<ClosedPositionsResponse>();
+
 	useEffect(() => {
 		if (data.closedPositions && data.closedPositions.length > 0) return;
-		let cancelled = false;
-		setPositionsLoading(true);
-		fetch("/api/closed-positions", { credentials: "same-origin" })
-			.then((r) => (r.ok ? r.json() : null))
-			.then((j) => {
-				if (cancelled) return;
-				if (j?.ok && Array.isArray(j.positions))
-					setFetchedPositions(j.positions as PositionPnLData[]);
-			})
-			.catch(() => {})
-			.finally(() => {
-				if (!cancelled) setPositionsLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [data.closedPositions]);
-	const closedPositions = ((data.closedPositions &&
-	data.closedPositions.length > 0
-		? data.closedPositions
-		: fetchedPositions) ?? []) as readonly PositionPnLData[];
+		if (closedFetcher.state !== "idle" || closedFetcher.data) return;
+		closedFetcher.load("/api/closed-positions");
+	}, [data.closedPositions, closedFetcher]);
+
+	const closedPositions = useMemo(() => {
+		if (data.closedPositions && data.closedPositions.length > 0)
+			return data.closedPositions;
+		const d = closedFetcher.data;
+		if (d?.ok && Array.isArray(d.positions)) return d.positions;
+		return [] as readonly PositionPnLData[];
+	}, [data.closedPositions, closedFetcher.data]);
+
+	const positionsLoading =
+		closedFetcher.state !== "idle" && closedPositions.length === 0;
+
 	const filteredPositions = useMemo(
 		() => filterPositionsByRange(closedPositions, dateRange),
 		[closedPositions, dateRange],
@@ -71,47 +69,29 @@ export function PortfolioOverviewContent({
 	const [monthCache, setMonthCache] = useState<
 		Map<string, readonly PositionPnLData[]>
 	>(() => new Map());
-	const [monthLoading, setMonthLoading] = useState(false);
 	const monthPositions = monthCache.get(monthKey) ?? [];
+
 	useEffect(() => {
 		if (monthCache.has(monthKey)) return;
-		let cancelled = false;
-		setMonthLoading(true);
-		fetch(`/api/closed-positions?month=${monthKey}`, {
-			credentials: "same-origin",
-		})
-			.then((r) => (r.ok ? r.json() : null))
-			.then((j) => {
-				if (cancelled) return;
-				if (j?.ok && Array.isArray(j.positions)) {
-					setMonthCache((prev) => {
-						const next = new Map(prev);
-						next.set(monthKey, j.positions as PositionPnLData[]);
-						return next;
-					});
-				} else if (j?.ok) {
-					setMonthCache((prev) => {
-						const next = new Map(prev);
-						next.set(monthKey, []);
-						return next;
-					});
-				}
-			})
-			.catch(() => {
-				if (!cancelled)
-					setMonthCache((prev) => {
-						const next = new Map(prev);
-						next.set(monthKey, []);
-						return next;
-					});
-			})
-			.finally(() => {
-				if (!cancelled) setMonthLoading(false);
-			});
-		return () => {
-			cancelled = true;
-		};
-	}, [monthKey, monthCache]);
+		if (monthFetcher.state !== "idle") return;
+		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
+	}, [monthKey, monthCache, monthFetcher]);
+
+	useEffect(() => {
+		const d = monthFetcher.data as ClosedPositionsResponse | undefined;
+		if (!d?.ok || !Array.isArray((d as { positions?: unknown }).positions))
+			return;
+		const key = (d as { month?: string | null }).month ?? monthKey;
+		if (monthCache.has(key)) return;
+		setMonthCache((prev) => {
+			const next = new Map(prev);
+			next.set(key, (d as { positions: PositionPnLData[] }).positions);
+			return next;
+		});
+	}, [monthFetcher.data, monthCache, monthKey]);
+
+	const monthLoading =
+		monthFetcher.state !== "idle" && monthPositions.length === 0;
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(
 		() =>
@@ -170,7 +150,7 @@ export function PortfolioOverviewContent({
 								currency={currency}
 								month={month}
 								onMonthChange={setMonth}
-								loading={monthLoading}
+								loading={monthFetcher.state !== "idle"}
 							/>
 						)}
 					</div>

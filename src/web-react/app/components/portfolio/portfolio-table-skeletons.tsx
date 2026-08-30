@@ -9,7 +9,8 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 
-const slots = (count: number) => Array.from({ length: count }, (_, index) => index);
+const slots = (count: number) =>
+	Array.from({ length: count }, (_, index) => index);
 
 function TableCardSkeleton({
 	titleWidth,
@@ -49,7 +50,13 @@ function TableCardSkeleton({
 								<TableRow key={row}>
 									{slots(columns).map((column) => (
 										<TableCell key={column}>
-											<Skeleton className={column === 0 ? "h-8 w-8 rounded-md" : "h-4 w-full max-w-24"} />
+											<Skeleton
+												className={
+													column === 0
+														? "h-8 w-8 rounded-md"
+														: "h-4 w-full max-w-24"
+												}
+											/>
 										</TableCell>
 									))}
 								</TableRow>

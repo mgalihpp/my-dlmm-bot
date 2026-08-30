@@ -3,7 +3,7 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 } from "lucide-react";
-import { Fragment, memo, useCallback, useEffect, useState } from "react";
+import { Fragment, memo, useCallback, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
@@ -23,6 +23,7 @@ import {
 } from "~/components/ui/table";
 import { ViewSwitcher } from "~/components/view-switcher";
 import { useIsMobile } from "~/hooks/use-mobile";
+import { useViewPreference } from "~/hooks/use-view-preference";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -34,12 +35,6 @@ import {
 } from "~/lib/format";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
-import {
-	getDefaultViewMode,
-	readViewPreference,
-	type ViewMode,
-	writeViewPreference,
-} from "~/lib/view-preference";
 import { ClosedDetail, PortfolioAmount } from "./closed-detail";
 import { ClosedPair, ClosedPoolCard } from "./closed-pool-card";
 import type { Currency } from "./portfolio-page";
@@ -63,8 +58,9 @@ function ClosedTableView({
 }) {
 	const isMobile = useIsMobile();
 	const [expanded, setExpanded] = useState<string | null>(null);
-	const [viewMode, setViewMode] = useState<ViewMode>("table");
-	const [viewReady, setViewReady] = useState(false);
+	const [viewMode, setViewMode] = useViewPreference(
+		"vexis:portfolio:closed-view",
+	);
 	const [selectedCard, setSelectedCard] = useState<ClosedPool | null>(null);
 	const { pools, page, pageSize, totalCount } = closed;
 	const lastPage = Math.max(1, Math.ceil(totalCount / pageSize));
@@ -74,24 +70,6 @@ function ClosedTableView({
 		(pool: ClosedPool) => setSelectedCard(pool),
 		[],
 	);
-	useEffect(() => {
-		setViewMode(
-			readViewPreference(
-				window.localStorage,
-				"vexis:portfolio:closed-view",
-				getDefaultViewMode(window.innerWidth),
-			),
-		);
-		setViewReady(true);
-	}, []);
-	const changeViewMode = (mode: ViewMode) => {
-		setViewMode(mode);
-		writeViewPreference(
-			window.localStorage,
-			"vexis:portfolio:closed-view",
-			mode,
-		);
-	};
 
 	return (
 		<Card className="mx-4 lg:mx-6">
@@ -104,7 +82,7 @@ function ClosedTableView({
 				</div>
 				<ViewSwitcher
 					value={viewMode}
-					onValueChange={changeViewMode}
+					onValueChange={setViewMode}
 					label="Closed positions view"
 				/>
 			</CardHeader>
@@ -113,7 +91,7 @@ function ClosedTableView({
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No closed positions.
 					</div>
-				) : !viewReady ? null : viewMode === "card" ? (
+				) : viewMode === "card" ? (
 					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
 						{pools.map((pool) => (
 							<ClosedPoolCard
@@ -311,10 +289,4 @@ function ClosedTableView({
 	);
 }
 
-export const ClosedTable = memo(
-	ClosedTableView,
-	(prev, next) =>
-		prev.currency === next.currency &&
-		prev.onPageChange === next.onPageChange &&
-		JSON.stringify(prev.closed) === JSON.stringify(next.closed),
-);
+export const ClosedTable = memo(ClosedTableView);

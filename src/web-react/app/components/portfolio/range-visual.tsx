@@ -66,12 +66,17 @@ export function RangeVisual({
 	className?: string;
 	loading?: boolean;
 }) {
-	const prices = ranges.flatMap((r) => [Number(r.minPrice), Number(r.maxPrice)]);
+	const prices = ranges.flatMap((r) => [
+		Number(r.minPrice),
+		Number(r.maxPrice),
+	]);
 	const min = Math.min(...prices);
 	const max = Math.max(...prices);
 	if (ranges.length === 0) {
 		if (loading) {
-			return <span className="inline-block h-4 w-24 animate-pulse rounded bg-muted" />;
+			return (
+				<span className="inline-block h-4 w-24 animate-pulse rounded bg-muted" />
+			);
 		}
 		return <span className="text-xs text-muted-foreground">—</span>;
 	}

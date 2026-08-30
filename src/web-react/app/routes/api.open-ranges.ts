@@ -9,7 +9,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 	}
 	const url = new URL(request.url);
 	const poolsParam = url.searchParams.get("pools");
-	const pools = poolsParam ? poolsParam.split(",").map((s) => s.trim()).filter(Boolean).slice(0, 20) : undefined;
+	const pools = poolsParam
+		? poolsParam
+				.split(",")
+				.map((s) => s.trim())
+				.filter(Boolean)
+				.slice(0, 20)
+		: undefined;
 	try {
 		const ranges = await fetchOpenRanges(pools);
 		return Response.json({ ok: true, ranges });
