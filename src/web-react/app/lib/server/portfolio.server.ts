@@ -2,15 +2,11 @@ import "~/lib/server/env.server";
 
 import type {
 	ClosedPool,
-	ClosedPortfolioResponse,
 	OpenPool,
 	OpenPortfolioTotals,
 	PortfolioTotal,
 } from "@vexis/domain/portfolio.js";
-import type {
-	PositionPnLData,
-	PositionPnLResponse,
-} from "@vexis/domain/position.js";
+import type { PositionPnLData } from "@vexis/domain/position.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
@@ -62,10 +58,116 @@ const closedPoolsCache = new Map<
 	string,
 	{ data: readonly ClosedPoolWithIcons[]; at: number }
 >();
+const closedMonthInflight = new Map<
+	string,
+	Promise<readonly PositionPnLData[]>
+>();
+const closedDayInflight = new Map<
+	string,
+	Promise<readonly PositionPnLData[]>
+>();
+const closedWeekInflight = new Map<
+	string,
+	Promise<readonly PositionPnLData[]>
+>();
 const CURRENT_MONTH_TTL_MS = 5 * 60 * 1000;
 const CURRENT_DAY_TTL_MS = 5 * 60 * 1000;
 const CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
 const CLOSED_POOLS_TTL_MS = 5 * 60 * 1000;
+
+const walletCache = new Map<string, { wallet: string; at: number }>();
+const WALLET_CACHE_TTL_MS = 5 * 60 * 1000;
+const criticalCache = new Map<
+	string,
+	{ data: PortfolioCritical; at: number }
+>();
+const CRITICAL_CACHE_TTL_MS = 30 * 1000;
+
+function getTodayKey(): string {
+	const d = new Date();
+	return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+}
+
+function getWeekStartMonday(d: Date): string {
+	const day = d.getUTCDay();
+	const diff = day === 0 ? -6 : 1 - day;
+	const mon = new Date(
+		Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
+	);
+	return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
+}
+
+function isoWeekToKey(week: string): string | null {
+	const m = week.match(/^(\d{4})-W(\d{2})$/);
+	if (!m) return null;
+	const year = Number(m[1]);
+	const w = Number(m[2]);
+	const jan4 = new Date(Date.UTC(year, 0, 4));
+	const day = jan4.getUTCDay();
+	const diff = day === 0 ? -6 : 1 - day;
+	const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
+	const target = new Date(
+		Date.UTC(
+			mon1.getUTCFullYear(),
+			mon1.getUTCMonth(),
+			mon1.getUTCDate() + (w - 1) * 7,
+		),
+	);
+	return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
+}
+
+function normalizeWeekKey(week: string): string | null {
+	if (/^\d{4}-\d{2}-\d{2}$/.test(week)) return week;
+	return isoWeekToKey(week);
+}
+
+function periodRangeFromOpts(opts?: {
+	month?: string;
+	day?: string;
+	week?: string;
+}): { start: number; end: number } | null {
+	if (opts?.day) {
+		const m = opts.day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+		if (!m) return null;
+		const y = Number(m[1]);
+		const mo = Number(m[2]);
+		const d = Number(m[3]);
+		if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
+		const start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
+		return { start, end: start + 86400 };
+	}
+	if (opts?.week) {
+		let start: number | null = null;
+		const dayMatch = opts.week.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+		if (dayMatch) {
+			const y = Number(dayMatch[1]);
+			const mo = Number(dayMatch[2]);
+			const d = Number(dayMatch[3]);
+			start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
+		} else {
+			const iso = isoWeekToKey(opts.week);
+			if (iso) {
+				const mm = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+				if (mm)
+					start = Math.floor(
+						Date.UTC(Number(mm[1]), Number(mm[2]) - 1, Number(mm[3])) / 1000,
+					);
+			}
+		}
+		if (start == null) return null;
+		return { start, end: start + 7 * 86400 };
+	}
+	if (!opts?.month) return null;
+	const m = opts.month.match(/^(\d{4})-(\d{2})$/);
+	if (!m) return null;
+	const y = Number(m[1]);
+	const mo = Number(m[2]);
+	if (mo < 1 || mo > 12) return null;
+	return {
+		start: Math.floor(Date.UTC(y, mo - 1, 1) / 1000),
+		end: Math.floor(Date.UTC(y, mo, 1) / 1000),
+	};
+}
 
 export type { PortfolioTotal };
 
@@ -296,34 +398,21 @@ export function fetchClosedPositions(
 	wallet: string,
 	opts?: { month?: string; day?: string; week?: string },
 ): Promise<readonly PositionPnLData[]> {
-	const getTodayKey = () => {
-		const d = new Date();
-		return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-	};
-	const getWeekStart = (d: Date) => {
-		const day = d.getUTCDay();
-		const diff = day === 0 ? -6 : 1 - day;
-		const mon = new Date(
-			Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
-		);
-		return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
-	};
-	const normalizeWeek = (w: string): string | null => {
-		if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w;
-		return isoWeekToKey(w);
-	};
 	const cacheKey = (() => {
 		if (opts?.day) return `day:${wallet}:${opts.day}`;
 		if (opts?.week) {
-			const n = normalizeWeek(opts.week);
+			const n = normalizeWeekKey(opts.week);
 			return n ? `week:${wallet}:${n}` : `week:${wallet}:${opts.week}`;
 		}
 		if (opts?.month) return `month:${wallet}:${opts.month}`;
 		return null;
 	})();
+	const periodRange = periodRangeFromOpts(opts);
 	if (cacheKey) {
 		const now = Date.now();
 		if (opts?.day) {
+			const inflight = closedDayInflight.get(cacheKey);
+			if (inflight) return inflight;
 			const cached = closedDayCache.get(cacheKey);
 			if (cached) {
 				const isCurrent = opts.day === getTodayKey();
@@ -331,15 +420,19 @@ export function fetchClosedPositions(
 					return Promise.resolve(cached.data);
 			}
 		} else if (opts?.week) {
+			const inflight = closedWeekInflight.get(cacheKey);
+			if (inflight) return inflight;
 			const cached = closedWeekCache.get(cacheKey);
 			if (cached) {
-				const curWeek = getWeekStart(new Date());
-				const norm = normalizeWeek(opts.week);
+				const curWeek = getWeekStartMonday(new Date());
+				const norm = normalizeWeekKey(opts.week ?? "");
 				const isCurrent = norm === curWeek;
 				if (!isCurrent || now - cached.at < CURRENT_WEEK_TTL_MS)
 					return Promise.resolve(cached.data);
 			}
 		} else if (opts?.month) {
+			const inflight = closedMonthInflight.get(cacheKey);
+			if (inflight) return inflight;
 			const cached = closedMonthCache.get(cacheKey);
 			if (cached) {
 				const cur = new Date();
@@ -350,68 +443,42 @@ export function fetchClosedPositions(
 			}
 		}
 	}
-	function isoWeekToKey(week: string): string | null {
-		const m = week.match(/^(\d{4})-W(\d{2})$/);
-		if (!m) return null;
-		const year = Number(m[1]);
-		const w = Number(m[2]);
-		const jan4 = new Date(Date.UTC(year, 0, 4));
-		const day = jan4.getUTCDay();
-		const diff = day === 0 ? -6 : 1 - day;
-		const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
-		const target = new Date(
-			Date.UTC(
-				mon1.getUTCFullYear(),
-				mon1.getUTCMonth(),
-				mon1.getUTCDate() + (w - 1) * 7,
-			),
-		);
-		return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
-	}
-	const periodRange = (() => {
-		if (opts?.day) {
-			const m = opts.day.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-			if (!m) return null;
-			const y = Number(m[1]);
-			const mo = Number(m[2]);
-			const d = Number(m[3]);
-			if (mo < 1 || mo > 12 || d < 1 || d > 31) return null;
-			const start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
-			const end = start + 86400;
-			return { start, end };
-		}
-		if (opts?.week) {
-			let start: number | null = null;
-			const dayMatch = opts.week.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-			if (dayMatch) {
-				const y = Number(dayMatch[1]);
-				const mo = Number(dayMatch[2]);
-				const d = Number(dayMatch[3]);
-				start = Math.floor(Date.UTC(y, mo - 1, d) / 1000);
-			} else {
-				const iso = isoWeekToKey(opts.week);
-				if (iso) {
-					const mm = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-					if (mm) {
-						start = Math.floor(
-							Date.UTC(Number(mm[1]), Number(mm[2]) - 1, Number(mm[3])) / 1000,
+
+	const fetchPositionsForPools = (
+		pools: readonly ClosedPool[],
+		api: MeteoraApiService,
+		w: string,
+	) =>
+		Effect.forEach(
+			pools,
+			(pool) =>
+				api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
+					Effect.flatMap((res) => {
+						const first = (res.positions as PositionPnLData[]).filter(
+							(p) => p.isClosed && p.closedAt != null,
 						);
-					}
-				}
-			}
-			if (start == null) return null;
-			return { start, end: start + 7 * 86400 };
-		}
-		if (!opts?.month) return null;
-		const m = opts.month.match(/^(\d{4})-(\d{2})$/);
-		if (!m) return null;
-		const y = Number(m[1]);
-		const mo = Number(m[2]);
-		if (mo < 1 || mo > 12) return null;
-		const start = Math.floor(Date.UTC(y, mo - 1, 1) / 1000);
-		const end = Math.floor(Date.UTC(y, mo, 1) / 1000);
-		return { start, end };
-	})();
+						if (!res.hasNext) return Effect.succeed(first);
+						const remaining = Math.ceil(res.totalCount / 100) - 1;
+						if (remaining <= 0) return Effect.succeed(first);
+						const pageEffects = Array.from({ length: remaining }, (_, i) =>
+							api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
+								Effect.map((r) =>
+									(r.positions as PositionPnLData[]).filter(
+										(p) => p.isClosed && p.closedAt != null,
+									),
+								),
+								Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+							),
+						);
+						return Effect.all(pageEffects, { concurrency: 3 }).pipe(
+							Effect.map((pg) => [...first, ...pg.flat()]),
+						);
+					}),
+					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+				),
+			{ concurrency: 5 },
+		).pipe(Effect.map((arr) => arr.flat() as PositionPnLData[]));
+
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
 		const closedRes = yield* api
@@ -422,108 +489,30 @@ export function fetchClosedPositions(
 		const pageSizeForAll = 50;
 		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
 		const maxPages = Math.min(totalPages, 40);
+		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
+			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
+				Effect.map((res) => res.pools as ClosedPool[]),
+				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
+			),
+		);
+		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
+		const rawPoolsAll = pages.flat() as ClosedPool[];
+		if (rawPoolsAll.length === 0) return [] as PositionPnLData[];
 		if (!periodRange) {
-			const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
-				api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
-					Effect.map((res) => res.pools as ClosedPool[]),
-					Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-				),
-			);
-			const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
-			const rawPoolsAll = pages.flat() as ClosedPool[];
-			if (rawPoolsAll.length === 0) return [] as PositionPnLData[];
-			const effects = rawPoolsAll.map((pool) =>
-				api.positionPnl(pool.poolAddress, wallet, "closed", 1, 100).pipe(
-					Effect.flatMap((res) => {
-						const first = (res.positions as PositionPnLData[]).filter(
-							(p) => p.isClosed && p.closedAt != null,
-						);
-						if (!res.hasNext) return Effect.succeed(first);
-						const remaining = Math.ceil(res.totalCount / 100) - 1;
-						if (remaining <= 0) return Effect.succeed(first);
-						const pageEffects = Array.from({ length: remaining }, (_, i) =>
-							api
-								.positionPnl(pool.poolAddress, wallet, "closed", i + 2, 100)
-								.pipe(
-									Effect.map((r) =>
-										(r.positions as PositionPnLData[]).filter(
-											(p) => p.isClosed && p.closedAt != null,
-										),
-									),
-									Effect.catchAll(() =>
-										Effect.succeed([] as PositionPnLData[]),
-									),
-								),
-						);
-						return Effect.all(pageEffects, { concurrency: 2 }).pipe(
-							Effect.map((pg) => [...first, ...pg.flat()]),
-						);
-					}),
-					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-				),
-			);
-			const all = yield* Effect.all(effects, { concurrency: 3 });
-			return all.flat();
+			const all = yield* fetchPositionsForPools(rawPoolsAll, api, wallet);
+			return all;
 		}
-		const rawPools: ClosedPool[] = [];
-		for (let page = 1; page <= maxPages; page++) {
-			const res = yield* api
-				.closedPortfolio(wallet, page, pageSizeForAll)
-				.pipe(
-					Effect.catchAll(() =>
-						Effect.succeed(null as unknown as ClosedPortfolioResponse),
-					),
-				);
-			if (res === null || res.pools.length === 0) continue;
-			rawPools.push(...(res.pools as ClosedPool[]));
-			const maxLast = res.pools.reduce(
-				(m: number, p: ClosedPool) =>
-					Math.max(m, (p.lastClosedAt as number | null) ?? -Infinity),
-				-Infinity,
-			);
-			if (Number.isFinite(maxLast) && maxLast < periodRange.start) break;
-			if (rawPools.length >= closedRes.totalCount) break;
-		}
-		if (rawPools.length === 0) return [] as PositionPnLData[];
-		const candidatePools = rawPools.filter((pool) => {
+		const candidatePools = rawPoolsAll.filter((pool) => {
 			const last = (pool as unknown as { lastClosedAt?: number | null })
 				.lastClosedAt;
 			return last != null && last >= periodRange.start;
 		});
 		if (candidatePools.length === 0) return [] as PositionPnLData[];
-		const allPositions: PositionPnLData[] = [];
-		for (const pool of candidatePools) {
-			const res = yield* api
-				.positionPnl(pool.poolAddress, wallet, "closed", 1, 100)
-				.pipe(
-					Effect.catchAll(() =>
-						Effect.succeed(null as unknown as PositionPnLResponse),
-					),
-				);
-			if (res === null) continue;
-			const first = (res.positions as PositionPnLData[]).filter(
-				(p) => p.isClosed && p.closedAt != null,
-			);
-			const collected: PositionPnLData[] = [...first];
-			if (res.hasNext) {
-				const remaining = Math.ceil(res.totalCount / 100) - 1;
-				for (let i = 0; i < remaining; i++) {
-					const pageRes = yield* api
-						.positionPnl(pool.poolAddress, wallet, "closed", i + 2, 100)
-						.pipe(
-							Effect.catchAll(() =>
-								Effect.succeed(null as unknown as PositionPnLResponse),
-							),
-						);
-					if (pageRes === null) continue;
-					const filtered = (pageRes.positions as PositionPnLData[]).filter(
-						(p) => p.isClosed && p.closedAt != null,
-					);
-					collected.push(...filtered);
-				}
-			}
-			allPositions.push(...collected);
-		}
+		const allPositions = yield* fetchPositionsForPools(
+			candidatePools,
+			api,
+			wallet,
+		);
 		return allPositions.filter(
 			(p) =>
 				p.closedAt != null &&
@@ -545,7 +534,48 @@ export function fetchClosedPositions(
 		}
 		return res;
 	});
+	if (cacheKey) {
+		const inflightMap = opts?.day
+			? closedDayInflight
+			: opts?.week
+				? closedWeekInflight
+				: closedMonthInflight;
+		inflightMap.set(cacheKey, promise);
+		promise.finally(() => inflightMap.delete(cacheKey));
+	}
 	return promise;
+}
+
+export async function resolveWalletFromRequest(
+	request: Request,
+): Promise<string> {
+	const header = request.headers.get("x-wallet");
+	if (header && header.trim().length > 0) return header.trim();
+	const cached = walletCache.get("default");
+	if (cached && Date.now() - cached.at < WALLET_CACHE_TTL_MS)
+		return cached.wallet;
+	const critical = await fetchPortfolioCriticalCached();
+	if (!critical.ok) throw new Error(critical.error);
+	walletCache.set("default", { wallet: critical.wallet, at: Date.now() });
+	return critical.wallet;
+}
+
+export function fetchPortfolioCriticalCached(): Promise<
+	PortfolioCritical | { ok: false; error: string; solPrice: null }
+> {
+	const cached = criticalCache.get("default");
+	if (cached && Date.now() - cached.at < CRITICAL_CACHE_TTL_MS) {
+		return Promise.resolve(cached.data);
+	}
+	return fetchPortfolioCritical().then((res) => {
+		if ((res as PortfolioCritical).ok) {
+			criticalCache.set("default", {
+				data: res as PortfolioCritical,
+				at: Date.now(),
+			});
+		}
+		return res;
+	});
 }
 
 export function fetchAllClosedPools(

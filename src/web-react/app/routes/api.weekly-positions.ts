@@ -1,7 +1,7 @@
 import {
 	fetchClosedPositions,
-	fetchPortfolioCritical,
 	getWebPassword,
+	resolveWalletFromRequest,
 } from "~/lib/server/portfolio.server";
 import { hasValidSession } from "~/lib/server/session.server";
 import type { Route } from "./+types/api.weekly-positions";
@@ -55,16 +55,11 @@ export async function loader({ request }: Route.LoaderArgs) {
 			{ status: 400 },
 		);
 	}
-	const walletHeader = request.headers.get("x-wallet");
-	let wallet = walletHeader ?? "";
-	if (!wallet) {
-		const critical = await fetchPortfolioCritical();
-		if (!critical.ok)
-			return Response.json(
-				{ ok: false, error: critical.error },
-				{ status: 500 },
-			);
-		wallet = critical.wallet;
+	let wallet: string;
+	try {
+		wallet = await resolveWalletFromRequest(request);
+	} catch (e) {
+		return Response.json({ ok: false, error: String(e) }, { status: 500 });
 	}
 	try {
 		const positions = await fetchClosedPositions(wallet, { week });
