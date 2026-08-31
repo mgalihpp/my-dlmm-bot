@@ -25,6 +25,7 @@ import {
 	buildCumulativeFromPositions,
 } from "~/lib/cumulative-pnl";
 import type { Currency } from "./portfolio-page";
+import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 
 type PnlMode = "fees" | "total";
 
@@ -40,154 +41,192 @@ export const EquityChart = memo(function EquityChart({
 	loading?: boolean;
 }) {
 	const [mode, setMode] = useState<PnlMode>("total");
-	const { points, stops, chartConfig } = useMemo(() => {
-		const cum =
-			positions && positions.length > 0
-				? buildCumulativeFromPositions(positions, currency)
-				: buildCumulative(closed, currency);
-		const points = cum.map((p) => ({
-			label: p.label,
-			value: mode === "fees" ? p.cumFees : p.cumPnl,
-		}));
+	const [shareOpen, setShareOpen] = useState(false);
+	const { points, stops, chartConfig, sharePoints, shareRangeLabel, shareTotal } =
+		useMemo(() => {
+			const cum =
+				positions && positions.length > 0
+					? buildCumulativeFromPositions(positions, currency)
+					: buildCumulative(closed, currency);
+			const points = cum.map((p) => ({
+				label: p.label,
+				value: mode === "fees" ? p.cumFees : p.cumPnl,
+			}));
 
-		const lastValue = points.at(-1)?.value ?? 0;
-		const positive = lastValue >= 0;
-		const colorFor = (v: number) =>
-			v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
+			const lastValue = points.at(-1)?.value ?? 0;
+			const colorFor = (v: number) =>
+				v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
 
-		const stops: { offset: string; color: string }[] = [];
-		if (points.length > 0) {
-			stops.push({ offset: "0%", color: colorFor(points[0].value) });
-		}
-		for (let i = 1; i < points.length; i++) {
-			const previous = points[i - 1].value;
-			const current = points[i].value;
-			const previousColor = colorFor(previous);
-			const currentColor = colorFor(current);
-			if (previousColor !== currentColor) {
-				const ratio =
-					Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
-				const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
-				const offset = `${crossing}%`;
-				stops.push({ offset, color: previousColor });
-				stops.push({ offset, color: currentColor });
+			const stops: { offset: string; color: string }[] = [];
+			if (points.length > 0) {
+				stops.push({ offset: "0%", color: colorFor(points[0].value) });
 			}
-		}
-		if (points.length > 1) {
-			stops.push({
-				offset: "100%",
-				color: colorFor(points.at(-1)?.value ?? 0),
-			});
-		}
-		const chartConfig = {
-			value: {
-				label: "PnL",
-				color: colorFor(lastValue),
-			},
-		} satisfies ChartConfig;
+			for (let i = 1; i < points.length; i++) {
+				const previous = points[i - 1].value;
+				const current = points[i].value;
+				const previousColor = colorFor(previous);
+				const currentColor = colorFor(current);
+				if (previousColor !== currentColor) {
+					const ratio =
+						Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
+					const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
+					const offset = `${crossing}%`;
+					stops.push({ offset, color: previousColor });
+					stops.push({ offset, color: currentColor });
+				}
+			}
+			if (points.length > 1) {
+				stops.push({
+					offset: "100%",
+					color: colorFor(points.at(-1)?.value ?? 0),
+				});
+			}
+			const chartConfig = {
+				value: {
+					label: "PnL",
+					color: colorFor(lastValue),
+				},
+			} satisfies ChartConfig;
 
-		return { points, stops, chartConfig };
-	}, [closed, currency, mode, positions]);
+			const sharePoints = cum.map((p, i) => ({
+				key: `${p.ts}-${i}`,
+				label: p.label,
+				value: mode === "fees" ? p.cumFees : p.cumPnl,
+			}));
+			const shareTotal = lastValue;
+			let shareRangeLabel = "";
+			if (cum.length > 0) {
+				const fmt = (ts: number) =>
+					new Date(ts * 1000)
+						.toLocaleDateString("en-US", {
+							month: "short",
+							day: "numeric",
+							year: "numeric",
+							timeZone: "UTC",
+						})
+						.toUpperCase();
+				const first = cum[0].ts;
+				const last = cum.at(-1)?.ts ?? first;
+				shareRangeLabel = first ? `${fmt(first)} - ${fmt(last)}` : fmt(last);
+			}
+
+			return { points, stops, chartConfig, sharePoints, shareRangeLabel, shareTotal };
+		}, [closed, currency, mode, positions]);
 
 	return (
-		<Card className="h-full">
-			<CardHeader className="flex flex-row items-center justify-between gap-2">
-				<div className="flex items-center gap-1.5">
-					<CardTitle>Cumulative P&L</CardTitle>
-					<Button
-						variant="ghost"
-						size="icon"
-						className="size-6 text-muted-foreground hover:text-white"
-						aria-label="Share"
-					>
-						<ShareIcon className="size-3" />
-					</Button>
-				</div>
-				<ToggleGroup
-					type="single"
-					value={mode}
-					onValueChange={(v) => {
-						if (v === "fees" || v === "total") setMode(v);
-					}}
-					size="sm"
-					variant="outline"
-					spacing={0}
-				>
-					<ToggleGroupItem value="fees" aria-label="Only fees">
-						Only fees
-					</ToggleGroupItem>
-					<ToggleGroupItem value="total" aria-label="Total P&L">
-						Total P&L
-					</ToggleGroupItem>
-				</ToggleGroup>
-			</CardHeader>
-			<CardContent>
-				{loading && points.length < 2 ? (
-					<div className="h-64 w-full animate-pulse rounded bg-muted" />
-				) : points.length < 2 ? (
-					<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
-						No closed positions yet.
-					</div>
-				) : (
-					<ChartContainer config={chartConfig} className="h-64 w-full">
-						<AreaChart
-							accessibilityLayer
-							data={points}
-							margin={{ left: 0, right: 10 }}
+		<>
+			<Card className="h-full">
+				<CardHeader className="flex flex-row items-center justify-between gap-2">
+					<div className="flex items-center gap-1.5">
+						<CardTitle>Cumulative P&amp;L</CardTitle>
+						<Button
+							variant="ghost"
+							size="icon"
+							className="size-6 text-muted-foreground hover:text-white"
+							aria-label="Share"
+							onClick={() => setShareOpen(true)}
 						>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								dataKey="label"
-								tickLine={false}
-								axisLine={false}
-								tickMargin={8}
-							/>
-							<YAxis
-								tickLine={false}
-								axisLine={false}
-								tickMargin={8}
-								width={56}
-								tickFormatter={(v: number) => `${v.toFixed(3)}`}
-							/>
-							<ChartTooltip
-								cursor={false}
-								content={
-									<ChartTooltipContent
-										className="font-mono font-medium tabular-nums"
-										indicator="dot"
-										formatter={(value) => (
-											<CurrencyValue
-												currency={currency}
-												value={Number(value)}
-											/>
-										)}
-									/>
-								}
-							/>
-							<ReferenceLine y={0} stroke="var(--border)" />
-							<defs>
-								<linearGradient id="pnl-grad" x1="0" y1="0" x2="1" y2="0">
-									{stops.map((s) => (
-										<stop
-											key={`${s.offset}-${s.color}`}
-											offset={s.offset}
-											stopColor={s.color}
+							<ShareIcon className="size-3" />
+						</Button>
+					</div>
+					<ToggleGroup
+						type="single"
+						value={mode}
+						onValueChange={(v) => {
+							if (v === "fees" || v === "total") setMode(v);
+						}}
+						size="sm"
+						variant="outline"
+						spacing={0}
+					>
+						<ToggleGroupItem value="fees" aria-label="Only fees">
+							Only fees
+						</ToggleGroupItem>
+						<ToggleGroupItem value="total" aria-label="Total P&L">
+							Total P&L
+						</ToggleGroupItem>
+					</ToggleGroup>
+				</CardHeader>
+				<CardContent>
+					{loading && points.length < 2 ? (
+						<div className="h-64 w-full animate-pulse rounded bg-muted" />
+					) : points.length < 2 ? (
+						<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
+							No closed positions yet.
+						</div>
+					) : (
+						<ChartContainer config={chartConfig} className="h-64 w-full">
+							<AreaChart
+								accessibilityLayer
+								data={points}
+								margin={{ left: 0, right: 10 }}
+							>
+								<CartesianGrid vertical={false} />
+								<XAxis
+									dataKey="label"
+									tickLine={false}
+									axisLine={false}
+									tickMargin={8}
+								/>
+								<YAxis
+									tickLine={false}
+									axisLine={false}
+									tickMargin={8}
+									width={56}
+									tickFormatter={(v: number) => `${v.toFixed(3)}`}
+								/>
+								<ChartTooltip
+									cursor={false}
+									content={
+										<ChartTooltipContent
+											className="font-mono font-medium tabular-nums"
+											indicator="dot"
+											formatter={(value) => (
+												<CurrencyValue
+													currency={currency}
+													value={Number(value)}
+												/>
+											)}
 										/>
-									))}
-								</linearGradient>
-							</defs>
-							<Area
-								dataKey="value"
-								type="natural"
-								fill="url(#pnl-grad)"
-								fillOpacity={0.25}
-								stroke="url(#pnl-grad)"
-								strokeWidth={2}
-							/>
-						</AreaChart>
-					</ChartContainer>
-				)}
-			</CardContent>
-		</Card>
+									}
+								/>
+								<ReferenceLine y={0} stroke="var(--border)" />
+								<defs>
+									<linearGradient id="pnl-grad" x1="0" y1="0" x2="1" y2="0">
+										{stops.map((s) => (
+											<stop
+												key={`${s.offset}-${s.color}`}
+												offset={s.offset}
+												stopColor={s.color}
+											/>
+										))}
+									</linearGradient>
+								</defs>
+								<Area
+									dataKey="value"
+									type="natural"
+									fill="url(#pnl-grad)"
+									fillOpacity={0.25}
+									stroke="url(#pnl-grad)"
+									strokeWidth={2}
+								/>
+							</AreaChart>
+						</ChartContainer>
+					)}
+				</CardContent>
+			</Card>
+			<DailyPnlShareDialog
+				open={shareOpen}
+				onOpenChange={setShareOpen}
+				date={new Date()}
+				closed={positions ?? []}
+				currency={currency as unknown as import("~/lib/currency").Currency}
+				variant="cumulative"
+				cumulativePoints={sharePoints}
+				cumulativeRangeLabel={shareRangeLabel}
+				cumulativeMode={mode}
+				cumulativeTotal={shareTotal}
+			/>
+		</>
 	);
 });

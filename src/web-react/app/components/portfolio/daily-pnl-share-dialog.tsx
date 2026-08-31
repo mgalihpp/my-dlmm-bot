@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/dialog";
 import type { Currency } from "~/lib/currency";
 import { buildDailyStats, DailyPnlCard } from "./daily-pnl-card.js";
+import { CumulativeChartShareCard } from "./cumulative-chart-share-card.js";
 import { DailyChartShareCard } from "./daily-chart-share-card.js";
 import {
 	BACKGROUND_BY_ID,
@@ -28,7 +29,6 @@ import {
 	TEXTURE_BY_ID,
 	TEXTURES,
 } from "./pnl-share-theme.js";
-
 export function DailyPnlShareDialog({
 	open,
 	onOpenChange,
@@ -41,18 +41,26 @@ export function DailyPnlShareDialog({
 	chartTimeframe,
 	chartMode,
 	chartTotal,
+	cumulativePoints,
+	cumulativeRangeLabel,
+	cumulativeMode,
+	cumulativeTotal,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	date: Date;
 	closed: readonly PositionPnLData[];
 	currency: Currency;
-	variant?: "daily" | "chart";
+	variant?: "daily" | "chart" | "cumulative";
 	chartPoints?: readonly { key: string; label: string; value: number }[];
 	chartRangeLabel?: string;
 	chartTimeframe?: "daily" | "weekly" | "monthly";
 	chartMode?: "fees" | "total";
 	chartTotal?: number;
+	cumulativePoints?: readonly { key: string; label: string; value: number }[];
+	cumulativeRangeLabel?: string;
+	cumulativeMode?: "fees" | "total";
+	cumulativeTotal?: number;
 }) {
 	const [backgroundId, setBackgroundId] = useState<string>("neutral");
 	const [customColor, setCustomColor] = useState<string>("#6366f1");
@@ -77,11 +85,18 @@ export function DailyPnlShareDialog({
 		[closed, date, currency],
 	);
 	const isChart = variant === "chart";
+	const isCumulative = variant === "cumulative";
 	const chartFilename = useMemo(() => {
-		if (!isChart || !chartRangeLabel) return "";
-		const safe = chartRangeLabel.replace(/[^A-Z0-9]+/gi, "-").toLowerCase();
-		return `pnl-chart-${safe || "all"}.png`;
-	}, [isChart, chartRangeLabel]);
+		if (isChart && chartRangeLabel) {
+			const safe = chartRangeLabel.replace(/[^A-Z0-9]+/gi, "-").toLowerCase();
+			return `pnl-chart-${safe || "all"}.png`;
+		}
+		if (isCumulative && cumulativeRangeLabel) {
+			const safe = cumulativeRangeLabel.replace(/[^A-Z0-9]+/gi, "-").toLowerCase();
+			return `pnl-cumulative-${safe || "all"}.png`;
+		}
+		return "";
+	}, [isChart, isCumulative, chartRangeLabel, cumulativeRangeLabel]);
 
 	const theme: CardTheme = useMemo(() => {
 		const bg =
@@ -158,7 +173,8 @@ export function DailyPnlShareDialog({
 					theme.background !== "transparent" ? theme.background : "#0a0a0a",
 			});
 			const link = document.createElement("a");
-			link.download = isChart ? chartFilename : `pnl-daily-${dateKey}.png`;
+			link.download =
+				isChart || isCumulative ? chartFilename : `pnl-daily-${dateKey}.png`;
 			link.href = dataUrl;
 			link.click();
 			toast.success("Image downloaded");
@@ -204,11 +220,19 @@ export function DailyPnlShareDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="flex max-h-[92vh] max-w-[1100px] flex-col gap-0 overflow-hidden border-[#222] bg-black p-0 sm:max-w-[1100px]">
 				<DialogHeader className="sr-only">
-					<DialogTitle>{isChart ? "Share PnL Chart" : "Share Daily PnL"}</DialogTitle>
+					<DialogTitle>
+						{isChart
+							? "Share PnL Chart"
+							: isCumulative
+								? "Share Cumulative PnL"
+								: "Share Daily PnL"}
+					</DialogTitle>
 					<DialogDescription>
 						{isChart
 							? "Preview and export your PnL chart card"
-							: "Preview and export your daily PnL card"}
+							: isCumulative
+								? "Preview and export your cumulative PnL card"
+								: "Preview and export your daily PnL card"}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
@@ -224,6 +248,19 @@ export function DailyPnlShareDialog({
 								mode={chartMode ?? "total"}
 								total={chartTotal}
 								points={chartPoints}
+								currency={currency}
+								theme={theme}
+							/>
+						) : isCumulative &&
+							cumulativePoints &&
+							cumulativeRangeLabel &&
+							cumulativeTotal != null ? (
+							<CumulativeChartShareCard
+								ref={cardRef}
+								rangeLabel={cumulativeRangeLabel}
+								mode={cumulativeMode ?? "total"}
+								total={cumulativeTotal}
+								points={cumulativePoints}
 								currency={currency}
 								theme={theme}
 							/>
