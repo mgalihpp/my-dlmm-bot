@@ -1,6 +1,6 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: chart positional
 import { forwardRef, useMemo } from "react";
-import { Area, AreaChart, ReferenceLine } from "recharts";
+import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
 import type { Currency } from "~/lib/currency";
 import type { CardTheme } from "./pnl-share-theme.js";
 
@@ -263,40 +263,41 @@ export const CumulativeChartShareCard = forwardRef<
 									Not enough data
 								</div>
 							) : (
-								<AreaChart
-									width={800}
-									height={180}
-									data={[...points]}
-									margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
-									style={{ width: "100%", height: "100%" }}
-								>
-									<defs>
-										<linearGradient id="cum-grad" x1="0" y1="0" x2="1" y2="0">
-											{stops.map((s) => (
-												<stop
-													key={`${s.offset}-${s.color}`}
-													offset={s.offset}
-													stopColor={s.color}
-												/>
-											))}
-										</linearGradient>
-									</defs>
-									<ReferenceLine
-										y={0}
-										stroke={gridColor}
-										strokeDasharray="4 4"
-									/>
-									<Area
-										dataKey="value"
-										type="natural"
-										fill="url(#cum-grad)"
-										fillOpacity={0.22}
-										stroke="url(#cum-grad)"
-										strokeWidth={2.5}
-										dot={false}
-										isAnimationActive={false}
-									/>
-								</AreaChart>
+								<ResponsiveContainer width="100%" height="100%">
+									<AreaChart
+										data={[...points]}
+										margin={{ left: 0, right: 0, top: 5, bottom: 5 }}
+									>
+										<defs>
+											<linearGradient id="cum-grad" x1="0" y1="0" x2="1" y2="0">
+												{stops.map((s) => (
+													<stop
+														key={`${s.offset}-${s.color}`}
+														offset={s.offset}
+														stopColor={s.color}
+													/>
+												))}
+											</linearGradient>
+										</defs>
+										<XAxis dataKey="label" hide />
+										<YAxis hide domain={["auto", "auto"]} />
+										<ReferenceLine
+											y={0}
+											stroke={gridColor}
+											strokeDasharray="4 4"
+										/>
+										<Area
+											dataKey="value"
+											type="natural"
+											fill="url(#cum-grad)"
+											fillOpacity={0.22}
+											stroke="url(#cum-grad)"
+											strokeWidth={2.5}
+											dot={false}
+											isAnimationActive={false}
+										/>
+									</AreaChart>
+								</ResponsiveContainer>
 							)}
 						</div>
 						<div className="mt-1 flex gap-[2px] px-1">
