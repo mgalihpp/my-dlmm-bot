@@ -41,6 +41,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 			{ status: 400 },
 		);
 	}
+	const force = url.searchParams.get("force") === "1";
 	let wallet: string;
 	try {
 		wallet = await resolveWalletFromRequest(request);
@@ -55,7 +56,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				: month
 					? { month }
 					: undefined;
-		const data = await fetchOverviewClosed(wallet, opts);
+		const data = await fetchOverviewClosed(wallet, opts, { force });
 		return Response.json(
 			{
 				ok: true,
@@ -65,7 +66,13 @@ export async function loader({ request }: Route.LoaderArgs) {
 				totalCount: data.totalCount,
 				totalPositions: data.totalPositions,
 			},
-			{ headers: { "Cache-Control": "public, max-age=60" } },
+			{
+				headers: {
+					"Cache-Control": force
+						? "no-store, no-cache, must-revalidate"
+						: "public, max-age=60",
+				},
+			},
 		);
 	} catch (e) {
 		return Response.json({ ok: false, error: String(e) }, { status: 500 });

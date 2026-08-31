@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import {
 	useLoaderData,
 	useLocation,
@@ -34,8 +35,17 @@ export function PortfolioPage() {
 	const [searchParams, setSearchParams] = useSearchParams();
 	const { revalidate, state } = useRevalidator();
 	const [currency, setCurrency] = useStoredCurrency("portfolio");
+	const [overviewNonce, setOverviewNonce] = useState(0);
+	const [overviewLoading, setOverviewLoading] = useState(false);
 	const dateFilter = parseDateFilterParams(searchParams);
 	const dateRange = resolveDateFilter(dateFilter, new Date());
+	const handleRefresh = useCallback(() => {
+		revalidate();
+		setOverviewNonce((n) => n + 1);
+	}, [revalidate]);
+	const handleOverviewLoading = useCallback((loading: boolean) => {
+		setOverviewLoading(loading);
+	}, []);
 
 	const applyDateFilter = (value: typeof dateFilter) => {
 		setSearchParams((current) => writeDateFilterParams(current, value), {
@@ -60,8 +70,8 @@ export function PortfolioPage() {
 						onCurrencyChange={() => {}}
 						dateFilter={dateFilter}
 						onDateFilterApply={applyDateFilter}
-						onRefresh={revalidate}
-						refreshing={state === "loading"}
+						onRefresh={handleRefresh}
+						refreshing={state === "loading" || overviewLoading}
 					/>
 					<LoadErrorCard title="Failed to load portfolio" error={data.error} />
 				</div>
@@ -77,13 +87,15 @@ export function PortfolioPage() {
 					onCurrencyChange={setCurrency}
 					dateFilter={dateFilter}
 					onDateFilterApply={applyDateFilter}
-					onRefresh={revalidate}
-					refreshing={state === "loading"}
+					onRefresh={handleRefresh}
+					refreshing={state === "loading" || overviewLoading}
 				/>
 				<PortfolioOverviewContent
 					data={data}
 					currency={currency}
 					dateRange={dateRange}
+					refreshNonce={overviewNonce}
+					onLoadingChange={handleOverviewLoading}
 				/>
 			</div>
 		</DashboardShell>

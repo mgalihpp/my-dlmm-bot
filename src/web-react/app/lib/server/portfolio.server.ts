@@ -606,9 +606,16 @@ function fetchOverviewClosedUncached(
 export function fetchOverviewClosed(
 	wallet: string,
 	opts?: { month?: string; day?: string; week?: string },
+	extra?: { force?: boolean },
 ): Promise<OverviewClosed> {
 	const periodRange = periodRangeFromOpts(opts);
 	const key = `${wallet}:${opts?.month ?? opts?.day ?? opts?.week ?? "all"}`;
+	if (extra?.force) {
+		return fetchOverviewClosedUncached(wallet, periodRange).then((value) => {
+			overviewClosedCache.set(key, value);
+			return value;
+		});
+	}
 	return overviewClosedCache.load(key, () =>
 		fetchOverviewClosedUncached(wallet, periodRange),
 	);
