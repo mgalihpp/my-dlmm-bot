@@ -45,14 +45,10 @@ export function PortfolioOverviewContent({
 	data,
 	currency,
 	dateRange,
-	refreshNonce,
-	onLoadingChange,
 }: {
 	data: PortfolioPayload;
 	currency: Currency;
 	dateRange: ResolvedRange;
-	refreshNonce?: number;
-	onLoadingChange?: (loading: boolean) => void;
 }) {
 	const overviewFetcher = useFetcher<OverviewClosedResponse>();
 	const overviewState = overviewFetcher.state;
@@ -61,14 +57,6 @@ export function PortfolioOverviewContent({
 		if (overviewState !== "idle" || hasOverviewData) return;
 		overviewFetcher.load("/api/overview-closed");
 	}, [overviewState, hasOverviewData, overviewFetcher.load]);
-	useEffect(() => {
-		if (refreshNonce == null || refreshNonce === 0) return;
-		overviewFetcher.load("/api/overview-closed?force=1");
-	}, [refreshNonce, overviewFetcher.load]);
-	useEffect(() => {
-		if (refreshNonce == null || refreshNonce === 0) return;
-		onLoadingChange?.(overviewState !== "idle");
-	}, [overviewState, onLoadingChange, refreshNonce]);
 
 	const overview = useMemo(() => {
 		const d = overviewFetcher.data;
