@@ -1,6 +1,14 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: chart positional
-import { forwardRef, useMemo } from "react";
-import { Area, AreaChart, ReferenceLine, ResponsiveContainer, XAxis, YAxis } from "recharts";
+import { forwardRef, useId, useMemo } from "react";
+import {
+	Area,
+	AreaChart,
+	CartesianGrid,
+	ReferenceLine,
+	ResponsiveContainer,
+	XAxis,
+	YAxis,
+} from "recharts";
 import type { Currency } from "~/lib/currency";
 import type { CardTheme } from "./pnl-share-theme.js";
 
@@ -21,6 +29,7 @@ export const CumulativeChartShareCard = forwardRef<
 	ref,
 ) {
 	const currencyLabel = currency === "sol" ? "SOL" : "USD";
+	const gradientId = useId().replace(/:/g, "");
 	const host = useMemo(
 		() => (typeof window !== "undefined" ? window.location.host : ""),
 		[],
@@ -238,7 +247,7 @@ export const CumulativeChartShareCard = forwardRef<
 					</div>
 				</div>
 
-				<div className="mt-6 flex gap-3">
+				<div className="mt-6 flex min-w-0 gap-3">
 					<div className="flex w-[52px] shrink-0 flex-col justify-between py-1 text-right">
 						{yTicks.map((t) => (
 							<span
@@ -250,9 +259,9 @@ export const CumulativeChartShareCard = forwardRef<
 							</span>
 						))}
 					</div>
-					<div className="flex flex-1 flex-col">
+					<div className="flex min-w-0 flex-1 flex-col">
 						<div
-							className="relative h-[180px] w-full overflow-hidden border-l"
+							className="relative h-[180px] w-full min-w-0 overflow-hidden border-l"
 							style={{ borderColor: gridColor }}
 						>
 							{points.length < 2 ? (
@@ -266,10 +275,23 @@ export const CumulativeChartShareCard = forwardRef<
 								<ResponsiveContainer width="100%" height="100%">
 									<AreaChart
 										data={[...points]}
-										margin={{ left: 0, right: 0, top: 5, bottom: 5 }}
+										margin={{ left: 0, right: 10, top: 5, bottom: 5 }}
 									>
+										<CartesianGrid
+											vertical={false}
+											stroke={gridColor}
+											strokeOpacity={0.35}
+										/>
+										<XAxis dataKey="label" hide />
+										<YAxis hide domain={["auto", "auto"]} />
 										<defs>
-											<linearGradient id="cum-grad" x1="0" y1="0" x2="1" y2="0">
+											<linearGradient
+												id={`cum-grad-${gradientId}`}
+												x1="0"
+												y1="0"
+												x2="1"
+												y2="0"
+											>
 												{stops.map((s) => (
 													<stop
 														key={`${s.offset}-${s.color}`}
@@ -279,8 +301,6 @@ export const CumulativeChartShareCard = forwardRef<
 												))}
 											</linearGradient>
 										</defs>
-										<XAxis dataKey="label" hide />
-										<YAxis hide domain={["auto", "auto"]} />
 										<ReferenceLine
 											y={0}
 											stroke={gridColor}
@@ -289,10 +309,10 @@ export const CumulativeChartShareCard = forwardRef<
 										<Area
 											dataKey="value"
 											type="natural"
-											fill="url(#cum-grad)"
-											fillOpacity={0.22}
-											stroke="url(#cum-grad)"
-											strokeWidth={2.5}
+											fill={`url(#cum-grad-${gradientId})`}
+											fillOpacity={0.25}
+											stroke={`url(#cum-grad-${gradientId})`}
+											strokeWidth={2}
 											dot={false}
 											isAnimationActive={false}
 										/>
@@ -315,13 +335,10 @@ export const CumulativeChartShareCard = forwardRef<
 				</div>
 
 				<div
-					className="mt-5 flex items-center justify-between border-t pt-3 text-[10px] tabular-nums"
-					style={{ borderColor: gridColor, color: faintColor }}
+					className="mt-10 flex justify-end text-[11px] tabular-nums"
+					style={{ color: faintColor }}
 				>
 					<span>{timestamp}</span>
-					<span className="font-medium" style={{ color: labelColor }}>
-						vexis.trade
-					</span>
 				</div>
 			</div>
 		</div>
