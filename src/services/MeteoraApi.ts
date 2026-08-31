@@ -246,7 +246,7 @@ const make = Effect.gen(function* () {
 				const enriched = pools.map((p) => ({ ...p }));
 				yield* Effect.forEach(
 					enriched.filter(
-						(pool) => opts?.withRanges === true || pool.openPositionCount > 1,
+						(pool) => opts?.withRanges === true || pool.openPositionCount >= 1,
 					),
 					(pool) =>
 						positionPnl(pool.poolAddress, wallet, "open").pipe(
