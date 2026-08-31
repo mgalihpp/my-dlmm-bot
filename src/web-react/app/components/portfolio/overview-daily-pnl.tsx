@@ -50,34 +50,52 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 			.map((p) => ({ ts: p.closedAt, delta: getVal(p) }));
 		let buckets: { key: string; label: string; value: number }[] = [];
 		if (timeframe === "daily") {
-			const now = new Date();
-			const baseUtc = Date.UTC(
-				now.getUTCFullYear(),
-				now.getUTCMonth(),
-				now.getUTCDate(),
-			);
-			const dayBuckets = new Map<string, { label: string; value: number }>();
-			for (let i = 29; i >= 0; i--) {
-				const dt = new Date(baseUtc - i * 86400000);
-				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
-				const label = dt.toLocaleDateString("en-US", {
-					month: "short",
-					day: "numeric",
-					timeZone: "UTC",
-				});
-				dayBuckets.set(key, { label, value: 0 });
+			if (deltas.length === 0) {
+				buckets = [];
+			} else {
+				let minTs = Number.POSITIVE_INFINITY;
+				let maxTs = Number.NEGATIVE_INFINITY;
+				for (const d of deltas) {
+					if (d.ts < minTs) minTs = d.ts;
+					if (d.ts > maxTs) maxTs = d.ts;
+				}
+				const minDt = new Date(minTs * 1000);
+				const maxDt = new Date(maxTs * 1000);
+				const startUtc = Date.UTC(
+					minDt.getUTCFullYear(),
+					minDt.getUTCMonth(),
+					minDt.getUTCDate(),
+				);
+				const endUtc = Date.UTC(
+					maxDt.getUTCFullYear(),
+					maxDt.getUTCMonth(),
+					maxDt.getUTCDate(),
+				);
+				const spansYears = minDt.getUTCFullYear() !== maxDt.getUTCFullYear();
+				const dayBuckets = new Map<string, { label: string; value: number }>();
+				for (let t = startUtc; t <= endUtc; t += 86400000) {
+					const dt = new Date(t);
+					const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
+					const label = dt.toLocaleDateString("en-US", {
+						month: "short",
+						day: "numeric",
+						year: spansYears ? "2-digit" : undefined,
+						timeZone: "UTC",
+					});
+					dayBuckets.set(key, { label, value: 0 });
+				}
+				for (const d of deltas) {
+					const dt = new Date(d.ts * 1000);
+					const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
+					const entry = dayBuckets.get(key);
+					if (entry) entry.value += d.delta;
+				}
+				buckets = [...dayBuckets.entries()].map(([key, e]) => ({
+					key,
+					label: e.label,
+					value: e.value,
+				}));
 			}
-			for (const d of deltas) {
-				const dt = new Date(d.ts * 1000);
-				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
-				const entry = dayBuckets.get(key);
-				if (entry) entry.value += d.delta;
-			}
-			buckets = [...dayBuckets.entries()].map(([key, e]) => ({
-				key,
-				label: e.label,
-				value: e.value,
-			}));
 		} else if (timeframe === "weekly") {
 			const map = new Map<
 				string,
@@ -127,7 +145,11 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 				.slice(-12)
 				.map((e) => ({ key: e.label, label: e.label, value: e.value }));
 		}
-		const points = buckets.map((b) => ({ label: b.label, value: b.value }));
+		const points = buckets.map((b) => ({
+			key: b.key,
+			label: b.label,
+			value: b.value,
+		}));
 		const config = {
 			value: {
 				label: mode === "fees" ? "Fees" : "PnL",
@@ -258,10 +280,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 						<ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.5} />
 						<Bar dataKey="value" radius={[2, 2, 0, 0]}>
 							{points.map((p) => (
-								<Cell
-									key={p.label}
-									fill={p.value >= 0 ? "#10b981" : "#ef4444"}
-								/>
+								<Cell key={p.key} fill={p.value >= 0 ? "#10b981" : "#ef4444"} />
 							))}
 						</Bar>
 					</BarChart>

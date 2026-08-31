@@ -1,5 +1,6 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
+import { ShareIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import {
 	Area,
@@ -9,7 +10,6 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
-import { ShareIcon } from "lucide-react";
 import { CurrencyValue } from "~/components/currency-value";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -88,7 +88,6 @@ export const EquityChart = memo(function EquityChart({
 
 		return { points, stops, chartConfig };
 	}, [closed, currency, mode, positions]);
-
 
 	return (
 		<Card className="h-full">
