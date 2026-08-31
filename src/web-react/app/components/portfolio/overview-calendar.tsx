@@ -6,17 +6,13 @@ import {
 	ShareIcon,
 	UploadIcon,
 } from "lucide-react";
-import { lazy, memo, Suspense, useMemo, useState } from "react";
+import { memo, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
+import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog";
 
-const PnlCalendarShareDialog = lazy(() =>
-	import("./pnl-calendar-share-dialog").then((m) => ({
-		default: m.PnlCalendarShareDialog,
-	})),
-);
 function startOfMonth(date: Date) {
 	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
 }
@@ -297,17 +293,15 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					</div>
 				</div>
 			</CardContent>
-			<Suspense fallback={null}>
-				{shareOpen && (
-					<PnlCalendarShareDialog
-						open={shareOpen}
-						onOpenChange={setShareOpen}
-						month={month}
-						closed={closed}
-						currency={currency ?? "sol"}
-					/>
-				)}
-			</Suspense>
+			{shareOpen && (
+				<PnlCalendarShareDialog
+					open={shareOpen}
+					onOpenChange={setShareOpen}
+					month={month}
+					closed={closed}
+					currency={currency ?? "sol"}
+				/>
+			)}
 		</Card>
 	);
 });

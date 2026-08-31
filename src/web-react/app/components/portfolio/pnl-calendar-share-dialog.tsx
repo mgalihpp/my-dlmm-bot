@@ -1,7 +1,6 @@
 "use client";
 
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { toBlob, toPng } from "html-to-image";
 import { CopyIcon, DownloadIcon } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -169,6 +168,8 @@ export function PnlCalendarShareDialog({
 		if (!node) return;
 		setExporting(true);
 		try {
+			// html-to-image is browser-only; dynamic import avoids SSR bundling
+			const { toPng } = await import("html-to-image");
 			const dataUrl = await toPng(node, {
 				cacheBust: true,
 				pixelRatio: 2,
@@ -192,6 +193,8 @@ export function PnlCalendarShareDialog({
 		if (!node) return;
 		setExporting(true);
 		try {
+			// html-to-image is browser-only; dynamic import avoids SSR bundling
+			const { toBlob } = await import("html-to-image");
 			const blob = await toBlob(node, {
 				cacheBust: true,
 				pixelRatio: 2,
