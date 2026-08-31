@@ -35,7 +35,7 @@ export const CumulativeChartShareCard = forwardRef<
 		[],
 	);
 	const timestamp = useMemo(
-		() => new Date().toISOString().replace("T", " ").slice(0, 19) + " UTC",
+		() => `${new Date().toISOString().replace("T", " ").slice(0, 19)} UTC`,
 		[],
 	);
 
