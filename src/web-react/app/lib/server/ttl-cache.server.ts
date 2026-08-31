@@ -6,9 +6,10 @@ export interface TtlCache<K, V> {
 
 export function createTtlCache<K, V>(options: {
 	ttlMs: number;
+	maxEntries?: number;
 	isFresh?: (key: K, value: V, now: number) => boolean;
 }): TtlCache<K, V> {
-	const { ttlMs, isFresh } = options;
+	const { ttlMs, maxEntries = 200, isFresh } = options;
 	const entries = new Map<K, { value: V; at: number }>();
 	const inflight = new Map<K, Promise<V>>();
 	const isEntryFresh = (key: K, at: number, now: number): boolean => {
@@ -23,6 +24,10 @@ export function createTtlCache<K, V>(options: {
 			return isEntryFresh(key, entry.at, Date.now()) ? entry.value : undefined;
 		},
 		set(key, value) {
+			if (entries.size >= maxEntries && !entries.has(key)) {
+				const firstKey = entries.keys().next().value as K | undefined;
+				if (firstKey !== undefined) entries.delete(firstKey);
+			}
 			entries.set(key, { value, at: Date.now() });
 		},
 		load(key, fetcher) {
@@ -32,6 +37,10 @@ export function createTtlCache<K, V>(options: {
 			const existing = inflight.get(key);
 			if (existing) return existing;
 			const promise = fetcher().then((value) => {
+				if (entries.size >= maxEntries && !entries.has(key)) {
+					const firstKey = entries.keys().next().value as K | undefined;
+					if (firstKey !== undefined) entries.delete(firstKey);
+				}
 				entries.set(key, { value, at: Date.now() });
 				return value;
 			});

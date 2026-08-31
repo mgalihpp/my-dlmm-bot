@@ -32,7 +32,27 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		host.endsWith(".local") ||
 		host.startsWith("10.") ||
 		host.startsWith("192.168.") ||
-		host.startsWith("169.254.")
+		host.startsWith("172.16.") ||
+		host.startsWith("172.17.") ||
+		host.startsWith("172.18.") ||
+		host.startsWith("172.19.") ||
+		host.startsWith("172.20.") ||
+		host.startsWith("172.21.") ||
+		host.startsWith("172.22.") ||
+		host.startsWith("172.23.") ||
+		host.startsWith("172.24.") ||
+		host.startsWith("172.25.") ||
+		host.startsWith("172.26.") ||
+		host.startsWith("172.27.") ||
+		host.startsWith("172.28.") ||
+		host.startsWith("172.29.") ||
+		host.startsWith("172.30.") ||
+		host.startsWith("172.31.") ||
+		host.startsWith("169.254.") ||
+		host.startsWith("100.64.") ||
+		host.startsWith("100.65.") ||
+		host.startsWith("100.66.") ||
+		host.startsWith("0.")
 	) {
 		return new Response("blocked host", { status: 400 });
 	}
@@ -46,12 +66,24 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		upstream = await fetch(parsed.toString(), {
 			headers: { accept: "image/*,*/*;q=0.8" },
 			signal: AbortSignal.timeout(4000),
+			redirect: "manual",
 		});
 	} catch {
 		return new Response(null, {
 			status: 204,
 			headers: { "Cache-Control": "public, max-age=60" },
 		});
+	}
+	if (
+		upstream.status >= 300 &&
+		upstream.status < 400 &&
+		upstream.headers.get("location")
+	) {
+		return new Response("redirect blocked", { status: 400 });
+	}
+	const length = upstream.headers.get("content-length");
+	if (length && Number(length) > 5 * 1024 * 1024) {
+		return new Response("response too large", { status: 400 });
 	}
 	if (!upstream.ok || !upstream.body) {
 		return new Response(null, {

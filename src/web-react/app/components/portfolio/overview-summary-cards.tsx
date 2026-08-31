@@ -18,8 +18,6 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 }) {
 	const isSol = currency === "sol";
 	const deposited = isSol ? summary.openBalanceSol : summary.openBalanceUsd;
-	const withdrawn = 0;
-	const claimedFees = 0;
 	const current = isSol ? summary.openBalanceSol : summary.openBalanceUsd;
 	const pendingFees = isSol ? summary.openFeesSol : summary.openFeesUsd;
 	const currentWithFees = current + pendingFees;
@@ -47,18 +45,6 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 								Total Deposited
 							</span>
 							<span className="text-xs font-medium">{fmt(deposited)}</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-xs text-muted-foreground">
-								Total Withdrawn
-							</span>
-							<span className="text-xs font-medium">{fmt(withdrawn)}</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-xs text-muted-foreground">
-								Claimed Fees
-							</span>
-							<span className="text-xs font-medium">{fmt(claimedFees)}</span>
 						</div>
 					</div>
 					<div className="flex flex-col gap-1">
@@ -153,21 +139,13 @@ export const PerformanceCard = memo(function PerformanceCard({
 								Total Deposits
 							</span>
 							<span className="text-xs font-medium">
-								{fmt(
-									summary.openBalanceSol + (isSol ? metrics.grossProfitSol : 0),
-								)}
+								{fmt(isSol ? summary.openBalanceSol : summary.openBalanceUsd)}
 							</span>
-						</div>
-						<div className="flex items-center justify-between">
-							<span className="text-xs text-muted-foreground">
-								Total Withdrawals
-							</span>
-							<span className="text-xs font-medium">{fmt(0)}</span>
 						</div>
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Total Fees</span>
 							<span className="text-xs font-medium">
-								{fmt(summary.openFeesSol)}
+								{fmt(isSol ? summary.openFeesSol : summary.openFeesUsd)}
 							</span>
 						</div>
 					</div>
@@ -175,7 +153,13 @@ export const PerformanceCard = memo(function PerformanceCard({
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Net Worth</span>
 							<span className="text-xs font-medium">
-								{fmt(totalPnl || summary.openBalanceSol)}
+								{fmt(
+									total !== null
+										? totalPnl
+										: isSol
+											? summary.openBalanceSol
+											: summary.openBalanceUsd,
+								)}
 							</span>
 						</div>
 						<div className="flex items-center justify-between">
@@ -185,7 +169,10 @@ export const PerformanceCard = memo(function PerformanceCard({
 							<span className="text-xs font-medium">
 								{metrics.totalClosed > 0
 									? fmt(
-											summary.openBalanceSol / Math.max(1, metrics.totalClosed),
+											(isSol
+												? summary.openBalanceSol
+												: summary.openBalanceUsd) /
+												Math.max(1, metrics.totalClosed),
 										)
 									: "—"}
 							</span>

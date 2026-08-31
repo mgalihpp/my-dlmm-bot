@@ -172,7 +172,10 @@ function firstOfMonth(now: Date): LocalDate {
 }
 
 function firstOfPreviousMonth(now: Date): LocalDate {
-	return makeLocalDate(now.getUTCFullYear(), now.getUTCMonth(), 1);
+	const year = now.getUTCFullYear();
+	const month = now.getUTCMonth();
+	if (month === 0) return makeLocalDate(year - 1, 12, 1);
+	return makeLocalDate(year, month, 1);
 }
 
 function lastOfPreviousMonth(now: Date): LocalDate {

@@ -26,7 +26,7 @@ import {
 	normalizeWeekKey,
 } from "./period.server";
 import { createTtlCache } from "./ttl-cache.server";
-
+import { isValidSolanaAddress } from "./validate.server";
 export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
 	readonly tokenYIcon?: string | null;
@@ -483,7 +483,17 @@ export async function resolveWalletFromRequest(
 	request: Request,
 ): Promise<string> {
 	const header = request.headers.get("x-wallet");
-	if (header && header.trim().length > 0) return header.trim();
+	if (header && header.trim().length > 0) {
+		const trimmed = header.trim();
+		if (trimmed.length > 44 || !isValidSolanaAddress(trimmed)) {
+			throw Object.assign(new Error("invalid wallet"), { status: 400 });
+		}
+		if (walletCache.size >= 100 && !walletCache.has(trimmed)) {
+			const firstKey = walletCache.keys().next().value;
+			if (firstKey) walletCache.delete(firstKey);
+		}
+		return trimmed;
+	}
 	const cached = walletCache.get("default");
 	if (cached && Date.now() - cached.at < WALLET_CACHE_TTL_MS)
 		return cached.wallet;
@@ -492,7 +502,6 @@ export async function resolveWalletFromRequest(
 	walletCache.set("default", { wallet: critical.wallet, at: Date.now() });
 	return critical.wallet;
 }
-
 export function fetchPortfolioCriticalCached(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
@@ -537,7 +546,6 @@ export function fetchAllClosedPools(
 		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
 		const rawPools = pages.flat() as ClosedPool[];
 		if (rawPools.length === 0) return [] as ClosedPoolWithIcons[];
-		// tanpa corrupted: kembalikan semua tanpa filter bulan, tanpa enrich ikon berat
 		return rawPools.map((p) => ({
 			...p,
 			tokenXIcon: null as string | null,
@@ -548,6 +556,10 @@ export function fetchAllClosedPools(
 		Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
 	);
 	const promise = Effect.runPromise(program).then((res) => {
+		if (closedPoolsCache.size >= 100 && !closedPoolsCache.has(wallet)) {
+			const firstKey = closedPoolsCache.keys().next().value;
+			if (firstKey) closedPoolsCache.delete(firstKey);
+		}
 		closedPoolsCache.set(wallet, { data: res, at: Date.now() });
 		return res;
 	});

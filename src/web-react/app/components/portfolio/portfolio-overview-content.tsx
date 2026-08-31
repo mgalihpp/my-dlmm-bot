@@ -78,8 +78,12 @@ export function PortfolioOverviewContent({
 		const now = new Date();
 		return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
 	}, []);
-	const closedMonthState = useClosedMonthStore((s) => s);
-	const { entries, setMonths } = closedMonthState;
+	const entries = useClosedMonthStore((s) => s.entries);
+	const setMonths = useClosedMonthStore((s) => s.setMonths);
+	const closedMonthState = useMemo(
+		() => ({ entries, setMonths }) as Parameters<typeof selectMonthStatus>[0],
+		[entries, setMonths],
+	);
 	const monthPositions = useMemo(
 		() => entries[monthKey]?.data ?? [],
 		[entries, monthKey],
@@ -131,7 +135,10 @@ export function PortfolioOverviewContent({
 					fetch(`/api/closed-positions?month=${key}`, {
 						credentials: "same-origin",
 					})
-						.then((r) => r.json() as Promise<ClosedPositionsResponse>)
+						.then((r) => {
+							if (!r.ok) return null as unknown as ClosedPositionsResponse;
+							return r.json() as Promise<ClosedPositionsResponse>;
+						})
 						.then((d) => {
 							if (!d?.ok || !Array.isArray(d.positions)) return null;
 							const resolved = d.month ?? key;
