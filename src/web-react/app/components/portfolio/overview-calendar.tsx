@@ -116,11 +116,11 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="size-6"
+						className="size-6 text-muted-foreground hover:text-white"
 						aria-label="Share"
 						onClick={() => setShareOpen(true)}
 					>
-						<ShareIcon className="size-4" />
+						<ShareIcon className="size-3" />
 					</Button>
 				</div>
 				<div className="flex items-center gap-1">
@@ -252,12 +252,12 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 											return (
 												<div
 													key={`cell-${row}-${idx}`}
-													className={`relative flex min-h-[70px] flex-col border-b border-r border-border/30 p-1.5 ${bg}`}
+													className={`group relative flex min-h-[70px] flex-col border-b border-r border-border/30 p-1.5 ${bg}`}
 												>
 													<div className="flex items-start justify-between gap-1">
 														<span className="flex size-2.5 items-center justify-center">
 															{hasData ? (
-																<UploadIcon className="size-2.5 text-muted-foreground/60" />
+																<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
 															) : null}
 														</span>
 														<span className="text-[10px] leading-none text-muted-foreground">

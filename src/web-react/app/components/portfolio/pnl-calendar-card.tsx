@@ -22,6 +22,15 @@ export type WeekBucket = {
 
 export type CardTheme = {
 	background: string;
+	backgroundImage?: string | null;
+	overlayColor?: string;
+	overlayOpacity?: number;
+	overlayType?: "solid" | "gradient";
+	textMode?: "light" | "dark";
+	textShadow?: number;
+	imageZoom?: number;
+	positionX?: number;
+	positionY?: number;
 	texture: string | null;
 	opacity: number;
 	zoom: number;
@@ -158,6 +167,45 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 		);
 		const bgColor =
 			theme.background === "transparent" ? "#0a0a0a" : theme.background;
+		// ponytail: backgroundImage is url(data:...) for export. cover+center keeps it simple.
+		const bgImage = theme.backgroundImage ?? null;
+		const overlayColor = theme.overlayColor ?? "#000000";
+		const overlayOpacity = theme.overlayOpacity ?? 60;
+		const overlayType = theme.overlayType ?? "solid";
+		const textMode = theme.textMode ?? "light";
+		const textShadow = theme.textShadow ?? 50;
+		const imageZoom = theme.imageZoom ?? 1;
+		const posX = theme.positionX ?? 50;
+		const posY = theme.positionY ?? 50;
+		const isDarkText = textMode === "dark";
+		const textColor = isDarkText ? "#111111" : "#ffffff";
+		const mutedColor = isDarkText
+			? "rgba(0,0,0,0.55)"
+			: "rgba(255,255,255,0.65)";
+		const faintColor = isDarkText
+			? "rgba(0,0,0,0.35)"
+			: "rgba(255,255,255,0.45)";
+		const shadowStyle =
+			textShadow > 0
+				? `0 1px ${Math.round((textShadow / 100) * 8 + 2)}px rgba(0,0,0,${(textShadow / 100) * 0.65})`
+				: "none";
+
+		function hexToRgba(hex: string, alpha: number): string {
+			const h = hex.replace("#", "");
+			const full =
+				h.length === 3
+					? h
+							.split("")
+							.map((c) => c + c)
+							.join("")
+					: h;
+			const num = Number.parseInt(full, 16);
+			if (Number.isNaN(num)) return `rgba(0,0,0,${alpha})`;
+			const r = (num >> 16) & 255;
+			const g = (num >> 8) & 255;
+			const b = num & 255;
+			return `rgba(${r},${g},${b},${alpha})`;
+		}
 
 		return (
 			<div
@@ -166,9 +214,39 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 					backgroundColor: bgColor,
 					position: "relative",
 					overflow: "hidden",
+					color: textColor,
 				}}
-				className="flex w-[760px] max-w-full flex-col border border-[#222] p-4 text-white"
+				className="flex w-[760px] max-w-full flex-col border border-[#222] p-4"
 			>
+				{bgImage ? (
+					<div
+						aria-hidden
+						style={{
+							position: "absolute",
+							inset: 0,
+							backgroundImage: bgImage,
+							backgroundSize:
+								imageZoom === 1 ? "cover" : `${imageZoom * 100}% auto`,
+							backgroundPosition: `${posX}% ${posY}%`,
+							backgroundRepeat: "no-repeat",
+							pointerEvents: "none",
+						}}
+					/>
+				) : null}
+				{bgImage ? (
+					<div
+						aria-hidden
+						style={{
+							position: "absolute",
+							inset: 0,
+							background:
+								overlayType === "gradient"
+									? `linear-gradient(180deg, ${hexToRgba(overlayColor, overlayOpacity / 100)} 0%, ${hexToRgba(overlayColor, (overlayOpacity / 100) * 0.55)} 45%, ${hexToRgba(overlayColor, 0)} 100%)`
+									: hexToRgba(overlayColor, overlayOpacity / 100),
+							pointerEvents: "none",
+						}}
+					/>
+				) : null}
 				{theme.texture ? (
 					<div
 						aria-hidden
@@ -177,13 +255,15 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 							inset: 0,
 							backgroundImage: theme.texture,
 							opacity: theme.opacity / 100,
+							transform: `scale(${theme.zoom})`,
+							transformOrigin: "center",
 							pointerEvents: "none",
 						}}
 					/>
 				) : null}
 				<div
-					style={{ zoom: theme.zoom } as React.CSSProperties}
 					className="relative flex flex-col gap-3"
+					style={{ textShadow: shadowStyle }}
 				>
 					<div className="flex items-start justify-between gap-2">
 						<div className="flex items-center gap-2">
@@ -192,39 +272,66 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 								alt="Vexis"
 								className="size-10 object-contain"
 							/>
-							<span className="text-sm font-semibold tracking-tight text-white">
+							<span
+								className="text-sm font-semibold tracking-tight"
+								style={{ color: textColor }}
+							>
 								Vexis
 							</span>
 						</div>
 						<div className="flex flex-col items-center">
-							<span className="text-sm font-bold uppercase tracking-widest text-white">
+							<span
+								className="text-sm font-bold uppercase tracking-widest"
+								style={{ color: textColor }}
+							>
 								{monthLabel}
 							</span>
 						</div>
 						<div className="flex flex-col items-end text-right">
-							<span className="text-xs font-medium text-white/80">
+							<span
+								className="text-xs font-medium"
+								style={{ color: mutedColor }}
+							>
 								{host || "vexis.trade"}
 							</span>
-							<span className="text-[11px] text-white/60">
-								Monthly:{" "}
+							<span className="text-[11px]" style={{ color: faintColor }}>
+								Monthly Stats:{" "}
 								<span
 									style={{ color: monthlyPnl >= 0 ? "#10b981" : "#ef4444" }}
 								>
 									{monthlyPnl >= 0 ? "+" : ""}
 									{monthlyPnl.toFixed(3)} {currencyLabel}
 								</span>{" "}
-								· {monthlyDays} days
+								{monthlyDays} days
 							</span>
 						</div>
 					</div>
 
 					<div className="flex gap-2">
-						<div className="flex flex-1 flex-col overflow-hidden border border-white/10">
-							<div className="grid grid-cols-7 border-b border-white/10 bg-white/[0.02]">
+						<div
+							className="flex flex-1 flex-col overflow-hidden border border-white/10"
+							style={{
+								borderColor: isDarkText
+									? "rgba(0,0,0,0.12)"
+									: "rgba(255,255,255,0.1)",
+							}}
+						>
+							<div
+								className="grid grid-cols-7 border-b bg-white/[0.02]"
+								style={{
+									borderColor: isDarkText
+										? "rgba(0,0,0,0.08)"
+										: "rgba(255,255,255,0.1)",
+									backgroundColor: isDarkText
+										? "rgba(0,0,0,0.04)"
+										: "rgba(255,255,255,0.02)",
+								}}
+							>
 								{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
 									<div
 										key={d}
-										className="py-1.5 text-center text-[10px] font-medium tracking-widest text-white/40"
+										className="py-1.5 text-center text-[10px] font-medium tracking-widest"
+										style={{ color: faintColor }}
 									>
 										{d}
 									</div>
@@ -239,8 +346,13 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 													return (
 														<div
 															key={`cell-${row}-${idx}`}
-															className="min-h-[68px] border-b border-r border-white/5 p-1.5"
-															style={{ backgroundColor: "transparent" }}
+															className="min-h-[68px] border-b border-r p-1.5"
+															style={{
+																backgroundColor: "transparent",
+																borderColor: isDarkText
+																	? "rgba(0,0,0,0.06)"
+																	: "rgba(255,255,255,0.05)",
+															}}
 														/>
 													);
 												}
@@ -250,21 +362,30 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 													: cell.pnl! >= 0
 														? "rgba(16,185,129,0.12)"
 														: "rgba(239,68,68,0.12)";
-												const textColor = !hasData
-													? "#fff"
+												const pnlColor = !hasData
+													? textColor
 													: cell.pnl! >= 0
 														? "#10b981"
 														: "#ef4444";
 												return (
 													<div
 														key={`cell-${row}-${idx}`}
-														className="relative flex min-h-[68px] flex-col border-b border-r border-white/5 p-1.5"
-														style={{ backgroundColor: bg }}
+														className="relative flex min-h-[68px] flex-col border-b border-r p-1.5"
+														style={{
+															backgroundColor: bg,
+															borderColor: isDarkText
+																? "rgba(0,0,0,0.06)"
+																: "rgba(255,255,255,0.05)",
+														}}
 													>
 														<div className="flex justify-end">
 															<span
 																className="text-[10px] leading-none"
-																style={{ color: "rgba(255,255,255,0.55)" }}
+																style={{
+																	color: isDarkText
+																		? "rgba(0,0,0,0.45)"
+																		: "rgba(255,255,255,0.55)",
+																}}
 															>
 																{cell.day}
 															</span>
@@ -273,21 +394,29 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 															<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
 																<span
 																	className="text-xs font-bold leading-none"
-																	style={{ color: textColor }}
+																	style={{ color: pnlColor }}
 																>
 																	{cell.pnl! >= 0 ? "+" : ""}
 																	{cell.pnl!.toFixed(3)} {currencyLabel}
 																</span>
 																<span
 																	className="text-[9px] leading-none"
-																	style={{ color: "rgba(255,255,255,0.55)" }}
+																	style={{
+																		color: isDarkText
+																			? "rgba(0,0,0,0.55)"
+																			: "rgba(255,255,255,0.55)",
+																	}}
 																>
 																	{cell.count} positions
 																</span>
 																{cell.winPct != null && (
 																	<span
 																		className="text-[9px] leading-none"
-																		style={{ color: "rgba(255,255,255,0.5)" }}
+																		style={{
+																			color: isDarkText
+																				? "rgba(0,0,0,0.45)"
+																				: "rgba(255,255,255,0.5)",
+																		}}
 																	>
 																		{cell.winPct.toFixed(1)}%
 																	</span>
@@ -303,14 +432,32 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 							</div>
 						</div>
 
-						<div className="flex w-[96px] flex-col overflow-hidden border border-white/10">
-							<div className="border-b border-white/10 bg-white/[0.02] py-1.5 text-center text-[10px] font-medium tracking-widest text-white/40">
+						<div
+							className="flex w-[96px] flex-col overflow-hidden border"
+							style={{
+								borderColor: isDarkText
+									? "rgba(0,0,0,0.12)"
+									: "rgba(255,255,255,0.1)",
+							}}
+						>
+							<div
+								className="border-b py-1.5 text-center text-[10px] font-medium tracking-widest"
+								style={{
+									borderColor: isDarkText
+										? "rgba(0,0,0,0.08)"
+										: "rgba(255,255,255,0.1)",
+									backgroundColor: isDarkText
+										? "rgba(0,0,0,0.04)"
+										: "rgba(255,255,255,0.02)",
+									color: faintColor,
+								}}
+							>
 								Week
 							</div>
 							{weekBuckets.map((w) => (
 								<div
 									key={w.index}
-									className="flex flex-1 flex-col items-center justify-center border-b border-white/5 px-1 py-2 text-center last:border-b-0"
+									className="flex flex-1 flex-col items-center justify-center border-b px-1 py-2 text-center last:border-b-0"
 									style={{
 										backgroundColor: !w.hasData
 											? "transparent"
@@ -318,11 +465,15 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 												? "rgba(16,185,129,0.08)"
 												: "rgba(239,68,68,0.08)",
 										minHeight: 68,
+										borderColor: isDarkText
+											? "rgba(0,0,0,0.06)"
+											: "rgba(255,255,255,0.05)",
+										color: faintColor,
 									}}
 								>
 									<span
 										className="text-[9px] font-medium tracking-widest"
-										style={{ color: "rgba(255,255,255,0.45)" }}
+										style={{ color: faintColor }}
 									>
 										{w.label}
 									</span>
@@ -337,7 +488,11 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 									) : (
 										<span
 											className="mt-0.5 text-[10px]"
-											style={{ color: "rgba(255,255,255,0.25)" }}
+											style={{
+												color: isDarkText
+													? "rgba(0,0,0,0.25)"
+													: "rgba(255,255,255,0.25)",
+											}}
 										>
 											—
 										</span>
@@ -348,11 +503,10 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 					</div>
 
 					<div
-						className="flex items-center justify-between text-[10px]"
-						style={{ color: "rgba(255,255,255,0.35)" }}
+						className="flex items-center justify-end text-[10px]"
+						style={{ color: faintColor }}
 					>
 						<span>{timestamp}</span>
-						<span className="tracking-widest uppercase">Realized PnL</span>
 					</div>
 				</div>
 			</div>
