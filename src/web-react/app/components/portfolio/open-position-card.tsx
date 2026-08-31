@@ -1,5 +1,5 @@
 import { ChevronRightIcon, ShareIcon } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -33,139 +33,155 @@ export function OpenPositionCard({
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
 	const [shareOpen, setShareOpen] = useState(false);
+	const lastShareCloseRef = useRef(0);
+
+	const handleShareOpenChange = (open: boolean) => {
+		if (!open) lastShareCloseRef.current = Date.now();
+		setShareOpen(open);
+	};
+
+	const handleCardClick = () => {
+		if (Date.now() - lastShareCloseRef.current < 400) return;
+		onDetails();
+	};
+
+	const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			handleCardClick();
+		}
+	};
+
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
-		<div
-			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
-			role="button"
-			tabIndex={0}
-			onClick={onDetails}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					onDetails();
-				}
-			}}
-		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="flex min-w-0 items-center gap-3">
-					<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
-						{proxiedIconUrl(pool.tokenXIcon) ? (
-							<img
-								src={proxiedIconUrl(pool.tokenXIcon) as string}
-								alt={pool.tokenX}
-								crossOrigin="anonymous"
-								referrerPolicy="no-referrer"
-								loading="lazy"
-								className="size-full object-cover"
-								onError={(e) => {
-									(e.currentTarget as HTMLImageElement).style.display = "none";
-								}}
-							/>
-						) : (
-							pool.tokenX.slice(0, 2).toUpperCase()
-						)}
+		<>
+			{/* biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button */}
+			<div
+				className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+				role="button"
+				tabIndex={0}
+				onClick={handleCardClick}
+				onKeyDown={handleCardKeyDown}
+			>
+				<div className="flex items-start justify-between gap-3">
+					<div className="flex min-w-0 items-center gap-3">
+						<div className="flex size-9 shrink-0 items-center justify-center overflow-hidden rounded-full bg-muted text-xs font-bold">
+							{proxiedIconUrl(pool.tokenXIcon) ? (
+								<img
+									src={proxiedIconUrl(pool.tokenXIcon) as string}
+									alt={pool.tokenX}
+									crossOrigin="anonymous"
+									referrerPolicy="no-referrer"
+									loading="lazy"
+									className="size-full object-cover"
+									onError={(e) => {
+										(e.currentTarget as HTMLImageElement).style.display =
+											"none";
+									}}
+								/>
+							) : (
+								pool.tokenX.slice(0, 2).toUpperCase()
+							)}
+						</div>
+						<div className="min-w-0">
+							<a
+								href={meteoraUrl(pool.poolAddress)}
+								target="_blank"
+								rel="noopener noreferrer"
+								className="block truncate font-semibold hover:underline"
+								onClick={(event) => event.stopPropagation()}
+							>
+								{pair(pool.tokenX, pool.tokenY)}
+							</a>
+							<span className="font-mono text-xs text-muted-foreground">
+								{shortAddr(pool.poolAddress, 5)}
+							</span>
+						</div>
 					</div>
-					<div className="min-w-0">
-						<a
-							href={meteoraUrl(pool.poolAddress)}
-							target="_blank"
-							rel="noopener noreferrer"
-							className="block truncate font-semibold hover:underline"
-							onClick={(event) => event.stopPropagation()}
-						>
-							{pair(pool.tokenX, pool.tokenY)}
-						</a>
-						<span className="font-mono text-xs text-muted-foreground">
-							{shortAddr(pool.poolAddress, 5)}
-						</span>
-					</div>
+					<Badge variant={oor ? "destructive" : "outline"}>
+						{oor ? "OOR" : "In range"}
+					</Badge>
 				</div>
-				<Badge variant={oor ? "destructive" : "outline"}>
-					{oor ? "OOR" : "In range"}
-				</Badge>
-			</div>
-			<div className="mt-5 grid grid-cols-3 gap-3">
-				<div>
-					<p className="text-xs text-muted-foreground">Balance</p>
-					<PortfolioAmount
-						usd={pool.balances}
-						currency={currency}
-						solPrice={solPrice}
-					/>
-				</div>
-				<div>
-					<p className="text-xs text-muted-foreground">Fees</p>
-					<PortfolioAmount
-						usd={pool.unclaimedFees}
-						currency={currency}
-						solPrice={solPrice}
-					/>
-				</div>
-				<div>
-					<p className="text-xs text-muted-foreground">
-						PnL {currency.toUpperCase()}
-					</p>
-					<span
-						className={cn(
-							"tabular-nums",
-							pnlClass(pnlSignForCurrency(pool.pnl, pool.pnlSol, currency)),
-						)}
-					>
+				<div className="mt-5 grid grid-cols-3 gap-3">
+					<div>
+						<p className="text-xs text-muted-foreground">Balance</p>
 						<PortfolioAmount
-							usd={pool.pnl}
-							sol={pool.pnlSol}
+							usd={pool.balances}
 							currency={currency}
 							solPrice={solPrice}
 						/>
+					</div>
+					<div>
+						<p className="text-xs text-muted-foreground">Fees</p>
+						<PortfolioAmount
+							usd={pool.unclaimedFees}
+							currency={currency}
+							solPrice={solPrice}
+						/>
+					</div>
+					<div>
 						<p className="text-xs text-muted-foreground">
-							{fmtPnlPct(pool.pnlPctChange, pool.pnlSolPctChange, currency)}
+							PnL {currency.toUpperCase()}
 						</p>
-					</span>
+						<span
+							className={cn(
+								"tabular-nums",
+								pnlClass(pnlSignForCurrency(pool.pnl, pool.pnlSol, currency)),
+							)}
+						>
+							<PortfolioAmount
+								usd={pool.pnl}
+								sol={pool.pnlSol}
+								currency={currency}
+								solPrice={solPrice}
+							/>
+							<p className="text-xs text-muted-foreground">
+								{fmtPnlPct(pool.pnlPctChange, pool.pnlSolPctChange, currency)}
+							</p>
+						</span>
+					</div>
 				</div>
-			</div>
-			<div className="mt-4">
-				<RangeVisual
-					ranges={pool.positionsRange ?? []}
-					current={pool.poolPrice}
-					mcap={pool.mcap ?? null}
-					loading={rangesLoading}
-				/>
-			</div>
-			<div className="mt-3 flex items-center justify-between">
-				<span className="text-xs text-muted-foreground">
-					{pool.openPositionCount} position
-					{pool.openPositionCount === 1 ? "" : "s"}
-				</span>
-				<div className="flex items-center gap-1">
-					<Button
-						type="button"
-						variant="outline"
-						size="sm"
-						className="h-7 px-2 text-xs"
-						onClick={(e) => {
-							e.stopPropagation();
-							setShareOpen(true);
-						}}
-					>
-						<ShareIcon className="size-3" />
-						Share
-					</Button>
-					<ChevronRightIcon
-						className="size-5 text-muted-foreground"
-						aria-hidden="true"
+				<div className="mt-4">
+					<RangeVisual
+						ranges={pool.positionsRange ?? []}
+						current={pool.poolPrice}
+						mcap={pool.mcap ?? null}
+						loading={rangesLoading}
 					/>
+				</div>
+				<div className="mt-3 flex items-center justify-between">
+					<span className="text-xs text-muted-foreground">
+						{pool.openPositionCount} position
+						{pool.openPositionCount === 1 ? "" : "s"}
+					</span>
+					<div className="flex items-center gap-1">
+						<Button
+							type="button"
+							variant="ghost"
+							size="icon-sm"
+							aria-label="Share"
+							onClick={(e) => {
+								e.stopPropagation();
+								setShareOpen(true);
+							}}
+						>
+							<ShareIcon className="size-3" />
+						</Button>
+						<ChevronRightIcon
+							className="size-5 text-muted-foreground"
+							aria-hidden="true"
+						/>
+					</div>
 				</div>
 			</div>
 			{shareOpen ? (
 				<PositionPnlShareDialog
 					open={shareOpen}
-					onOpenChange={setShareOpen}
+					onOpenChange={handleShareOpenChange}
 					pool={pool}
 					currency={currency}
 					solPrice={solPrice}
 				/>
 			) : null}
-		</div>
+		</>
 	);
 }
