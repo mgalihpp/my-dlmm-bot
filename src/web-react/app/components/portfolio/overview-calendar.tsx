@@ -11,7 +11,8 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
-import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog";
+import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
+import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog.js";
 
 function startOfMonth(date: Date) {
 	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
@@ -37,6 +38,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 }) {
 	const [mode, setMode] = useState<"fees" | "total">("total");
 	const [shareOpen, setShareOpen] = useState(false);
+	const [dailyDate, setDailyDate] = useState<Date | null>(null);
 
 	const { cells, monthlyPnl, monthlyDays } = useMemo(() => {
 		const year = month.getUTCFullYear();
@@ -255,11 +257,30 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													className={`group relative flex min-h-[70px] flex-col border-b border-r border-border/30 p-1.5 ${bg}`}
 												>
 													<div className="flex items-start justify-between gap-1">
-														<span className="flex size-2.5 items-center justify-center">
+														<button
+															type="button"
+															aria-label={
+																hasData ? `Share ${cell.day}` : undefined
+															}
+															disabled={!hasData}
+															onClick={() => {
+																if (!hasData || cell.day == null) return;
+																setDailyDate(
+																	new Date(
+																		Date.UTC(
+																			month.getUTCFullYear(),
+																			month.getUTCMonth(),
+																			cell.day,
+																		),
+																	),
+																);
+															}}
+															className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
+														>
 															{hasData ? (
 																<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
 															) : null}
-														</span>
+														</button>
 														<span className="text-[10px] leading-none text-muted-foreground">
 															{cell.day}
 														</span>
@@ -298,6 +319,17 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					open={shareOpen}
 					onOpenChange={setShareOpen}
 					month={month}
+					closed={closed}
+					currency={currency ?? "sol"}
+				/>
+			)}
+			{dailyDate && (
+				<DailyPnlShareDialog
+					open={!!dailyDate}
+					onOpenChange={(v) => {
+						if (!v) setDailyDate(null);
+					}}
+					date={dailyDate}
 					closed={closed}
 					currency={currency ?? "sol"}
 				/>

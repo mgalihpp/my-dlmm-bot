@@ -19,11 +19,7 @@ import {
 	DialogTitle,
 } from "~/components/ui/dialog";
 import type { Currency } from "~/lib/currency";
-import {
-	buildCalendarCells,
-	computeWeekBuckets,
-	PnlCalendarCard,
-} from "./pnl-calendar-card.js";
+import { buildDailyStats, DailyPnlCard } from "./daily-pnl-card.js";
 import {
 	BACKGROUND_BY_ID,
 	BACKGROUNDS,
@@ -32,16 +28,16 @@ import {
 	TEXTURES,
 } from "./pnl-share-theme.js";
 
-export function PnlCalendarShareDialog({
+export function DailyPnlShareDialog({
 	open,
 	onOpenChange,
-	month,
+	date,
 	closed,
 	currency,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
-	month: Date;
+	date: Date;
 	closed: readonly PositionPnLData[];
 	currency: Currency;
 }) {
@@ -63,11 +59,11 @@ export function PnlCalendarShareDialog({
 	const cardRef = useRef<HTMLDivElement>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 
-	const { cells, monthlyPnl, monthlyDays } = useMemo(
-		() => buildCalendarCells(closed, month, "total", currency),
-		[closed, month, currency],
+	const stats = useMemo(
+		() => buildDailyStats(closed, date, currency),
+		[closed, date, currency],
 	);
-	const weekBuckets = useMemo(() => computeWeekBuckets(cells), [cells]);
+
 	const theme: CardTheme = useMemo(() => {
 		const bg =
 			backgroundId === "custom"
@@ -106,7 +102,7 @@ export function PnlCalendarShareDialog({
 		zoom,
 	]);
 
-	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
+	const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
 
 	const handleCustomImagePick = () => fileRef.current?.click();
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -143,7 +139,7 @@ export function PnlCalendarShareDialog({
 					theme.background !== "transparent" ? theme.background : "#0a0a0a",
 			});
 			const link = document.createElement("a");
-			link.download = `pnl-${monthKey}.png`;
+			link.download = `pnl-daily-${dateKey}.png`;
 			link.href = dataUrl;
 			link.click();
 			toast.success("Image downloaded");
@@ -189,21 +185,18 @@ export function PnlCalendarShareDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="flex max-h-[92vh] max-w-[1100px] flex-col gap-0 overflow-hidden border-[#222] bg-black p-0 sm:max-w-[1100px]">
 				<DialogHeader className="sr-only">
-					<DialogTitle>Share PnL Calendar</DialogTitle>
+					<DialogTitle>Share Daily PnL</DialogTitle>
 					<DialogDescription>
-						Preview and export your monthly PnL calendar
+						Preview and export your daily PnL card
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
 					<div className="flex min-h-[420px] flex-1 items-center justify-center overflow-auto bg-[#050505] p-6">
-						<PnlCalendarCard
+						<DailyPnlCard
 							ref={cardRef}
-							month={month}
-							cells={cells}
-							monthlyPnl={monthlyPnl}
-							monthlyDays={monthlyDays}
+							date={date}
+							stats={stats}
 							currency={currency}
-							weekBuckets={weekBuckets}
 							theme={theme}
 						/>
 					</div>

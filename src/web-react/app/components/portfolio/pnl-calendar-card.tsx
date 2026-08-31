@@ -4,6 +4,9 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import type { CardTheme } from "./pnl-share-theme.js";
+
+export type { CardTheme } from "./pnl-share-theme.js";
 
 export type CalendarCell = {
 	day: number | null;
@@ -18,22 +21,6 @@ export type WeekBucket = {
 	pnl: number | null;
 	days: number;
 	hasData: boolean;
-};
-
-export type CardTheme = {
-	background: string;
-	backgroundImage?: string | null;
-	overlayColor?: string;
-	overlayOpacity?: number;
-	overlayType?: "solid" | "gradient";
-	textMode?: "light" | "dark";
-	textShadow?: number;
-	imageZoom?: number;
-	positionX?: number;
-	positionY?: number;
-	texture: string | null;
-	opacity: number;
-	zoom: number;
 };
 
 function startOfMonth(date: Date) {
@@ -167,7 +154,6 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 		);
 		const bgColor =
 			theme.background === "transparent" ? "#0a0a0a" : theme.background;
-		// ponytail: backgroundImage is url(data:...) for export. cover+center keeps it simple.
 		const bgImage = theme.backgroundImage ?? null;
 		const overlayColor = theme.overlayColor ?? "#000000";
 		const overlayOpacity = theme.overlayOpacity ?? 60;
@@ -266,7 +252,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 					style={{ textShadow: shadowStyle }}
 				>
 					<div className="flex items-start justify-between gap-2">
-						<div className="flex items-center gap-2">
+						<div className="flex items-center -pl-2">
 							<img
 								src="/logo.png"
 								alt="Vexis"

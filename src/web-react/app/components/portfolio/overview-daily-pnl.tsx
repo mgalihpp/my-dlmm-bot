@@ -152,10 +152,10 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 						<Button
 							variant="ghost"
 							size="icon"
-							className="size-6"
+							className="size-6 text-muted-foreground hover:text-white"
 							aria-label="Share"
 						>
-							<ShareIcon className="size-4" />
+							<ShareIcon className="size-3" />
 						</Button>
 					</div>
 					<div className="flex items-center gap-2">

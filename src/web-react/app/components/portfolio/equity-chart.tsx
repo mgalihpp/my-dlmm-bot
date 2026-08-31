@@ -9,7 +9,9 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { ShareIcon } from "lucide-react";
 import { CurrencyValue } from "~/components/currency-value";
+import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	type ChartConfig,
@@ -38,7 +40,7 @@ export const EquityChart = memo(function EquityChart({
 	loading?: boolean;
 }) {
 	const [mode, setMode] = useState<PnlMode>("total");
-	const { points, stops, positive, chartConfig } = useMemo(() => {
+	const { points, stops, chartConfig } = useMemo(() => {
 		const cum =
 			positions && positions.length > 0
 				? buildCumulativeFromPositions(positions, currency)
@@ -84,25 +86,23 @@ export const EquityChart = memo(function EquityChart({
 			},
 		} satisfies ChartConfig;
 
-		return { points, stops, positive, chartConfig };
+		return { points, stops, chartConfig };
 	}, [closed, currency, mode, positions]);
 
-	const last = points.at(-1);
 
 	return (
 		<Card className="h-full">
 			<CardHeader className="flex flex-row items-center justify-between gap-2">
-				<div className="flex items-baseline gap-2">
+				<div className="flex items-center gap-1.5">
 					<CardTitle>Cumulative P&L</CardTitle>
-					<span
-						className={`text-xl font-semibold tabular-nums ${positive ? "text-emerald-500" : "text-red-500"}`}
+					<Button
+						variant="ghost"
+						size="icon"
+						className="size-6 text-muted-foreground hover:text-white"
+						aria-label="Share"
 					>
-						{last ? (
-							<CurrencyValue currency={currency} value={last.value} />
-						) : (
-							"—"
-						)}
-					</span>
+						<ShareIcon className="size-3" />
+					</Button>
 				</div>
 				<ToggleGroup
 					type="single"
