@@ -1,5 +1,6 @@
-import { ChevronRightIcon } from "lucide-react";
-import { memo } from "react";
+import { ChevronRightIcon, ShareIcon } from "lucide-react";
+import { memo, useState } from "react";
+import { Button } from "~/components/ui/button";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -12,6 +13,7 @@ import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import { PortfolioAmount } from "./closed-detail";
+import { ClosedPnlShareDialog } from "./closed-pnl-share-dialog.js";
 import type { Currency } from "./portfolio-page";
 
 type ClosedPool = ClosedPoolWithIcons;
@@ -62,10 +64,12 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 }) {
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
+	const [shareOpen, setShareOpen] = useState(false);
 	return (
-		<button
+		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
+		<div
 			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
-			type="button"
+			role="button"
 			tabIndex={0}
 			onClick={() => onDetails(pool)}
 			onKeyDown={(event) => {
@@ -148,13 +152,34 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 					</p>
 				</div>
 			</div>
-			<div className="mt-3 flex justify-end">
+			<div className="mt-3 flex items-center justify-between">
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					className="h-7 px-2 text-xs"
+					onClick={(e) => {
+						e.stopPropagation();
+						setShareOpen(true);
+					}}
+				>
+					<ShareIcon className="size-3" />
+					Share
+				</Button>
 				<ChevronRightIcon
 					className="size-5 text-muted-foreground"
 					aria-hidden="true"
 				/>
 			</div>
-		</button>
+			{shareOpen ? (
+				<ClosedPnlShareDialog
+					open={shareOpen}
+					onOpenChange={setShareOpen}
+					pool={pool}
+					currency={currency}
+				/>
+			) : null}
+		</div>
 	);
 });
 
