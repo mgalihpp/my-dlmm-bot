@@ -1,5 +1,6 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: chart positional
 import { forwardRef, useMemo } from "react";
+import { Area, AreaChart, ReferenceLine } from "recharts";
 import type { Currency } from "~/lib/currency";
 import type { CardTheme } from "./pnl-share-theme.js";
 
@@ -47,7 +48,6 @@ export const CumulativeChartShareCard = forwardRef<
 	const labelColor = isDarkText ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.62)";
 	const gridColor = isDarkText ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.10)";
 	const totalColor = total >= 0 ? "#10b981" : "#ef4444";
-	const lineColor = total >= 0 ? "#10b981" : "#ef4444";
 	const shadowStyle =
 		textShadow > 0
 			? `0 1px ${Math.round((textShadow / 100) * 8 + 2)}px rgba(0,0,0,${(textShadow / 100) * 0.65})`
@@ -69,14 +69,9 @@ export const CumulativeChartShareCard = forwardRef<
 		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 	}
 
-	const { yTicks, xLabels, minV, maxV } = useMemo(() => {
+	const { yTicks, xLabels } = useMemo(() => {
 		if (points.length === 0) {
-			return {
-				yTicks: ["0.00"],
-				xLabels: [] as string[],
-				minV: 0,
-				maxV: 1,
-			};
+			return { yTicks: ["0.00"], xLabels: [] as string[] };
 		}
 		let maxVal = Number.NEGATIVE_INFINITY;
 		let minVal = Number.POSITIVE_INFINITY;
@@ -107,37 +102,35 @@ export const CumulativeChartShareCard = forwardRef<
 		const labels = points.map((p, i) =>
 			i % step === 0 || i === points.length - 1 ? p.label : "",
 		);
-		return { yTicks: ticks, xLabels: labels, minV: bottom, maxV: top };
+		return { yTicks: ticks, xLabels: labels };
 	}, [points]);
 
-	const { linePath, areaPath } = useMemo(() => {
-		if (points.length < 2) return { linePath: "", areaPath: "" };
-		const W = 1000;
-		const H = 180;
-		const range = maxV - minV || 1;
-		const getX = (i: number) => (i / (points.length - 1)) * W;
-		const getY = (v: number) => ((maxV - v) / range) * H;
-		let lp = "";
-		let ap = "";
-		for (let i = 0; i < points.length; i++) {
-			const x = getX(i);
-			const y = getY(points[i].value);
-			if (i === 0) lp += `M ${x} ${y}`;
-			else lp += ` L ${x} ${y}`;
+	const stops = useMemo(() => {
+		if (points.length === 0) return [] as { offset: string; color: string }[];
+		const colorFor = (v: number) => (v >= 0 ? "#10b981" : "#ef4444");
+		const arr: { offset: string; color: string }[] = [];
+		arr.push({ offset: "0%", color: colorFor(points[0].value) });
+		for (let i = 1; i < points.length; i++) {
+			const prev = points[i - 1].value;
+			const cur = points[i].value;
+			const prevC = colorFor(prev);
+			const curC = colorFor(cur);
+			if (prevC !== curC) {
+				const ratio = Math.abs(prev) / (Math.abs(prev) + Math.abs(cur));
+				const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
+				const offset = `${crossing}%`;
+				arr.push({ offset, color: prevC });
+				arr.push({ offset, color: curC });
+			}
 		}
-		// area: line + down to bottom + back to start
-		const firstX = getX(0);
-		const lastX = getX(points.length - 1);
-		ap = `${lp} L ${lastX} ${H} L ${firstX} ${H} Z`;
-		return { linePath: lp, areaPath: ap };
-	}, [points, minV, maxV]);
-
-	const zeroY = useMemo(() => {
-		if (points.length === 0) return null;
-		if (minV > 0 || maxV < 0) return null;
-		const range = maxV - minV || 1;
-		return ((maxV - 0) / range) * 180;
-	}, [minV, maxV, points.length]);
+		if (points.length > 1) {
+			arr.push({
+				offset: "100%",
+				color: colorFor(points[points.length - 1].value),
+			});
+		}
+		return arr;
+	}, [points]);
 
 	return (
 		<div
@@ -259,7 +252,7 @@ export const CumulativeChartShareCard = forwardRef<
 					</div>
 					<div className="flex flex-1 flex-col">
 						<div
-							className="relative h-[180px] border-l px-0"
+							className="relative h-[180px] w-full overflow-hidden border-l"
 							style={{ borderColor: gridColor }}
 						>
 							{points.length < 2 ? (
@@ -270,42 +263,43 @@ export const CumulativeChartShareCard = forwardRef<
 									Not enough data
 								</div>
 							) : (
-								<svg
-									viewBox="0 0 1000 180"
-									preserveAspectRatio="none"
-									className="absolute inset-0 h-full w-full"
-									role="img"
+								<AreaChart
+									width={800}
+									height={180}
+									data={[...points]}
+									margin={{ left: 0, right: 0, top: 0, bottom: 0 }}
+									style={{ width: "100%", height: "100%" }}
 								>
-									<title>Cumulative P&L chart</title>
-									{zeroY !== null ? (
-										<line
-											x1={0}
-											x2={1000}
-											y1={zeroY}
-											y2={zeroY}
-											stroke={gridColor}
-											strokeWidth={1}
-											strokeDasharray="4 4"
-										/>
-									) : null}
-									<path
-										d={areaPath}
-										fill={lineColor}
-										fillOpacity={0.14}
-										stroke="none"
+									<defs>
+										<linearGradient id="cum-grad" x1="0" y1="0" x2="1" y2="0">
+											{stops.map((s) => (
+												<stop
+													key={`${s.offset}-${s.color}`}
+													offset={s.offset}
+													stopColor={s.color}
+												/>
+											))}
+										</linearGradient>
+									</defs>
+									<ReferenceLine
+										y={0}
+										stroke={gridColor}
+										strokeDasharray="4 4"
 									/>
-									<path
-										d={linePath}
-										fill="none"
-										stroke={lineColor}
+									<Area
+										dataKey="value"
+										type="natural"
+										fill="url(#cum-grad)"
+										fillOpacity={0.22}
+										stroke="url(#cum-grad)"
 										strokeWidth={2.5}
-										strokeLinecap="round"
-										strokeLinejoin="round"
+										dot={false}
+										isAnimationActive={false}
 									/>
-								</svg>
+								</AreaChart>
 							)}
 						</div>
-						<div className="mt-1 flex gap-[2px]">
+						<div className="mt-1 flex gap-[2px] px-1">
 							{xLabels.map((lbl, i) => (
 								<span
 									key={`${xLabels.length}-${i}`}
