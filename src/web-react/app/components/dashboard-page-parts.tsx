@@ -10,7 +10,7 @@ export function RefreshButton({
 	onClick: () => void;
 }) {
 	return (
-		<Button variant="outline" size="sm" onClick={onClick} disabled={loading}>
+		<Button variant="outline" size="lg" onClick={onClick} disabled={loading}>
 			<RefreshCwIcon className={loading ? "animate-spin" : ""} />
 			Refresh
 		</Button>

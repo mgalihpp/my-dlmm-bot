@@ -11,7 +11,7 @@ export function fmtUsd(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	return `$${formatNum(n)}`;
+	return `$${formatNum(n, 2)}`;
 }
 
 export function fmtPct(value: string | number | null | undefined): string {
@@ -19,15 +19,14 @@ export function fmtPct(value: string | number | null | undefined): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
 	const sign = n > 0 ? "+" : "";
-	return `${sign}${formatNum(n)}%`;
+	return `${sign}${formatNum(n, 2)}%`;
 }
 
 export function fmtSol(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	const decimals = Math.abs(n) >= 0.001 ? 4 : 8;
-	return `${formatNum(n, decimals)} SOL`;
+	return `${formatNum(n, 3)} SOL`;
 }
 
 export function fmtPnl(
@@ -149,8 +148,8 @@ export function fmtMc(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(2)}B`;
-	if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`;
-	if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}k`;
+	if (n >= 1_000_000_000) return `$${(n / 1_000_000_000).toFixed(3)}B`;
+	if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(3)}M`;
+	if (n >= 1_000) return `$${(n / 1_000).toFixed(3)}k`;
 	return `$${formatNum(n)}`;
 }

@@ -380,22 +380,43 @@ const EDITABLE_FIELDS = [
 	},
 ] as const;
 
-function getNestedValue(obj: any, path: string): any {
-	return path.split(".").reduce((o, k) => o?.[k], obj);
+function getNestedValue(obj: Record<string, unknown>, path: string): unknown {
+	return path.split(".").reduce<unknown>((o, k) => {
+		if (
+			o !== null &&
+			typeof o === "object" &&
+			k in (o as Record<string, unknown>)
+		) {
+			return (o as Record<string, unknown>)[k];
+		}
+		return undefined;
+	}, obj);
 }
 
-function setNestedValue(obj: any, path: string, value: any): void {
+function setNestedValue(
+	obj: Record<string, unknown>,
+	path: string,
+	value: unknown,
+): void {
 	const keys = path.split(".");
-	let cur = obj;
+	let cur: Record<string, unknown> = obj;
 	for (let i = 0; i < keys.length - 1; i++) {
-		if (cur[keys[i]] == null) cur[keys[i]] = {};
-		cur = cur[keys[i]];
+		const k = keys[i]!;
+		const next = cur[k];
+		if (next == null || typeof next !== "object" || Array.isArray(next)) {
+			const created: Record<string, unknown> = {};
+			cur[k] = created;
+			cur = created;
+		} else {
+			cur = next as Record<string, unknown>;
+		}
 	}
-	cur[keys[keys.length - 1]] = value;
+	const last = keys[keys.length - 1]!;
+	cur[last] = value;
 }
 
 function formatValue(key: string, config: VexisConfig): string {
-	const val = getNestedValue(config, key);
+	const val = getNestedValue(config as unknown as Record<string, unknown>, key);
 	if (val === undefined || val === null) return "(default)";
 	if (Array.isArray(val)) return val.length ? val.join(", ") : "(empty)";
 	if (typeof val === "boolean") return val ? "ON" : "OFF";
@@ -441,7 +462,10 @@ function buildConfigText(
 	);
 	for (const field of screeningFields) {
 		const shortKey = field.key.replace("pools.", "");
-		const val = getNestedValue(pools, shortKey);
+		const val = getNestedValue(
+			pools as unknown as Record<string, unknown>,
+			shortKey,
+		);
 		const display =
 			val === undefined || val === null ? "(default)" : String(val);
 		lines.push(`  ${escapeMarkdown(field.label)}: ${tgCode(display)}`);
@@ -786,7 +810,7 @@ export function registerConfigEditor(bot: Bot) {
 		pendingEdits.delete(chatId);
 		try {
 			await updateConfig((c) => {
-				setNestedValue(c, field, null);
+				setNestedValue(c as unknown as Record<string, unknown>, field, null);
 				return c;
 			});
 		} catch (e) {
@@ -803,7 +827,7 @@ export function registerConfigEditor(bot: Bot) {
 	// cfg:page:<n> — switch keyboard page
 	bot.callbackQuery(/^cfg:page:(\d+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const page = parseInt(ctx.match?.[1], 10);
+		const page = parseInt(ctx.match?.[1] ?? "", 10);
 		const text = buildConfigText(getConfigSync(), configPath());
 		await ctx.editMessageText(text, {
 			...MD,
@@ -815,10 +839,18 @@ export function registerConfigEditor(bot: Bot) {
 	bot.callbackQuery(/^cfg:toggle:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
 		const field = ctx.match?.[1];
-		const current = getNestedValue(getConfigSync(), field) ?? false;
+		const current =
+			getNestedValue(
+				getConfigSync() as unknown as Record<string, unknown>,
+				field,
+			) ?? false;
 		try {
 			await updateConfig((c) => {
-				setNestedValue(c, field, !current);
+				setNestedValue(
+					c as unknown as Record<string, unknown>,
+					field,
+					!current,
+				);
 				return c;
 			});
 		} catch (e) {
@@ -865,7 +897,7 @@ export function registerConfigEditor(bot: Bot) {
 			raw.toLowerCase() === "default" ||
 			raw === "";
 
-		let value: any;
+		let value: unknown;
 		if (isReset) {
 			value = null;
 		} else if (pending.type === "boolean") {
@@ -907,7 +939,11 @@ export function registerConfigEditor(bot: Bot) {
 
 		try {
 			await updateConfig((c) => {
-				setNestedValue(c, pending.key, value);
+				setNestedValue(
+					c as unknown as Record<string, unknown>,
+					pending.key,
+					value,
+				);
 				return c;
 			});
 		} catch (e) {

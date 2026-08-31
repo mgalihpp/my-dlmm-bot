@@ -105,8 +105,9 @@ export class MeteoraApi extends Context.Tag("MeteoraApi")<
 	MeteoraApiService
 >() {}
 
-const retryPolicy = Schedule.exponential(Duration.millis(400)).pipe(
-	Schedule.intersect(Schedule.recurs(2)),
+const retryPolicy = Schedule.exponential(Duration.millis(500)).pipe(
+	Schedule.intersect(Schedule.recurs(3)),
+	Schedule.jittered,
 );
 
 const transient = (e: MeteoraApiError | DecodeError): boolean =>
@@ -180,7 +181,7 @@ const make = Effect.gen(function* () {
 			),
 			Effect.retry({ schedule: retryPolicy, while: transient }),
 			Effect.scoped,
-		);
+		) as Effect.Effect<A, MeteoraApiError | DecodeError, never>;
 	};
 
 	const positionPnl = (
@@ -245,7 +246,7 @@ const make = Effect.gen(function* () {
 				const enriched = pools.map((p) => ({ ...p }));
 				yield* Effect.forEach(
 					enriched.filter(
-						(pool) => opts?.withRanges === true || pool.openPositionCount > 1,
+						(pool) => opts?.withRanges === true || pool.openPositionCount >= 1,
 					),
 					(pool) =>
 						positionPnl(pool.poolAddress, wallet, "open").pipe(
@@ -281,7 +282,7 @@ const make = Effect.gen(function* () {
 							}),
 							Effect.ignore,
 						),
-					{ concurrency: 10, discard: true },
+					{ concurrency: 3, discard: true },
 				);
 				return enriched;
 			}),

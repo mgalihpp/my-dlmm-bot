@@ -241,7 +241,7 @@ describe("MeteoraApi enrichOpenPortfolioPnl", () => {
 		expect(result[0].positionsPnl).toHaveLength(1);
 	});
 
-	it("default skips single-position pools", async () => {
+	it("default enriches single-position pools for Age", async () => {
 		let calls = 0;
 		const result = await Effect.runPromise(
 			Effect.gen(function* () {
@@ -262,8 +262,8 @@ describe("MeteoraApi enrichOpenPortfolioPnl", () => {
 				),
 			),
 		);
-		expect(calls).toBe(1);
-		expect(result[0].positionsPnl).toBeUndefined();
+		expect(calls).toBe(2);
+		expect(result[0].positionsPnl).toHaveLength(1);
 		expect(result[1].positionsPnl).toHaveLength(1);
 	});
 

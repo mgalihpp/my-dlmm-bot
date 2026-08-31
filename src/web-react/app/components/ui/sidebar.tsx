@@ -1,8 +1,8 @@
 "use client";
 
+import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { PanelLeftIcon } from "lucide-react";
-import { Slot } from "radix-ui";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
@@ -71,9 +71,16 @@ function SidebarProvider({
 	// We use openProp and setOpenProp for control from outside the component.
 	const [_open, _setOpen] = React.useState(defaultOpen);
 	const open = openProp ?? _open;
+	const openRef = React.useRef(open);
+	React.useEffect(() => {
+		openRef.current = open;
+	}, [open]);
 	const setOpen = React.useCallback(
 		(value: boolean | ((value: boolean) => boolean)) => {
-			const openState = typeof value === "function" ? value(open) : value;
+			const openState =
+				typeof value === "function"
+					? (value as (v: boolean) => boolean)(openRef.current)
+					: value;
 			if (setOpenProp) {
 				setOpenProp(openState);
 			} else {
@@ -84,13 +91,17 @@ function SidebarProvider({
 			// biome-ignore lint/suspicious/noDocumentCookie: Cookie Store API is not supported in Firefox/Safari.
 			document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 		},
-		[setOpenProp, open],
+		[setOpenProp],
 	);
 
 	// Helper to toggle the sidebar.
+	const isMobileRef = React.useRef(isMobile);
+	React.useEffect(() => {
+		isMobileRef.current = isMobile;
+	}, [isMobile]);
 	const toggleSidebar = React.useCallback(() => {
-		return isMobile ? setOpenMobile((open) => !open) : setOpen((open) => !open);
-	}, [isMobile, setOpen]);
+		return isMobileRef.current ? setOpenMobile((o) => !o) : setOpen((o) => !o);
+	}, [setOpen]);
 
 	// Adds a keyboard shortcut to toggle the sidebar.
 	React.useEffect(() => {
@@ -400,7 +411,7 @@ function SidebarGroupLabel({
 	asChild = false,
 	...props
 }: React.ComponentProps<"div"> & { asChild?: boolean }) {
-	const Comp = asChild ? Slot.Root : "div";
+	const Comp = asChild ? Slot : "div";
 
 	return (
 		<Comp
@@ -420,7 +431,7 @@ function SidebarGroupAction({
 	asChild = false,
 	...props
 }: React.ComponentProps<"button"> & { asChild?: boolean }) {
-	const Comp = asChild ? Slot.Root : "button";
+	const Comp = asChild ? Slot : "button";
 
 	return (
 		<Comp
@@ -506,7 +517,7 @@ function SidebarMenuButton({
 	isActive?: boolean;
 	tooltip?: string | React.ComponentProps<typeof TooltipContent>;
 } & VariantProps<typeof sidebarMenuButtonVariants>) {
-	const Comp = asChild ? Slot.Root : "button";
+	const Comp = asChild ? Slot : "button";
 	const { isMobile, state } = useSidebar();
 
 	const button = (
@@ -552,7 +563,7 @@ function SidebarMenuAction({
 	asChild?: boolean;
 	showOnHover?: boolean;
 }) {
-	const Comp = asChild ? Slot.Root : "button";
+	const Comp = asChild ? Slot : "button";
 
 	return (
 		<Comp
@@ -663,7 +674,7 @@ function SidebarMenuSubButton({
 	size?: "sm" | "md";
 	isActive?: boolean;
 }) {
-	const Comp = asChild ? Slot.Root : "a";
+	const Comp = asChild ? Slot : "a";
 
 	return (
 		<Comp

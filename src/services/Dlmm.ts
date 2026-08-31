@@ -264,7 +264,43 @@ async function createPositionImpl(
 		initMin = initMax - INITIAL_POSITION_WIDTH + 1;
 	}
 
-	const program = (dlmm as any).program;
+	// DLMM SDK does not expose `program` in public types but it exists at runtime
+	// for initializing wide positions. Isolate the untyped access here.
+	const getDlmmProgram = (
+		instance: unknown,
+	): {
+		methods: {
+			initializePosition: (
+				lowerBinId: BN,
+				width: BN,
+			) => {
+				accountsPartial: (acc: Record<string, unknown>) => {
+					instruction: () => Promise<
+						import("@solana/web3.js").TransactionInstruction
+					>;
+				};
+			};
+		};
+	} => {
+		const withProgram = instance as unknown as {
+			program: {
+				methods: {
+					initializePosition: (
+						lowerBinId: BN,
+						width: BN,
+					) => {
+						accountsPartial: (acc: Record<string, unknown>) => {
+							instruction: () => Promise<
+								import("@solana/web3.js").TransactionInstruction
+							>;
+						};
+					};
+				};
+			};
+		};
+		return withProgram.program;
+	};
+	const program = getDlmmProgram(dlmm);
 	const initPositionIx = await program.methods
 		.initializePosition(new BN(initMin), new BN(INITIAL_POSITION_WIDTH))
 		.accountsPartial({

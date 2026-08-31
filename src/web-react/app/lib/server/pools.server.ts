@@ -12,6 +12,7 @@ import { AppConfig } from "@vexis/services/Config.js";
 import { Screening } from "@vexis/services/Screening.js";
 import { Effect, Schema } from "effect";
 import { buildPoolsPayload, type PoolsPayload, TIMEFRAMES } from "~/lib/pools";
+import { createTtlCache } from "./ttl-cache.server";
 
 const SOL_MINT = "So11111111111111111111111111111111111111112";
 
@@ -62,13 +63,12 @@ function fetchSolPrice(): Effect.Effect<number | null, never, never> {
 	);
 }
 
-export function fetchPoolsCritical(
-	rawTimeframe: string | null,
-): Promise<PoolsPayload> {
-	return doFetchPoolsCritical(rawTimeframe);
-}
+const POOLS_CRITICAL_TTL_MS = 60 * 1000;
+const poolsCriticalCache = createTtlCache<string, PoolsPayload>({
+	ttlMs: POOLS_CRITICAL_TTL_MS,
+});
 
-function doFetchPoolsCritical(
+export function fetchPoolsCritical(
 	rawTimeframe: string | null,
 ): Promise<PoolsPayload> {
 	const program = Effect.gen(function* () {
@@ -80,13 +80,24 @@ function doFetchPoolsCritical(
 			(TIMEFRAMES as readonly string[]).includes(rawTimeframe)
 				? rawTimeframe
 				: configured;
-		const screening = yield* Screening;
-		const [result, solPrice] = yield* Effect.all(
-			[screening.screen({ timeframe, skipEnrich: true }), fetchSolPrice()],
-			{ concurrency: "unbounded" },
+		return yield* Effect.tryPromise(() =>
+			poolsCriticalCache.load(timeframe, () =>
+				Effect.runPromise(
+					Effect.gen(function* () {
+						const screening = yield* Screening;
+						const [result, solPrice] = yield* Effect.all(
+							[
+								screening.screen({ timeframe, skipEnrich: true }),
+								fetchSolPrice(),
+							],
+							{ concurrency: "unbounded" },
+						);
+						const payload = buildPoolsPayload(result, solPrice, timeframe);
+						return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
+					}).pipe(Effect.provide(AppLayer)),
+				),
+			),
 		);
-		const payload = buildPoolsPayload(result, solPrice, timeframe);
-		return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
 	}).pipe(
 		Effect.provide(AppLayer),
 		Effect.catchAll((error) =>
@@ -121,8 +132,4 @@ export function fetchPoolsDeferred(
 		),
 	);
 	return Effect.runPromise(program);
-}
-
-export function fetchPools(rawTimeframe: string | null): Promise<PoolsPayload> {
-	return doFetchPoolsCritical(rawTimeframe);
 }

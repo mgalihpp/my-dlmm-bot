@@ -6,7 +6,7 @@ import {
 	SearchIcon,
 	Settings2Icon,
 } from "lucide-react";
-import type * as React from "react";
+import * as React from "react";
 import { Brand } from "~/components/brand";
 import { NavMain } from "~/components/nav-main";
 import { NavSecondary } from "~/components/nav-secondary";
@@ -33,6 +33,11 @@ const data = {
 			title: "Portfolio",
 			url: "/portfolio",
 			icon: <PieChart />,
+			items: [
+				{ title: "Overview", url: "/portfolio" },
+				{ title: "Active Positions", url: "/portfolio/active" },
+				{ title: "Closed Positions", url: "/portfolio/closed" },
+			],
 		},
 		{
 			title: "Agent",
@@ -65,7 +70,7 @@ const data = {
 	],
 };
 
-export function AppSidebar({
+function AppSidebarInner({
 	wallet,
 	rpc,
 	...props
@@ -93,7 +98,6 @@ export function AppSidebar({
 			</SidebarHeader>
 			<SidebarContent>
 				<NavMain items={data.navMain} />
-				{/*<NavDocuments items={data.documents} />*/}
 				<NavSecondary items={data.navSecondary} className="mt-auto" />
 			</SidebarContent>
 			<SidebarFooter>
@@ -102,3 +106,5 @@ export function AppSidebar({
 		</Sidebar>
 	);
 }
+
+export const AppSidebar = React.memo(AppSidebarInner);

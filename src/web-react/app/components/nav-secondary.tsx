@@ -1,6 +1,7 @@
 "use client";
 
 import type * as React from "react";
+import { memo } from "react";
 import { NavLink } from "react-router";
 
 import {
@@ -11,7 +12,7 @@ import {
 	SidebarMenuItem,
 } from "~/components/ui/sidebar";
 
-export function NavSecondary({
+function NavSecondaryInner({
 	items,
 	...props
 }: {
@@ -47,3 +48,5 @@ export function NavSecondary({
 		</SidebarGroup>
 	);
 }
+
+export const NavSecondary = memo(NavSecondaryInner);

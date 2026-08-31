@@ -1,18 +1,26 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
-import { useEffect, useState } from "react";
+import {
+	lazy,
+	Suspense,
+	startTransition,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PoolsContent } from "~/components/pools/pools-content";
+import { ChartGridSkeleton } from "~/components/page-skeletons";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
-import {
-	POOLS_CURRENCY_STORAGE_KEY,
-	readStoredCurrency,
-	resolveCurrency,
-	writeStoredCurrency,
-} from "~/lib/currency";
+import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import type { PoolsPayload } from "~/lib/pools";
+
+const PoolsContent = lazy(() =>
+	import("~/components/pools/pools-content").then((m) => ({
+		default: m.PoolsContent,
+	})),
+);
 
 type LoaderData = PoolsPayload;
 
@@ -20,28 +28,18 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 	const { revalidate, state } = useRevalidator();
 	const [searchParams, setSearchParams] = useSearchParams();
 	const timeframe = searchParams.get("timeframe") ?? payload.timeframe;
-	const [storedCurrency, setStoredCurrency] = useState<"usd" | "sol" | null>(
-		null,
-	);
-	const currency = resolveCurrency(
-		searchParams.get("currency"),
-		storedCurrency,
-	);
+	const [currency, setCurrency] = useStoredCurrency("pools");
 	const [selectedPool, setSelectedPool] = useState<ScreenedPool | null>(null);
-	const [displayPools, setDisplayPools] = useState<ScreenedPool[]>(
-		() => payload.pools as ScreenedPool[],
-	);
+	const [enrichedPools, setEnrichedPools] = useState<
+		Record<string, ScreenedPool>
+	>({});
+	const displayPools = useMemo(() => {
+		const base = payload.pools as ScreenedPool[];
+		if (Object.keys(enrichedPools).length === 0) return base;
+		return base.map((p) => enrichedPools[p.pool] ?? p);
+	}, [payload.pools, enrichedPools]);
 
-	useEffect(() => {
-		setStoredCurrency(
-			readStoredCurrency(window.localStorage, POOLS_CURRENCY_STORAGE_KEY),
-		);
-	}, []);
-
-	useEffect(() => {
-		setDisplayPools(payload.pools as ScreenedPool[]);
-	}, [payload.pools]);
-
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 waterfall fix - deps primitive timeframe only, batch NDJSON
 	useEffect(() => {
 		if (!payload.ok || payload.pools.length === 0) return;
 		let cancelled = false;
@@ -62,7 +60,9 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 						pools?: ScreenedPool[];
 					};
 					if (!cancelled && data.ok && Array.isArray(data.pools)) {
-						setDisplayPools(data.pools);
+						const map: Record<string, ScreenedPool> = {};
+						for (const p of data.pools) map[p.pool] = p;
+						startTransition(() => setEnrichedPools(map));
 					}
 					return;
 				}
@@ -76,27 +76,33 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 					buffer += decoder.decode(value, { stream: true });
 					const lines = buffer.split("\n");
 					buffer = lines.pop() ?? "";
+					// Batch per NDJSON chunk: accumulate then single setState
+					const batch: Record<string, ScreenedPool> = {};
 					for (const line of lines) {
 						if (!line.trim() || line.includes('"_error"')) continue;
 						try {
 							const pool = JSON.parse(line) as ScreenedPool;
 							if (cancelled) break;
-							setDisplayPools((prev) =>
-								prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
-							);
+							batch[pool.pool] = pool;
+						} catch {}
+					}
+					if (Object.keys(batch).length > 0) {
+						const toFlush = { ...batch };
+						startTransition(() => {
+							setEnrichedPools((prev) => ({ ...prev, ...toFlush }));
 							setSelectedPool((prev) =>
-								prev && prev.pool === pool.pool
-									? ({ ...prev, ...pool } as ScreenedPool)
+								prev && toFlush[prev.pool]
+									? ({ ...prev, ...toFlush[prev.pool] } as ScreenedPool)
 									: prev,
 							);
-						} catch {}
+						});
 					}
 				}
 				if (buffer.trim() && !cancelled) {
 					try {
 						const pool = JSON.parse(buffer) as ScreenedPool;
-						setDisplayPools((prev) =>
-							prev.map((p) => (p.pool === pool.pool ? { ...p, ...pool } : p)),
+						startTransition(() =>
+							setEnrichedPools((prev) => ({ ...prev, [pool.pool]: pool })),
 						);
 					} catch {}
 				}
@@ -106,7 +112,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 			cancelled = true;
 			controller.abort();
 		};
-	}, [timeframe, payload.ok, payload.pools.length]);
+	}, [timeframe]);
 
 	const onTimeframeChange = (value: string) =>
 		setSearchParams(
@@ -119,22 +125,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 			{ preventScrollReset: true },
 		);
 	const onCurrencyChange = (value: string) => {
-		const currency = value as "usd" | "sol";
-		writeStoredCurrency(
-			window.localStorage,
-			POOLS_CURRENCY_STORAGE_KEY,
-			currency,
-		);
-		setStoredCurrency(currency);
-		setSearchParams(
-			(current) => {
-				const next = new URLSearchParams(current);
-				if (value === "usd") next.delete("currency");
-				else next.set("currency", value);
-				return next;
-			},
-			{ preventScrollReset: true },
-		);
+		setCurrency(value as "usd" | "sol");
 	};
 
 	return (
@@ -164,14 +155,16 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 						</CardContent>
 					</Card>
 				) : (
-					<PoolsContent
-						pools={displayPools}
-						currency={currency}
-						solPrice={payload.solPrice}
-						selectedPool={selectedPool}
-						onSelect={setSelectedPool}
-						onClose={() => setSelectedPool(null)}
-					/>
+					<Suspense fallback={<ChartGridSkeleton />}>
+						<PoolsContent
+							pools={displayPools}
+							currency={currency}
+							solPrice={payload.solPrice}
+							selectedPool={selectedPool}
+							onSelect={setSelectedPool}
+							onClose={() => setSelectedPool(null)}
+						/>
+					</Suspense>
 				)}
 			</div>
 		</DashboardShell>

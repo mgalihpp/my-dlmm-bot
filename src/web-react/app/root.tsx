@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
 	isRouteErrorResponse,
 	Links,
@@ -5,13 +6,64 @@ import {
 	Outlet,
 	Scripts,
 	ScrollRestoration,
+	useNavigation,
 } from "react-router";
+import { DashboardShell } from "~/components/dashboard-shell";
+import { PageSkeleton } from "~/components/page-skeletons";
+import {
+	ClosedTableSkeleton,
+	PositionsTableSkeleton,
+} from "~/components/portfolio/portfolio-table-skeletons";
 import { TopLoadingIndicator } from "~/components/top-loading-indicator";
 import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { useTheme } from "~/hooks/use-theme";
+import { useChartPreferenceStore } from "~/stores/chart-preference";
 import type { Route } from "./+types/root";
 import "./app.css";
+
+function NavigationSkeleton() {
+	const navigation = useNavigation();
+	if (navigation.state === "idle" || !navigation.location) return null;
+	const to = navigation.location.pathname;
+	if (to === "/portfolio/active") {
+		return (
+			<DashboardShell title="Portfolio" wallet="loading" rpc="loading">
+				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+					<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
+						<div className="h-7 w-36 animate-pulse rounded bg-muted" />
+						<div className="flex items-center gap-2">
+							<div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
+							<div className="h-9 w-9 animate-pulse rounded-md bg-muted" />
+						</div>
+					</div>
+					<PositionsTableSkeleton />
+				</div>
+			</DashboardShell>
+		);
+	}
+	if (to === "/portfolio/closed") {
+		return (
+			<DashboardShell title="Portfolio" wallet="loading" rpc="loading">
+				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+					<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
+						<div className="h-7 w-36 animate-pulse rounded bg-muted" />
+						<div className="flex items-center gap-2">
+							<div className="h-9 w-20 animate-pulse rounded-md bg-muted" />
+							<div className="h-9 w-9 animate-pulse rounded-md bg-muted" />
+						</div>
+					</div>
+					<ClosedTableSkeleton />
+				</div>
+			</DashboardShell>
+		);
+	}
+	return (
+		<DashboardShell title="Loading" wallet="loading" rpc="loading">
+			<PageSkeleton />
+		</DashboardShell>
+	);
+}
 
 export function Layout({ children }: { children: React.ReactNode }) {
 	return (
@@ -41,10 +93,16 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
 	useTheme();
+	useEffect(() => {
+		useChartPreferenceStore.persist.rehydrate();
+	}, []);
+	const navigation = useNavigation();
+	const isNavigating =
+		navigation.state !== "idle" && navigation.location != null;
 	return (
 		<TooltipProvider delayDuration={0}>
 			<TopLoadingIndicator />
-			<Outlet />
+			{isNavigating ? <NavigationSkeleton /> : <Outlet />}
 			<Toaster />
 		</TooltipProvider>
 	);

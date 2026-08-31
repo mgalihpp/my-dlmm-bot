@@ -1,0 +1,91 @@
+import {
+	getCurrentMonthKey,
+	getTodayKey,
+	getWeekStartMonday,
+	normalizeWeekKey,
+} from "~/lib/server/period.server";
+import {
+	fetchClosedPositions,
+	resolveWalletFromRequest,
+} from "~/lib/server/portfolio.server";
+import { apiAuthMiddleware } from "~/middleware/auth";
+import type { Route } from "./+types/api.closed-positions";
+
+export const middleware = [apiAuthMiddleware];
+
+export async function loader({ request }: Route.LoaderArgs) {
+	const url = new URL(request.url);
+	const month = url.searchParams.get("month");
+	const day = url.searchParams.get("day");
+	const week = url.searchParams.get("week");
+	const provided = [month, day, week].filter((v) => v != null).length;
+	if (provided > 1) {
+		return Response.json(
+			{ ok: false, error: "provide only one of month, day, week" },
+			{ status: 400 },
+		);
+	}
+	if (month && !/^\d{4}-\d{2}$/.test(month)) {
+		return Response.json(
+			{ ok: false, error: "invalid month format, use YYYY-MM" },
+			{ status: 400 },
+		);
+	}
+	if (day && !/^\d{4}-\d{2}-\d{2}$/.test(day)) {
+		return Response.json(
+			{ ok: false, error: "invalid day format, use YYYY-MM-DD" },
+			{ status: 400 },
+		);
+	}
+	if (
+		week &&
+		!/^\d{4}-\d{2}-\d{2}$/.test(week) &&
+		!/^\d{4}-W\d{2}$/.test(week)
+	) {
+		return Response.json(
+			{ ok: false, error: "invalid week format, use YYYY-MM-DD or YYYY-Www" },
+			{ status: 400 },
+		);
+	}
+	let wallet: string;
+	try {
+		wallet = await resolveWalletFromRequest(request);
+	} catch (e) {
+		return Response.json({ ok: false, error: String(e) }, { status: 500 });
+	}
+	try {
+		const opts = day
+			? { day }
+			: week
+				? { week }
+				: month
+					? { month }
+					: undefined;
+		const positions = await fetchClosedPositions(wallet, opts);
+		const curMonthKey = getCurrentMonthKey();
+		const curDayKey = getTodayKey();
+		const weekStart = getWeekStartMonday(new Date());
+		const weekNorm = week ? (normalizeWeekKey(week) ?? week) : null;
+		const isPast =
+			(month != null && month !== curMonthKey) ||
+			(day != null && day !== curDayKey) ||
+			(week != null && weekNorm !== weekStart);
+		const headers: Record<string, string> = isPast
+			? { "Cache-Control": "public, max-age=86400, immutable" }
+			: opts
+				? { "Cache-Control": "public, max-age=300" }
+				: { "Cache-Control": "public, max-age=60" };
+		return Response.json(
+			{
+				ok: true,
+				positions,
+				month: month ?? null,
+				day: day ?? null,
+				week: week ?? null,
+			},
+			{ headers },
+		);
+	} catch (e) {
+		return Response.json({ ok: false, error: String(e) }, { status: 500 });
+	}
+}

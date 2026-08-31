@@ -3,6 +3,7 @@ import type { CreatePreset } from "../../domain/config.js";
 import type { PositionCostQuote, StrategyType } from "../../domain/index.js";
 import { computeStrategySplit } from "../../lib/math.js";
 import { resolveCreatePresetFrom } from "../../services/Config.js";
+import type { RangePreview } from "../../services/Dlmm.js";
 import {
 	escapeMarkdown,
 	formatNum,
@@ -23,6 +24,7 @@ import {
 	zap,
 } from "../fx.js";
 import { setInputSession } from "../input-store.js";
+import { getMatchGroup, getMatchString } from "../utils/match.js";
 import { MD } from "../utils.js";
 import {
 	createWizard,
@@ -53,14 +55,19 @@ const WIDE_PRESETS = [
 
 const PRESET: CreatePreset = new Proxy({} as CreatePreset, {
 	get(_t, prop) {
-		return (resolveCreatePresetFrom(getConfigSync()) as any)[prop];
+		return (
+			resolveCreatePresetFrom(getConfigSync()) as unknown as Record<
+				string,
+				unknown
+			>
+		)[prop as string] as unknown;
 	},
 });
 
 export function registerCreate(bot: Bot) {
 	// ─── Entry: /create without args ────────────────────────────────────────
 	bot.command("create", async (ctx, next) => {
-		const args = (ctx.match as string).trim();
+		const args = (getMatchString(ctx) ?? "").trim();
 		if (args) return next();
 		await showSourceMenu(ctx, "reply");
 	});
@@ -85,7 +92,7 @@ export function registerCreate(bot: Bot) {
 
 	bot.callbackQuery(/^crt:trending:tf:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const timeframe = ctx.match?.[1];
+		const timeframe = getMatchGroup(ctx, 1) ?? undefined;
 		await ctx.editMessageText("⏳ Screening trending pools\\.\\.\\.", MD);
 		try {
 			const result = await screenPools({ timeframe });
@@ -282,8 +289,8 @@ export function registerCreate(bot: Bot) {
 	// ─── crt:strategy:<wid> — pick strategy ─────────────────────────────────
 	bot.callbackQuery(/^crt:strategy:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const wid = ctx.match?.[1];
-		if (!getWizard(wid)) return await expired(ctx);
+		const wid = getMatchGroup(ctx, 1);
+		if (!wid || !getWizard(wid)) return await expired(ctx);
 		await ctx.editMessageText(await renderStrategyStep(wid), {
 			...MD,
 			reply_markup: strategyKb(wid),
@@ -293,7 +300,8 @@ export function registerCreate(bot: Bot) {
 	// ─── crt:quick:<wid> — one-tap: apply preset & skip to amounts/confirm ───
 	bot.callbackQuery(/^crt:quick:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const wid = ctx.match?.[1];
+		const wid = getMatchGroup(ctx, 1);
+		if (!wid) return await expired(ctx);
 		const state = getWizard(wid);
 		if (!state) return await expired(ctx);
 		updateWizard(wid, { strategy: PRESET.strategy, mode: PRESET.mode });
@@ -593,9 +601,16 @@ export function registerCreate(bot: Bot) {
 	// ─── crt:execute — execute create position ───────────────────────────────
 	bot.callbackQuery(/^crt:execute:([^:]+):(.+):(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const wid = ctx.match?.[1];
-		const xAmt = ctx.match?.[2];
-		const yAmt = ctx.match?.[3];
+		const wid = getMatchGroup(ctx, 1);
+		const xAmt = getMatchGroup(ctx, 2);
+		const yAmt = getMatchGroup(ctx, 3);
+		if (!wid || !xAmt || !yAmt) {
+			await ctx.editMessageText(
+				"⌛ Session expired\\. Run /create again\\.",
+				MD,
+			);
+			return;
+		}
 		const state = getWizard(wid);
 		if (!state) {
 			await ctx.editMessageText(
@@ -798,7 +813,7 @@ async function showSwapConfirm(ctx: Context, wid: string, budget: number) {
 
 	const { computeStrategySplit } = await import("../../lib/math.js");
 	// Resolve range to absolute bins via a read-only preview.
-	let preview: any;
+	let preview: RangePreview;
 	try {
 		preview = await dlmm.previewRange({
 			poolAddress: state.poolAddress,
@@ -1231,9 +1246,9 @@ async function showSourceMenu(ctx: Context, mode: "reply" | "edit") {
 		.text("📍 Paste Pool Address", "crt:from:address");
 
 	if (mode === "reply") {
-		await (ctx as any).reply(text, { ...MD, reply_markup: kb });
+		await ctx.reply(text, { ...MD, reply_markup: kb });
 	} else {
-		await (ctx as any).editMessageText(text, { ...MD, reply_markup: kb });
+		await ctx.editMessageText(text, { ...MD, reply_markup: kb });
 	}
 }
 

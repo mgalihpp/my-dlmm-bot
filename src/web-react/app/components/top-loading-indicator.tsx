@@ -1,23 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigation } from "react-router";
 
 export function TopLoadingIndicator() {
 	const navigation = useNavigation();
+	const isLoading = navigation.state !== "idle";
 	const [phase, setPhase] = useState<"idle" | "loading" | "finishing">("idle");
+	const prevLoadingRef = useRef(false);
 
 	useEffect(() => {
-		if (navigation.state !== "idle") {
+		if (isLoading && !prevLoadingRef.current) {
+			prevLoadingRef.current = true;
 			setPhase("loading");
-		} else if (phase === "loading") {
-			setPhase("finishing");
+			return;
 		}
-	}, [navigation.state, phase]);
-
-	useEffect(() => {
-		if (phase !== "finishing") return;
-		const timeout = window.setTimeout(() => setPhase("idle"), 220);
-		return () => window.clearTimeout(timeout);
-	}, [phase]);
+		if (!isLoading && prevLoadingRef.current) {
+			prevLoadingRef.current = false;
+			setPhase("finishing");
+			const timeout = window.setTimeout(() => setPhase("idle"), 220);
+			return () => window.clearTimeout(timeout);
+		}
+	}, [isLoading]);
 
 	if (phase === "idle") return null;
 

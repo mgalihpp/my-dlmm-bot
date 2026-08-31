@@ -1,4 +1,5 @@
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
+import { useSearchParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import {
 	Sheet,
@@ -8,14 +9,9 @@ import {
 	SheetTitle,
 } from "~/components/ui/sheet";
 import { useIsMobile } from "~/hooks/use-mobile";
+import { useViewPreference } from "~/hooks/use-view-preference";
 import { pair, shortAddr } from "~/lib/format";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
-import {
-	getDefaultViewMode,
-	readViewPreference,
-	type ViewMode,
-	writeViewPreference,
-} from "~/lib/view-preference";
 import { OpenPositionCard } from "./open-position-card";
 import type { Currency, RangeFilter } from "./portfolio-page";
 import { PositionsCardDetail } from "./positions-detail";
@@ -40,39 +36,41 @@ function PositionsTableView({
 	onRangeFilterChange,
 	currency,
 	solPrice,
+	rangesLoading = false,
 }: {
 	pools: readonly OpenPoolWithIcons[];
 	rangeFilter: RangeFilter;
 	onRangeFilterChange: (filter: RangeFilter) => void;
 	currency: Currency;
 	solPrice: number | null;
+	rangesLoading?: boolean;
 }) {
 	const isMobile = useIsMobile();
-	const [search, setSearch] = useState("");
-	const [sortKey, setSortKey] = useState<SortKey>("balances");
-	const [sortDir, setSortDir] = useState<SortDir>("desc");
+	const [searchParams, setSearchParams] = useSearchParams();
+	const search = searchParams.get("q") ?? "";
+	const sortKeyParam = searchParams.get("sort");
+	const validSortKeys: readonly SortKey[] = [
+		"pair",
+		"balances",
+		"fees",
+		"pnl",
+		"pnlSol",
+	];
+	const sortKey: SortKey = (validSortKeys as readonly string[]).includes(
+		sortKeyParam ?? "",
+	)
+		? (sortKeyParam as SortKey)
+		: "balances";
+	const dirParam = searchParams.get("dir");
+	const sortDir: SortDir =
+		dirParam === "asc" || dirParam === "desc" ? dirParam : "desc";
 	const [expanded, setExpanded] = useState<string | null>(null);
 	const [selectedCard, setSelectedCard] = useState<OpenPoolWithIcons | null>(
 		null,
 	);
-	const [viewMode, setViewMode] = useState<ViewMode>("table");
-	const [viewReady, setViewReady] = useState(false);
-
-	useEffect(() => {
-		setViewMode(
-			readViewPreference(
-				window.localStorage,
-				"vexis:portfolio:open-view",
-				getDefaultViewMode(window.innerWidth),
-			),
-		);
-		setViewReady(true);
-	}, []);
-
-	const changeViewMode = (mode: ViewMode) => {
-		setViewMode(mode);
-		writeViewPreference(window.localStorage, "vexis:portfolio:open-view", mode);
-	};
+	const [viewMode, setViewMode] = useViewPreference(
+		"vexis:portfolio:open-view",
+	);
 	const filtered = useMemo(() => {
 		let rows = pools;
 		if (rangeFilter !== "all")
@@ -111,16 +109,43 @@ function PositionsTableView({
 				: ((av as number) - (bv as number)) * direction;
 		});
 	}, [pools, rangeFilter, search, sortKey, sortDir]);
+	const updateParam = useCallback(
+		(key: string, value: string | null, defaultValue?: string) => {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (value === null || value === "" || value === defaultValue)
+						next.delete(key);
+					else next.set(key, value);
+					return next;
+				},
+				{ preventScrollReset: true },
+			);
+		},
+		[setSearchParams],
+	);
+	const setSearch = useCallback(
+		(v: string) => updateParam("q", v),
+		[updateParam],
+	);
 	const toggleSort = useCallback(
 		(key: SortKey) => {
-			if (sortKey === key)
-				setSortDir((direction) => (direction === "asc" ? "desc" : "asc"));
-			else {
-				setSortKey(key);
-				setSortDir("desc");
+			if (sortKey === key) {
+				updateParam("dir", sortDir === "asc" ? "desc" : "asc", "desc");
+			} else {
+				setSearchParams(
+					(prev) => {
+						const next = new URLSearchParams(prev);
+						next.set("sort", key);
+						next.set("dir", "desc");
+						if (key === "balances") next.delete("sort");
+						return next;
+					},
+					{ preventScrollReset: true },
+				);
 			}
 		},
-		[sortKey],
+		[sortKey, sortDir, updateParam, setSearchParams],
 	);
 	const rangeCounts = useMemo(
 		() => ({
@@ -148,7 +173,7 @@ function PositionsTableView({
 				</div>
 				<PositionsTableToolbar
 					viewMode={viewMode}
-					onViewModeChange={changeViewMode}
+					onViewModeChange={setViewMode}
 					rangeFilter={rangeFilter}
 					onRangeFilterChange={onRangeFilterChange}
 					rangeCounts={rangeCounts}
@@ -161,7 +186,7 @@ function PositionsTableView({
 					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
 						No open positions{search ? " matching the search" : ""}.
 					</div>
-				) : !viewReady ? null : viewMode === "card" ? (
+				) : viewMode === "card" ? (
 					<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:px-6 xl:grid-cols-3">
 						{filtered.map((pool) => (
 							<OpenPositionCard
@@ -170,6 +195,7 @@ function PositionsTableView({
 								currency={currency}
 								solPrice={solPrice}
 								onDetails={() => setSelectedCard(pool)}
+								rangesLoading={rangesLoading}
 							/>
 						))}
 					</div>
@@ -183,6 +209,7 @@ function PositionsTableView({
 						sortKey={sortKey}
 						sortDir={sortDir}
 						onSort={toggleSort}
+						rangesLoading={rangesLoading}
 					/>
 				)}
 			</CardContent>

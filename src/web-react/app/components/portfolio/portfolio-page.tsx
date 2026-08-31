@@ -1,72 +1,49 @@
-import { useEffect, useState } from "react";
-import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
+import {
+	useLoaderData,
+	useLocation,
+	useNavigation,
+	useRevalidator,
+	useSearchParams,
+} from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PageSkeleton, useIsNavigating } from "~/components/page-skeletons";
-import { PortfolioContent } from "~/components/portfolio/portfolio-content";
+import { PageSkeleton } from "~/components/page-skeletons";
 import { useAutoRefresh } from "~/hooks/use-auto-refresh";
+import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import {
-	type Currency,
-	PORTFOLIO_CURRENCY_STORAGE_KEY,
-	readStoredCurrency,
-	resolveCurrency,
-	writeStoredCurrency,
-} from "~/lib/currency";
+	parseDateFilterParams,
+	resolveDateFilter,
+	writeDateFilterParams,
+} from "~/lib/date-range";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { PortfolioHeader } from "./portfolio-header";
+import { PortfolioOverviewContent } from "./portfolio-overview-content";
 
 export type { Currency } from "~/lib/currency";
 export type RangeFilter = "all" | "in-range" | "oor";
 
 export function PortfolioPage() {
-	useAutoRefresh(10_000);
+	useAutoRefresh(30_000);
 	const data = useLoaderData<PortfolioPayload>();
-	const isNavigating = useIsNavigating();
+	const navigation = useNavigation();
+	const location = useLocation();
+	const isPageNavigating =
+		navigation.state === "loading" &&
+		navigation.location !== undefined &&
+		navigation.location.pathname !== location.pathname;
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [storedCurrency, setStoredCurrency] = useState<Currency | null>(null);
-	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
-	const currency = resolveCurrency(
-		searchParams.get("currency"),
-		storedCurrency,
-	);
+	const [currency, setCurrency] = useStoredCurrency("portfolio");
+	const dateFilter = parseDateFilterParams(searchParams);
+	const dateRange = resolveDateFilter(dateFilter, new Date());
 
-	useEffect(() => {
-		setStoredCurrency(
-			readStoredCurrency(window.localStorage, PORTFOLIO_CURRENCY_STORAGE_KEY),
-		);
-	}, []);
-
-	const setCurrency = (value: Currency) => {
-		writeStoredCurrency(
-			window.localStorage,
-			PORTFOLIO_CURRENCY_STORAGE_KEY,
-			value,
-		);
-		setStoredCurrency(value);
-		setSearchParams(
-			(current) => {
-				const next = new URLSearchParams(current);
-				if (value === "usd") next.delete("currency");
-				else next.set("currency", value);
-				return next;
-			},
-			{ preventScrollReset: true },
-		);
+	const applyDateFilter = (value: typeof dateFilter) => {
+		setSearchParams((current) => writeDateFilterParams(current, value), {
+			preventScrollReset: true,
+		});
 	};
 
-	const onClosedPageChange = (page: number) =>
-		setSearchParams(
-			(current) => {
-				const next = new URLSearchParams(current);
-				if (page > 1) next.set("closedPage", String(page));
-				else next.delete("closedPage");
-				return next;
-			},
-			{ preventScrollReset: true },
-		);
-
-	if (isNavigating) {
+	if (isPageNavigating) {
 		return (
 			<DashboardShell title="Portfolio">
 				<PageSkeleton />
@@ -81,6 +58,8 @@ export function PortfolioPage() {
 					<PortfolioHeader
 						currency={currency}
 						onCurrencyChange={() => {}}
+						dateFilter={dateFilter}
+						onDateFilterApply={applyDateFilter}
 						onRefresh={revalidate}
 						refreshing={state === "loading"}
 					/>
@@ -96,15 +75,15 @@ export function PortfolioPage() {
 				<PortfolioHeader
 					currency={currency}
 					onCurrencyChange={setCurrency}
+					dateFilter={dateFilter}
+					onDateFilterApply={applyDateFilter}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
 				/>
-				<PortfolioContent
+				<PortfolioOverviewContent
 					data={data}
 					currency={currency}
-					rangeFilter={rangeFilter}
-					onRangeFilterChange={setRangeFilter}
-					onClosedPageChange={onClosedPageChange}
+					dateRange={dateRange}
 				/>
 			</div>
 		</DashboardShell>

@@ -1,10 +1,12 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import { SearchIcon } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ViewSwitcher } from "~/components/view-switcher";
+import { useViewPreference } from "~/hooks/use-view-preference";
 import {
 	type Currency,
 	matchesSearch,
@@ -14,14 +16,28 @@ import {
 	type SortDir,
 	sortPools,
 } from "~/lib/pools";
-import {
-	getDefaultViewMode,
-	readViewPreference,
-	type ViewMode,
-	writeViewPreference,
-} from "~/lib/view-preference";
 import { PoolCard } from "./pool-card";
 import { PoolsTableBody } from "./pools-table-body";
+
+const VALID_BUCKETS: readonly OrganicBucket[] = [
+	"all",
+	"pass",
+	"review",
+	"blocked",
+];
+const VALID_SORT_KEYS: readonly PoolSortKey[] = [
+	"pool",
+	"price",
+	"mcap",
+	"tvl",
+	"volume",
+	"fee",
+	"binStep",
+	"organicScore",
+	"rugScore",
+	"fromAthPct",
+	"priceChangePct",
+];
 
 export function PoolsTable({
 	pools,
@@ -34,26 +50,24 @@ export function PoolsTable({
 	solPrice: number | null;
 	onSelect: (pool: ScreenedPool) => void;
 }) {
-	const [search, setSearch] = useState("");
-	const [bucket, setBucket] = useState<OrganicBucket>("all");
-	const [sortKey, setSortKey] = useState<PoolSortKey>("tvl");
-	const [sortDir, setSortDir] = useState<SortDir>("desc");
-	const [viewMode, setViewMode] = useState<ViewMode>("table");
-
-	useEffect(() => {
-		setViewMode(
-			readViewPreference(
-				window.localStorage,
-				"vexis:pools:results-view",
-				getDefaultViewMode(window.innerWidth),
-			),
-		);
-	}, []);
-
-	const changeViewMode = (mode: ViewMode) => {
-		setViewMode(mode);
-		writeViewPreference(window.localStorage, "vexis:pools:results-view", mode);
-	};
+	const [searchParams, setSearchParams] = useSearchParams();
+	const search = searchParams.get("q") ?? "";
+	const bucketParam = searchParams.get("bucket");
+	const bucket: OrganicBucket = (VALID_BUCKETS as readonly string[]).includes(
+		bucketParam ?? "",
+	)
+		? (bucketParam as OrganicBucket)
+		: "all";
+	const sortKeyParam = searchParams.get("sort");
+	const sortKey: PoolSortKey = (VALID_SORT_KEYS as readonly string[]).includes(
+		sortKeyParam ?? "",
+	)
+		? (sortKeyParam as PoolSortKey)
+		: "tvl";
+	const dirParam = searchParams.get("dir");
+	const sortDir: SortDir =
+		dirParam === "asc" || dirParam === "desc" ? dirParam : "desc";
+	const [viewMode, setViewMode] = useViewPreference("vexis:pools:results-view");
 
 	const rows = useMemo(() => {
 		const filtered = pools.filter(
@@ -62,14 +76,54 @@ export function PoolsTable({
 		return sortPools(filtered, sortKey, sortDir);
 	}, [pools, search, bucket, sortKey, sortDir]);
 
-	const toggleSort = (key: PoolSortKey) => {
-		if (sortKey === key) {
-			setSortDir((d) => (d === "asc" ? "desc" : "asc"));
-		} else {
-			setSortKey(key);
-			setSortDir("desc");
-		}
-	};
+	const updateParam = useCallback(
+		(key: string, value: string | null, defaultValue?: string) => {
+			setSearchParams(
+				(prev) => {
+					const next = new URLSearchParams(prev);
+					if (value === null || value === "" || value === defaultValue)
+						next.delete(key);
+					else next.set(key, value);
+					return next;
+				},
+				{ preventScrollReset: true },
+			);
+		},
+		[setSearchParams],
+	);
+
+	const setSearch = useCallback(
+		(v: string) => updateParam("q", v),
+		[updateParam],
+	);
+	const setBucket = useCallback(
+		(v: OrganicBucket) => updateParam("bucket", v, "all"),
+		[updateParam],
+	);
+	const toggleSort = useCallback(
+		(key: PoolSortKey) => {
+			if (sortKey === key) {
+				updateParam("dir", sortDir === "asc" ? "desc" : "asc", "desc");
+			} else {
+				setSearchParams(
+					(prev) => {
+						const next = new URLSearchParams(prev);
+						next.set("sort", key);
+						next.set("dir", "desc");
+						if (key === "tvl") next.delete("sort");
+						return next;
+					},
+					{ preventScrollReset: true },
+				);
+			}
+		},
+		[sortKey, sortDir, updateParam, setSearchParams],
+	);
+
+	const changeViewMode = useCallback(
+		(mode: typeof viewMode) => setViewMode(mode),
+		[setViewMode],
+	);
 
 	return (
 		<Card className="mx-4 lg:mx-6">

@@ -13,7 +13,7 @@ import {
 describe("fmtPnl", () => {
 	it("keeps each PnL column in its own unit", () => {
 		expect(fmtPnl("12", "0.1", "usd")).toBe("$12.00");
-		expect(fmtPnl("12", "0.1", "sol")).toBe("0.1000 SOL");
+		expect(fmtPnl("12", "0.1", "sol")).toBe("0.100 SOL");
 	});
 });
 

@@ -3,9 +3,24 @@ import { homedir } from "node:os";
 import { join } from "node:path";
 import { Keypair } from "@solana/web3.js";
 import bs58 from "bs58";
-import { Context, Effect, Layer, Ref } from "effect";
+import { Context, Effect, Layer, Ref, Schema } from "effect";
 import type { CreatePreset, VexisConfig } from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
+
+export const VexisConfigSchema = Schema.Record({
+	key: Schema.String,
+	value: Schema.Unknown,
+});
+
+export function decodeVexisConfig(raw: unknown): VexisConfig {
+	if (typeof raw !== "object" || raw === null || Array.isArray(raw)) {
+		throw new Error(
+			`Invalid VexisConfig: expected object, got ${raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw}`,
+		);
+	}
+	const decoded = Schema.decodeUnknownSync(VexisConfigSchema)(raw);
+	return decoded as VexisConfig;
+}
 
 function candidatePaths(): string[] {
 	const paths: string[] = [];
@@ -19,7 +34,8 @@ export function loadConfigSync(): { config: VexisConfig; path: string | null } {
 	for (const p of candidatePaths()) {
 		if (existsSync(p)) {
 			try {
-				const config = JSON.parse(readFileSync(p, "utf8")) as VexisConfig;
+				const raw: unknown = JSON.parse(readFileSync(p, "utf8"));
+				const config = decodeVexisConfig(raw);
 				return { config, path: p };
 			} catch (e) {
 				throw new Error(
@@ -32,7 +48,8 @@ export function loadConfigSync(): { config: VexisConfig; path: string | null } {
 }
 
 export function reloadConfigFile(path: string): VexisConfig {
-	return JSON.parse(readFileSync(path, "utf8")) as VexisConfig;
+	const raw: unknown = JSON.parse(readFileSync(path, "utf8"));
+	return decodeVexisConfig(raw);
 }
 
 export function agentEnabledTransition(

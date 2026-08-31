@@ -75,7 +75,7 @@ export function PreferencesCard() {
 					Set the visual tone for your dashboard.
 				</CardDescription>
 			</CardHeader>
-			<CardContent className="grid gap-6 pt-5 @container/main lg:grid-cols-2">
+			<CardContent className="@container/main grid gap-6 pt-5 lg:grid-cols-2">
 				<Field>
 					<FieldLabel>Theme</FieldLabel>
 					<FieldContent>

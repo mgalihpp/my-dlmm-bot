@@ -1,7 +1,9 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { useEffect } from "react";
+import { ShareIcon } from "lucide-react";
+import { useEffect, useState } from "react";
 import { useFetcher } from "react-router";
 import { CurrencyIcon } from "~/components/currency-icon";
+import { Button } from "~/components/ui/button";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
 	Table,
@@ -22,6 +24,7 @@ import {
 	tsLocal,
 } from "~/lib/format";
 import { cn } from "~/lib/utils";
+import { ClosedPositionPnlShareDialog } from "./closed-position-pnl-share-dialog.js";
 import type { Currency } from "./portfolio-page";
 
 interface DetailPayload {
@@ -97,6 +100,7 @@ export function ClosedDetail({
 	layout?: "card" | "table";
 }) {
 	const fetcher = useFetcher<DetailPayload>();
+	const [sharePos, setSharePos] = useState<PositionPnLData | null>(null);
 	useEffect(() => {
 		if (fetcher.state === "idle" && fetcher.data === undefined)
 			fetcher.load(`/api/closed-detail/${encodeURIComponent(pool)}`);
@@ -118,154 +122,211 @@ export function ClosedDetail({
 		);
 	if (layout === "table")
 		return (
-			<div className="overflow-x-auto px-4 py-4">
-				<Table className="min-w-[760px] rounded-md border">
-					<TableHeader className="bg-muted/50">
-						<TableRow>
-							{DETAIL_COLUMNS.map((column) => (
-								<TableHead key={column}>{column}</TableHead>
-							))}
-						</TableRow>
-					</TableHeader>
-					<TableBody>
-						{closed.map((pos) => {
-							const pnlUsd = parseFloat(pos.pnlUsd);
-							const pnlSol =
-								pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
-							return (
-								<TableRow key={pos.positionAddress}>
-									<TableCell>
-										<a
-											href={solscanAccountUrl(pos.positionAddress)}
-											target="_blank"
-											rel="noopener noreferrer"
-											className="font-mono text-xs text-muted-foreground hover:underline"
+			<>
+				<div className="overflow-x-auto px-4 py-4">
+					<Table className="min-w-[840px] rounded-md border">
+						<TableHeader className="bg-muted/50">
+							<TableRow>
+								{DETAIL_COLUMNS.map((column) => (
+									<TableHead key={column}>{column}</TableHead>
+								))}
+								<TableHead>Action</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{closed.map((pos) => {
+								const pnlUsd = parseFloat(pos.pnlUsd);
+								const pnlSol =
+									pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
+								return (
+									<TableRow key={pos.positionAddress}>
+										<TableCell>
+											<a
+												href={solscanAccountUrl(pos.positionAddress)}
+												target="_blank"
+												rel="noopener noreferrer"
+												className="font-mono text-xs text-muted-foreground hover:underline"
+											>
+												{shortAddr(pos.positionAddress, 6)}
+											</a>
+										</TableCell>
+										<TableCell className="tabular-nums">
+											<PortfolioAmount
+												usd={pos.allTimeDeposits.total.usd}
+												sol={pos.allTimeDeposits.total.sol}
+												currency={currency}
+											/>
+										</TableCell>
+										<TableCell className="tabular-nums">
+											<PortfolioAmount
+												usd={pos.allTimeWithdrawals.total.usd}
+												sol={pos.allTimeWithdrawals.total.sol}
+												currency={currency}
+											/>
+										</TableCell>
+										<TableCell className="tabular-nums">
+											<PortfolioAmount
+												usd={pos.allTimeFees.total.usd}
+												sol={pos.allTimeFees.total.sol}
+												currency={currency}
+											/>
+										</TableCell>
+										<TableCell
+											className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
 										>
-											{shortAddr(pos.positionAddress, 6)}
-										</a>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<PortfolioAmount
-											usd={pos.allTimeDeposits.total.usd}
-											sol={pos.allTimeDeposits.total.sol}
-											currency={currency}
-										/>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<PortfolioAmount
-											usd={pos.allTimeWithdrawals.total.usd}
-											sol={pos.allTimeWithdrawals.total.sol}
-											currency={currency}
-										/>
-									</TableCell>
-									<TableCell className="tabular-nums">
-										<PortfolioAmount
-											usd={pos.allTimeFees.total.usd}
-											sol={pos.allTimeFees.total.sol}
-											currency={currency}
-										/>
-									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
-									>
-										<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
-										<div className="text-xs text-muted-foreground">
-											{fmtPct(pos.pnlPctChange)}
-										</div>
-									</TableCell>
-									<TableCell
-										className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
-									>
-										<PortfolioAmount
-											usd={pos.pnlSol}
-											sol={pnlSol}
-											currency="sol"
-										/>
-										<div className="text-xs text-muted-foreground">
-											{fmtPct(pos.pnlSolPctChange ?? null)}
-										</div>
-									</TableCell>
-									<TableCell className="text-xs text-muted-foreground">
-										{tsLocal(pos.closedAt)}
-									</TableCell>
-								</TableRow>
-							);
-						})}
-					</TableBody>
-				</Table>
-			</div>
+											<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
+											<div className="text-xs text-muted-foreground">
+												{fmtPct(pos.pnlPctChange)}
+											</div>
+										</TableCell>
+										<TableCell
+											className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}
+										>
+											<PortfolioAmount
+												usd={pos.pnlSol}
+												sol={pnlSol}
+												currency="sol"
+											/>
+											<div className="text-xs text-muted-foreground">
+												{fmtPct(pos.pnlSolPctChange ?? null)}
+											</div>
+										</TableCell>
+										<TableCell className="text-xs text-muted-foreground">
+											{tsLocal(pos.closedAt)}
+										</TableCell>
+										<TableCell onClick={(e) => e.stopPropagation()}>
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-7 px-2 text-xs"
+												onClick={(e) => {
+													e.stopPropagation();
+													setSharePos(pos);
+												}}
+											>
+												<ShareIcon className="size-3" />
+												Share
+											</Button>
+										</TableCell>
+									</TableRow>
+								);
+							})}
+						</TableBody>
+					</Table>
+				</div>
+				{sharePos ? (
+					<ClosedPositionPnlShareDialog
+						open={!!sharePos}
+						onOpenChange={(o) => !o && setSharePos(null)}
+						position={sharePos}
+						pairLabel={pairLabel}
+						poolAddress={pool}
+						currency={currency}
+					/>
+				) : null}
+			</>
 		);
 	return (
-		<div className="space-y-3 px-4 py-4">
-			<p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
-				CLOSED POSITIONS · {pairLabel.toUpperCase()}
-			</p>
-			{closed.map((pos) => {
-				const pnlUsd = parseFloat(pos.pnlUsd);
-				const pnlSol =
-					pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
-				const pnlPct = parseFloat(pos.pnlPctChange);
-				return (
-					<div
-						key={pos.positionAddress}
-						className="space-y-3 rounded-lg border p-3"
-					>
-						<div className="flex items-center justify-between gap-3">
-							<a
-								href={solscanAccountUrl(pos.positionAddress)}
-								target="_blank"
-								rel="noopener noreferrer"
-								className="font-mono text-xs text-muted-foreground hover:underline"
-							>
-								{shortAddr(pos.positionAddress, 6)}
-							</a>
-							<span className="text-xs text-muted-foreground">
-								{tsLocal(pos.closedAt)}
-							</span>
+		<>
+			<div className="space-y-3 px-4 py-4">
+				<p className="mb-2 text-xs font-semibold tracking-wide text-muted-foreground">
+					CLOSED POSITIONS · {pairLabel.toUpperCase()}
+				</p>
+				{closed.map((pos) => {
+					const pnlUsd = parseFloat(pos.pnlUsd);
+					const pnlSol =
+						pos.pnlSol != null ? parseFloat(String(pos.pnlSol)) : null;
+					const pnlPct = parseFloat(pos.pnlPctChange);
+					return (
+						<div
+							key={pos.positionAddress}
+							className="space-y-3 rounded-lg border p-3"
+						>
+							<div className="flex items-center justify-between gap-3">
+								<a
+									href={solscanAccountUrl(pos.positionAddress)}
+									target="_blank"
+									rel="noopener noreferrer"
+									className="font-mono text-xs text-muted-foreground hover:underline"
+								>
+									{shortAddr(pos.positionAddress, 6)}
+								</a>
+								<span className="text-xs text-muted-foreground">
+									{tsLocal(pos.closedAt)}
+								</span>
+							</div>
+							<div className="grid grid-cols-2 gap-3 text-sm">
+								<div>
+									<p className="text-xs text-muted-foreground">Deposit</p>
+									<PortfolioAmount
+										usd={pos.allTimeDeposits.total.usd}
+										sol={pos.allTimeDeposits.total.sol}
+										currency={currency}
+									/>
+								</div>
+								<div>
+									<p className="text-xs text-muted-foreground">Withdraw</p>
+									<PortfolioAmount
+										usd={pos.allTimeWithdrawals.total.usd}
+										sol={pos.allTimeWithdrawals.total.sol}
+										currency={currency}
+									/>
+								</div>
+								<div>
+									<p className="text-xs text-muted-foreground">Fees</p>
+									<PortfolioAmount
+										usd={pos.allTimeFees.total.usd}
+										sol={pos.allTimeFees.total.sol}
+										currency={currency}
+									/>
+								</div>
+								<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+									<p className="text-xs text-muted-foreground">PnL USD</p>
+									<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
+									<p className="text-xs text-muted-foreground">
+										{fmtPct(pnlPct)}
+									</p>
+								</div>
+								<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+									<p className="text-xs text-muted-foreground">PnL SOL</p>
+									<PortfolioAmount
+										usd={pos.pnlSol}
+										sol={pnlSol}
+										currency="sol"
+									/>
+									<p className="text-xs text-muted-foreground">
+										{fmtPct(pos.pnlSolPctChange ?? null)}
+									</p>
+								</div>
+							</div>
+							<div className="flex justify-start">
+								<Button
+									variant="outline"
+									size="sm"
+									className="h-7 px-2 text-xs"
+									onClick={(e) => {
+										e.stopPropagation();
+										setSharePos(pos);
+									}}
+								>
+									<ShareIcon className="size-3" />
+									Share
+								</Button>
+							</div>
 						</div>
-						<div className="grid grid-cols-2 gap-3 text-sm">
-							<div>
-								<p className="text-xs text-muted-foreground">Deposit</p>
-								<PortfolioAmount
-									usd={pos.allTimeDeposits.total.usd}
-									sol={pos.allTimeDeposits.total.sol}
-									currency={currency}
-								/>
-							</div>
-							<div>
-								<p className="text-xs text-muted-foreground">Withdraw</p>
-								<PortfolioAmount
-									usd={pos.allTimeWithdrawals.total.usd}
-									sol={pos.allTimeWithdrawals.total.sol}
-									currency={currency}
-								/>
-							</div>
-							<div>
-								<p className="text-xs text-muted-foreground">Fees</p>
-								<PortfolioAmount
-									usd={pos.allTimeFees.total.usd}
-									sol={pos.allTimeFees.total.sol}
-									currency={currency}
-								/>
-							</div>
-							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-								<p className="text-xs text-muted-foreground">PnL USD</p>
-								<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
-								<p className="text-xs text-muted-foreground">
-									{fmtPct(pnlPct)}
-								</p>
-							</div>
-							<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
-								<p className="text-xs text-muted-foreground">PnL SOL</p>
-								<PortfolioAmount usd={pos.pnlSol} sol={pnlSol} currency="sol" />
-								<p className="text-xs text-muted-foreground">
-									{fmtPct(pos.pnlSolPctChange ?? null)}
-								</p>
-							</div>
-						</div>
-					</div>
-				);
-			})}
-		</div>
+					);
+				})}
+			</div>
+			{sharePos ? (
+				<ClosedPositionPnlShareDialog
+					open={!!sharePos}
+					onOpenChange={(o) => !o && setSharePos(null)}
+					position={sharePos}
+					pairLabel={pairLabel}
+					poolAddress={pool}
+					currency={currency}
+				/>
+			) : null}
+		</>
 	);
 }

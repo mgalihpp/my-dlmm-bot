@@ -1,4 +1,5 @@
 import { EllipsisVerticalIcon, LogOutIcon } from "lucide-react";
+import { memo } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "~/components/ui/avatar";
 import {
 	DropdownMenu,
@@ -16,7 +17,7 @@ import {
 } from "~/components/ui/sidebar";
 import { shortAddr } from "~/lib/format";
 
-export function NavUser({
+function NavUserInner({
 	user,
 	wallet,
 	rpc,
@@ -98,3 +99,5 @@ export function NavUser({
 		</SidebarMenu>
 	);
 }
+
+export const NavUser = memo(NavUserInner);

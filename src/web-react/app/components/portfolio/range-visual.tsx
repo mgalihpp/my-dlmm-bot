@@ -54,6 +54,7 @@ export function RangeVisual({
 	current,
 	mcap,
 	className,
+	loading = false,
 }: {
 	ranges: readonly {
 		minPrice: string;
@@ -63,6 +64,7 @@ export function RangeVisual({
 	current: number | null | undefined;
 	mcap?: number | null;
 	className?: string;
+	loading?: boolean;
 }) {
 	const prices = ranges.flatMap((r) => [
 		Number(r.minPrice),
@@ -70,12 +72,15 @@ export function RangeVisual({
 	]);
 	const min = Math.min(...prices);
 	const max = Math.max(...prices);
-	if (
-		ranges.length === 0 ||
-		!Number.isFinite(min) ||
-		!Number.isFinite(max) ||
-		max <= min
-	) {
+	if (ranges.length === 0) {
+		if (loading) {
+			return (
+				<span className="inline-block h-4 w-24 animate-pulse rounded bg-muted" />
+			);
+		}
+		return <span className="text-xs text-muted-foreground">—</span>;
+	}
+	if (!Number.isFinite(min) || !Number.isFinite(max) || max <= min) {
 		return <span className="text-xs text-muted-foreground">—</span>;
 	}
 	const pad = (max - min) * 0.04;
@@ -185,7 +190,7 @@ export function RangeVisual({
 					</>
 				) : null}
 			</div>
-			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium tabular-nums text-muted-foreground">
+			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium text-muted-foreground tabular-nums">
 				<span>{fmtLabel(min)}</span>
 				<span>{fmtLabel((min + max) / 2)}</span>
 				<span>{fmtLabel(max)}</span>

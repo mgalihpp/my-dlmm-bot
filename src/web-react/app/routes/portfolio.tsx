@@ -1,5 +1,7 @@
+import type { ShouldRevalidateFunctionArgs } from "react-router";
 import { PortfolioPage } from "~/components/portfolio/portfolio-page";
 import { RouteError } from "~/components/route-error";
+import { shouldRevalidateForDataChange } from "~/lib/revalidate";
 import { closePosition } from "~/lib/server/close.server";
 import { fetchPortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
@@ -19,6 +21,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 	return fetchPortfolio(closedPage);
+}
+
+export function shouldRevalidate(args: ShouldRevalidateFunctionArgs) {
+	return shouldRevalidateForDataChange(args);
 }
 
 export async function action({ request }: Route.ActionArgs) {

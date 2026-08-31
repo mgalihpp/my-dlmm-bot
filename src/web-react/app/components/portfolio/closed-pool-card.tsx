@@ -1,5 +1,6 @@
-import { ChevronRightIcon } from "lucide-react";
-import { memo } from "react";
+import { ChevronRightIcon, ShareIcon } from "lucide-react";
+import { memo, useRef, useState } from "react";
+import { Button } from "~/components/ui/button";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -12,6 +13,7 @@ import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import { PortfolioAmount } from "./closed-detail";
+import { ClosedPnlShareDialog } from "./closed-pnl-share-dialog.js";
 import type { Currency } from "./portfolio-page";
 
 type ClosedPool = ClosedPoolWithIcons;
@@ -62,99 +64,137 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 }) {
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
+	const [shareOpen, setShareOpen] = useState(false);
+	const lastShareCloseRef = useRef(0);
+
+	const handleShareOpenChange = (open: boolean) => {
+		if (!open) lastShareCloseRef.current = Date.now();
+		setShareOpen(open);
+	};
+
+	const handleCardClick = () => {
+		if (Date.now() - lastShareCloseRef.current < 400) return;
+		onDetails(pool);
+	};
+
+	const handleCardKeyDown = (event: React.KeyboardEvent<HTMLDivElement>) => {
+		if (event.key === "Enter" || event.key === " ") {
+			event.preventDefault();
+			handleCardClick();
+		}
+	};
+
 	return (
-		<button
-			className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
-			type="button"
-			tabIndex={0}
-			onClick={() => onDetails(pool)}
-			onKeyDown={(event) => {
-				if (event.key === "Enter" || event.key === " ") {
-					event.preventDefault();
-					onDetails(pool);
-				}
-			}}
-		>
-			<div className="flex items-start justify-between gap-3">
-				<div className="min-w-0">
-					<a
-						href={meteoraUrl(pool.poolAddress)}
-						target="_blank"
-						rel="noopener noreferrer"
-						className="block truncate font-semibold hover:underline"
-						onClick={(event) => event.stopPropagation()}
+		<>
+			{/* biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button */}
+			<div
+				className="rounded-xl border bg-card p-4 shadow-sm transition-colors hover:border-primary/50"
+				role="button"
+				tabIndex={0}
+				onClick={handleCardClick}
+				onKeyDown={handleCardKeyDown}
+			>
+				<div className="flex items-start justify-between gap-3">
+					<div className="min-w-0">
+						<a
+							href={meteoraUrl(pool.poolAddress)}
+							target="_blank"
+							rel="noopener noreferrer"
+							className="block truncate font-semibold hover:underline"
+							onClick={(event) => event.stopPropagation()}
+						>
+							<ClosedPair pool={pool} />
+						</a>
+						<p className="text-xs text-muted-foreground">
+							Closed {timeAgo(pool.lastClosedAt)}
+						</p>
+					</div>
+					<span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
+						Closed
+					</span>
+				</div>
+				<div className="mt-5 grid grid-cols-3 gap-3">
+					<div>
+						<p className="text-xs text-muted-foreground">Deposit</p>
+						<PortfolioAmount
+							usd={pool.totalDeposit}
+							sol={pool.totalDepositSol}
+							currency={currency}
+						/>
+					</div>
+					<div>
+						<p className="text-xs text-muted-foreground">Withdraw</p>
+						<PortfolioAmount
+							usd={pool.totalWithdrawal}
+							sol={pool.totalWithdrawalSol}
+							currency={currency}
+						/>
+					</div>
+					<div>
+						<p className="text-xs text-muted-foreground">Fees</p>
+						<PortfolioAmount
+							usd={pool.totalFee}
+							sol={pool.totalFeeSol}
+							currency={currency}
+						/>
+					</div>
+				</div>
+				<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
+					<div>
+						<p className="text-xs text-muted-foreground">PnL USD</p>
+						<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
+							<PortfolioAmount
+								usd={pool.pnlUsd}
+								sol={pool.pnlSol}
+								currency="usd"
+							/>
+						</span>
+						<p className="text-xs text-muted-foreground">
+							{fmtPct(pool.pnlPctChange)}
+						</p>
+					</div>
+					<div>
+						<p className="text-xs text-muted-foreground">PnL SOL</p>
+						<span className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
+							<PortfolioAmount
+								usd={pool.pnlUsd}
+								sol={pool.pnlSol}
+								currency="sol"
+							/>
+						</span>
+						<p className="text-xs text-muted-foreground">
+							{fmtPct(pool.pnlSolPctChange)}
+						</p>
+					</div>
+				</div>
+				<div className="mt-3 flex items-center justify-end gap-1">
+					<Button
+						type="button"
+						variant="ghost"
+						size="icon-sm"
+						aria-label="Share"
+						onClick={(e) => {
+							e.stopPropagation();
+							setShareOpen(true);
+						}}
 					>
-						<ClosedPair pool={pool} />
-					</a>
-					<p className="text-xs text-muted-foreground">
-						Closed {timeAgo(pool.lastClosedAt)}
-					</p>
-				</div>
-				<span className="rounded-full bg-muted px-2.5 py-1 text-xs text-muted-foreground">
-					Closed
-				</span>
-			</div>
-			<div className="mt-5 grid grid-cols-3 gap-3">
-				<div>
-					<p className="text-xs text-muted-foreground">Deposit</p>
-					<PortfolioAmount
-						usd={pool.totalDeposit}
-						sol={pool.totalDepositSol}
-						currency={currency}
-					/>
-				</div>
-				<div>
-					<p className="text-xs text-muted-foreground">Withdraw</p>
-					<PortfolioAmount
-						usd={pool.totalWithdrawal}
-						sol={pool.totalWithdrawalSol}
-						currency={currency}
-					/>
-				</div>
-				<div>
-					<p className="text-xs text-muted-foreground">Fees</p>
-					<PortfolioAmount
-						usd={pool.totalFee}
-						sol={pool.totalFeeSol}
-						currency={currency}
+						<ShareIcon className="size-3" />
+					</Button>
+					<ChevronRightIcon
+						className="size-5 text-muted-foreground"
+						aria-hidden="true"
 					/>
 				</div>
 			</div>
-			<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
-				<div>
-					<p className="text-xs text-muted-foreground">PnL USD</p>
-					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-						<PortfolioAmount
-							usd={pool.pnlUsd}
-							sol={pool.pnlSol}
-							currency="usd"
-						/>
-					</span>
-					<p className="text-xs text-muted-foreground">
-						{fmtPct(pool.pnlPctChange)}
-					</p>
-				</div>
-				<div>
-					<p className="text-xs text-muted-foreground">PnL SOL</p>
-					<span className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
-						<PortfolioAmount
-							usd={pool.pnlUsd}
-							sol={pool.pnlSol}
-							currency="sol"
-						/>
-					</span>
-					<p className="text-xs text-muted-foreground">
-						{fmtPct(pool.pnlSolPctChange)}
-					</p>
-				</div>
-			</div>
-			<div className="mt-3 flex justify-end">
-				<ChevronRightIcon
-					className="size-5 text-muted-foreground"
-					aria-hidden="true"
+			{shareOpen ? (
+				<ClosedPnlShareDialog
+					open={shareOpen}
+					onOpenChange={handleShareOpenChange}
+					pool={pool}
+					currency={currency}
 				/>
-			</div>
-		</button>
+			) : null}
+		</>
 	);
 });
 
