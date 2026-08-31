@@ -30,7 +30,7 @@ export default function SettingsIndex() {
 									<Link
 										key={key}
 										to={key}
-										className={`group flex items-center gap-3 px-4 py-4 transition-colors hover:bg-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${index < rows.length - 1 ? "border-b border-border/60" : ""}`}
+										className={`group flex items-center gap-3 px-4 py-4 transition-colors hover:bg-accent/60 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none focus-visible:ring-inset ${index < rows.length - 1 ? "border-b border-border/60" : ""}`}
 									>
 										<span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground group-hover:bg-primary/10 group-hover:text-primary">
 											<Icon className="size-[18px]" />
@@ -56,7 +56,7 @@ export default function SettingsIndex() {
 				))}
 				<Link
 					to="/logout"
-					className="flex items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-card py-4 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					className="flex items-center justify-center gap-2 rounded-2xl border border-destructive/20 bg-card py-4 font-medium text-destructive transition-colors hover:bg-destructive/10 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 				>
 					<LogOutIcon className="size-4" />
 					Log out

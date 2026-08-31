@@ -1,9 +1,13 @@
+import { assertPublicHost } from "~/lib/server/ssrf.server";
+import { apiAuthMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/icon";
 
 // Lightweight same-origin image proxy to bypass IPFS gateway CORP/COEP issues.
 // Browser fetches /api/icon?url=<encoded> which is same-origin, so
 // ERR_BLOCKED_BY_RESPONSE.NotSameOrigin never triggers.
 // Upstream is fetched server-side and re-served with permissive headers.
+
+export const middleware: Route.MiddlewareFunction[] = [apiAuthMiddleware];
 
 export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 	const url = new URL(request.url).searchParams.get("url");
@@ -18,7 +22,8 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 	if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
 		return new Response("invalid protocol", { status: 400 });
 	}
-	// SSRF guard: block private / loopback hosts
+	// SSRF guard: textual host check first, then verify DNS only resolves to
+	// public addresses (covers literal IPs, rebinding, and reserved ranges)
 	const host = parsed.hostname.toLowerCase();
 	if (
 		host === "localhost" ||
@@ -29,6 +34,11 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		host.startsWith("192.168.") ||
 		host.startsWith("169.254.")
 	) {
+		return new Response("blocked host", { status: 400 });
+	}
+	try {
+		await assertPublicHost(host);
+	} catch {
 		return new Response("blocked host", { status: 400 });
 	}
 	let upstream: Response;
@@ -63,7 +73,6 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		"public, max-age=86400, stale-while-revalidate=86400",
 	);
 	headers.set("Cross-Origin-Resource-Policy", "cross-origin");
-	headers.set("Access-Control-Allow-Origin", "*");
 	const cacheControl = upstream.headers.get("cache-control");
 	if (cacheControl) headers.set("X-Upstream-Cache-Control", cacheControl);
 

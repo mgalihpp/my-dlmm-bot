@@ -34,7 +34,7 @@ function TableCardSkeleton({
 				</div>
 			</CardHeader>
 			<CardContent className="px-0 pb-0">
-				<div className="hidden lg:block overflow-x-auto">
+				<div className="hidden overflow-x-auto lg:block">
 					<Table>
 						<TableHeader className="bg-muted/50">
 							<TableRow>
@@ -66,7 +66,7 @@ function TableCardSkeleton({
 				</div>
 				<div className="grid gap-3 px-4 pb-4 md:grid-cols-2 lg:hidden xl:grid-cols-3">
 					{slots(6).map((i) => (
-						<div key={i} className="rounded-xl border p-4 space-y-3">
+						<div key={i} className="space-y-3 rounded-xl border p-4">
 							<div className="flex items-start justify-between gap-3">
 								<div className="flex items-center gap-2">
 									<Skeleton className="size-9 rounded-full" />

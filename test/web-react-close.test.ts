@@ -4,19 +4,38 @@ import {
 	validateCloseInput,
 } from "../src/web-react/app/lib/server/close.server.js";
 
+const VALID_ADDRESS = "So11111111111111111111111111111111111111112";
+
 describe("validateCloseInput", () => {
-	it("returns null when both pool and position are present", () => {
-		expect(validateCloseInput("pool1", "pos1")).toBeNull();
+	it("returns null when both pool and position are valid addresses", () => {
+		expect(validateCloseInput(VALID_ADDRESS, VALID_ADDRESS)).toBeNull();
 	});
 	it("returns an error when pool or position is missing/empty", () => {
-		expect(validateCloseInput("", "pos1")).toBe(
+		expect(validateCloseInput("", VALID_ADDRESS)).toBe(
 			"pool and position are required",
 		);
-		expect(validateCloseInput("pool1", "")).toBe(
+		expect(validateCloseInput(VALID_ADDRESS, "")).toBe(
 			"pool and position are required",
 		);
-		expect(validateCloseInput("pool1", "  ")).toBe(
+		expect(validateCloseInput(VALID_ADDRESS, "  ")).toBe(
 			"pool and position are required",
+		);
+	});
+	it("rejects malformed base58 addresses", () => {
+		expect(validateCloseInput("pool1", VALID_ADDRESS)).toBe(
+			"pool is not a valid address",
+		);
+		expect(validateCloseInput(VALID_ADDRESS, "pos1")).toBe(
+			"position is not a valid address",
+		);
+		expect(
+			validateCloseInput("0OIl0OIl0OIl0OIl0OIl0OIl0OIl0", VALID_ADDRESS),
+		).toBe("pool is not a valid address");
+		expect(validateCloseInput("1".repeat(31), VALID_ADDRESS)).toBe(
+			"pool is not a valid address",
+		);
+		expect(validateCloseInput("1".repeat(45), VALID_ADDRESS)).toBe(
+			"pool is not a valid address",
 		);
 	});
 });

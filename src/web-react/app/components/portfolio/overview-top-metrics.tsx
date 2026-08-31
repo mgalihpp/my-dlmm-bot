@@ -33,7 +33,7 @@ function HalfDonut({ wins, losses }: { wins: number; losses: number }) {
 	return (
 		<ChartContainer
 			config={config}
-			className="h-14 w-24 aspect-video"
+			className="aspect-video h-14 w-24"
 			style={
 				{
 					"--color-wins": "oklch(0.696 0.17 162.48)",
@@ -261,7 +261,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								<button
 									type="button"
 									aria-label="Net P&L info"
-									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 								>
 									<InfoIcon className="size-3" />
 								</button>
@@ -275,7 +275,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 							{metrics.totalClosed}
 						</span>
 					</div>
-					<span className={`font-bold text-2xl ${netPnlColor}`}>
+					<span className={`text-2xl font-bold ${netPnlColor}`}>
 						{netPnlLabel}
 					</span>
 				</CardContent>
@@ -293,7 +293,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									<button
 										type="button"
 										aria-label="Position win % info"
-										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 									>
 										<InfoIcon className="size-3" />
 									</button>
@@ -304,7 +304,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</TooltipContent>
 							</Tooltip>
 						</div>
-						<span className="font-bold text-2xl text-foreground">
+						<span className="text-2xl font-bold text-foreground">
 							{winPctLabel}
 						</span>
 					</div>
@@ -330,7 +330,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									<button
 										type="button"
 										aria-label="Profit factor info"
-										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 									>
 										<InfoIcon className="size-3" />
 									</button>
@@ -341,7 +341,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</TooltipContent>
 							</Tooltip>
 						</div>
-						<span className="font-bold text-2xl text-foreground">
+						<span className="text-2xl font-bold text-foreground">
 							{profitFactorLabel}
 						</span>
 					</div>
@@ -369,7 +369,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									<button
 										type="button"
 										aria-label="Day win % info"
-										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 									>
 										<InfoIcon className="size-3" />
 									</button>
@@ -381,7 +381,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</TooltipContent>
 							</Tooltip>
 						</div>
-						<span className="font-bold text-2xl text-foreground">
+						<span className="text-2xl font-bold text-foreground">
 							{dayWinPctLabel}
 						</span>
 					</div>
@@ -406,7 +406,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								<button
 									type="button"
 									aria-label="Avg win/loss info"
-									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+									className="cursor-help rounded-full text-muted-foreground/50 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 								>
 									<InfoIcon className="size-3" />
 								</button>
@@ -418,7 +418,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 						</Tooltip>
 					</div>
 					<div className="flex items-center gap-3">
-						<span className="font-bold text-2xl text-foreground">
+						<span className="text-2xl font-bold text-foreground">
 							{avgRatioLabel}
 						</span>
 						<div className="flex flex-1 flex-col justify-center gap-1">

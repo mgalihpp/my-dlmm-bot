@@ -11,6 +11,7 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
+import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog.js";
 
@@ -36,7 +37,8 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	onMonthChange: (d: Date) => void;
 	loading?: boolean;
 }) {
-	const [mode, setMode] = useState<"fees" | "total">("total");
+	const mode = useChartPreferenceStore((s) => s.mode);
+	const setMode = useChartPreferenceStore((s) => s.setMode);
 	const [shareOpen, setShareOpen] = useState(false);
 	const [dailyDate, setDailyDate] = useState<Date | null>(null);
 
@@ -236,7 +238,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 												return (
 													<div
 														key={`cell-${row}-${idx}`}
-														className="min-h-[70px] border-b border-r border-border/30 p-1.5"
+														className="min-h-[70px] border-r border-b border-border/30 p-1.5"
 													/>
 												);
 											}
@@ -254,7 +256,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 											return (
 												<div
 													key={`cell-${row}-${idx}`}
-													className={`group relative flex min-h-[70px] flex-col border-b border-r border-border/30 p-1.5 ${bg}`}
+													className={`group relative flex min-h-[70px] flex-col border-r border-b border-border/30 p-1.5 ${bg}`}
 												>
 													<div className="flex items-start justify-between gap-1">
 														<button
@@ -288,7 +290,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													{hasData ? (
 														<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
 															<span
-																className={`text-[10px] font-bold leading-none sm:text-sm ${textColor}`}
+																className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
 															>
 																{cell.pnl! >= 0 ? "+" : ""}
 																{cell.pnl!.toFixed(3)}{" "}

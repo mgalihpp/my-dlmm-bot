@@ -21,6 +21,7 @@ export const useChartPreferenceStore = create<ChartPreferenceState>()(
 		}),
 		{
 			name: "vexis:chart-preference",
+			skipHydration: true,
 			partialize: (s) => ({
 				mode: s.mode,
 				timeframe: s.timeframe,

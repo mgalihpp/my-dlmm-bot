@@ -290,8 +290,6 @@ export interface PortfolioPayload {
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
-	readonly closedAll?: readonly ClosedPoolWithIcons[];
-	readonly closedPositions?: readonly PositionPnLData[];
 }
 
 function enrichWithIcons<T extends { readonly poolAddress: string }>(
@@ -390,7 +388,6 @@ export interface PortfolioDeferred {
 		readonly pageSize: number;
 		readonly totalCount: number;
 	};
-	readonly closedAll: readonly ClosedPoolWithIcons[];
 	readonly total: PortfolioTotal;
 }
 
@@ -757,7 +754,6 @@ export function fetchPortfolioDeferred(
 			{ concurrency: 3 },
 		);
 
-		const closedAll: ClosedPoolWithIcons[] = [];
 		return {
 			pools: openWithIcons,
 			closed:
@@ -774,7 +770,6 @@ export function fetchPortfolioDeferred(
 							pageSize: closedRes.pageSize,
 							totalCount: closedRes.totalCount,
 						},
-			closedAll,
 			total,
 		} satisfies PortfolioDeferred;
 	}).pipe(
@@ -788,7 +783,6 @@ export function fetchPortfolioDeferred(
 					pageSize: 10,
 					totalCount: 0,
 				},
-				closedAll: [] as ClosedPoolWithIcons[],
 				total: EMPTY_TOTAL,
 			} satisfies PortfolioDeferred),
 		),
@@ -798,7 +792,7 @@ export function fetchPortfolioDeferred(
 export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
 		const critical = yield* Effect.tryPromise(() =>
-			fetchPortfolioCritical(),
+			fetchPortfolioCriticalCached(),
 		).pipe(
 			Effect.flatMap((c) =>
 				c.ok
@@ -961,8 +955,14 @@ export function fetchClosedPortfolio(
 		const current = yield* config.get;
 		const wallet = yield* config.wallet();
 		const api = yield* MeteoraApi;
-		const solPrice = yield* api.openPortfolio(wallet, 1, 1).pipe(
-			Effect.map((r) => parseNum(r.solPrice)),
+		const solPrice = yield* Effect.tryPromise(() =>
+			fetchPortfolioCriticalCached(),
+		).pipe(
+			Effect.flatMap((c) =>
+				c.ok
+					? Effect.succeed(c.solPrice)
+					: Effect.succeed(null as number | null),
+			),
 			Effect.catchAll(() => Effect.succeed(null as number | null)),
 		);
 		const closedRes = yield* api
@@ -1010,7 +1010,7 @@ export function fetchClosedPortfolio(
 export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
 		const critical = yield* Effect.tryPromise(() =>
-			fetchPortfolioCritical(),
+			fetchPortfolioCriticalCached(),
 		).pipe(
 			Effect.flatMap((c) =>
 				c.ok
@@ -1035,10 +1035,6 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			summary: critical.summary,
 			pools: deferred.pools,
 			closed: deferred.closed,
-			closedAll: deferred.closedAll,
-			closedPositions: (
-				deferred as { closedPositions?: PortfolioPayload["closedPositions"] }
-			).closedPositions,
 		} satisfies PortfolioPayload;
 	}).pipe(
 		Effect.catchAll((error) =>

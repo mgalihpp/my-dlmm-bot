@@ -1,4 +1,3 @@
-import { useState } from "react";
 import {
 	useLoaderData,
 	useLocation,
@@ -33,7 +32,6 @@ export function PortfolioPage() {
 		navigation.location !== undefined &&
 		navigation.location.pathname !== location.pathname;
 	const [searchParams, setSearchParams] = useSearchParams();
-	const [rangeFilter, setRangeFilter] = useState<RangeFilter>("all");
 	const { revalidate, state } = useRevalidator();
 	const [currency, setCurrency] = useStoredCurrency("portfolio");
 	const dateFilter = parseDateFilterParams(searchParams);
@@ -86,8 +84,6 @@ export function PortfolioPage() {
 					data={data}
 					currency={currency}
 					dateRange={dateRange}
-					rangeFilter={rangeFilter}
-					onRangeFilterChange={setRangeFilter}
 				/>
 			</div>
 		</DashboardShell>

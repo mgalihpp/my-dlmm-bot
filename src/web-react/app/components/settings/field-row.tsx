@@ -164,7 +164,7 @@ export function FieldRow({
 					<button
 						type="button"
 						aria-label={`Help for ${field.label}`}
-						className="shrink-0 rounded-full text-muted-foreground/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+						className="shrink-0 rounded-full text-muted-foreground/60 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
 					>
 						<InfoIcon className="size-3.5" />
 					</button>

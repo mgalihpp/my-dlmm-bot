@@ -1,6 +1,8 @@
+import type { ShouldRevalidateFunctionArgs } from "react-router";
 import { PortfolioActivePage } from "~/components/portfolio/portfolio-active-page";
 import { PositionsTableSkeleton } from "~/components/portfolio/portfolio-table-skeletons";
 import { RouteError } from "~/components/route-error";
+import { shouldRevalidateForDataChange } from "~/lib/revalidate";
 import { closePosition } from "~/lib/server/close.server";
 import { fetchActivePortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
@@ -32,6 +34,10 @@ export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
 export async function loader(_args: Route.LoaderArgs) {
 	return fetchActivePortfolio();
+}
+
+export function shouldRevalidate(args: ShouldRevalidateFunctionArgs) {
+	return shouldRevalidateForDataChange(args);
 }
 
 export async function action({ request }: Route.ActionArgs) {

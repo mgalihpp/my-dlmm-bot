@@ -1,5 +1,7 @@
+import type { ShouldRevalidateFunctionArgs } from "react-router";
 import { PortfolioClosedPage } from "~/components/portfolio/portfolio-closed-page";
 import { RouteError } from "~/components/route-error";
+import { shouldRevalidateForDataChange } from "~/lib/revalidate";
 import { fetchClosedPortfolio } from "~/lib/server/portfolio.server";
 import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/portfolio-closed";
@@ -20,6 +22,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const closedPage =
 		Number.isSafeInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
 	return fetchClosedPortfolio(closedPage);
+}
+
+export function shouldRevalidate(args: ShouldRevalidateFunctionArgs) {
+	return shouldRevalidateForDataChange(args);
 }
 
 export default PortfolioClosedPage;

@@ -24,10 +24,9 @@ import {
 	buildCumulative,
 	buildCumulativeFromPositions,
 } from "~/lib/cumulative-pnl";
+import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 import type { Currency } from "./portfolio-page";
-
-type PnlMode = "fees" | "total";
 
 export const EquityChart = memo(function EquityChart({
 	closed,
@@ -40,7 +39,8 @@ export const EquityChart = memo(function EquityChart({
 	currency: Currency;
 	loading?: boolean;
 }) {
-	const [mode, setMode] = useState<PnlMode>("total");
+	const mode = useChartPreferenceStore((s) => s.mode);
+	const setMode = useChartPreferenceStore((s) => s.setMode);
 	const [shareOpen, setShareOpen] = useState(false);
 	const {
 		points,
@@ -228,18 +228,20 @@ export const EquityChart = memo(function EquityChart({
 					)}
 				</CardContent>
 			</Card>
-			<DailyPnlShareDialog
-				open={shareOpen}
-				onOpenChange={setShareOpen}
-				date={new Date()}
-				closed={positions ?? []}
-				currency={currency as unknown as import("~/lib/currency").Currency}
-				variant="cumulative"
-				cumulativePoints={sharePoints}
-				cumulativeRangeLabel={shareRangeLabel}
-				cumulativeMode={mode}
-				cumulativeTotal={shareTotal}
-			/>
+			{shareOpen ? (
+				<DailyPnlShareDialog
+					open={shareOpen}
+					onOpenChange={setShareOpen}
+					date={new Date()}
+					closed={positions ?? []}
+					currency={currency as unknown as import("~/lib/currency").Currency}
+					variant="cumulative"
+					cumulativePoints={sharePoints}
+					cumulativeRangeLabel={shareRangeLabel}
+					cumulativeMode={mode}
+					cumulativeTotal={shareTotal}
+				/>
+			) : null}
 		</>
 	);
 });

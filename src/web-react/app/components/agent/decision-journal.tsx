@@ -53,7 +53,7 @@ function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
 	return (
 		<div className="flex flex-col gap-1 py-2 pl-2">
 			<div className="flex flex-wrap items-center gap-1.5">
-				<span className="font-medium text-sm">
+				<span className="text-sm font-medium">
 					{candidate.poolName || candidate.pool}
 				</span>
 				<Badge variant={actionVariant(candidate.action)}>

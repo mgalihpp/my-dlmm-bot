@@ -126,3 +126,99 @@ export const BACKGROUND_BY_ID: Record<string, BackgroundEntry> =
 export const TEXTURE_BY_ID: Record<string, TextureEntry> = Object.fromEntries(
 	TEXTURES.map((t) => [t.id, t]),
 ) as Record<string, TextureEntry>;
+
+export type ResolvedCardTheme = {
+	bgColor: string;
+	bgImage: string | null;
+	overlayColor: string;
+	overlayOpacity: number;
+	overlayType: "solid" | "gradient";
+	overlayBackground: string;
+	overlayBackgroundVertical: string;
+	isDarkText: boolean;
+	textColor: string;
+	mutedColor: string;
+	faintColor: string;
+	labelColor: string;
+	gridColor: string;
+	shadowStyle: string;
+	imageZoom: number;
+	posX: number;
+	posY: number;
+};
+
+export function hexToRgba(hex: string, alpha: number): string {
+	const h = hex.replace("#", "");
+	const full =
+		h.length === 3
+			? h
+					.split("")
+					.map((c) => c + c)
+					.join("")
+			: h;
+	const num = Number.parseInt(full, 16);
+	if (Number.isNaN(num)) return `rgba(0,0,0,${alpha})`;
+	const r = (num >> 16) & 255;
+	const g = (num >> 8) & 255;
+	const b = num & 255;
+	return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// Byte-compatible variant of hexToRgba kept for the cumulative card's gradient
+// (spaced channels, no NaN fallback) so its rendered output stays identical.
+function hexToRgbaSpaced(hex: string, alpha: number): string {
+	const h = hex.replace("#", "");
+	const full =
+		h.length === 3
+			? h
+					.split("")
+					.map((c) => c + c)
+					.join("")
+			: h;
+	const num = Number.parseInt(full, 16);
+	const r = (num >> 16) & 255;
+	const g = (num >> 8) & 255;
+	const b = num & 255;
+	return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+export function resolveCardTheme(theme: CardTheme): ResolvedCardTheme {
+	const bgColor =
+		theme.background === "transparent" ? "#0a0a0a" : theme.background;
+	const bgImage = theme.backgroundImage ?? null;
+	const overlayColor = theme.overlayColor ?? "#000000";
+	const overlayOpacity = theme.overlayOpacity ?? 60;
+	const overlayType = theme.overlayType ?? "solid";
+	const textMode = theme.textMode ?? "light";
+	const textShadow = theme.textShadow ?? 50;
+	const isDarkText = textMode === "dark";
+	const alpha = overlayOpacity / 100;
+	return {
+		bgColor,
+		bgImage,
+		overlayColor,
+		overlayOpacity,
+		overlayType,
+		overlayBackground:
+			overlayType === "gradient"
+				? `linear-gradient(180deg, ${hexToRgba(overlayColor, alpha)} 0%, ${hexToRgba(overlayColor, alpha * 0.55)} 45%, ${hexToRgba(overlayColor, 0)} 100%)`
+				: hexToRgba(overlayColor, alpha),
+		overlayBackgroundVertical:
+			overlayType === "gradient"
+				? `linear-gradient(to bottom, ${hexToRgbaSpaced(overlayColor, alpha)}, transparent)`
+				: hexToRgbaSpaced(overlayColor, alpha),
+		isDarkText,
+		textColor: isDarkText ? "#111111" : "#ffffff",
+		mutedColor: isDarkText ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)",
+		faintColor: isDarkText ? "rgba(0,0,0,0.38)" : "rgba(255,255,255,0.45)",
+		labelColor: isDarkText ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.62)",
+		gridColor: isDarkText ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.10)",
+		shadowStyle:
+			textShadow > 0
+				? `0 1px ${Math.round((textShadow / 100) * 8 + 2)}px rgba(0,0,0,${(textShadow / 100) * 0.65})`
+				: "none",
+		imageZoom: theme.imageZoom ?? 1,
+		posX: theme.positionX ?? 50,
+		posY: theme.positionY ?? 50,
+	};
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { matchesRangeFilter } from "../src/web-react/app/components/portfolio/positions-table.js";
+import { matchesRangeFilter } from "../src/web-react/app/components/portfolio/positions-table-grid.js";
 
 const inRange = { outOfRange: false, positionsOutOfRange: [] };
 const outOfRange = { outOfRange: true, positionsOutOfRange: [] };

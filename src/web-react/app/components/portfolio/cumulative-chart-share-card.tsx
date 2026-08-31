@@ -10,7 +10,7 @@ import {
 	YAxis,
 } from "recharts";
 import type { Currency } from "~/lib/currency";
-import type { CardTheme } from "./pnl-share-theme.js";
+import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type CumulativeChartShareCardProps = {
 	rangeLabel: string;
@@ -39,44 +39,8 @@ export const CumulativeChartShareCard = forwardRef<
 		[],
 	);
 
-	const bgColor =
-		theme.background === "transparent" ? "#0a0a0a" : theme.background;
-	const bgImage = theme.backgroundImage ?? null;
-	const overlayColor = theme.overlayColor ?? "#000000";
-	const overlayOpacity = theme.overlayOpacity ?? 60;
-	const overlayType = theme.overlayType ?? "solid";
-	const textMode = theme.textMode ?? "light";
-	const textShadow = theme.textShadow ?? 50;
-	const imageZoom = theme.imageZoom ?? 1;
-	const posX = theme.positionX ?? 50;
-	const posY = theme.positionY ?? 50;
-	const isDarkText = textMode === "dark";
-	const textColor = isDarkText ? "#111111" : "#ffffff";
-	const mutedColor = isDarkText ? "rgba(0,0,0,0.55)" : "rgba(255,255,255,0.55)";
-	const faintColor = isDarkText ? "rgba(0,0,0,0.38)" : "rgba(255,255,255,0.45)";
-	const labelColor = isDarkText ? "rgba(0,0,0,0.62)" : "rgba(255,255,255,0.62)";
-	const gridColor = isDarkText ? "rgba(0,0,0,0.12)" : "rgba(255,255,255,0.10)";
+	const t = resolveCardTheme(theme);
 	const totalColor = total >= 0 ? "#10b981" : "#ef4444";
-	const shadowStyle =
-		textShadow > 0
-			? `0 1px ${Math.round((textShadow / 100) * 8 + 2)}px rgba(0,0,0,${(textShadow / 100) * 0.65})`
-			: "none";
-
-	function hexToRgba(hex: string, alpha: number): string {
-		const h = hex.replace("#", "");
-		const full =
-			h.length === 3
-				? h
-						.split("")
-						.map((c) => c + c)
-						.join("")
-				: h;
-		const num = Number.parseInt(full, 16);
-		const r = (num >> 16) & 255;
-		const g = (num >> 8) & 255;
-		const b = num & 255;
-		return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-	}
 
 	const { yTicks, xLabels } = useMemo(() => {
 		if (points.length === 0) {
@@ -145,40 +109,37 @@ export const CumulativeChartShareCard = forwardRef<
 		<div
 			ref={ref}
 			style={{
-				backgroundColor: bgColor,
+				backgroundColor: t.bgColor,
 				position: "relative",
 				overflow: "hidden",
-				color: textColor,
+				color: t.textColor,
 				width: "900px",
 				maxWidth: "100%",
 			}}
 			className="flex flex-col border border-[#222] px-7 py-6"
 		>
-			{bgImage ? (
+			{t.bgImage ? (
 				<div
 					aria-hidden
 					style={{
 						position: "absolute",
 						inset: 0,
-						backgroundImage: bgImage,
+						backgroundImage: t.bgImage,
 						backgroundSize:
-							imageZoom === 1 ? "cover" : `${imageZoom * 100}% auto`,
-						backgroundPosition: `${posX}% ${posY}%`,
+							t.imageZoom === 1 ? "cover" : `${t.imageZoom * 100}% auto`,
+						backgroundPosition: `${t.posX}% ${t.posY}%`,
 						backgroundRepeat: "no-repeat",
 						pointerEvents: "none",
 					}}
 				/>
 			) : null}
-			{overlayOpacity > 0 ? (
+			{t.overlayOpacity > 0 ? (
 				<div
 					aria-hidden
 					style={{
 						position: "absolute",
 						inset: 0,
-						background:
-							overlayType === "gradient"
-								? `linear-gradient(to bottom, ${hexToRgba(overlayColor, overlayOpacity / 100)}, transparent)`
-								: hexToRgba(overlayColor, overlayOpacity / 100),
+						background: t.overlayBackgroundVertical,
 						pointerEvents: "none",
 					}}
 				/>
@@ -199,10 +160,10 @@ export const CumulativeChartShareCard = forwardRef<
 			) : null}
 			<div
 				className="relative flex flex-col"
-				style={{ textShadow: shadowStyle }}
+				style={{ textShadow: t.shadowStyle }}
 			>
 				<div className="flex items-start justify-between gap-4">
-					<div className="flex items-center -pl-2">
+					<div className="-pl-2 flex items-center">
 						<img
 							src="/logo.png"
 							alt="Vexis"
@@ -210,14 +171,14 @@ export const CumulativeChartShareCard = forwardRef<
 						/>
 						<span
 							className="text-[15px] font-semibold tracking-tight"
-							style={{ color: textColor }}
+							style={{ color: t.textColor }}
 						>
 							Vexis
 						</span>
 					</div>
 					<span
 						className="text-xs font-medium tracking-wide"
-						style={{ color: labelColor }}
+						style={{ color: t.labelColor }}
 					>
 						{host || "vexis.trade"}
 					</span>
@@ -225,20 +186,23 @@ export const CumulativeChartShareCard = forwardRef<
 
 				<div className="mt-6">
 					<div
-						className="text-[22px] font-bold leading-none tracking-tight uppercase"
-						style={{ color: textColor }}
+						className="text-[22px] leading-none font-bold tracking-tight uppercase"
+						style={{ color: t.textColor }}
 					>
 						{rangeLabel}
 					</div>
-					<div className="mt-2 text-sm" style={{ color: mutedColor }}>
+					<div className="mt-2 text-sm" style={{ color: t.mutedColor }}>
 						Cumulative P&L
 					</div>
 					<div className="mt-3 flex items-baseline gap-2">
-						<span className="text-sm font-medium" style={{ color: mutedColor }}>
+						<span
+							className="text-sm font-medium"
+							style={{ color: t.mutedColor }}
+						>
 							{mode === "fees" ? "Fees" : "Total"}
 						</span>
 						<span
-							className="text-[26px] font-extrabold leading-none tracking-tight tabular-nums"
+							className="text-[26px] leading-none font-extrabold tracking-tight tabular-nums"
 							style={{ color: totalColor }}
 						>
 							{total >= 0 ? "+" : ""}
@@ -249,25 +213,25 @@ export const CumulativeChartShareCard = forwardRef<
 
 				<div className="mt-6 flex min-w-0 gap-3">
 					<div className="flex w-[52px] shrink-0 flex-col justify-between py-1 text-right">
-						{yTicks.map((t) => (
+						{yTicks.map((tick) => (
 							<span
-								key={t}
+								key={tick}
 								className="text-[10px] leading-none tabular-nums"
-								style={{ color: faintColor }}
+								style={{ color: t.faintColor }}
 							>
-								{t} {currencyLabel}
+								{tick} {currencyLabel}
 							</span>
 						))}
 					</div>
 					<div className="flex min-w-0 flex-1 flex-col">
 						<div
 							className="relative h-[180px] w-full min-w-0 overflow-hidden border-l"
-							style={{ borderColor: gridColor }}
+							style={{ borderColor: t.gridColor }}
 						>
 							{points.length < 2 ? (
 								<div
 									className="flex h-full items-center justify-center text-xs"
-									style={{ color: faintColor }}
+									style={{ color: t.faintColor }}
 								>
 									Not enough data
 								</div>
@@ -279,7 +243,7 @@ export const CumulativeChartShareCard = forwardRef<
 									>
 										<CartesianGrid
 											vertical={false}
-											stroke={gridColor}
+											stroke={t.gridColor}
 											strokeOpacity={0.35}
 										/>
 										<XAxis dataKey="label" hide />
@@ -303,7 +267,7 @@ export const CumulativeChartShareCard = forwardRef<
 										</defs>
 										<ReferenceLine
 											y={0}
-											stroke={gridColor}
+											stroke={t.gridColor}
 											strokeDasharray="4 4"
 										/>
 										<Area
@@ -325,7 +289,7 @@ export const CumulativeChartShareCard = forwardRef<
 								<span
 									key={`${xLabels.length}-${i}`}
 									className="flex-1 text-center text-[9px] leading-none tabular-nums"
-									style={{ color: faintColor }}
+									style={{ color: t.faintColor }}
 								>
 									{lbl}
 								</span>
@@ -336,7 +300,7 @@ export const CumulativeChartShareCard = forwardRef<
 
 				<div
 					className="mt-10 flex justify-end text-[11px] tabular-nums"
-					style={{ color: faintColor }}
+					style={{ color: t.faintColor }}
 				>
 					<span>{timestamp}</span>
 				</div>

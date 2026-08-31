@@ -3,7 +3,7 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
-import type { CardTheme } from "./pnl-share-theme.js";
+import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type DailyStats = {
 	count: number;
@@ -102,87 +102,42 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
 		);
-		const bgColor =
-			theme.background === "transparent" ? "#0a0a0a" : theme.background;
-		const bgImage = theme.backgroundImage ?? null;
-		const overlayColor = theme.overlayColor ?? "#000000";
-		const overlayOpacity = theme.overlayOpacity ?? 60;
-		const overlayType = theme.overlayType ?? "solid";
-		const textMode = theme.textMode ?? "light";
-		const textShadow = theme.textShadow ?? 50;
-		const imageZoom = theme.imageZoom ?? 1;
-		const posX = theme.positionX ?? 50;
-		const posY = theme.positionY ?? 50;
-		const isDarkText = textMode === "dark";
-		const textColor = isDarkText ? "#111111" : "#ffffff";
-		const mutedColor = isDarkText
-			? "rgba(0,0,0,0.55)"
-			: "rgba(255,255,255,0.55)";
-		const faintColor = isDarkText
-			? "rgba(0,0,0,0.38)"
-			: "rgba(255,255,255,0.45)";
-		const labelColor = isDarkText
-			? "rgba(0,0,0,0.62)"
-			: "rgba(255,255,255,0.62)";
+		const t = resolveCardTheme(theme);
 		const pnlColor = stats.pnl >= 0 ? "#10b981" : "#ef4444";
-		const shadowStyle =
-			textShadow > 0
-				? `0 1px ${Math.round((textShadow / 100) * 8 + 2)}px rgba(0,0,0,${(textShadow / 100) * 0.65})`
-				: "none";
-
-		function hexToRgba(hex: string, alpha: number): string {
-			const h = hex.replace("#", "");
-			const full =
-				h.length === 3
-					? h
-							.split("")
-							.map((c) => c + c)
-							.join("")
-					: h;
-			const num = Number.parseInt(full, 16);
-			if (Number.isNaN(num)) return `rgba(0,0,0,${alpha})`;
-			const r = (num >> 16) & 255;
-			const g = (num >> 8) & 255;
-			const b = num & 255;
-			return `rgba(${r},${g},${b},${alpha})`;
-		}
 
 		return (
 			<div
 				ref={ref}
 				style={{
-					backgroundColor: bgColor,
+					backgroundColor: t.bgColor,
 					position: "relative",
 					overflow: "hidden",
-					color: textColor,
+					color: t.textColor,
 				}}
 				className="flex w-[720px] max-w-full flex-col border border-[#222] px-7 py-6"
 			>
-				{bgImage ? (
+				{t.bgImage ? (
 					<div
 						aria-hidden
 						style={{
 							position: "absolute",
 							inset: 0,
-							backgroundImage: bgImage,
+							backgroundImage: t.bgImage,
 							backgroundSize:
-								imageZoom === 1 ? "cover" : `${imageZoom * 100}% auto`,
-							backgroundPosition: `${posX}% ${posY}%`,
+								t.imageZoom === 1 ? "cover" : `${t.imageZoom * 100}% auto`,
+							backgroundPosition: `${t.posX}% ${t.posY}%`,
 							backgroundRepeat: "no-repeat",
 							pointerEvents: "none",
 						}}
 					/>
 				) : null}
-				{bgImage ? (
+				{t.bgImage ? (
 					<div
 						aria-hidden
 						style={{
 							position: "absolute",
 							inset: 0,
-							background:
-								overlayType === "gradient"
-									? `linear-gradient(180deg, ${hexToRgba(overlayColor, overlayOpacity / 100)} 0%, ${hexToRgba(overlayColor, (overlayOpacity / 100) * 0.55)} 45%, ${hexToRgba(overlayColor, 0)} 100%)`
-									: hexToRgba(overlayColor, overlayOpacity / 100),
+							background: t.overlayBackground,
 							pointerEvents: "none",
 						}}
 					/>
@@ -203,10 +158,10 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 				) : null}
 				<div
 					className="relative flex flex-col"
-					style={{ textShadow: shadowStyle }}
+					style={{ textShadow: t.shadowStyle }}
 				>
 					<div className="flex items-start justify-between gap-4">
-						<div className="flex items-center -pl-2">
+						<div className="-pl-2 flex items-center">
 							<img
 								src="/logo.png"
 								alt="Vexis"
@@ -214,14 +169,14 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 							/>
 							<span
 								className="text-[15px] font-semibold tracking-tight"
-								style={{ color: textColor }}
+								style={{ color: t.textColor }}
 							>
 								Vexis
 							</span>
 						</div>
 						<span
 							className="text-xs font-medium tracking-wide"
-							style={{ color: labelColor }}
+							style={{ color: t.labelColor }}
 						>
 							{host || "vexis.trade"}
 						</span>
@@ -229,12 +184,12 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 
 					<div className="mt-6">
 						<div
-							className="text-[34px] font-bold leading-none tracking-tight"
-							style={{ color: textColor }}
+							className="text-[34px] leading-none font-bold tracking-tight"
+							style={{ color: t.textColor }}
 						>
 							{dateLabel}
 						</div>
-						<div className="mt-1.5 text-sm" style={{ color: mutedColor }}>
+						<div className="mt-1.5 text-sm" style={{ color: t.mutedColor }}>
 							{stats.count} {stats.count === 1 ? "position" : "positions"}
 						</div>
 					</div>
@@ -243,12 +198,12 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 						<div className="flex flex-col">
 							<span
 								className="text-[13px] font-semibold tracking-[0.14em]"
-								style={{ color: labelColor }}
+								style={{ color: t.labelColor }}
 							>
 								DAILY P&L
 							</span>
 							<span
-								className="mt-1 text-[40px] font-extrabold leading-none tracking-tight"
+								className="mt-1 text-[40px] leading-none font-extrabold tracking-tight"
 								style={{ color: pnlColor }}
 							>
 								{stats.pnl >= 0 ? "" : ""}
@@ -260,17 +215,17 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 							<div className="flex items-center justify-between gap-4">
 								<span
 									className="text-[11px] font-semibold tracking-[0.14em]"
-									style={{ color: labelColor }}
+									style={{ color: t.labelColor }}
 								>
 									DETAILS
 								</span>
 								<span
 									className="rounded border px-2 py-0.5 text-[10px] font-semibold tracking-widest"
 									style={{
-										borderColor: isDarkText
+										borderColor: t.isDarkText
 											? "rgba(0,0,0,0.18)"
 											: "rgba(255,255,255,0.18)",
-										color: faintColor,
+										color: t.faintColor,
 									}}
 								>
 									HIDE ALL
@@ -278,37 +233,37 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 							</div>
 							<div className="mt-2 flex flex-col gap-1.5 text-sm">
 								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: mutedColor }}>Fees:</span>
+									<span style={{ color: t.mutedColor }}>Fees:</span>
 									<span
 										className="font-medium tabular-nums"
-										style={{ color: textColor }}
+										style={{ color: t.textColor }}
 									>
 										{stats.fees.toFixed(4)} {currencyLabel}
 									</span>
 								</div>
 								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: mutedColor }}>Deposits:</span>
+									<span style={{ color: t.mutedColor }}>Deposits:</span>
 									<span
 										className="font-medium tabular-nums"
-										style={{ color: textColor }}
+										style={{ color: t.textColor }}
 									>
 										{stats.deposits.toFixed(4)} {currencyLabel}
 									</span>
 								</div>
 								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: mutedColor }}>Withdrawals:</span>
+									<span style={{ color: t.mutedColor }}>Withdrawals:</span>
 									<span
 										className="font-medium tabular-nums"
-										style={{ color: textColor }}
+										style={{ color: t.textColor }}
 									>
 										{stats.withdrawals.toFixed(4)} {currencyLabel}
 									</span>
 								</div>
 								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: mutedColor }}>Win rate:</span>
+									<span style={{ color: t.mutedColor }}>Win rate:</span>
 									<span
 										className="font-medium tabular-nums"
-										style={{ color: textColor }}
+										style={{ color: t.textColor }}
 									>
 										{stats.winRate != null
 											? `${stats.winRate.toFixed(1)}%`
@@ -321,7 +276,7 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 
 					<div
 						className="mt-10 flex justify-end text-[11px] tabular-nums"
-						style={{ color: faintColor }}
+						style={{ color: t.faintColor }}
 					>
 						<span>{timestamp}</span>
 					</div>

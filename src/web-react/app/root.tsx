@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import {
 	isRouteErrorResponse,
 	Links,
@@ -17,6 +18,7 @@ import { TopLoadingIndicator } from "~/components/top-loading-indicator";
 import { Toaster } from "~/components/ui/sonner";
 import { TooltipProvider } from "~/components/ui/tooltip";
 import { useTheme } from "~/hooks/use-theme";
+import { useChartPreferenceStore } from "~/stores/chart-preference";
 import type { Route } from "./+types/root";
 import "./app.css";
 
@@ -91,6 +93,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
 	useTheme();
+	useEffect(() => {
+		useChartPreferenceStore.persist.rehydrate();
+	}, []);
 	const navigation = useNavigation();
 	const isNavigating =
 		navigation.state !== "idle" && navigation.location != null;

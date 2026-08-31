@@ -1,16 +1,13 @@
 import {
 	fetchClosedPositions,
-	getWebPassword,
 	resolveWalletFromRequest,
 } from "~/lib/server/portfolio.server";
-import { hasValidSession } from "~/lib/server/session.server";
+import { apiAuthMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/api.closed-positions";
 
+export const middleware = [apiAuthMiddleware];
+
 export async function loader({ request }: Route.LoaderArgs) {
-	const password = await getWebPassword();
-	if (password.length > 0 && !hasValidSession(request, password)) {
-		return Response.json({ ok: false, error: "unauthorized" }, { status: 401 });
-	}
 	const url = new URL(request.url);
 	const month = url.searchParams.get("month");
 	const day = url.searchParams.get("day");

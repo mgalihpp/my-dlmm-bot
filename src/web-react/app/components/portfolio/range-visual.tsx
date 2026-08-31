@@ -190,7 +190,7 @@ export function RangeVisual({
 					</>
 				) : null}
 			</div>
-			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium tabular-nums text-muted-foreground">
+			<div className="mt-1.5 flex justify-between px-1 text-[11px] font-medium text-muted-foreground tabular-nums">
 				<span>{fmtLabel(min)}</span>
 				<span>{fmtLabel((min + max) / 2)}</span>
 				<span>{fmtLabel(max)}</span>

@@ -100,7 +100,7 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 							{pnlPct.toFixed(2)}%
 						</span>
 						<span
-							className={`font-bold text-base ${positive ? "text-emerald-500" : "text-red-500"}`}
+							className={`text-base font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}
 						>
 							{pnl >= 0 ? "+" : ""}
 							{fmt(pnl)}
@@ -210,7 +210,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 							className={`size-4 ${positive ? "text-emerald-500" : "text-red-500"}`}
 						/>
 						<span
-							className={`font-bold text-base ${positive ? "text-emerald-500" : "text-red-500"}`}
+							className={`text-base font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}
 						>
 							{totalPnl >= 0 ? "+" : ""}
 							{fmt(

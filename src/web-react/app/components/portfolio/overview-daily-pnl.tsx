@@ -19,6 +19,7 @@ import {
 } from "~/components/ui/chart";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
+import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 export const DailyPnlChart = memo(function DailyPnlChart({
 	closed,
@@ -27,10 +28,10 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 	closed: readonly PositionPnLData[];
 	currency: Currency;
 }) {
-	const [timeframe, setTimeframe] = useState<"daily" | "weekly" | "monthly">(
-		"daily",
-	);
-	const [mode, setMode] = useState<"fees" | "total">("total");
+	const timeframe = useChartPreferenceStore((s) => s.timeframe);
+	const setTimeframe = useChartPreferenceStore((s) => s.setTimeframe);
+	const mode = useChartPreferenceStore((s) => s.mode);
+	const setMode = useChartPreferenceStore((s) => s.setMode);
 	const [shareOpen, setShareOpen] = useState(false);
 	const { points, config, rangeLabel, total } = useMemo(() => {
 		const getVal = (p: PositionPnLData) => {
@@ -323,19 +324,21 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 					</ChartContainer>
 				</CardContent>
 			</Card>
-			<DailyPnlShareDialog
-				open={shareOpen}
-				onOpenChange={setShareOpen}
-				date={new Date()}
-				closed={closed}
-				currency={currency}
-				variant="chart"
-				chartPoints={points}
-				chartRangeLabel={rangeLabel}
-				chartTimeframe={timeframe}
-				chartMode={mode}
-				chartTotal={total}
-			/>
+			{shareOpen && (
+				<DailyPnlShareDialog
+					open={shareOpen}
+					onOpenChange={setShareOpen}
+					date={new Date()}
+					closed={closed}
+					currency={currency}
+					variant="chart"
+					chartPoints={points}
+					chartRangeLabel={rangeLabel}
+					chartTimeframe={timeframe}
+					chartMode={mode}
+					chartTotal={total}
+				/>
+			)}
 		</>
 	);
 });
