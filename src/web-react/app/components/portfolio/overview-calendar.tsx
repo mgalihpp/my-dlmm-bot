@@ -1,6 +1,11 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: calendar grid uses positional keys
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { ChevronLeftIcon, ChevronRightIcon, ShareIcon } from "lucide-react";
+import {
+	ChevronLeftIcon,
+	ChevronRightIcon,
+	ShareIcon,
+	UploadIcon,
+} from "lucide-react";
 import { memo, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
@@ -246,11 +251,18 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													key={`cell-${row}-${idx}`}
 													className={`relative flex min-h-[70px] flex-col border-b border-r border-border/30 p-1.5 ${bg}`}
 												>
-													<span className="absolute right-1.5 top-1 text-[10px] text-muted-foreground">
-														{cell.day}
-													</span>
-													{hasData && (
-														<div className="mt-3 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
+													<div className="flex items-start justify-between gap-1">
+														<span className="flex size-2.5 items-center justify-center">
+															{hasData ? (
+																<UploadIcon className="size-2.5 text-muted-foreground/60" />
+															) : null}
+														</span>
+														<span className="text-[10px] leading-none text-muted-foreground">
+															{cell.day}
+														</span>
+													</div>
+													{hasData ? (
+														<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
 															<span
 																className={`text-[10px] font-bold leading-none sm:text-sm ${textColor}`}
 															>
@@ -267,7 +279,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 																</span>
 															)}
 														</div>
-													)}
+													) : null}
 												</div>
 											);
 										})}
