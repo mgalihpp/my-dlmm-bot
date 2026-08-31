@@ -1,6 +1,6 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useFetcher } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
@@ -14,7 +14,6 @@ import {
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
-import { useClosedMonthStore } from "~/stores/closed-month-cache";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
 import {
 	OverviewTopMetrics,
@@ -31,12 +30,15 @@ const DailyPnlChart = lazy(() =>
 	import("./overview-daily-pnl").then((m) => ({ default: m.DailyPnlChart })),
 );
 
-type ClosedPositionsResponse =
-	| { ok: true; positions: PositionPnLData[]; month: string | null }
-	| { ok: false; error: string };
-
-type ClosedPoolsResponse =
-	| { ok: true; pools: readonly ClosedPool[] }
+type OverviewClosedResponse =
+	| {
+			ok: true;
+			pools: readonly ClosedPool[];
+			positions: readonly PositionPnLData[];
+			byMonth: Readonly<Record<string, readonly PositionPnLData[]>>;
+			totalCount: number;
+			totalPositions: number;
+	  }
 	| { ok: false; error: string };
 
 export function PortfolioOverviewContent({
@@ -48,112 +50,43 @@ export function PortfolioOverviewContent({
 	currency: Currency;
 	dateRange: ResolvedRange;
 }) {
-	const closedAllFetcher = useFetcher<ClosedPoolsResponse>();
-	const closedAllState = closedAllFetcher.state;
-	const hasClosedAllData = !!closedAllFetcher.data;
+	const overviewFetcher = useFetcher<OverviewClosedResponse>();
+	const overviewState = overviewFetcher.state;
+	const hasOverviewData = !!overviewFetcher.data;
 	useEffect(() => {
-		if (closedAllState !== "idle" || hasClosedAllData) return;
-		closedAllFetcher.load("/api/closed-all");
-	}, [closedAllState, hasClosedAllData, closedAllFetcher.load]);
-	const closedAll = useMemo(() => {
-		const d = closedAllFetcher.data;
-		if (d?.ok && Array.isArray(d.pools)) return d.pools;
-		return [];
-	}, [closedAllFetcher.data]);
+		if (overviewState !== "idle" || hasOverviewData) return;
+		overviewFetcher.load("/api/overview-closed");
+	}, [overviewState, hasOverviewData, overviewFetcher.load]);
+
+	const overview = useMemo(() => {
+		const d = overviewFetcher.data;
+		if (d?.ok) return d;
+		return null;
+	}, [overviewFetcher.data]);
+
+	const closedAll = overview?.pools ?? [];
+	const positions = overview?.positions ?? [];
+	const byMonth = overview?.byMonth ?? {};
+
 	const filteredClosed = useMemo(
 		() => filterClosedByRange(closedAll, dateRange),
 		[closedAll, dateRange],
 	);
-	const monthFetcher = useFetcher<ClosedPositionsResponse>();
-	const monthFetcherState = monthFetcher.state;
-	const monthFetcherData = monthFetcher.data;
 
 	const [month, setMonth] = useState(() => new Date());
 	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-	const entries = useClosedMonthStore((s) => s.entries);
-	const setMonths = useClosedMonthStore((s) => s.setMonths);
 	const monthPositions = useMemo(
-		() => entries[monthKey]?.data ?? [],
-		[entries, monthKey],
+		() => (byMonth[monthKey] as readonly PositionPnLData[] | undefined) ?? [],
+		[byMonth, monthKey],
 	);
-	const chartMonths = useMemo(() => {
-		const months: string[] = [];
-		const now = new Date();
-		for (let i = 11; i >= 0; i--) {
-			const d = new Date(
-				Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1),
-			);
-			months.push(
-				`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`,
-			);
-		}
-		return months;
-	}, []);
 
-	const lastMonthFetchRef = useRef<string | null>(null);
-	useEffect(() => {
-		if (monthFetcherState !== "idle") return;
-		if (lastMonthFetchRef.current === monthKey) return;
-		lastMonthFetchRef.current = monthKey;
-		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
-	}, [monthKey, monthFetcherState, monthFetcher.load]);
-
-	useEffect(() => {
-		const d = monthFetcherData;
-		if (!d?.ok || !Array.isArray(d.positions)) return;
-		setMonths([{ key: d.month ?? monthKey, data: d.positions }]);
-	}, [monthFetcherData, monthKey, setMonths]);
-
-	useEffect(() => {
-		let cancelled = false;
-		void (async () => {
-			const results = await Promise.all(
-				chartMonths.map((key) =>
-					fetch(`/api/closed-positions?month=${key}`, {
-						credentials: "same-origin",
-					})
-						.then((r) => {
-							if (!r.ok) return null as unknown as ClosedPositionsResponse;
-							return r.json() as Promise<ClosedPositionsResponse>;
-						})
-						.then((d) => {
-							if (!d?.ok || !Array.isArray(d.positions)) return null;
-							const resolved = d.month ?? key;
-							if (!/^\d{4}-\d{2}$/.test(resolved)) return null;
-							return { key: resolved, data: d.positions };
-						})
-						.catch(() => null),
-				),
-			);
-			if (cancelled) return;
-			const valid = results.filter(
-				(r): r is { key: string; data: PositionPnLData[] } => r !== null,
-			);
-			if (valid.length === 0) return;
-			setMonths(valid);
-		})();
-		return () => {
-			cancelled = true;
-		};
-	}, [chartMonths, setMonths]);
-
-	const chartAggregated = useMemo(
-		() => Object.values(entries).flatMap((entry) => entry.data),
-		[entries],
-	);
 	const filteredChartPositions = useMemo(
-		() => filterPositionsByRange(chartAggregated, dateRange),
-		[chartAggregated, dateRange],
+		() => filterPositionsByRange(positions, dateRange),
+		[positions, dateRange],
 	);
-	const chartHasData = chartAggregated.length > 0;
-	const chartMissingCount = useMemo(
-		() => chartMonths.filter((k) => !(k in entries)).length,
-		[chartMonths, entries],
-	);
-	const topMetricsLoading = useMemo(
-		() => !chartHasData && chartMissingCount > 0,
-		[chartHasData, chartMissingCount],
-	);
+	const chartHasData = positions.length > 0;
+	const isLoading = overviewState !== "idle" && !hasOverviewData;
+	const topMetricsLoading = isLoading;
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(() => {
 		const hasPositions = chartHasData;
@@ -164,9 +97,7 @@ export function PortfolioOverviewContent({
 				pnlUsd: p.pnlUsd,
 				closedAt: p.closedAt,
 			}));
-			const total = bounded
-				? filteredChartPositions.length
-				: chartAggregated.length;
+			const total = bounded ? filteredChartPositions.length : positions.length;
 			if (total > 0 || filteredChartPositions.length > 0) {
 				return computeOverviewMetricsFromRecords(
 					records,
@@ -201,7 +132,7 @@ export function PortfolioOverviewContent({
 	}, [
 		filteredClosed,
 		filteredChartPositions,
-		chartAggregated,
+		positions,
 		chartHasData,
 		bounded,
 		dateRange,
@@ -220,10 +151,8 @@ export function PortfolioOverviewContent({
 		);
 	}
 
-	const monthLoading =
-		monthFetcherState !== "idle" && monthPositions.length === 0;
-	const closedAllLoading = closedAllState !== "idle" && !hasClosedAllData;
-	const equityLoading = closedAllLoading || topMetricsLoading;
+	const monthLoading = isLoading && monthPositions.length === 0;
+	const equityLoading = isLoading;
 
 	return (
 		<div className="relative">
@@ -269,7 +198,7 @@ export function PortfolioOverviewContent({
 									currency={currency}
 									month={month}
 									onMonthChange={setMonth}
-									loading={monthFetcherState !== "idle"}
+									loading={overviewState !== "idle"}
 								/>
 							</Suspense>
 						)}

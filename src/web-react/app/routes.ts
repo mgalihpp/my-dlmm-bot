@@ -17,4 +17,5 @@ export default [
 	route("api/pools-enriched", "routes/api.pools-enriched.ts"),
 	route("api/closed-positions", "routes/api.closed-positions.ts"),
 	route("api/closed-all", "routes/api.closed-all.ts"),
+	route("api/overview-closed", "routes/api.overview-closed.ts"),
 ] satisfies RouteConfig;
