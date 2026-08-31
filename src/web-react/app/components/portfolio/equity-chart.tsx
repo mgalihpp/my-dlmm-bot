@@ -30,10 +30,12 @@ export const EquityChart = memo(function EquityChart({
 	closed,
 	positions,
 	currency,
+	loading = false,
 }: {
 	closed: readonly ClosedPool[];
 	positions?: readonly PositionPnLData[];
 	currency: Currency;
+	loading?: boolean;
 }) {
 	const [mode, setMode] = useState<PnlMode>("total");
 	const { points, stops, positive, chartConfig } = useMemo(() => {
@@ -121,7 +123,9 @@ export const EquityChart = memo(function EquityChart({
 				</ToggleGroup>
 			</CardHeader>
 			<CardContent>
-				{points.length < 2 ? (
+				{loading && points.length < 2 ? (
+					<div className="h-64 w-full animate-pulse rounded bg-muted" />
+				) : points.length < 2 ? (
 					<div className="flex h-64 items-center justify-center text-sm text-muted-foreground">
 						No closed positions yet.
 					</div>

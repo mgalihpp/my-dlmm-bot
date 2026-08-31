@@ -14,8 +14,6 @@ import {
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
-import { OverviewCalendar } from "./overview-calendar";
-import { DailyPnlChart } from "./overview-daily-pnl";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
 import {
 	OverviewTopMetrics,
@@ -25,6 +23,12 @@ import type { RangeFilter } from "./portfolio-page";
 
 const EquityChart = lazy(() =>
 	import("./equity-chart").then((m) => ({ default: m.EquityChart })),
+);
+const OverviewCalendar = lazy(() =>
+	import("./overview-calendar").then((m) => ({ default: m.OverviewCalendar })),
+);
+const DailyPnlChart = lazy(() =>
+	import("./overview-daily-pnl").then((m) => ({ default: m.DailyPnlChart })),
 );
 
 type ClosedPositionsResponse =
@@ -47,10 +51,13 @@ export function PortfolioOverviewContent({
 	onRangeFilterChange: (value: RangeFilter) => void;
 }) {
 	const closedAllFetcher = useFetcher<ClosedPoolsResponse>();
+	const closedAllState = closedAllFetcher.state;
+	const hasClosedAllData = !!closedAllFetcher.data;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only
 	useEffect(() => {
-		if (closedAllFetcher.state !== "idle" || closedAllFetcher.data) return;
+		if (closedAllState !== "idle" || hasClosedAllData) return;
 		closedAllFetcher.load("/api/closed-all");
-	}, [closedAllFetcher.data, closedAllFetcher.state, closedAllFetcher.load]);
+	}, [closedAllState, hasClosedAllData]);
 	const closedAll = useMemo(() => {
 		const d = closedAllFetcher.data;
 		if (d?.ok && Array.isArray(d.pools)) return d.pools;
@@ -86,29 +93,59 @@ export function PortfolioOverviewContent({
 		return months;
 	}, []);
 
-	useEffect(() => {
+	// Primitive derived guards for effect deps (vercel rerender-dependencies)
+	const monthCacheSize = monthCache.size;
+	const hasCurrentMonthCached = useMemo(
+		() => monthCache.has(monthKey),
+		[monthCache, monthKey],
+	);
+	const isCurrentMonthFresh = useMemo(() => {
 		const entry = monthCache.get(monthKey);
-		if (entry) {
-			const isCurrent = monthKey === currentMonthKey;
-			if (!isCurrent) return;
-			if (Date.now() - entry.at < 5 * 60 * 1000) return;
-		}
-		if (monthFetcher.state !== "idle") return;
-		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
-	}, [monthKey, monthCache, monthFetcher, currentMonthKey]);
+		if (!entry) return false;
+		const isCurrent = monthKey === currentMonthKey;
+		if (!isCurrent) return true;
+		return Date.now() - entry.at < 5 * 60 * 1000;
+	}, [monthCache, monthKey, currentMonthKey]);
+	const chartMonthsKey = useMemo(() => chartMonths.join(","), [chartMonths]);
+	const monthFetcherState = monthFetcher.state;
+	const monthFetcherDataMonth = useMemo(() => {
+		const d = monthFetcher.data as ClosedPositionsResponse | undefined;
+		if (d?.ok) return (d as { month?: string | null }).month ?? monthKey;
+		return null;
+	}, [monthFetcher.data, monthKey]);
+	const hasMonthFetcherData = !!monthFetcher.data;
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only
 	useEffect(() => {
+		if (hasCurrentMonthCached && isCurrentMonthFresh) return;
+		if (monthFetcherState !== "idle") return;
+		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
+	}, [
+		monthKey,
+		currentMonthKey,
+		hasCurrentMonthCached,
+		isCurrentMonthFresh,
+		monthFetcherState,
+	]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only
+	useEffect(() => {
+		if (!hasMonthFetcherData) return;
 		const d = monthFetcher.data as ClosedPositionsResponse | undefined;
 		if (!d?.ok || !Array.isArray((d as { positions?: unknown }).positions))
 			return;
-		const key = (d as { month?: string | null }).month ?? monthKey;
-		const existing = monthCache.get(key);
-		if (existing) {
-			const isCurrent = key === currentMonthKey;
-			if (!isCurrent) return;
-			if (Date.now() - existing.at < 5 * 60 * 1000) return;
-		}
+		const key = monthFetcherDataMonth ?? monthKey;
+		if (hasCurrentMonthCached && key === monthKey && isCurrentMonthFresh)
+			return;
+		// Additional guard for non-current month: if already cached and not current, skip (matches original isCurrent check)
+		if (key !== currentMonthKey && monthCache.has(key)) return;
 		setMonthCache((prev) => {
+			const existing = prev.get(key);
+			if (existing) {
+				const isCurrent = key === currentMonthKey;
+				if (!isCurrent) return prev;
+				if (Date.now() - existing.at < 5 * 60 * 1000) return prev;
+			}
 			const next = new Map(prev);
 			next.set(key, {
 				data: (d as { positions: PositionPnLData[] }).positions,
@@ -116,50 +153,72 @@ export function PortfolioOverviewContent({
 			});
 			return next;
 		});
-	}, [monthFetcher.data, monthCache, monthKey, currentMonthKey]);
+	}, [
+		hasMonthFetcherData,
+		monthFetcherDataMonth,
+		monthKey,
+		currentMonthKey,
+		hasCurrentMonthCached,
+		isCurrentMonthFresh,
+	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only, batched fan-out
 	useEffect(() => {
+		// Fan-out: deps are primitives only (chartMonthsKey, monthCacheSize, monthKey, currentMonthKey)
 		const missing = chartMonths.filter(
 			(k) => !monthCache.has(k) && k !== monthKey,
 		);
 		if (missing.length === 0) return;
 		let cancelled = false;
-		const fetches = missing.map((key) =>
-			fetch(`/api/closed-positions?month=${key}`, {
-				credentials: "same-origin",
-			})
-				.then((r) => r.json() as Promise<ClosedPositionsResponse>)
-				.then((d) => {
-					if (cancelled) return;
-					if (
-						!d?.ok ||
-						!Array.isArray((d as { positions?: unknown }).positions)
-					)
-						return;
-					const k = (d as { month?: string | null }).month ?? key;
-					if (!/^\d{4}-\d{2}$/.test(k)) return;
-					setMonthCache((prev) => {
-						const existing = prev.get(k);
-						if (existing) {
-							const isCurrent = k === currentMonthKey;
-							if (!isCurrent) return prev;
-							if (Date.now() - existing.at < 5 * 60 * 1000) return prev;
-						}
-						const next = new Map(prev);
-						next.set(k, {
-							data: (d as { positions: PositionPnLData[] }).positions,
-							at: Date.now(),
-						});
-						return next;
-					});
-				})
-				.catch(() => {}),
-		);
-		void Promise.all(fetches);
+		void (async () => {
+			const results = await Promise.all(
+				missing.map((key) =>
+					fetch(`/api/closed-positions?month=${key}`, {
+						credentials: "same-origin",
+					})
+						.then((r) => r.json() as Promise<ClosedPositionsResponse>)
+						.then((d) => {
+							if (
+								!d?.ok ||
+								!Array.isArray((d as { positions?: unknown }).positions)
+							)
+								return null;
+							const k = (d as { month?: string | null }).month ?? key;
+							if (!/^\d{4}-\d{2}$/.test(k)) return null;
+							return {
+								k,
+								data: (d as { positions: PositionPnLData[] }).positions,
+							};
+						})
+						.catch(() => null),
+				),
+			);
+			if (cancelled) return;
+			const valid = results.filter(
+				(r): r is { k: string; data: PositionPnLData[] } => r !== null,
+			);
+			if (valid.length === 0) return;
+			// Batch single setState instead of per-line Map clone
+			setMonthCache((prev) => {
+				let changed = false;
+				const next = new Map(prev);
+				for (const { k, data: pos } of valid) {
+					const existing = next.get(k);
+					if (existing) {
+						const isCurrent = k === currentMonthKey;
+						if (!isCurrent) continue;
+						if (Date.now() - existing.at < 5 * 60 * 1000) continue;
+					}
+					next.set(k, { data: pos, at: Date.now() });
+					changed = true;
+				}
+				return changed ? next : prev;
+			});
+		})();
 		return () => {
 			cancelled = true;
 		};
-	}, [chartMonths, monthCache, monthKey, currentMonthKey]);
+	}, [chartMonthsKey, monthCacheSize, monthKey, currentMonthKey]);
 
 	const chartAggregated = useMemo(
 		() => [...monthCache.values()].flatMap((v) => v.data),
@@ -170,9 +229,13 @@ export function PortfolioOverviewContent({
 		[chartAggregated, dateRange],
 	);
 	const chartHasData = chartAggregated.length > 0;
+	const chartMissingCount = useMemo(
+		() => chartMonths.filter((k) => !monthCache.has(k)).length,
+		[chartMonths, monthCache],
+	);
 	const topMetricsLoading = useMemo(
-		() => !chartHasData && chartMonths.some((k) => !monthCache.has(k)),
-		[chartHasData, chartMonths, monthCache],
+		() => !chartHasData && chartMissingCount > 0,
+		[chartHasData, chartMissingCount],
 	);
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(() => {
@@ -241,7 +304,9 @@ export function PortfolioOverviewContent({
 	}
 
 	const monthLoading =
-		monthFetcher.state !== "idle" && monthPositions.length === 0;
+		monthFetcherState !== "idle" && monthPositions.length === 0;
+	const closedAllLoading = closedAllState !== "idle" && !hasClosedAllData;
+	const equityLoading = closedAllLoading || topMetricsLoading;
 
 	return (
 		<div className="relative">
@@ -277,13 +342,19 @@ export function PortfolioOverviewContent({
 						{monthLoading && monthPositions.length === 0 ? (
 							<ChartCardSkeleton blockClassName="h-[360px] w-full" />
 						) : (
-							<OverviewCalendar
-								closed={monthPositions}
-								currency={currency}
-								month={month}
-								onMonthChange={setMonth}
-								loading={monthFetcher.state !== "idle"}
-							/>
+							<Suspense
+								fallback={
+									<ChartCardSkeleton blockClassName="h-[360px] w-full" />
+								}
+							>
+								<OverviewCalendar
+									closed={monthPositions}
+									currency={currency}
+									month={month}
+									onMonthChange={setMonth}
+									loading={monthFetcherState !== "idle"}
+								/>
+							</Suspense>
 						)}
 					</div>
 				</div>
@@ -295,6 +366,7 @@ export function PortfolioOverviewContent({
 							closed={filteredClosed}
 							positions={filteredChartPositions}
 							currency={currency}
+							loading={equityLoading}
 						/>
 					</Suspense>
 					<Suspense

@@ -231,7 +231,9 @@ export function registerMenu(bot: Bot) {
 
 // ─── Keyboard builders ─────────────────────────────────────────────────────
 
-function backKeyboard(target: string): { inline_keyboard: any[][] } {
+function backKeyboard(target: string): {
+	inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
+} {
 	return {
 		inline_keyboard: [[{ text: "⬅️ Back", callback_data: `menu:${target}` }]],
 	};

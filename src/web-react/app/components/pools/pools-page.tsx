@@ -1,13 +1,26 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
-import { useEffect, useMemo, useState } from "react";
+import {
+	lazy,
+	Suspense,
+	startTransition,
+	useEffect,
+	useMemo,
+	useState,
+} from "react";
 import { useLoaderData, useRevalidator, useSearchParams } from "react-router";
 import { LoadErrorCard } from "~/components/dashboard-page-parts";
 import { DashboardShell } from "~/components/dashboard-shell";
-import { PoolsContent } from "~/components/pools/pools-content";
+import { ChartGridSkeleton } from "~/components/page-skeletons";
 import { PoolsHeader } from "~/components/pools/pools-header";
 import { Card, CardContent } from "~/components/ui/card";
 import { useStoredCurrency } from "~/hooks/use-stored-currency";
 import type { PoolsPayload } from "~/lib/pools";
+
+const PoolsContent = lazy(() =>
+	import("~/components/pools/pools-content").then((m) => ({
+		default: m.PoolsContent,
+	})),
+);
 
 type LoaderData = PoolsPayload;
 
@@ -26,6 +39,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 		return base.map((p) => enrichedPools[p.pool] ?? p);
 	}, [payload.pools, enrichedPools]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 waterfall fix - deps primitive timeframe only, batch NDJSON
 	useEffect(() => {
 		if (!payload.ok || payload.pools.length === 0) return;
 		let cancelled = false;
@@ -48,7 +62,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 					if (!cancelled && data.ok && Array.isArray(data.pools)) {
 						const map: Record<string, ScreenedPool> = {};
 						for (const p of data.pools) map[p.pool] = p;
-						setEnrichedPools(map);
+						startTransition(() => setEnrichedPools(map));
 					}
 					return;
 				}
@@ -62,24 +76,34 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 					buffer += decoder.decode(value, { stream: true });
 					const lines = buffer.split("\n");
 					buffer = lines.pop() ?? "";
+					// Batch per NDJSON chunk: accumulate then single setState
+					const batch: Record<string, ScreenedPool> = {};
 					for (const line of lines) {
 						if (!line.trim() || line.includes('"_error"')) continue;
 						try {
 							const pool = JSON.parse(line) as ScreenedPool;
 							if (cancelled) break;
-							setEnrichedPools((prev) => ({ ...prev, [pool.pool]: pool }));
+							batch[pool.pool] = pool;
+						} catch {}
+					}
+					if (Object.keys(batch).length > 0) {
+						const toFlush = { ...batch };
+						startTransition(() => {
+							setEnrichedPools((prev) => ({ ...prev, ...toFlush }));
 							setSelectedPool((prev) =>
-								prev && prev.pool === pool.pool
-									? ({ ...prev, ...pool } as ScreenedPool)
+								prev && toFlush[prev.pool]
+									? ({ ...prev, ...toFlush[prev.pool] } as ScreenedPool)
 									: prev,
 							);
-						} catch {}
+						});
 					}
 				}
 				if (buffer.trim() && !cancelled) {
 					try {
 						const pool = JSON.parse(buffer) as ScreenedPool;
-						setEnrichedPools((prev) => ({ ...prev, [pool.pool]: pool }));
+						startTransition(() =>
+							setEnrichedPools((prev) => ({ ...prev, [pool.pool]: pool })),
+						);
 					} catch {}
 				}
 			} catch {}
@@ -88,7 +112,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 			cancelled = true;
 			controller.abort();
 		};
-	}, [timeframe, payload.ok, payload.pools.length]);
+	}, [timeframe]);
 
 	const onTimeframeChange = (value: string) =>
 		setSearchParams(
@@ -131,14 +155,16 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 						</CardContent>
 					</Card>
 				) : (
-					<PoolsContent
-						pools={displayPools}
-						currency={currency}
-						solPrice={payload.solPrice}
-						selectedPool={selectedPool}
-						onSelect={setSelectedPool}
-						onClose={() => setSelectedPool(null)}
-					/>
+					<Suspense fallback={<ChartGridSkeleton />}>
+						<PoolsContent
+							pools={displayPools}
+							currency={currency}
+							solPrice={payload.solPrice}
+							selectedPool={selectedPool}
+							onSelect={setSelectedPool}
+							onClose={() => setSelectedPool(null)}
+						/>
+					</Suspense>
 				)}
 			</div>
 		</DashboardShell>

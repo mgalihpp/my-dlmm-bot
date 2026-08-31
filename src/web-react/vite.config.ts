@@ -23,7 +23,12 @@ export default defineConfig({
 			output: {
 				manualChunks(id) {
 					if (id.includes("node_modules/recharts")) return "recharts";
-					if (id.includes("node_modules/radix-ui")) return "radix";
+					if (
+						id.includes("node_modules/@radix-ui") ||
+						id.includes("node_modules/radix-ui")
+					)
+						return "radix";
+					if (id.includes("node_modules/lucide-react")) return "lucide";
 					return undefined;
 				},
 			},

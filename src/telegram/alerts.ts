@@ -16,6 +16,7 @@ import { api, dlmm, resolveWallet, watchlist } from "./fx.js";
 import { renderStrategyStep, strategyKb } from "./handlers/create.js";
 import { setInputSession } from "./input-store.js";
 import { runtime } from "./runtime.js";
+import { getMatchGroup, getMatchString } from "./utils/match.js";
 import { MD } from "./utils.js";
 import { createWizard } from "./wizard-store.js";
 
@@ -513,7 +514,10 @@ export function registerAlertCommands(
 	});
 
 	bot.command("setalert", async (ctx) => {
-		const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
+		const parts = (getMatchString(ctx) ?? "")
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean);
 		const [kind, arg] = parts;
 
 		if (kind === "portfolio") {
@@ -565,7 +569,7 @@ export function registerAlertCommands(
 
 	bot.callbackQuery(/^setalert:type:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const type = ctx.match?.[1];
+		const type = getMatchGroup(ctx, 1);
 		if (type === "portfolio") {
 			const kb = new InlineKeyboard()
 				.text("1h", `setalert:hours:1`)
@@ -602,7 +606,7 @@ export function registerAlertCommands(
 
 	bot.callbackQuery(/^setalert:hours:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const val = ctx.match?.[1];
+		const val = getMatchGroup(ctx, 1);
 		if (val === "custom") {
 			const chatIdCapture = String(ctx.chat?.id ?? ctx.from?.id);
 			setInputSession(chatIdCapture, async (text, sessionCtx) => {
@@ -625,6 +629,7 @@ export function registerAlertCommands(
 			await ctx.editMessageText("✏️ Send hours interval \\(e\\.g\\. 6\\):", MD);
 			return;
 		}
+		if (!val) return;
 		const hours = parseInt(val, 10);
 		if (Number.isNaN(hours) || hours < 1) return;
 		rt.state.portfolioHours = hours;
@@ -637,7 +642,10 @@ export function registerAlertCommands(
 	});
 
 	bot.command("stopalert", async (ctx) => {
-		const parts = (ctx.match as string).trim().split(/\s+/).filter(Boolean);
+		const parts = (getMatchString(ctx) ?? "")
+			.trim()
+			.split(/\s+/)
+			.filter(Boolean);
 		const [kind] = parts;
 
 		if (kind === "portfolio") {
@@ -688,7 +696,7 @@ export function registerAlertCommands(
 
 	bot.callbackQuery(/^stopalert:type:(.+)$/, async (ctx) => {
 		await ctx.answerCallbackQuery();
-		const kind = ctx.match?.[1];
+		const kind = getMatchGroup(ctx, 1);
 		if (kind === "portfolio") {
 			rt.state.portfolioHours = 0;
 			stopFiber(rt.portfolioFiber);
@@ -713,8 +721,8 @@ export function registerAlertCommands(
 	bot.callbackQuery(/^crt:alert:(.+)$/, async (ctx) => {
 		try {
 			await ctx.answerCallbackQuery();
-			const address = ctx.match?.[1];
-			if (!/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
+			const address = getMatchGroup(ctx, 1);
+			if (!address || !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(address)) {
 				await ctx.editMessageText("✖ Invalid pool address\\.", MD);
 				return;
 			}

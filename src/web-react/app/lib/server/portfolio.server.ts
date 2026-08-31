@@ -10,7 +10,7 @@ import type { PositionPnLData } from "@vexis/domain/position.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
-import { Dlmm } from "@vexis/services/Dlmm.js";
+import { Dlmm, type UserPositionLive } from "@vexis/services/Dlmm.js";
 import {
 	MeteoraApi,
 	type MeteoraApiService,
@@ -503,8 +503,10 @@ export function fetchClosedPositions(
 			return all;
 		}
 		const candidatePools = rawPoolsAll.filter((pool) => {
-			const last = (pool as unknown as { lastClosedAt?: number | null })
-				.lastClosedAt;
+			const last =
+				"lastClosedAt" in pool
+					? (pool as { lastClosedAt?: number | null }).lastClosedAt
+					: undefined;
 			return last != null && last >= periodRange.start;
 		});
 		if (candidatePools.length === 0) return [] as PositionPnLData[];
@@ -678,7 +680,9 @@ export function fetchPortfolioDeferred(
 					),
 				dlmm
 					.fetchUserPositions(wallet)
-					.pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
+					.pipe(
+						Effect.catchAll(() => Effect.succeed([] as UserPositionLive[])),
+					),
 				api
 					.closedPortfolio(wallet, closedPage, 10)
 					.pipe(Effect.catchAll(() => Effect.succeed(null))),
@@ -690,35 +694,29 @@ export function fetchPortfolioDeferred(
 		);
 
 		// merge live positions into enriched pools (same as Dlmm.attachLivePositions without extra RPC)
-		const byPool = new Map<string, typeof live>();
-		for (const l of live as unknown as Array<{
-			poolAddress: string;
-			positionAddress: string;
-			createdAt: number | null;
-			amountX: string;
-			amountY: string;
-			feeX: string;
-			feeY: string;
-		}>) {
+		const byPool = new Map<string, UserPositionLive[]>();
+		for (const l of live) {
 			const arr = byPool.get(l.poolAddress) ?? [];
-			(arr as unknown[]).push(l);
-			byPool.set(l.poolAddress, arr as never);
+			arr.push(l);
+			byPool.set(l.poolAddress, arr);
 		}
 		for (const pool of enrichedPnl) {
 			const l = byPool.get(pool.poolAddress);
 			if (l) {
-				(pool as { positionsLive?: unknown }).positionsLive = (
-					l as unknown as Array<{
-						positionAddress: string;
-						createdAt: number | null;
-						amountX: string;
-						amountY: string;
-						feeX: string;
-						feeY: string;
-					}>
-				).map((x) => ({
+				(
+					pool as unknown as {
+						positionsLive?: Array<{
+							address: string;
+							createdAt: number | null;
+							amountX: string;
+							amountY: string;
+							feeX: string;
+							feeY: string;
+						}>;
+					}
+				).positionsLive = l.map((x) => ({
 					address: x.positionAddress,
-					createdAt: x.createdAt,
+					createdAt: x.createdAt ?? null,
 					amountX: x.amountX,
 					amountY: x.amountY,
 					feeX: x.feeX,
@@ -825,39 +823,35 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 					),
 				dlmm
 					.fetchUserPositions(critical.wallet)
-					.pipe(Effect.catchAll(() => Effect.succeed([] as never[]))),
+					.pipe(
+						Effect.catchAll(() => Effect.succeed([] as UserPositionLive[])),
+					),
 			],
 			{ concurrency: 3 },
 		);
-		const byPool = new Map<string, typeof live>();
-		for (const l of live as unknown as Array<{
-			poolAddress: string;
-			positionAddress: string;
-			createdAt: number | null;
-			amountX: string;
-			amountY: string;
-			feeX: string;
-			feeY: string;
-		}>) {
+		const byPool = new Map<string, UserPositionLive[]>();
+		for (const l of live) {
 			const arr = byPool.get(l.poolAddress) ?? [];
-			(arr as unknown[]).push(l);
-			byPool.set(l.poolAddress, arr as never);
+			arr.push(l);
+			byPool.set(l.poolAddress, arr);
 		}
 		for (const pool of enrichedPnl) {
 			const l = byPool.get(pool.poolAddress);
 			if (l) {
-				(pool as { positionsLive?: unknown }).positionsLive = (
-					l as unknown as Array<{
-						positionAddress: string;
-						createdAt: number | null;
-						amountX: string;
-						amountY: string;
-						feeX: string;
-						feeY: string;
-					}>
-				).map((x) => ({
+				(
+					pool as unknown as {
+						positionsLive?: Array<{
+							address: string;
+							createdAt: number | null;
+							amountX: string;
+							amountY: string;
+							feeX: string;
+							feeY: string;
+						}>;
+					}
+				).positionsLive = l.map((x) => ({
 					address: x.positionAddress,
-					createdAt: x.createdAt,
+					createdAt: x.createdAt ?? null,
 					amountX: x.amountX,
 					amountY: x.amountY,
 					feeX: x.feeX,
@@ -925,18 +919,36 @@ export function fetchPoolIcons(poolAddresses: readonly string[]): Promise<
 				Effect.catchAll(() => Effect.succeed(null as number | null)),
 			);
 		const pools = poolAddresses.map((addr) => ({ poolAddress: addr }));
-		const enriched = yield* enrichWithIcons(pools as never, api, solPrice).pipe(
-			Effect.catchAll(() => Effect.succeed([] as never[])),
+		const enriched = yield* enrichWithIcons(pools, api, solPrice).pipe(
+			Effect.catchAll(() =>
+				Effect.succeed(
+					[] as Array<{
+						poolAddress: string;
+						tokenXIcon: string | null;
+						tokenYIcon: string | null;
+						mcap: number | null;
+					}>,
+				),
+			),
 		);
 		return enriched.map((p) => ({
-			poolAddress: (p as { poolAddress: string }).poolAddress,
-			tokenXIcon: (p as { tokenXIcon: string | null }).tokenXIcon,
-			tokenYIcon: (p as { tokenYIcon: string | null }).tokenYIcon,
-			mcap: (p as { mcap: number | null }).mcap,
+			poolAddress: p.poolAddress,
+			tokenXIcon: p.tokenXIcon,
+			tokenYIcon: p.tokenYIcon,
+			mcap: p.mcap,
 		}));
 	}).pipe(
 		Effect.provide(AppLayer),
-		Effect.catchAll(() => Effect.succeed([] as never[])),
+		Effect.catchAll(() =>
+			Effect.succeed(
+				[] as Array<{
+					poolAddress: string;
+					tokenXIcon: string | null;
+					tokenYIcon: string | null;
+					mcap: number | null;
+				}>,
+			),
+		),
 	);
 	return Effect.runPromise(program);
 }
@@ -1024,8 +1036,9 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			pools: deferred.pools,
 			closed: deferred.closed,
 			closedAll: deferred.closedAll,
-			closedPositions: (deferred as unknown as { closedPositions?: unknown })
-				.closedPositions as PortfolioPayload["closedPositions"],
+			closedPositions: (
+				deferred as { closedPositions?: PortfolioPayload["closedPositions"] }
+			).closedPositions,
 		} satisfies PortfolioPayload;
 	}).pipe(
 		Effect.catchAll((error) =>
@@ -1071,8 +1084,8 @@ export function fetchOpenRanges(
 							address: p.positionAddress,
 							minPrice: p.minPrice,
 							maxPrice: p.maxPrice,
-							poolActivePrice: p.poolActivePrice,
-						})) as never;
+							poolActivePrice: p.poolActivePrice ?? "",
+						}));
 					}),
 					Effect.catchAll(() => Effect.succeed(undefined)),
 				),
@@ -1081,7 +1094,14 @@ export function fetchOpenRanges(
 		return ranges;
 	}).pipe(
 		Effect.provide(AppLayer),
-		Effect.catchAll(() => Effect.succeed({} as Record<string, never>)),
+		Effect.catchAll(() =>
+			Effect.succeed(
+				{} as Record<
+					string,
+					Array<{ minPrice: string; maxPrice: string; poolActivePrice: string }>
+				>,
+			),
+		),
 	);
 	return Effect.runPromise(program);
 }

@@ -30,69 +30,96 @@ export function PortfolioActivePage() {
 		() => data.pools?.map((p) => p.poolAddress).join(",") ?? "",
 		[data.pools],
 	);
+	const poolCount = data.pools?.length ?? 0;
 
-	useEffect(() => {
-		if (!data.pools || data.pools.length === 0) return;
-		const hasRanges = data.pools.some(
+	// Primitive derived guards (vercel rerender-dependencies)
+	// biome-ignore lint/correctness/useExhaustiveDependencies: primitive deps only
+	const hasRanges = useMemo(() => {
+		if (!data.pools || data.pools.length === 0) return true;
+		return data.pools.every(
 			(p) => (p as { positionsRange?: unknown }).positionsRange != null,
 		);
-		if (hasRanges) return;
-		if (rangesFetcher.state !== "idle") return;
+	}, [poolAddrsKey, poolCount]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: primitive deps only
+	const needsIcons = useMemo(() => {
+		if (!data.pools || data.pools.length === 0) return false;
+		return data.pools.some(
+			(p) => (p as { tokenXIcon?: unknown }).tokenXIcon == null,
+		);
+	}, [poolAddrsKey, poolCount]);
+
+	const rangesState = rangesFetcher.state;
+	const iconsState = iconsFetcher.state;
+	const hasRangesData = !!rangesFetcher.data;
+	const hasIconsData = !!iconsFetcher.data;
+	// biome-ignore lint/correctness/useExhaustiveDependencies: primitive deps only
+	const cachedRangesAllCovered = useMemo(() => {
 		const cached = rangesFetcher.data as
 			| { ok?: boolean; ranges?: Record<string, unknown> }
 			| undefined;
-		if (cached !== undefined) {
-			if (cached.ok && cached.ranges) {
-				const allCovered = data.pools.every(
-					(p) => cached.ranges?.[p.poolAddress] !== undefined,
-				);
-				if (allCovered) return;
-			} else {
-				return;
-			}
+		if (!cached?.ok || !cached.ranges) return false;
+		if (!data.pools || data.pools.length === 0) return true;
+		return data.pools.every(
+			(p) => cached.ranges?.[p.poolAddress] !== undefined,
+		);
+	}, [rangesFetcher.data, poolAddrsKey, poolCount]);
+	// biome-ignore lint/correctness/useExhaustiveDependencies: primitive deps only
+	const cachedIconsAllCovered = useMemo(() => {
+		const cached = iconsFetcher.data as
+			| { ok?: boolean; icons?: { poolAddress: string }[] }
+			| undefined;
+		if (!cached?.ok || !Array.isArray(cached.icons)) return false;
+		const hitSet = new Set(cached.icons.map((x) => x.poolAddress));
+		if (!data.pools || data.pools.length === 0) return true;
+		return data.pools.every((p) => hitSet.has(p.poolAddress));
+	}, [iconsFetcher.data, poolAddrsKey, poolCount]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only, parallel fetchers
+	useEffect(() => {
+		if (poolCount === 0) return;
+		if (hasRanges) return;
+		if (rangesState !== "idle") return;
+		if (hasRangesData) {
+			if (cachedRangesAllCovered) return;
+			const cached = rangesFetcher.data as
+				| { ok?: boolean; ranges?: Record<string, unknown> }
+				| undefined;
+			if (!cached?.ok) return;
 		}
 		rangesFetcher.load(
 			`/api/open-ranges?pools=${encodeURIComponent(poolAddrsKey)}`,
 		);
 	}, [
-		data.pools,
 		poolAddrsKey,
-		rangesFetcher.state,
-		rangesFetcher.data,
-		rangesFetcher.load,
+		poolCount,
+		hasRanges,
+		rangesState,
+		hasRangesData,
+		cachedRangesAllCovered,
 	]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: P0 primitive deps only, parallel fetchers
 	useEffect(() => {
-		if (!data.pools || data.pools.length === 0) return;
-		const needsIcons = data.pools.some(
-			(p) => (p as { tokenXIcon?: unknown }).tokenXIcon == null,
-		);
+		if (poolCount === 0) return;
 		if (!needsIcons) return;
-		if (iconsFetcher.state !== "idle") return;
-		const cached = iconsFetcher.data as
-			| {
-					ok?: boolean;
-					icons?: { poolAddress: string }[];
-			  }
-			| undefined;
-		if (cached !== undefined) {
-			if (cached.ok && Array.isArray(cached.icons)) {
-				const hitSet = new Set(cached.icons.map((x) => x.poolAddress));
-				const allCovered = data.pools.every((p) => hitSet.has(p.poolAddress));
-				if (allCovered) return;
-			} else {
-				return;
-			}
+		if (iconsState !== "idle") return;
+		if (hasIconsData) {
+			if (cachedIconsAllCovered) return;
+			const cached = iconsFetcher.data as
+				| { ok?: boolean; icons?: { poolAddress: string }[] }
+				| undefined;
+			if (!cached?.ok) return;
 		}
 		iconsFetcher.load(
 			`/api/pool-icons?pools=${encodeURIComponent(poolAddrsKey)}`,
 		);
 	}, [
-		data.pools,
 		poolAddrsKey,
-		iconsFetcher.state,
-		iconsFetcher.data,
-		iconsFetcher.load,
+		poolCount,
+		needsIcons,
+		iconsState,
+		hasIconsData,
+		cachedIconsAllCovered,
 	]);
 
 	const pools = useMemo(() => {
