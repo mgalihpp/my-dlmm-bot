@@ -1,4 +1,10 @@
 import {
+	getCurrentMonthKey,
+	getTodayKey,
+	getWeekStartMonday,
+	normalizeWeekKey,
+} from "~/lib/server/period.server";
+import {
 	fetchClosedPositions,
 	resolveWalletFromRequest,
 } from "~/lib/server/portfolio.server";
@@ -56,38 +62,10 @@ export async function loader({ request }: Route.LoaderArgs) {
 					? { month }
 					: undefined;
 		const positions = await fetchClosedPositions(wallet, opts);
-		const now = new Date();
-		const curMonthKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-		const curDayKey = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}-${String(now.getUTCDate()).padStart(2, "0")}`;
-		const toMonday = (d: Date) => {
-			const dayNum = d.getUTCDay();
-			const diff = dayNum === 0 ? -6 : 1 - dayNum;
-			const mon = new Date(
-				Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
-			);
-			return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
-		};
-		const weekStart = toMonday(now);
-		const normalizeWeekParam = (w: string): string | null => {
-			if (/^\d{4}-\d{2}-\d{2}$/.test(w)) return w;
-			const m = w.match(/^(\d{4})-W(\d{2})$/);
-			if (!m) return null;
-			const year = Number(m[1]);
-			const ww = Number(m[2]);
-			const jan4 = new Date(Date.UTC(year, 0, 4));
-			const day = jan4.getUTCDay();
-			const diff = day === 0 ? -6 : 1 - day;
-			const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
-			const target = new Date(
-				Date.UTC(
-					mon1.getUTCFullYear(),
-					mon1.getUTCMonth(),
-					mon1.getUTCDate() + (ww - 1) * 7,
-				),
-			);
-			return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
-		};
-		const weekNorm = week ? (normalizeWeekParam(week) ?? week) : null;
+		const curMonthKey = getCurrentMonthKey();
+		const curDayKey = getTodayKey();
+		const weekStart = getWeekStartMonday(new Date());
+		const weekNorm = week ? (normalizeWeekKey(week) ?? week) : null;
 		const isPast =
 			(month != null && month !== curMonthKey) ||
 			(day != null && day !== curDayKey) ||

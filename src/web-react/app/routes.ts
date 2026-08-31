@@ -17,6 +17,4 @@ export default [
 	route("api/pools-enriched", "routes/api.pools-enriched.ts"),
 	route("api/closed-positions", "routes/api.closed-positions.ts"),
 	route("api/closed-all", "routes/api.closed-all.ts"),
-	route("api/open-ranges", "routes/api.open-ranges.ts"),
-	route("api/pool-icons", "routes/api.pool-icons.ts"),
 ] satisfies RouteConfig;

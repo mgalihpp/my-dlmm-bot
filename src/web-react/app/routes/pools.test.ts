@@ -2,11 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { PoolsPayload } from "~/lib/pools";
 
 const mocks = vi.hoisted(() => ({
-	fetchPools: vi.fn(),
+	fetchPoolsCritical: vi.fn(),
 }));
 
 vi.mock("~/lib/server/pools.server", () => ({
-	fetchPools: mocks.fetchPools,
+	fetchPoolsCritical: mocks.fetchPoolsCritical,
 }));
 vi.mock("~/middleware/auth", () => ({ authMiddleware: {} }));
 
@@ -26,7 +26,7 @@ const payload: PoolsPayload = {
 describe("pools loader", () => {
 	beforeEach(() => {
 		vi.clearAllMocks();
-		mocks.fetchPools.mockResolvedValue(payload);
+		mocks.fetchPoolsCritical.mockResolvedValue(payload);
 	});
 
 	it("returns the complete pools payload", async () => {
@@ -35,6 +35,6 @@ describe("pools loader", () => {
 		} as Parameters<typeof loader>[0]);
 
 		expect(result).toEqual(payload);
-		expect(mocks.fetchPools).toHaveBeenCalledWith(null);
+		expect(mocks.fetchPoolsCritical).toHaveBeenCalledWith(null);
 	});
 });

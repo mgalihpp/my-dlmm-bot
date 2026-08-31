@@ -18,6 +18,14 @@ import {
 import { Effect } from "effect";
 import { computeLiveMcap } from "~/lib/mcap";
 import { resolveWebConfig } from "./config";
+import {
+	getCurrentMonthKey,
+	getTodayKey,
+	getWeekStartMonday,
+	isoWeekToKey,
+	normalizeWeekKey,
+} from "./period.server";
+import { createTtlCache } from "./ttl-cache.server";
 
 export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
@@ -42,37 +50,34 @@ const iconCache = new Map<
 >();
 const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
 
-const closedMonthCache = new Map<
-	string,
-	{ data: readonly PositionPnLData[]; at: number }
->();
-const closedDayCache = new Map<
-	string,
-	{ data: readonly PositionPnLData[]; at: number }
->();
-const closedWeekCache = new Map<
-	string,
-	{ data: readonly PositionPnLData[]; at: number }
->();
+interface ClosedPeriodEntry {
+	readonly data: readonly PositionPnLData[];
+	readonly at: number;
+}
+const CURRENT_MONTH_TTL_MS = 5 * 60 * 1000;
+const CURRENT_DAY_TTL_MS = 5 * 60 * 1000;
+const CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
+const closedMonthCache = createTtlCache<string, ClosedPeriodEntry>({
+	ttlMs: CURRENT_MONTH_TTL_MS,
+	isFresh: (key, value, now) =>
+		!key.endsWith(`:${getCurrentMonthKey()}`) ||
+		now - value.at < CURRENT_MONTH_TTL_MS,
+});
+const closedDayCache = createTtlCache<string, ClosedPeriodEntry>({
+	ttlMs: CURRENT_DAY_TTL_MS,
+	isFresh: (key, value, now) =>
+		!key.endsWith(`:${getTodayKey()}`) || now - value.at < CURRENT_DAY_TTL_MS,
+});
+const closedWeekCache = createTtlCache<string, ClosedPeriodEntry>({
+	ttlMs: CURRENT_WEEK_TTL_MS,
+	isFresh: (key, value, now) =>
+		!key.endsWith(`:${getWeekStartMonday(new Date())}`) ||
+		now - value.at < CURRENT_WEEK_TTL_MS,
+});
 const closedPoolsCache = new Map<
 	string,
 	{ data: readonly ClosedPoolWithIcons[]; at: number }
 >();
-const closedMonthInflight = new Map<
-	string,
-	Promise<readonly PositionPnLData[]>
->();
-const closedDayInflight = new Map<
-	string,
-	Promise<readonly PositionPnLData[]>
->();
-const closedWeekInflight = new Map<
-	string,
-	Promise<readonly PositionPnLData[]>
->();
-const CURRENT_MONTH_TTL_MS = 5 * 60 * 1000;
-const CURRENT_DAY_TTL_MS = 5 * 60 * 1000;
-const CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
 const CLOSED_POOLS_TTL_MS = 5 * 60 * 1000;
 
 const walletCache = new Map<string, { wallet: string; at: number }>();
@@ -82,44 +87,6 @@ const criticalCache = new Map<
 	{ data: PortfolioCritical; at: number }
 >();
 const CRITICAL_CACHE_TTL_MS = 30 * 1000;
-
-function getTodayKey(): string {
-	const d = new Date();
-	return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
-}
-
-function getWeekStartMonday(d: Date): string {
-	const day = d.getUTCDay();
-	const diff = day === 0 ? -6 : 1 - day;
-	const mon = new Date(
-		Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate() + diff),
-	);
-	return `${mon.getUTCFullYear()}-${String(mon.getUTCMonth() + 1).padStart(2, "0")}-${String(mon.getUTCDate()).padStart(2, "0")}`;
-}
-
-function isoWeekToKey(week: string): string | null {
-	const m = week.match(/^(\d{4})-W(\d{2})$/);
-	if (!m) return null;
-	const year = Number(m[1]);
-	const w = Number(m[2]);
-	const jan4 = new Date(Date.UTC(year, 0, 4));
-	const day = jan4.getUTCDay();
-	const diff = day === 0 ? -6 : 1 - day;
-	const mon1 = new Date(Date.UTC(year, 0, 4 + diff));
-	const target = new Date(
-		Date.UTC(
-			mon1.getUTCFullYear(),
-			mon1.getUTCMonth(),
-			mon1.getUTCDate() + (w - 1) * 7,
-		),
-	);
-	return `${target.getUTCFullYear()}-${String(target.getUTCMonth() + 1).padStart(2, "0")}-${String(target.getUTCDate()).padStart(2, "0")}`;
-}
-
-function normalizeWeekKey(week: string): string | null {
-	if (/^\d{4}-\d{2}-\d{2}$/.test(week)) return week;
-	return isoWeekToKey(week);
-}
 
 function periodRangeFromOpts(opts?: {
 	month?: string;
@@ -391,56 +358,10 @@ export interface PortfolioDeferred {
 	readonly total: PortfolioTotal;
 }
 
-export function fetchClosedPositions(
+function fetchClosedPositionsUncached(
 	wallet: string,
-	opts?: { month?: string; day?: string; week?: string },
-): Promise<readonly PositionPnLData[]> {
-	const cacheKey = (() => {
-		if (opts?.day) return `day:${wallet}:${opts.day}`;
-		if (opts?.week) {
-			const n = normalizeWeekKey(opts.week);
-			return n ? `week:${wallet}:${n}` : `week:${wallet}:${opts.week}`;
-		}
-		if (opts?.month) return `month:${wallet}:${opts.month}`;
-		return null;
-	})();
-	const periodRange = periodRangeFromOpts(opts);
-	if (cacheKey) {
-		const now = Date.now();
-		if (opts?.day) {
-			const inflight = closedDayInflight.get(cacheKey);
-			if (inflight) return inflight;
-			const cached = closedDayCache.get(cacheKey);
-			if (cached) {
-				const isCurrent = opts.day === getTodayKey();
-				if (!isCurrent || now - cached.at < CURRENT_DAY_TTL_MS)
-					return Promise.resolve(cached.data);
-			}
-		} else if (opts?.week) {
-			const inflight = closedWeekInflight.get(cacheKey);
-			if (inflight) return inflight;
-			const cached = closedWeekCache.get(cacheKey);
-			if (cached) {
-				const curWeek = getWeekStartMonday(new Date());
-				const norm = normalizeWeekKey(opts.week ?? "");
-				const isCurrent = norm === curWeek;
-				if (!isCurrent || now - cached.at < CURRENT_WEEK_TTL_MS)
-					return Promise.resolve(cached.data);
-			}
-		} else if (opts?.month) {
-			const inflight = closedMonthInflight.get(cacheKey);
-			if (inflight) return inflight;
-			const cached = closedMonthCache.get(cacheKey);
-			if (cached) {
-				const cur = new Date();
-				const curKey = `${cur.getUTCFullYear()}-${String(cur.getUTCMonth() + 1).padStart(2, "0")}`;
-				const isCurrent = opts.month === curKey;
-				if (!isCurrent || now - cached.at < CURRENT_MONTH_TTL_MS)
-					return Promise.resolve(cached.data);
-			}
-		}
-	}
-
+	periodRange: { start: number; end: number } | null,
+): Promise<ClosedPeriodEntry> {
 	const fetchPositionsForPools = (
 		pools: readonly ClosedPool[],
 		api: MeteoraApiService,
@@ -522,27 +443,40 @@ export function fetchClosedPositions(
 		Effect.provide(AppLayer),
 		Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
 	);
-	const promise = Effect.runPromise(program).then((res) => {
-		if (cacheKey) {
-			if (opts?.day)
-				closedDayCache.set(cacheKey, { data: res, at: Date.now() });
-			else if (opts?.week)
-				closedWeekCache.set(cacheKey, { data: res, at: Date.now() });
-			else if (opts?.month)
-				closedMonthCache.set(cacheKey, { data: res, at: Date.now() });
+	return Effect.runPromise(program).then((res) => ({
+		data: res,
+		at: Date.now(),
+	}));
+}
+
+export function fetchClosedPositions(
+	wallet: string,
+	opts?: { month?: string; day?: string; week?: string },
+): Promise<readonly PositionPnLData[]> {
+	const cacheKey = (() => {
+		if (opts?.day) return `day:${wallet}:${opts.day}`;
+		if (opts?.week) {
+			const n = normalizeWeekKey(opts.week);
+			return n ? `week:${wallet}:${n}` : `week:${wallet}:${opts.week}`;
 		}
-		return res;
-	});
-	if (cacheKey) {
-		const inflightMap = opts?.day
-			? closedDayInflight
-			: opts?.week
-				? closedWeekInflight
-				: closedMonthInflight;
-		inflightMap.set(cacheKey, promise);
-		promise.finally(() => inflightMap.delete(cacheKey));
-	}
-	return promise;
+		if (opts?.month) return `month:${wallet}:${opts.month}`;
+		return null;
+	})();
+	const periodRange = periodRangeFromOpts(opts);
+	const cache = opts?.day
+		? closedDayCache
+		: opts?.week
+			? closedWeekCache
+			: opts?.month
+				? closedMonthCache
+				: null;
+	if (cacheKey === null || cache === null)
+		return fetchClosedPositionsUncached(wallet, periodRange).then(
+			(entry) => entry.data,
+		);
+	return cache
+		.load(cacheKey, () => fetchClosedPositionsUncached(wallet, periodRange))
+		.then((entry) => entry.data);
 }
 
 export async function resolveWalletFromRequest(
@@ -620,6 +554,37 @@ export function fetchAllClosedPools(
 	return promise;
 }
 
+function attachLivePositions(
+	pools: readonly OpenPool[],
+	live: readonly UserPositionLive[],
+): OpenPool[] {
+	const byPool = new Map<string, UserPositionLive[]>();
+	for (const l of live) {
+		const arr = byPool.get(l.poolAddress) ?? [];
+		arr.push(l);
+		byPool.set(l.poolAddress, arr);
+	}
+	return pools.map((pool) => {
+		const entries = byPool.get(pool.poolAddress);
+		if (!entries) return pool;
+		const positionsLive = entries.map((x) => ({
+			address: x.positionAddress,
+			createdAt: x.createdAt ?? null,
+			amountX: x.amountX,
+			amountY: x.amountY,
+			feeX: x.feeX,
+			feeY: x.feeY,
+		}));
+		const createdAt = new Map(
+			(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
+		);
+		for (const pos of positionsLive) {
+			pos.createdAt = createdAt.get(pos.address) ?? null;
+		}
+		return { ...pool, positionsLive };
+	});
+}
+
 export function fetchPortfolioCritical(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
@@ -690,57 +655,11 @@ export function fetchPortfolioDeferred(
 			{ concurrency: 3 },
 		);
 
-		// merge live positions into enriched pools (same as Dlmm.attachLivePositions without extra RPC)
-		const byPool = new Map<string, UserPositionLive[]>();
-		for (const l of live) {
-			const arr = byPool.get(l.poolAddress) ?? [];
-			arr.push(l);
-			byPool.set(l.poolAddress, arr);
-		}
-		for (const pool of enrichedPnl) {
-			const l = byPool.get(pool.poolAddress);
-			if (l) {
-				(
-					pool as unknown as {
-						positionsLive?: Array<{
-							address: string;
-							createdAt: number | null;
-							amountX: string;
-							amountY: string;
-							feeX: string;
-							feeY: string;
-						}>;
-					}
-				).positionsLive = l.map((x) => ({
-					address: x.positionAddress,
-					createdAt: x.createdAt ?? null,
-					amountX: x.amountX,
-					amountY: x.amountY,
-					feeX: x.feeX,
-					feeY: x.feeY,
-				}));
-			}
-		}
-		// attach createdAt from positionsPnl to live
-		for (const pool of enrichedPnl) {
-			const createdAt = new Map(
-				(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
-			);
-			const liveArr = (
-				pool as unknown as {
-					positionsLive?: Array<{ address: string; createdAt?: number | null }>;
-				}
-			).positionsLive;
-			if (liveArr) {
-				for (const pos of liveArr) {
-					Object.assign(pos, { createdAt: createdAt.get(pos.address) ?? null });
-				}
-			}
-		}
+		const merged = attachLivePositions(enrichedPnl, live);
 
 		const [openWithIcons, closedWithIcons] = yield* Effect.all(
 			[
-				enrichWithIcons(enrichedPnl, api, solPrice).pipe(
+				enrichWithIcons(merged, api, solPrice).pipe(
 					Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
 				),
 				closedRes === null
@@ -808,7 +727,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 					.enrichOpenPortfolioPnl(
 						[...critical.pools] as OpenPool[],
 						critical.wallet,
-						{ withRanges: false },
+						{ withRanges: true },
 					)
 					.pipe(
 						Effect.catchAll(() =>
@@ -823,55 +742,10 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 			],
 			{ concurrency: 3 },
 		);
-		const byPool = new Map<string, UserPositionLive[]>();
-		for (const l of live) {
-			const arr = byPool.get(l.poolAddress) ?? [];
-			arr.push(l);
-			byPool.set(l.poolAddress, arr);
-		}
-		for (const pool of enrichedPnl) {
-			const l = byPool.get(pool.poolAddress);
-			if (l) {
-				(
-					pool as unknown as {
-						positionsLive?: Array<{
-							address: string;
-							createdAt: number | null;
-							amountX: string;
-							amountY: string;
-							feeX: string;
-							feeY: string;
-						}>;
-					}
-				).positionsLive = l.map((x) => ({
-					address: x.positionAddress,
-					createdAt: x.createdAt ?? null,
-					amountX: x.amountX,
-					amountY: x.amountY,
-					feeX: x.feeX,
-					feeY: x.feeY,
-				}));
-			}
-		}
-		for (const pool of enrichedPnl) {
-			const createdAt = new Map(
-				(pool.positionsPnl ?? []).map((p) => [p.address, p.createdAt]),
-			);
-			const liveArr = (
-				pool as unknown as {
-					positionsLive?: Array<{ address: string; createdAt?: number | null }>;
-				}
-			).positionsLive;
-			if (liveArr)
-				for (const pos of liveArr)
-					Object.assign(pos, { createdAt: createdAt.get(pos.address) ?? null });
-		}
-		const poolsWithoutIcons = enrichedPnl.map((p) => ({
-			...p,
-			tokenXIcon: null as string | null,
-			tokenYIcon: null as string | null,
-			mcap: null as number | null,
-		})) as OpenPoolWithIcons[];
+		const merged = attachLivePositions(enrichedPnl, live);
+		const pools = yield* enrichWithIcons(merged, api, critical.solPrice).pipe(
+			Effect.catchAll(() => Effect.succeed([] as OpenPoolWithIcons[])),
+		);
 		return {
 			ok: true,
 			wallet: critical.wallet,
@@ -879,7 +753,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 			solPrice: critical.solPrice,
 			summary: critical.summary,
 			total: critical.total as unknown as PortfolioTotal,
-			pools: poolsWithoutIcons,
+			pools,
 		} satisfies PortfolioPayload;
 	}).pipe(
 		Effect.provide(AppLayer),
@@ -889,59 +763,6 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 				error: errorMessage(error),
 				solPrice: null,
 			} satisfies PortfolioPayload),
-		),
-	);
-	return Effect.runPromise(program);
-}
-
-export function fetchPoolIcons(poolAddresses: readonly string[]): Promise<
-	readonly {
-		poolAddress: string;
-		tokenXIcon: string | null;
-		tokenYIcon: string | null;
-		mcap: number | null;
-	}[]
-> {
-	const program = Effect.gen(function* () {
-		const api = yield* MeteoraApi;
-		const config = yield* AppConfig;
-		yield* config.get;
-		const solPrice = yield* api
-			.openPortfolio(yield* config.wallet(), 1, 1)
-			.pipe(
-				Effect.map((r) => parseNum(r.solPrice)),
-				Effect.catchAll(() => Effect.succeed(null as number | null)),
-			);
-		const pools = poolAddresses.map((addr) => ({ poolAddress: addr }));
-		const enriched = yield* enrichWithIcons(pools, api, solPrice).pipe(
-			Effect.catchAll(() =>
-				Effect.succeed(
-					[] as Array<{
-						poolAddress: string;
-						tokenXIcon: string | null;
-						tokenYIcon: string | null;
-						mcap: number | null;
-					}>,
-				),
-			),
-		);
-		return enriched.map((p) => ({
-			poolAddress: p.poolAddress,
-			tokenXIcon: p.tokenXIcon,
-			tokenYIcon: p.tokenYIcon,
-			mcap: p.mcap,
-		}));
-	}).pipe(
-		Effect.provide(AppLayer),
-		Effect.catchAll(() =>
-			Effect.succeed(
-				[] as Array<{
-					poolAddress: string;
-					tokenXIcon: string | null;
-					tokenYIcon: string | null;
-					mcap: number | null;
-				}>,
-			),
 		),
 	);
 	return Effect.runPromise(program);
@@ -1048,29 +869,32 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 	return Effect.runPromise(program);
 }
 
-export function fetchOpenRanges(
-	poolAddresses?: readonly string[],
-): Promise<
-	Record<
-		string,
-		{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
-	>
-> {
+type OpenRanges = Record<
+	string,
+	{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
+>;
+
+const OPEN_RANGES_TTL_MS = 60 * 1000;
+const POOLS_PARAM_CAP = 20;
+const openRangesCache = createTtlCache<string, OpenRanges>({
+	ttlMs: OPEN_RANGES_TTL_MS,
+});
+
+function fetchOpenRangesUncached(
+	poolAddresses: readonly string[],
+): Promise<OpenRanges> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
 		const wallet = yield* config.wallet();
 		const api = yield* MeteoraApi;
 		let pools: readonly { poolAddress: string }[];
-		if (poolAddresses && poolAddresses.length > 0) {
+		if (poolAddresses.length > 0) {
 			pools = poolAddresses.map((addr) => ({ poolAddress: addr }));
 		} else {
 			const openRes = yield* api.openPortfolio(wallet, 1, 50);
 			pools = openRes.pools;
 		}
-		const ranges: Record<
-			string,
-			{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
-		> = {};
+		const ranges: OpenRanges = {};
 		yield* Effect.forEach(
 			pools,
 			(pool) =>
@@ -1088,18 +912,22 @@ export function fetchOpenRanges(
 			{ concurrency: 3, discard: true },
 		);
 		return ranges;
-	}).pipe(
-		Effect.provide(AppLayer),
-		Effect.catchAll(() =>
-			Effect.succeed(
-				{} as Record<
-					string,
-					Array<{ minPrice: string; maxPrice: string; poolActivePrice: string }>
-				>,
-			),
-		),
-	);
+	}).pipe(Effect.provide(AppLayer));
 	return Effect.runPromise(program);
+}
+
+export async function fetchOpenRanges(
+	poolAddresses?: readonly string[],
+): Promise<OpenRanges> {
+	const capped = (poolAddresses ?? []).slice(0, POOLS_PARAM_CAP);
+	const key = capped.length > 0 ? [...capped].sort().join(",") : "all";
+	try {
+		return await openRangesCache.load(key, () =>
+			fetchOpenRangesUncached(capped),
+		);
+	} catch {
+		return {};
+	}
 }
 
 export function getWebPassword(): Promise<string> {
