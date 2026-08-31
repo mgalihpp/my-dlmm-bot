@@ -2,7 +2,6 @@
 "use client";
 
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { UploadIcon } from "lucide-react";
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
 
@@ -153,6 +152,10 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 			return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")} UTC`;
 		}, []);
 		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+		const host = useMemo(
+			() => (typeof window !== "undefined" ? window.location.host : ""),
+			[],
+		);
 		const bgColor =
 			theme.background === "transparent" ? "#0a0a0a" : theme.background;
 
@@ -164,7 +167,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 					position: "relative",
 					overflow: "hidden",
 				}}
-				className="flex w-[760px] max-w-full flex-col rounded-xl border border-[#222] p-4 text-white"
+				className="flex w-[760px] max-w-full flex-col border border-[#222] p-4 text-white"
 			>
 				{theme.texture ? (
 					<div
@@ -184,14 +187,13 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 				>
 					<div className="flex items-start justify-between gap-2">
 						<div className="flex items-center gap-2">
-							<div className="grid size-7 grid-cols-2 gap-0.5 rounded bg-white p-1">
-								<span className="rounded-sm bg-black" />
-								<span className="rounded-sm bg-black" />
-								<span className="rounded-sm bg-black" />
-								<span className="rounded-sm bg-black/40" />
-							</div>
+							<img
+								src="/logo.png"
+								alt="Vexis"
+								className="size-10 object-contain"
+							/>
 							<span className="text-sm font-semibold tracking-tight text-white">
-								Fabriq
+								Vexis
 							</span>
 						</div>
 						<div className="flex flex-col items-center">
@@ -201,7 +203,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 						</div>
 						<div className="flex flex-col items-end text-right">
 							<span className="text-xs font-medium text-white/80">
-								fabriq.trade
+								{host || "vexis.trade"}
 							</span>
 							<span className="text-[11px] text-white/60">
 								Monthly:{" "}
@@ -217,7 +219,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 					</div>
 
 					<div className="flex gap-2">
-						<div className="flex flex-1 flex-col overflow-hidden rounded-lg border border-white/10">
+						<div className="flex flex-1 flex-col overflow-hidden border border-white/10">
 							<div className="grid grid-cols-7 border-b border-white/10 bg-white/[0.02]">
 								{["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
 									<div
@@ -259,15 +261,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 														className="relative flex min-h-[68px] flex-col border-b border-r border-white/5 p-1.5"
 														style={{ backgroundColor: bg }}
 													>
-														<div className="flex items-start justify-between gap-1">
-															<span className="flex size-2.5 items-center justify-center">
-																{hasData ? (
-																	<UploadIcon
-																		className="size-2.5"
-																		style={{ color: "rgba(255,255,255,0.45)" }}
-																	/>
-																) : null}
-															</span>
+														<div className="flex justify-end">
 															<span
 																className="text-[10px] leading-none"
 																style={{ color: "rgba(255,255,255,0.55)" }}
@@ -309,7 +303,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 							</div>
 						</div>
 
-						<div className="flex w-[96px] flex-col overflow-hidden rounded-lg border border-white/10">
+						<div className="flex w-[96px] flex-col overflow-hidden border border-white/10">
 							<div className="border-b border-white/10 bg-white/[0.02] py-1.5 text-center text-[10px] font-medium tracking-widest text-white/40">
 								Week
 							</div>
