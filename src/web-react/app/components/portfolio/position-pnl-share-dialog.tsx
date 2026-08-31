@@ -1,6 +1,5 @@
 "use client";
 
-import type { PositionPnLData } from "@vexis/domain/position.js";
 import {
 	CopyIcon,
 	DownloadIcon,
@@ -18,10 +17,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "~/components/ui/dialog";
-import type { Currency } from "~/lib/currency";
-import { CumulativeChartShareCard } from "./cumulative-chart-share-card.js";
-import { DailyChartShareCard } from "./daily-chart-share-card.js";
-import { buildDailyStats, DailyPnlCard } from "./daily-pnl-card.js";
+import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import {
 	BACKGROUND_BY_ID,
 	BACKGROUNDS,
@@ -29,38 +25,20 @@ import {
 	TEXTURE_BY_ID,
 	TEXTURES,
 } from "./pnl-share-theme.js";
-export function DailyPnlShareDialog({
+import { PositionPnlCard } from "./position-pnl-card.js";
+
+export function PositionPnlShareDialog({
 	open,
 	onOpenChange,
-	date,
-	closed,
+	pool,
 	currency,
-	variant,
-	chartPoints,
-	chartRangeLabel,
-	chartTimeframe,
-	chartMode,
-	chartTotal,
-	cumulativePoints,
-	cumulativeRangeLabel,
-	cumulativeMode,
-	cumulativeTotal,
+	solPrice,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
-	date: Date;
-	closed: readonly PositionPnLData[];
-	currency: Currency;
-	variant?: "daily" | "chart" | "cumulative";
-	chartPoints?: readonly { key: string; label: string; value: number }[];
-	chartRangeLabel?: string;
-	chartTimeframe?: "daily" | "weekly" | "monthly";
-	chartMode?: "fees" | "total";
-	chartTotal?: number;
-	cumulativePoints?: readonly { key: string; label: string; value: number }[];
-	cumulativeRangeLabel?: string;
-	cumulativeMode?: "fees" | "total";
-	cumulativeTotal?: number;
+	pool: OpenPoolWithIcons;
+	currency: "usd" | "sol";
+	solPrice: number | null;
 }) {
 	const [backgroundId, setBackgroundId] = useState<string>("neutral");
 	const [customColor, setCustomColor] = useState<string>("#6366f1");
@@ -79,26 +57,6 @@ export function DailyPnlShareDialog({
 	const [exporting, setExporting] = useState(false);
 	const cardRef = useRef<HTMLDivElement>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
-
-	const stats = useMemo(
-		() => buildDailyStats(closed, date, currency),
-		[closed, date, currency],
-	);
-	const isChart = variant === "chart";
-	const isCumulative = variant === "cumulative";
-	const chartFilename = useMemo(() => {
-		if (isChart && chartRangeLabel) {
-			const safe = chartRangeLabel.replace(/[^A-Z0-9]+/gi, "-").toLowerCase();
-			return `pnl-chart-${safe || "all"}.png`;
-		}
-		if (isCumulative && cumulativeRangeLabel) {
-			const safe = cumulativeRangeLabel
-				.replace(/[^A-Z0-9]+/gi, "-")
-				.toLowerCase();
-			return `pnl-cumulative-${safe || "all"}.png`;
-		}
-		return "";
-	}, [isChart, isCumulative, chartRangeLabel, cumulativeRangeLabel]);
 
 	const theme: CardTheme = useMemo(() => {
 		const bg =
@@ -138,7 +96,7 @@ export function DailyPnlShareDialog({
 		zoom,
 	]);
 
-	const dateKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}-${String(date.getUTCDate()).padStart(2, "0")}`;
+	const poolKey = `${pool.tokenX}-${pool.tokenY}-${pool.poolAddress.slice(0, 4)}`;
 
 	const handleCustomImagePick = () => fileRef.current?.click();
 	const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -175,8 +133,7 @@ export function DailyPnlShareDialog({
 					theme.background !== "transparent" ? theme.background : "#0a0a0a",
 			});
 			const link = document.createElement("a");
-			link.download =
-				isChart || isCumulative ? chartFilename : `pnl-daily-${dateKey}.png`;
+			link.download = `pnl-position-${poolKey}.png`;
 			link.href = dataUrl;
 			link.click();
 			toast.success("Image downloaded");
@@ -222,56 +179,20 @@ export function DailyPnlShareDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="flex max-h-[92vh] max-w-[1100px] flex-col gap-0 overflow-hidden border-[#222] bg-black p-0 sm:max-w-[1100px]">
 				<DialogHeader className="sr-only">
-					<DialogTitle>
-						{isChart
-							? "Share PnL Chart"
-							: isCumulative
-								? "Share Cumulative PnL"
-								: "Share Daily PnL"}
-					</DialogTitle>
+					<DialogTitle>Share Position PnL</DialogTitle>
 					<DialogDescription>
-						{isChart
-							? "Preview and export your PnL chart card"
-							: isCumulative
-								? "Preview and export your cumulative PnL card"
-								: "Preview and export your daily PnL card"}
+						Preview and export your position PnL card
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
 					<div className="flex min-h-[420px] flex-1 items-center justify-center overflow-auto bg-[#050505] p-6">
-						{isChart && chartPoints && chartRangeLabel && chartTotal != null ? (
-							<DailyChartShareCard
-								ref={cardRef}
-								rangeLabel={chartRangeLabel}
-								timeframe={chartTimeframe ?? "daily"}
-								mode={chartMode ?? "total"}
-								total={chartTotal}
-								points={chartPoints}
-								currency={currency}
-								theme={theme}
-							/>
-						) : isCumulative &&
-							cumulativePoints &&
-							cumulativeRangeLabel &&
-							cumulativeTotal != null ? (
-							<CumulativeChartShareCard
-								ref={cardRef}
-								rangeLabel={cumulativeRangeLabel}
-								mode={cumulativeMode ?? "total"}
-								total={cumulativeTotal}
-								points={cumulativePoints}
-								currency={currency}
-								theme={theme}
-							/>
-						) : (
-							<DailyPnlCard
-								ref={cardRef}
-								date={date}
-								stats={stats}
-								currency={currency}
-								theme={theme}
-							/>
-						)}
+						<PositionPnlCard
+							ref={cardRef}
+							pool={pool}
+							currency={currency}
+							solPrice={solPrice}
+							theme={theme}
+						/>
 					</div>
 					<div className="flex w-full flex-col gap-5 overflow-y-auto border-t border-[#222] bg-[#111113] p-5 lg:w-[280px] lg:border-t-0 lg:border-l">
 						<div>

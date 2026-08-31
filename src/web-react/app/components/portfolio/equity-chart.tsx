@@ -24,8 +24,8 @@ import {
 	buildCumulative,
 	buildCumulativeFromPositions,
 } from "~/lib/cumulative-pnl";
-import type { Currency } from "./portfolio-page";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
+import type { Currency } from "./portfolio-page";
 
 type PnlMode = "fees" | "total";
 
@@ -42,76 +42,89 @@ export const EquityChart = memo(function EquityChart({
 }) {
 	const [mode, setMode] = useState<PnlMode>("total");
 	const [shareOpen, setShareOpen] = useState(false);
-	const { points, stops, chartConfig, sharePoints, shareRangeLabel, shareTotal } =
-		useMemo(() => {
-			const cum =
-				positions && positions.length > 0
-					? buildCumulativeFromPositions(positions, currency)
-					: buildCumulative(closed, currency);
-			const points = cum.map((p) => ({
-				label: p.label,
-				value: mode === "fees" ? p.cumFees : p.cumPnl,
-			}));
+	const {
+		points,
+		stops,
+		chartConfig,
+		sharePoints,
+		shareRangeLabel,
+		shareTotal,
+	} = useMemo(() => {
+		const cum =
+			positions && positions.length > 0
+				? buildCumulativeFromPositions(positions, currency)
+				: buildCumulative(closed, currency);
+		const points = cum.map((p) => ({
+			label: p.label,
+			value: mode === "fees" ? p.cumFees : p.cumPnl,
+		}));
 
-			const lastValue = points.at(-1)?.value ?? 0;
-			const colorFor = (v: number) =>
-				v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
+		const lastValue = points.at(-1)?.value ?? 0;
+		const colorFor = (v: number) =>
+			v >= 0 ? "var(--color-emerald-500)" : "var(--color-red-500)";
 
-			const stops: { offset: string; color: string }[] = [];
-			if (points.length > 0) {
-				stops.push({ offset: "0%", color: colorFor(points[0].value) });
+		const stops: { offset: string; color: string }[] = [];
+		if (points.length > 0) {
+			stops.push({ offset: "0%", color: colorFor(points[0].value) });
+		}
+		for (let i = 1; i < points.length; i++) {
+			const previous = points[i - 1].value;
+			const current = points[i].value;
+			const previousColor = colorFor(previous);
+			const currentColor = colorFor(current);
+			if (previousColor !== currentColor) {
+				const ratio =
+					Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
+				const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
+				const offset = `${crossing}%`;
+				stops.push({ offset, color: previousColor });
+				stops.push({ offset, color: currentColor });
 			}
-			for (let i = 1; i < points.length; i++) {
-				const previous = points[i - 1].value;
-				const current = points[i].value;
-				const previousColor = colorFor(previous);
-				const currentColor = colorFor(current);
-				if (previousColor !== currentColor) {
-					const ratio =
-						Math.abs(previous) / (Math.abs(previous) + Math.abs(current));
-					const crossing = ((i - 1 + ratio) / (points.length - 1)) * 100;
-					const offset = `${crossing}%`;
-					stops.push({ offset, color: previousColor });
-					stops.push({ offset, color: currentColor });
-				}
-			}
-			if (points.length > 1) {
-				stops.push({
-					offset: "100%",
-					color: colorFor(points.at(-1)?.value ?? 0),
-				});
-			}
-			const chartConfig = {
-				value: {
-					label: "PnL",
-					color: colorFor(lastValue),
-				},
-			} satisfies ChartConfig;
+		}
+		if (points.length > 1) {
+			stops.push({
+				offset: "100%",
+				color: colorFor(points.at(-1)?.value ?? 0),
+			});
+		}
+		const chartConfig = {
+			value: {
+				label: "PnL",
+				color: colorFor(lastValue),
+			},
+		} satisfies ChartConfig;
 
-			const sharePoints = cum.map((p, i) => ({
-				key: `${p.ts}-${i}`,
-				label: p.label,
-				value: mode === "fees" ? p.cumFees : p.cumPnl,
-			}));
-			const shareTotal = lastValue;
-			let shareRangeLabel = "";
-			if (cum.length > 0) {
-				const fmt = (ts: number) =>
-					new Date(ts * 1000)
-						.toLocaleDateString("en-US", {
-							month: "short",
-							day: "numeric",
-							year: "numeric",
-							timeZone: "UTC",
-						})
-						.toUpperCase();
-				const first = cum[0].ts;
-				const last = cum.at(-1)?.ts ?? first;
-				shareRangeLabel = first ? `${fmt(first)} - ${fmt(last)}` : fmt(last);
-			}
+		const sharePoints = cum.map((p, i) => ({
+			key: `${p.ts}-${i}`,
+			label: p.label,
+			value: mode === "fees" ? p.cumFees : p.cumPnl,
+		}));
+		const shareTotal = lastValue;
+		let shareRangeLabel = "";
+		if (cum.length > 0) {
+			const fmt = (ts: number) =>
+				new Date(ts * 1000)
+					.toLocaleDateString("en-US", {
+						month: "short",
+						day: "numeric",
+						year: "numeric",
+						timeZone: "UTC",
+					})
+					.toUpperCase();
+			const first = cum[0].ts;
+			const last = cum.at(-1)?.ts ?? first;
+			shareRangeLabel = first ? `${fmt(first)} - ${fmt(last)}` : fmt(last);
+		}
 
-			return { points, stops, chartConfig, sharePoints, shareRangeLabel, shareTotal };
-		}, [closed, currency, mode, positions]);
+		return {
+			points,
+			stops,
+			chartConfig,
+			sharePoints,
+			shareRangeLabel,
+			shareTotal,
+		};
+	}, [closed, currency, mode, positions]);
 
 	return (
 		<>

@@ -1,5 +1,7 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, ShareIcon } from "lucide-react";
+import { useState } from "react";
 import { Badge } from "~/components/ui/badge";
+import { Button } from "~/components/ui/button";
 import {
 	fmtPnlPct,
 	meteoraUrl,
@@ -12,6 +14,7 @@ import { proxiedIconUrl } from "~/lib/icon";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
+import { PositionPnlShareDialog } from "./position-pnl-share-dialog.js";
 import { PortfolioAmount } from "./positions-detail";
 import { RangeVisual } from "./range-visual";
 
@@ -29,6 +32,7 @@ export function OpenPositionCard({
 	rangesLoading?: boolean;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
+	const [shareOpen, setShareOpen] = useState(false);
 	return (
 		// biome-ignore lint/a11y/useSemanticElements: card contains links and cannot be a button
 		<div
@@ -133,11 +137,35 @@ export function OpenPositionCard({
 					{pool.openPositionCount} position
 					{pool.openPositionCount === 1 ? "" : "s"}
 				</span>
-				<ChevronRightIcon
-					className="size-5 text-muted-foreground"
-					aria-hidden="true"
-				/>
+				<div className="flex items-center gap-1">
+					<Button
+						type="button"
+						variant="outline"
+						size="sm"
+						className="h-7 px-2 text-xs"
+						onClick={(e) => {
+							e.stopPropagation();
+							setShareOpen(true);
+						}}
+					>
+						<ShareIcon className="size-3" />
+						Share
+					</Button>
+					<ChevronRightIcon
+						className="size-5 text-muted-foreground"
+						aria-hidden="true"
+					/>
+				</div>
 			</div>
+			{shareOpen ? (
+				<PositionPnlShareDialog
+					open={shareOpen}
+					onOpenChange={setShareOpen}
+					pool={pool}
+					currency={currency}
+					solPrice={solPrice}
+				/>
+			) : null}
 		</div>
 	);
 }

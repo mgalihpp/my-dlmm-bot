@@ -1,5 +1,5 @@
-import { ChevronDownIcon } from "lucide-react";
-import { Fragment } from "react";
+import { ChevronDownIcon, ShareIcon } from "lucide-react";
+import { Fragment, useState } from "react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import {
@@ -14,6 +14,7 @@ import { fmtPct, pnlClass, pnlSign } from "~/lib/format";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
 import { cn } from "~/lib/utils";
 import type { Currency } from "./portfolio-page";
+import { PositionPnlShareDialog } from "./position-pnl-share-dialog.js";
 import {
 	CloseConfirmPopover,
 	PoolCell,
@@ -75,6 +76,7 @@ export function PositionsTableBody({
 	onSort: (key: SortKey) => void;
 	rangesLoading?: boolean;
 }) {
+	const [sharePool, setSharePool] = useState<OpenPoolWithIcons | null>(null);
 	return (
 		<div className="overflow-x-auto">
 			<Table>
@@ -119,7 +121,7 @@ export function PositionsTableBody({
 						/>
 						<TableHead>Range</TableHead>
 						<TableHead className="min-w-40">Visual Range</TableHead>
-						<TableHead>Close</TableHead>
+						<TableHead>Action</TableHead>
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -232,6 +234,19 @@ export function PositionsTableBody({
 													</Button>
 												</CloseConfirmPopover>
 											))}
+											<Button
+												type="button"
+												variant="outline"
+												size="sm"
+												className="h-7 px-2 text-xs"
+												onClick={(event) => {
+													event.stopPropagation();
+													setSharePool(pool);
+												}}
+											>
+												<ShareIcon className="size-3" />
+												Share
+											</Button>
 										</div>
 									</TableCell>
 								</TableRow>
@@ -247,6 +262,17 @@ export function PositionsTableBody({
 					})}
 				</TableBody>
 			</Table>
+			{sharePool ? (
+				<PositionPnlShareDialog
+					open={!!sharePool}
+					onOpenChange={(v) => {
+						if (!v) setSharePool(null);
+					}}
+					pool={sharePool}
+					currency={currency as "usd" | "sol"}
+					solPrice={solPrice}
+				/>
+			) : null}
 		</div>
 	);
 }
