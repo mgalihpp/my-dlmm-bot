@@ -225,7 +225,7 @@ export const DailyChartShareCard = forwardRef<
 					</div>
 					<div className="flex flex-1 flex-col">
 						<div
-							className="relative flex h-[180px] items-center gap-[2px] border-l px-1"
+							className="relative flex h-[180px] gap-[2px] border-l px-1"
 							style={{ borderColor: gridColor }}
 						>
 							<div
@@ -235,31 +235,29 @@ export const DailyChartShareCard = forwardRef<
 									backgroundColor: gridColor,
 								}}
 							/>
-							{points.map((p, i) => {
+							{points.map((p) => {
 								const h = maxAbs === 0 ? 0 : (Math.abs(p.value) / maxAbs) * 50;
 								const isPos = p.value >= 0;
 								return (
 									<div
 										key={p.key}
-										className="flex flex-1 justify-center"
-										style={{
-											height: "100%",
-											alignItems: isPos ? "flex-end" : "flex-start",
-											paddingTop: isPos ? 0 : "50%",
-											paddingBottom: isPos ? "50%" : 0,
-										}}
+										className="relative flex-1"
+										style={{ height: "100%" }}
 									>
 										<div
-											className="w-full rounded-[1px]"
+											className="absolute w-full rounded-[1px]"
 											style={{
 												height: `${h}%`,
 												backgroundColor: isPos ? "#10b981" : "#ef4444",
 												opacity: p.value === 0 ? 0.15 : 1,
 												minHeight: p.value !== 0 ? "2px" : "1px",
+												left: 0,
+												right: 0,
+												bottom: isPos ? "50%" : "auto",
+												top: isPos ? "auto" : "50%",
 											}}
 											title={`${p.label}: ${p.value.toFixed(4)}`}
 										/>
-										<span className="sr-only">{xLabels[i]}</span>
 									</div>
 								);
 							})}
