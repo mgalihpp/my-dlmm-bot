@@ -20,6 +20,7 @@ import {
 } from "~/components/ui/dialog";
 import type { Currency } from "~/lib/currency";
 import { buildDailyStats, DailyPnlCard } from "./daily-pnl-card.js";
+import { DailyChartShareCard } from "./daily-chart-share-card.js";
 import {
 	BACKGROUND_BY_ID,
 	BACKGROUNDS,
@@ -34,12 +35,24 @@ export function DailyPnlShareDialog({
 	date,
 	closed,
 	currency,
+	variant,
+	chartPoints,
+	chartRangeLabel,
+	chartTimeframe,
+	chartMode,
+	chartTotal,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	date: Date;
 	closed: readonly PositionPnLData[];
 	currency: Currency;
+	variant?: "daily" | "chart";
+	chartPoints?: readonly { key: string; label: string; value: number }[];
+	chartRangeLabel?: string;
+	chartTimeframe?: "daily" | "weekly" | "monthly";
+	chartMode?: "fees" | "total";
+	chartTotal?: number;
 }) {
 	const [backgroundId, setBackgroundId] = useState<string>("neutral");
 	const [customColor, setCustomColor] = useState<string>("#6366f1");
@@ -63,6 +76,12 @@ export function DailyPnlShareDialog({
 		() => buildDailyStats(closed, date, currency),
 		[closed, date, currency],
 	);
+	const isChart = variant === "chart";
+	const chartFilename = useMemo(() => {
+		if (!isChart || !chartRangeLabel) return "";
+		const safe = chartRangeLabel.replace(/[^A-Z0-9]+/gi, "-").toLowerCase();
+		return `pnl-chart-${safe || "all"}.png`;
+	}, [isChart, chartRangeLabel]);
 
 	const theme: CardTheme = useMemo(() => {
 		const bg =
@@ -139,7 +158,7 @@ export function DailyPnlShareDialog({
 					theme.background !== "transparent" ? theme.background : "#0a0a0a",
 			});
 			const link = document.createElement("a");
-			link.download = `pnl-daily-${dateKey}.png`;
+			link.download = isChart ? chartFilename : `pnl-daily-${dateKey}.png`;
 			link.href = dataUrl;
 			link.click();
 			toast.success("Image downloaded");
@@ -185,20 +204,38 @@ export function DailyPnlShareDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="flex max-h-[92vh] max-w-[1100px] flex-col gap-0 overflow-hidden border-[#222] bg-black p-0 sm:max-w-[1100px]">
 				<DialogHeader className="sr-only">
-					<DialogTitle>Share Daily PnL</DialogTitle>
+					<DialogTitle>{isChart ? "Share PnL Chart" : "Share Daily PnL"}</DialogTitle>
 					<DialogDescription>
-						Preview and export your daily PnL card
+						{isChart
+							? "Preview and export your PnL chart card"
+							: "Preview and export your daily PnL card"}
 					</DialogDescription>
 				</DialogHeader>
 				<div className="flex min-h-0 flex-1 flex-col overflow-hidden lg:flex-row">
 					<div className="flex min-h-[420px] flex-1 items-center justify-center overflow-auto bg-[#050505] p-6">
-						<DailyPnlCard
-							ref={cardRef}
-							date={date}
-							stats={stats}
-							currency={currency}
-							theme={theme}
-						/>
+						{isChart &&
+						chartPoints &&
+						chartRangeLabel &&
+						chartTotal != null ? (
+							<DailyChartShareCard
+								ref={cardRef}
+								rangeLabel={chartRangeLabel}
+								timeframe={chartTimeframe ?? "daily"}
+								mode={chartMode ?? "total"}
+								total={chartTotal}
+								points={chartPoints}
+								currency={currency}
+								theme={theme}
+							/>
+						) : (
+							<DailyPnlCard
+								ref={cardRef}
+								date={date}
+								stats={stats}
+								currency={currency}
+								theme={theme}
+							/>
+						)}
 					</div>
 					<div className="flex w-full flex-col gap-5 overflow-y-auto border-t border-[#222] bg-[#111113] p-5 lg:w-[280px] lg:border-t-0 lg:border-l">
 						<div>

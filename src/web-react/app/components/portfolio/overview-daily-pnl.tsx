@@ -19,7 +19,7 @@ import {
 } from "~/components/ui/chart";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
-import { DailyChartShareDialog } from "./daily-chart-share-dialog.js";
+import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 export const DailyPnlChart = memo(function DailyPnlChart({
 	closed,
 	currency,
@@ -323,15 +323,18 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 					</ChartContainer>
 				</CardContent>
 			</Card>
-			<DailyChartShareDialog
+			<DailyPnlShareDialog
 				open={shareOpen}
 				onOpenChange={setShareOpen}
-				rangeLabel={rangeLabel}
-				timeframe={timeframe}
-				mode={mode}
-				total={total}
-				points={points}
+				date={new Date()}
+				closed={closed}
 				currency={currency}
+				variant="chart"
+				chartPoints={points}
+				chartRangeLabel={rangeLabel}
+				chartTimeframe={timeframe}
+				chartMode={mode}
+				chartTotal={total}
 			/>
 		</>
 	);
