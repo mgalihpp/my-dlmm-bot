@@ -18,14 +18,7 @@ import {
 import { Effect } from "effect";
 import { computeLiveMcap } from "~/lib/mcap";
 import { resolveWebConfig } from "./config";
-import {
-	getCurrentMonthKey,
-	getTodayKey,
-	getWeekStartMonday,
-	isoWeekToKey,
-	normalizeWeekKey,
-} from "./period.server";
-import { createTtlCache } from "./ttl-cache.server";
+import { isoWeekToKey } from "./period.server";
 import { isValidSolanaAddress } from "./validate.server";
 export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
@@ -37,56 +30,6 @@ export type ClosedPoolWithIcons = ClosedPool & {
 	readonly tokenXIcon?: string | null;
 	readonly tokenYIcon?: string | null;
 };
-
-const iconCache = new Map<
-	string,
-	{
-		x?: string;
-		y?: string;
-		mcap?: number | null;
-		price?: number | null;
-		at: number;
-	}
->();
-const ICON_CACHE_TTL_MS = 30 * 60 * 1000;
-
-interface ClosedPeriodEntry {
-	readonly data: readonly PositionPnLData[];
-	readonly at: number;
-}
-const CURRENT_MONTH_TTL_MS = 5 * 60 * 1000;
-const CURRENT_DAY_TTL_MS = 5 * 60 * 1000;
-const CURRENT_WEEK_TTL_MS = 5 * 60 * 1000;
-const closedMonthCache = createTtlCache<string, ClosedPeriodEntry>({
-	ttlMs: CURRENT_MONTH_TTL_MS,
-	isFresh: (key, value, now) =>
-		!key.endsWith(`:${getCurrentMonthKey()}`) ||
-		now - value.at < CURRENT_MONTH_TTL_MS,
-});
-const closedDayCache = createTtlCache<string, ClosedPeriodEntry>({
-	ttlMs: CURRENT_DAY_TTL_MS,
-	isFresh: (key, value, now) =>
-		!key.endsWith(`:${getTodayKey()}`) || now - value.at < CURRENT_DAY_TTL_MS,
-});
-const closedWeekCache = createTtlCache<string, ClosedPeriodEntry>({
-	ttlMs: CURRENT_WEEK_TTL_MS,
-	isFresh: (key, value, now) =>
-		!key.endsWith(`:${getWeekStartMonday(new Date())}`) ||
-		now - value.at < CURRENT_WEEK_TTL_MS,
-});
-const closedPoolsCache = new Map<
-	string,
-	{ data: readonly ClosedPoolWithIcons[]; at: number }
->();
-const CLOSED_POOLS_TTL_MS = 5 * 60 * 1000;
-
-const walletCache = new Map<string, { wallet: string; at: number }>();
-const WALLET_CACHE_TTL_MS = 5 * 60 * 1000;
-const criticalCache = new Map<
-	string,
-	{ data: PortfolioCritical; at: number }
->();
-const CRITICAL_CACHE_TTL_MS = 30 * 1000;
 
 function periodRangeFromOpts(opts?: {
 	month?: string;
@@ -273,7 +216,6 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 	>
 > {
 	return Effect.gen(function* () {
-		const now = Date.now();
 		const unique = new Map<string, T>();
 		for (const p of pools) {
 			if (!unique.has(p.poolAddress)) unique.set(p.poolAddress, p);
@@ -281,52 +223,46 @@ function enrichWithIcons<T extends { readonly poolAddress: string }>(
 		const uniquePools = [...unique.values()];
 		const fetched = new Map<
 			string,
-			{ x: string | null; y: string | null; mcap: number | null }
+			{
+				x: string | null;
+				y: string | null;
+				mcap: number | null;
+				price: number | null;
+			}
 		>();
 		yield* Effect.forEach(
 			uniquePools,
 			(pool) =>
 				Effect.gen(function* () {
-					const cached = iconCache.get(pool.poolAddress);
-					if (cached && now - cached.at < ICON_CACHE_TTL_MS) {
-						fetched.set(pool.poolAddress, {
-							x: cached.x ?? null,
-							y: cached.y ?? null,
-							mcap: cached.mcap ?? null,
-						});
-						return;
-					}
 					const discovery = yield* api
 						.discoveryPoolByAddress(pool.poolAddress)
 						.pipe(Effect.either);
 					if (discovery._tag === "Left") {
-						fetched.set(pool.poolAddress, { x: null, y: null, mcap: null });
+						fetched.set(pool.poolAddress, {
+							x: null,
+							y: null,
+							mcap: null,
+							price: null,
+						});
 						return;
 					}
 					const d = discovery.right;
 					const snapshotMcap = d.token_x?.market_cap ?? null;
 					const snapshotPrice = d.token_x?.price ?? null;
-					iconCache.set(pool.poolAddress, {
-						x: d.token_x?.icon ?? undefined,
-						y: d.token_y?.icon ?? undefined,
-						mcap: snapshotMcap,
-						price: snapshotPrice,
-						at: now,
-					});
 					fetched.set(pool.poolAddress, {
 						x: d.token_x?.icon ?? null,
 						y: d.token_y?.icon ?? null,
 						mcap: snapshotMcap,
+						price: snapshotPrice,
 					});
 				}),
 			{ concurrency: 3 },
 		);
 		return pools.map((pool) => {
 			const poolPrice = (pool as { poolPrice?: number }).poolPrice ?? null;
-			const cached = iconCache.get(pool.poolAddress);
 			const entry = fetched.get(pool.poolAddress);
-			const baseMcap = entry?.mcap ?? cached?.mcap ?? null;
-			const basePrice = cached?.price ?? null;
+			const baseMcap = entry?.mcap ?? null;
+			const basePrice = entry?.price ?? null;
 			return {
 				...pool,
 				tokenXIcon: entry?.x ?? null,
@@ -361,7 +297,7 @@ export interface PortfolioDeferred {
 function fetchClosedPositionsUncached(
 	wallet: string,
 	periodRange: { start: number; end: number } | null,
-): Promise<ClosedPeriodEntry> {
+): Promise<readonly PositionPnLData[]> {
 	const fetchPositionsForPools = (
 		pools: readonly ClosedPool[],
 		api: MeteoraApiService,
@@ -443,40 +379,15 @@ function fetchClosedPositionsUncached(
 		Effect.provide(AppLayer),
 		Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
 	);
-	return Effect.runPromise(program).then((res) => ({
-		data: res,
-		at: Date.now(),
-	}));
+	return Effect.runPromise(program);
 }
 
 export function fetchClosedPositions(
 	wallet: string,
 	opts?: { month?: string; day?: string; week?: string },
 ): Promise<readonly PositionPnLData[]> {
-	const cacheKey = (() => {
-		if (opts?.day) return `day:${wallet}:${opts.day}`;
-		if (opts?.week) {
-			const n = normalizeWeekKey(opts.week);
-			return n ? `week:${wallet}:${n}` : `week:${wallet}:${opts.week}`;
-		}
-		if (opts?.month) return `month:${wallet}:${opts.month}`;
-		return null;
-	})();
 	const periodRange = periodRangeFromOpts(opts);
-	const cache = opts?.day
-		? closedDayCache
-		: opts?.week
-			? closedWeekCache
-			: opts?.month
-				? closedMonthCache
-				: null;
-	if (cacheKey === null || cache === null)
-		return fetchClosedPositionsUncached(wallet, periodRange).then(
-			(entry) => entry.data,
-		);
-	return cache
-		.load(cacheKey, () => fetchClosedPositionsUncached(wallet, periodRange))
-		.then((entry) => entry.data);
+	return fetchClosedPositionsUncached(wallet, periodRange);
 }
 
 export async function resolveWalletFromRequest(
@@ -488,45 +399,21 @@ export async function resolveWalletFromRequest(
 		if (trimmed.length > 44 || !isValidSolanaAddress(trimmed)) {
 			throw Object.assign(new Error("invalid wallet"), { status: 400 });
 		}
-		if (walletCache.size >= 100 && !walletCache.has(trimmed)) {
-			const firstKey = walletCache.keys().next().value;
-			if (firstKey) walletCache.delete(firstKey);
-		}
 		return trimmed;
 	}
-	const cached = walletCache.get("default");
-	if (cached && Date.now() - cached.at < WALLET_CACHE_TTL_MS)
-		return cached.wallet;
-	const critical = await fetchPortfolioCriticalCached();
+	const critical = await fetchPortfolioCritical();
 	if (!critical.ok) throw new Error(critical.error);
-	walletCache.set("default", { wallet: critical.wallet, at: Date.now() });
 	return critical.wallet;
 }
 export function fetchPortfolioCriticalCached(): Promise<
 	PortfolioCritical | { ok: false; error: string; solPrice: null }
 > {
-	const cached = criticalCache.get("default");
-	if (cached && Date.now() - cached.at < CRITICAL_CACHE_TTL_MS) {
-		return Promise.resolve(cached.data);
-	}
-	return fetchPortfolioCritical().then((res) => {
-		if ((res as PortfolioCritical).ok) {
-			criticalCache.set("default", {
-				data: res as PortfolioCritical,
-				at: Date.now(),
-			});
-		}
-		return res;
-	});
+	return fetchPortfolioCritical();
 }
 
 export function fetchAllClosedPools(
 	wallet: string,
 ): Promise<readonly ClosedPoolWithIcons[]> {
-	const cached = closedPoolsCache.get(wallet);
-	if (cached && Date.now() - cached.at < CLOSED_POOLS_TTL_MS) {
-		return Promise.resolve(cached.data);
-	}
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
 		const closedRes = yield* api
@@ -555,15 +442,7 @@ export function fetchAllClosedPools(
 		Effect.provide(AppLayer),
 		Effect.catchAll(() => Effect.succeed([] as ClosedPoolWithIcons[])),
 	);
-	const promise = Effect.runPromise(program).then((res) => {
-		if (closedPoolsCache.size >= 100 && !closedPoolsCache.has(wallet)) {
-			const firstKey = closedPoolsCache.keys().next().value;
-			if (firstKey) closedPoolsCache.delete(firstKey);
-		}
-		closedPoolsCache.set(wallet, { data: res, at: Date.now() });
-		return res;
-	});
-	return promise;
+	return Effect.runPromise(program);
 }
 
 function attachLivePositions(
@@ -886,11 +765,7 @@ type OpenRanges = Record<
 	{ minPrice: string; maxPrice: string; poolActivePrice: string }[]
 >;
 
-const OPEN_RANGES_TTL_MS = 60 * 1000;
 const POOLS_PARAM_CAP = 20;
-const openRangesCache = createTtlCache<string, OpenRanges>({
-	ttlMs: OPEN_RANGES_TTL_MS,
-});
 
 function fetchOpenRangesUncached(
 	poolAddresses: readonly string[],
@@ -932,11 +807,8 @@ export async function fetchOpenRanges(
 	poolAddresses?: readonly string[],
 ): Promise<OpenRanges> {
 	const capped = (poolAddresses ?? []).slice(0, POOLS_PARAM_CAP);
-	const key = capped.length > 0 ? [...capped].sort().join(",") : "all";
 	try {
-		return await openRangesCache.load(key, () =>
-			fetchOpenRangesUncached(capped),
-		);
+		return await fetchOpenRangesUncached(capped);
 	} catch {
 		return {};
 	}

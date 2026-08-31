@@ -262,66 +262,77 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 					</div>
 				</CardHeader>
 				<CardContent className="pb-0">
-					<ChartContainer config={config} className="h-[300px] w-full">
-						<BarChart data={points}>
-							<CartesianGrid vertical={false} />
-							<XAxis
-								dataKey="label"
-								tickLine={false}
-								axisLine={false}
-								interval="preserveStartEnd"
-							/>
-							<YAxis tickLine={false} axisLine={false} />
-							<ChartTooltip
-								cursor={{ fill: "hsl(var(--muted) / 0.15)" }}
-								content={(props: {
-									active?: boolean;
-									payload?: ReadonlyArray<{ value?: unknown }>;
-									label?: unknown;
-								}) => {
-									const { active, payload, label } = props;
-									if (!active || !payload || payload.length === 0) return null;
-									const first = payload[0];
-									const rawUnknown = first.value;
-									if (typeof rawUnknown !== "number") return null;
-									const raw = rawUnknown;
-									const isPositive = raw >= 0;
-									const unit = currency === "sol" ? "SOL" : "USD";
-									const rowLabel = mode === "fees" ? "Fees" : "P&L";
-									const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(3)} ${unit}`;
-									const labelText =
-										typeof label === "string" ? label : String(label ?? "");
-									return (
-										<div className="min-w-[160px] rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-xs shadow-xl">
-											<div className="flex items-center justify-between gap-6">
-												<span className="text-zinc-400">Date</span>
-												<span className="font-medium text-white">
-													{labelText}
-												</span>
+					{points.length === 0 ? (
+						<div className="flex h-[300px] items-center justify-center text-sm text-muted-foreground">
+							No closed positions yet.
+						</div>
+					) : (
+						<ChartContainer config={config} className="h-[300px] w-full">
+							<BarChart data={points}>
+								<CartesianGrid vertical={false} />
+								<XAxis
+									dataKey="label"
+									tickLine={false}
+									axisLine={false}
+									interval="preserveStartEnd"
+								/>
+								<YAxis tickLine={false} axisLine={false} />
+								<ChartTooltip
+									cursor={{ fill: "hsl(var(--muted) / 0.15)" }}
+									content={(props: {
+										active?: boolean;
+										payload?: ReadonlyArray<{ value?: unknown }>;
+										label?: unknown;
+									}) => {
+										const { active, payload, label } = props;
+										if (!active || !payload || payload.length === 0)
+											return null;
+										const first = payload[0];
+										const rawUnknown = first.value;
+										if (typeof rawUnknown !== "number") return null;
+										const raw = rawUnknown;
+										const isPositive = raw >= 0;
+										const unit = currency === "sol" ? "SOL" : "USD";
+										const rowLabel = mode === "fees" ? "Fees" : "P&L";
+										const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(3)} ${unit}`;
+										const labelText =
+											typeof label === "string" ? label : String(label ?? "");
+										return (
+											<div className="min-w-[160px] rounded-lg border border-zinc-800 bg-zinc-900 px-3 py-2.5 text-xs shadow-xl">
+												<div className="flex items-center justify-between gap-6">
+													<span className="text-zinc-400">Date</span>
+													<span className="font-medium text-white">
+														{labelText}
+													</span>
+												</div>
+												<div className="mt-1 flex items-center justify-between gap-6">
+													<span className="text-zinc-400">{rowLabel}</span>
+													<span
+														className={`font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}
+													>
+														{formatted}
+													</span>
+												</div>
 											</div>
-											<div className="mt-1 flex items-center justify-between gap-6">
-												<span className="text-zinc-400">{rowLabel}</span>
-												<span
-													className={`font-medium ${isPositive ? "text-emerald-400" : "text-red-400"}`}
-												>
-													{formatted}
-												</span>
-											</div>
-										</div>
-									);
-								}}
-							/>
-							<ReferenceLine y={0} stroke="currentColor" strokeOpacity={0.5} />
-							<Bar dataKey="value" radius={[2, 2, 0, 0]}>
-								{points.map((p) => (
-									<Cell
-										key={p.key}
-										fill={p.value >= 0 ? "#10b981" : "#ef4444"}
-									/>
-								))}
-							</Bar>
-						</BarChart>
-					</ChartContainer>
+										);
+									}}
+								/>
+								<ReferenceLine
+									y={0}
+									stroke="currentColor"
+									strokeOpacity={0.5}
+								/>
+								<Bar dataKey="value" radius={[2, 2, 0, 0]}>
+									{points.map((p) => (
+										<Cell
+											key={p.key}
+											fill={p.value >= 0 ? "#10b981" : "#ef4444"}
+										/>
+									))}
+								</Bar>
+							</BarChart>
+						</ChartContainer>
+					)}
 				</CardContent>
 			</Card>
 			{shareOpen && (

@@ -18,7 +18,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 		const pools = await fetchAllClosedPools(wallet);
 		return Response.json(
 			{ ok: true, pools },
-			{ headers: { "Cache-Control": "public, max-age=300" } },
+			{ headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
 		);
 	} catch (e) {
 		return Response.json({ ok: false, error: String(e) }, { status: 500 });

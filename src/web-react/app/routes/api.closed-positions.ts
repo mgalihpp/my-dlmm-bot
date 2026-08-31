@@ -1,10 +1,4 @@
 import {
-	getCurrentMonthKey,
-	getTodayKey,
-	getWeekStartMonday,
-	normalizeWeekKey,
-} from "~/lib/server/period.server";
-import {
 	fetchClosedPositions,
 	resolveWalletFromRequest,
 } from "~/lib/server/portfolio.server";
@@ -62,19 +56,6 @@ export async function loader({ request }: Route.LoaderArgs) {
 					? { month }
 					: undefined;
 		const positions = await fetchClosedPositions(wallet, opts);
-		const curMonthKey = getCurrentMonthKey();
-		const curDayKey = getTodayKey();
-		const weekStart = getWeekStartMonday(new Date());
-		const weekNorm = week ? (normalizeWeekKey(week) ?? week) : null;
-		const isPast =
-			(month != null && month !== curMonthKey) ||
-			(day != null && day !== curDayKey) ||
-			(week != null && weekNorm !== weekStart);
-		const headers: Record<string, string> = isPast
-			? { "Cache-Control": "public, max-age=86400, immutable" }
-			: opts
-				? { "Cache-Control": "public, max-age=300" }
-				: { "Cache-Control": "public, max-age=60" };
 		return Response.json(
 			{
 				ok: true,
@@ -83,7 +64,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				day: day ?? null,
 				week: week ?? null,
 			},
-			{ headers },
+			{ headers: { "Cache-Control": "no-store, no-cache, must-revalidate" } },
 		);
 	} catch (e) {
 		return Response.json({ ok: false, error: String(e) }, { status: 500 });

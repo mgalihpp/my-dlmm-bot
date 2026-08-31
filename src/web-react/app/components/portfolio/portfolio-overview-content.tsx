@@ -1,6 +1,6 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
@@ -14,11 +14,7 @@ import {
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
-import {
-	selectMissingChartMonths,
-	selectMonthStatus,
-	useClosedMonthStore,
-} from "~/stores/closed-month-cache";
+import { useClosedMonthStore } from "~/stores/closed-month-cache";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
 import {
 	OverviewTopMetrics,
@@ -74,16 +70,8 @@ export function PortfolioOverviewContent({
 
 	const [month, setMonth] = useState(() => new Date());
 	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-	const currentMonthKey = useMemo(() => {
-		const now = new Date();
-		return `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
-	}, []);
 	const entries = useClosedMonthStore((s) => s.entries);
 	const setMonths = useClosedMonthStore((s) => s.setMonths);
-	const closedMonthState = useMemo(
-		() => ({ entries, setMonths }) as Parameters<typeof selectMonthStatus>[0],
-		[entries, setMonths],
-	);
 	const monthPositions = useMemo(
 		() => entries[monthKey]?.data ?? [],
 		[entries, monthKey],
@@ -101,23 +89,14 @@ export function PortfolioOverviewContent({
 		}
 		return months;
 	}, []);
-	const monthStatus = selectMonthStatus(
-		closedMonthState,
-		monthKey,
-		currentMonthKey,
-		Date.now(),
-	);
-	const missingMonths = selectMissingChartMonths(
-		closedMonthState,
-		chartMonths,
-		currentMonthKey,
-	);
 
+	const lastMonthFetchRef = useRef<string | null>(null);
 	useEffect(() => {
-		if (monthStatus === "fresh") return;
 		if (monthFetcherState !== "idle") return;
+		if (lastMonthFetchRef.current === monthKey) return;
+		lastMonthFetchRef.current = monthKey;
 		monthFetcher.load(`/api/closed-positions?month=${monthKey}`);
-	}, [monthStatus, monthFetcherState, monthKey, monthFetcher.load]);
+	}, [monthKey, monthFetcherState, monthFetcher.load]);
 
 	useEffect(() => {
 		const d = monthFetcherData;
@@ -126,12 +105,10 @@ export function PortfolioOverviewContent({
 	}, [monthFetcherData, monthKey, setMonths]);
 
 	useEffect(() => {
-		if (missingMonths === "") return;
-		const missing = missingMonths.split(",");
 		let cancelled = false;
 		void (async () => {
 			const results = await Promise.all(
-				missing.map((key) =>
+				chartMonths.map((key) =>
 					fetch(`/api/closed-positions?month=${key}`, {
 						credentials: "same-origin",
 					})
@@ -158,7 +135,7 @@ export function PortfolioOverviewContent({
 		return () => {
 			cancelled = true;
 		};
-	}, [missingMonths, setMonths]);
+	}, [chartMonths, setMonths]);
 
 	const chartAggregated = useMemo(
 		() => Object.values(entries).flatMap((entry) => entry.data),
@@ -312,13 +289,13 @@ export function PortfolioOverviewContent({
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						{chartHasData ? (
+						{topMetricsLoading ? (
+							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
+						) : (
 							<DailyPnlChart
 								closed={filteredChartPositions}
 								currency={currency}
 							/>
-						) : (
-							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
 						)}
 					</Suspense>
 				</div>
