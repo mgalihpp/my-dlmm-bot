@@ -79,7 +79,72 @@ export async function loader({ request }: Route.LoaderArgs): Promise<Response> {
 		upstream.status < 400 &&
 		upstream.headers.get("location")
 	) {
-		return new Response("redirect blocked", { status: 400 });
+		const location = upstream.headers.get("location") ?? "";
+		let nextUrl: URL;
+		try {
+			nextUrl = new URL(location, parsed.toString());
+		} catch {
+			return new Response("redirect blocked", { status: 400 });
+		}
+		if (nextUrl.protocol !== "https:" && nextUrl.protocol !== "http:") {
+			return new Response("redirect blocked", { status: 400 });
+		}
+		const nextHost = nextUrl.hostname.toLowerCase();
+		if (
+			nextHost === "localhost" ||
+			nextHost === "127.0.0.1" ||
+			nextHost === "::1" ||
+			nextHost.endsWith(".local") ||
+			nextHost.startsWith("10.") ||
+			nextHost.startsWith("192.168.") ||
+			nextHost.startsWith("172.16.") ||
+			nextHost.startsWith("172.17.") ||
+			nextHost.startsWith("172.18.") ||
+			nextHost.startsWith("172.19.") ||
+			nextHost.startsWith("172.20.") ||
+			nextHost.startsWith("172.21.") ||
+			nextHost.startsWith("172.22.") ||
+			nextHost.startsWith("172.23.") ||
+			nextHost.startsWith("172.24.") ||
+			nextHost.startsWith("172.25.") ||
+			nextHost.startsWith("172.26.") ||
+			nextHost.startsWith("172.27.") ||
+			nextHost.startsWith("172.28.") ||
+			nextHost.startsWith("172.29.") ||
+			nextHost.startsWith("172.30.") ||
+			nextHost.startsWith("172.31.") ||
+			nextHost.startsWith("169.254.") ||
+			nextHost.startsWith("100.64.") ||
+			nextHost.startsWith("100.65.") ||
+			nextHost.startsWith("100.66.") ||
+			nextHost.startsWith("0.")
+		) {
+			return new Response("redirect blocked", { status: 400 });
+		}
+		try {
+			await assertPublicHost(nextHost);
+		} catch {
+			return new Response("redirect blocked", { status: 400 });
+		}
+		try {
+			upstream = await fetch(nextUrl.toString(), {
+				headers: { accept: "image/*,*/*;q=0.8" },
+				signal: AbortSignal.timeout(4000),
+				redirect: "manual",
+			});
+		} catch {
+			return new Response(null, {
+				status: 204,
+				headers: { "Cache-Control": "public, max-age=60" },
+			});
+		}
+		if (
+			upstream.status >= 300 &&
+			upstream.status < 400 &&
+			upstream.headers.get("location")
+		) {
+			return new Response("redirect blocked", { status: 400 });
+		}
 	}
 	const length = upstream.headers.get("content-length");
 	if (length && Number(length) > 5 * 1024 * 1024) {
