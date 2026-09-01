@@ -158,6 +158,7 @@ function ClosedTableView({
 														usd={pool.totalDeposit}
 														sol={pool.totalDepositSol}
 														currency={currency}
+														solDecimals={4}
 													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
@@ -165,6 +166,7 @@ function ClosedTableView({
 														usd={pool.totalWithdrawal}
 														sol={pool.totalWithdrawalSol}
 														currency={currency}
+														solDecimals={4}
 													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
@@ -172,6 +174,7 @@ function ClosedTableView({
 														usd={pool.totalFee}
 														sol={pool.totalFeeSol}
 														currency={currency}
+														solDecimals={4}
 													/>
 												</TableCell>
 												<TableCell
@@ -184,6 +187,7 @@ function ClosedTableView({
 														usd={pool.pnlUsd}
 														sol={pool.pnlSol}
 														currency="usd"
+														solDecimals={4}
 													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pool.pnlPctChange)}
@@ -199,6 +203,7 @@ function ClosedTableView({
 														usd={pool.pnlUsd}
 														sol={pool.pnlSol}
 														currency="sol"
+														solDecimals={4}
 													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pool.pnlSolPctChange)}

@@ -156,6 +156,7 @@ export function PositionsTableBody({
 											usd={pool.balances}
 											currency={currency}
 											solPrice={solPrice}
+											solDecimals={4}
 										/>
 									</TableCell>
 									<TableCell className="tabular-nums">
@@ -163,6 +164,7 @@ export function PositionsTableBody({
 											usd={pool.unclaimedFees}
 											currency={currency}
 											solPrice={solPrice}
+											solDecimals={4}
 										/>
 									</TableCell>
 									<TableCell
@@ -173,6 +175,7 @@ export function PositionsTableBody({
 											sol={pool.pnlSol}
 											currency="usd"
 											solPrice={solPrice}
+											solDecimals={4}
 										/>
 										<div className="text-xs text-muted-foreground">
 											{fmtPct(parseFloat(pool.pnlPctChange))}
@@ -186,6 +189,7 @@ export function PositionsTableBody({
 											sol={pool.pnlSol}
 											currency="sol"
 											solPrice={solPrice}
+											solDecimals={4}
 										/>
 										<div className="text-xs text-muted-foreground">
 											{pool.pnlSolPctChange != null

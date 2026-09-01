@@ -24,6 +24,7 @@ import {
 	pair,
 	pnlClass,
 	pnlSign,
+	type SolDecimals,
 	shortAddr,
 	solscanAccountUrl,
 	solscanUrl,
@@ -281,16 +282,18 @@ export function PortfolioAmount({
 	sol,
 	currency,
 	solPrice,
+	solDecimals = 3,
 }: {
 	usd: string | number | null | undefined;
 	sol?: string | number | null;
 	currency: Currency;
 	solPrice: number | null;
+	solDecimals?: SolDecimals;
 }) {
 	const formatted =
 		sol != null
-			? fmtPnl(usd, sol, currency)
-			: fmtAmount(usd, currency, solPrice);
+			? fmtPnl(usd, sol, currency, solDecimals)
+			: fmtAmount(usd, currency, solPrice, solDecimals);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
 		<span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums">
@@ -334,6 +337,7 @@ export function PositionsCardDetail({
 						usd={pool.balances}
 						currency={currency}
 						solPrice={solPrice}
+						solDecimals={4}
 					/>
 				</div>
 				<div>
@@ -342,11 +346,17 @@ export function PositionsCardDetail({
 						usd={pool.unclaimedFees}
 						currency={currency}
 						solPrice={solPrice}
+						solDecimals={4}
 					/>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 					<p className="text-xs text-muted-foreground">PnL USD</p>
-					<PortfolioAmount usd={pool.pnl} currency="usd" solPrice={solPrice} />
+					<PortfolioAmount
+						usd={pool.pnl}
+						currency="usd"
+						solPrice={solPrice}
+						solDecimals={4}
+					/>
 					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlSol)))}>
@@ -356,6 +366,7 @@ export function PositionsCardDetail({
 						sol={pool.pnlSol}
 						currency="sol"
 						solPrice={solPrice}
+						solDecimals={4}
 					/>
 					<p className="text-xs text-muted-foreground">
 						{pnlSolPct !== null ? fmtPct(pnlSolPct) : "-"}

@@ -19,6 +19,7 @@ import {
 	fmtUsd,
 	pnlClass,
 	pnlSign,
+	type SolDecimals,
 	shortAddr,
 	solscanAccountUrl,
 	tsLocal,
@@ -37,14 +38,16 @@ export function PortfolioAmount({
 	usd,
 	sol,
 	currency,
+	solDecimals = 3,
 }: {
 	usd: string | number | null | undefined;
 	sol?: string | number | null;
 	currency: Currency;
+	solDecimals?: SolDecimals;
 }) {
 	const formatted =
 		sol != null
-			? fmtPnl(usd, sol, currency)
+			? fmtPnl(usd, sol, currency, solDecimals)
 			: currency === "usd"
 				? fmtUsd(usd)
 				: "-";
@@ -155,6 +158,7 @@ export function ClosedDetail({
 												usd={pos.allTimeDeposits.total.usd}
 												sol={pos.allTimeDeposits.total.sol}
 												currency={currency}
+												solDecimals={4}
 											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
@@ -162,6 +166,7 @@ export function ClosedDetail({
 												usd={pos.allTimeWithdrawals.total.usd}
 												sol={pos.allTimeWithdrawals.total.sol}
 												currency={currency}
+												solDecimals={4}
 											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
@@ -169,6 +174,7 @@ export function ClosedDetail({
 												usd={pos.allTimeFees.total.usd}
 												sol={pos.allTimeFees.total.sol}
 												currency={currency}
+												solDecimals={4}
 											/>
 										</TableCell>
 										<TableCell
@@ -186,6 +192,7 @@ export function ClosedDetail({
 												usd={pos.pnlSol}
 												sol={pnlSol}
 												currency="sol"
+												solDecimals={4}
 											/>
 											<div className="text-xs text-muted-foreground">
 												{fmtPct(pos.pnlSolPctChange ?? null)}
@@ -262,6 +269,7 @@ export function ClosedDetail({
 										usd={pos.allTimeDeposits.total.usd}
 										sol={pos.allTimeDeposits.total.sol}
 										currency={currency}
+										solDecimals={4}
 									/>
 								</div>
 								<div>
@@ -270,6 +278,7 @@ export function ClosedDetail({
 										usd={pos.allTimeWithdrawals.total.usd}
 										sol={pos.allTimeWithdrawals.total.sol}
 										currency={currency}
+										solDecimals={4}
 									/>
 								</div>
 								<div>
@@ -278,6 +287,7 @@ export function ClosedDetail({
 										usd={pos.allTimeFees.total.usd}
 										sol={pos.allTimeFees.total.sol}
 										currency={currency}
+										solDecimals={4}
 									/>
 								</div>
 								<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
@@ -293,6 +303,7 @@ export function ClosedDetail({
 										usd={pos.pnlSol}
 										sol={pnlSol}
 										currency="sol"
+										solDecimals={4}
 									/>
 									<p className="text-xs text-muted-foreground">
 										{fmtPct(pos.pnlSolPctChange ?? null)}

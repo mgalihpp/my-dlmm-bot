@@ -120,6 +120,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							usd={pool.totalDeposit}
 							sol={pool.totalDepositSol}
 							currency={currency}
+							solDecimals={4}
 						/>
 					</div>
 					<div>
@@ -128,6 +129,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							usd={pool.totalWithdrawal}
 							sol={pool.totalWithdrawalSol}
 							currency={currency}
+							solDecimals={4}
 						/>
 					</div>
 					<div>
@@ -136,6 +138,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							usd={pool.totalFee}
 							sol={pool.totalFeeSol}
 							currency={currency}
+							solDecimals={4}
 						/>
 					</div>
 				</div>
@@ -147,6 +150,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 								usd={pool.pnlUsd}
 								sol={pool.pnlSol}
 								currency="usd"
+								solDecimals={4}
 							/>
 						</span>
 						<p className="text-xs text-muted-foreground">
@@ -160,6 +164,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 								usd={pool.pnlUsd}
 								sol={pool.pnlSol}
 								currency="sol"
+								solDecimals={4}
 							/>
 						</span>
 						<p className="text-xs text-muted-foreground">

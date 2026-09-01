@@ -108,6 +108,7 @@ export function OpenPositionCard({
 							usd={pool.balances}
 							currency={currency}
 							solPrice={solPrice}
+							solDecimals={4}
 						/>
 					</div>
 					<div>
@@ -116,6 +117,7 @@ export function OpenPositionCard({
 							usd={pool.unclaimedFees}
 							currency={currency}
 							solPrice={solPrice}
+							solDecimals={4}
 						/>
 					</div>
 					<div>
@@ -133,6 +135,7 @@ export function OpenPositionCard({
 								sol={pool.pnlSol}
 								currency={currency}
 								solPrice={solPrice}
+								solDecimals={4}
 							/>
 							<p className="text-xs text-muted-foreground">
 								{fmtPnlPct(pool.pnlPctChange, pool.pnlSolPctChange, currency)}
