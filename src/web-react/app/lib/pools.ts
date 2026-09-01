@@ -1,6 +1,6 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import type { ScreenResult } from "@vexis/lib/screening.js";
-import { fmtSol, fmtUsd } from "~/lib/format";
+import { fmtSol, fmtUsd, type SolDecimals } from "~/lib/format";
 
 export const TIMEFRAMES = [
 	"5m",
@@ -71,9 +71,10 @@ export function fmtAmount(
 	usd: string | number | null | undefined,
 	currency: Currency,
 	solPrice: number | null,
+	solDecimals: SolDecimals = 3,
 ): string {
 	const sol = toSol(usd, solPrice);
-	if (currency === "sol" && sol !== null) return fmtSol(sol);
+	if (currency === "sol" && sol !== null) return fmtSol(sol, solDecimals);
 	if (currency === "sol") return "-";
 	return fmtUsd(usd);
 }

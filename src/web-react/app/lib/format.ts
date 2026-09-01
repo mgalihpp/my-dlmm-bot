@@ -22,19 +22,25 @@ export function fmtPct(value: string | number | null | undefined): string {
 	return `${sign}${formatNum(n, 2)}%`;
 }
 
-export function fmtSol(value: string | number | null | undefined): string {
+export type SolDecimals = 3 | 4;
+
+export function fmtSol(
+	value: string | number | null | undefined,
+	decimals: SolDecimals = 3,
+): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return "-";
-	return `${formatNum(n, 3)} SOL`;
+	return `${formatNum(n, decimals)} SOL`;
 }
 
 export function fmtPnl(
 	usd: string | number | null | undefined,
 	sol: string | number | null | undefined,
 	currency: "usd" | "sol",
+	solDecimals: SolDecimals = 3,
 ): string {
-	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol);
+	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol, solDecimals);
 }
 
 export function fmtPnlPct(
