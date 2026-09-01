@@ -12,6 +12,7 @@ import {
 	SECRET_PATHS,
 	type SettingsPayload,
 } from "~/lib/settings";
+import { invalidatePoolsCache } from "./pools.server";
 
 export {
 	EDITABLE_FIELDS,
@@ -144,6 +145,9 @@ export function saveField(
 	const next = structuredClone(config);
 	setNested(next as Record<string, unknown>, field.path, value);
 	persist(next, configPath);
+	if (field.path === "pools" || field.path.startsWith("pools.")) {
+		invalidatePoolsCache();
+	}
 	return buildSettingsPayload(next, configPath, loadState(agentFile()));
 }
 
@@ -155,6 +159,9 @@ export function resetField(
 	const next = structuredClone(config);
 	setNested(next as Record<string, unknown>, field.path, null);
 	persist(next, configPath);
+	if (field.path === "pools" || field.path.startsWith("pools.")) {
+		invalidatePoolsCache();
+	}
 	return buildSettingsPayload(next, configPath, loadState(agentFile()));
 }
 

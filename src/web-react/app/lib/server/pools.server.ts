@@ -6,6 +6,7 @@ import {
 	HttpClientRequest,
 	HttpClientResponse,
 } from "@effect/platform";
+import type { PoolsConfig } from "@vexis/domain/config.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
 import { AppConfig } from "@vexis/services/Config.js";
@@ -68,6 +69,19 @@ const poolsCriticalCache = createTtlCache<string, PoolsPayload>({
 	ttlMs: POOLS_CRITICAL_TTL_MS,
 });
 
+export function poolsFingerprint(pools: PoolsConfig | undefined): string {
+	if (!pools || Object.keys(pools).length === 0) return "{}";
+	const sorted: Record<string, unknown> = {};
+	for (const k of Object.keys(pools).sort()) {
+		sorted[k] = (pools as Record<string, unknown>)[k];
+	}
+	return JSON.stringify(sorted);
+}
+
+export function invalidatePoolsCache(): void {
+	poolsCriticalCache.clear();
+}
+
 export function fetchPoolsCritical(
 	rawTimeframe: string | null,
 ): Promise<PoolsPayload> {
@@ -80,8 +94,9 @@ export function fetchPoolsCritical(
 			(TIMEFRAMES as readonly string[]).includes(rawTimeframe)
 				? rawTimeframe
 				: configured;
+		const cacheKey = `${timeframe}::${poolsFingerprint(current.pools)}`;
 		return yield* Effect.tryPromise(() =>
-			poolsCriticalCache.load(timeframe, () =>
+			poolsCriticalCache.load(cacheKey, () =>
 				Effect.runPromise(
 					Effect.gen(function* () {
 						const screening = yield* Screening;

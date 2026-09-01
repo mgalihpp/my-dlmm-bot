@@ -2,6 +2,8 @@ export interface TtlCache<K, V> {
 	get(key: K): V | undefined;
 	set(key: K, value: V): void;
 	load(key: K, fetcher: () => Promise<V>): Promise<V>;
+	delete(key: K): void;
+	clear(): void;
 }
 
 export function createTtlCache<K, V>(options: {
@@ -29,6 +31,14 @@ export function createTtlCache<K, V>(options: {
 				if (firstKey !== undefined) entries.delete(firstKey);
 			}
 			entries.set(key, { value, at: Date.now() });
+		},
+		delete(key) {
+			entries.delete(key);
+			inflight.delete(key);
+		},
+		clear() {
+			entries.clear();
+			inflight.clear();
 		},
 		load(key, fetcher) {
 			const entry = entries.get(key);

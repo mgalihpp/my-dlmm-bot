@@ -106,181 +106,179 @@ function ClosedTableView({
 						))}
 					</div>
 				) : (
-					<>
-						<div className="overflow-x-auto">
-							<Table>
-								<TableHeader className="bg-muted/50">
-									<TableRow>
-										<TableHead className="w-8" />
-										<TableHead>Pool</TableHead>
-										<TableHead>Deposit</TableHead>
-										<TableHead>Withdraw</TableHead>
-										<TableHead>Fees</TableHead>
-										<TableHead>PnL USD</TableHead>
-										<TableHead>PnL SOL</TableHead>
-										<TableHead>Closed</TableHead>
-										<TableHead>Action</TableHead>
-									</TableRow>
-								</TableHeader>
-								<TableBody>
-									{pools.map((pool) => {
-										const p = pair(pool.tokenX, pool.tokenY);
-										const pnlUsd = parseFloat(pool.pnlUsd);
-										const pnlSol = parseFloat(pool.pnlSol);
-										const isOpen = expanded === pool.poolAddress;
-										return (
-											<Fragment key={pool.poolAddress}>
-												<TableRow
-													className="cursor-pointer"
-													onClick={() =>
-														setExpanded(isOpen ? null : pool.poolAddress)
-													}
+					<div className="overflow-x-auto">
+						<Table>
+							<TableHeader className="bg-muted/50">
+								<TableRow>
+									<TableHead className="w-8" />
+									<TableHead>Pool</TableHead>
+									<TableHead>Deposit</TableHead>
+									<TableHead>Withdraw</TableHead>
+									<TableHead>Fees</TableHead>
+									<TableHead>PnL USD</TableHead>
+									<TableHead>PnL SOL</TableHead>
+									<TableHead>Closed</TableHead>
+									<TableHead>Action</TableHead>
+								</TableRow>
+							</TableHeader>
+							<TableBody>
+								{pools.map((pool) => {
+									const p = pair(pool.tokenX, pool.tokenY);
+									const pnlUsd = parseFloat(pool.pnlUsd);
+									const pnlSol = parseFloat(pool.pnlSol);
+									const isOpen = expanded === pool.poolAddress;
+									return (
+										<Fragment key={pool.poolAddress}>
+											<TableRow
+												className="cursor-pointer"
+												onClick={() =>
+													setExpanded(isOpen ? null : pool.poolAddress)
+												}
+											>
+												<TableCell>
+													<ChevronDownIcon
+														className={cn(
+															"size-4 text-muted-foreground transition-transform",
+															isOpen && "rotate-180",
+														)}
+													/>
+												</TableCell>
+												<TableCell>
+													<a
+														href={meteoraUrl(pool.poolAddress)}
+														target="_blank"
+														rel="noopener noreferrer"
+														className="font-medium hover:underline"
+													>
+														<ClosedPair pool={pool} />
+													</a>
+												</TableCell>
+												<TableCell className="tabular-nums">
+													<PortfolioAmount
+														usd={pool.totalDeposit}
+														sol={pool.totalDepositSol}
+														currency={currency}
+													/>
+												</TableCell>
+												<TableCell className="tabular-nums">
+													<PortfolioAmount
+														usd={pool.totalWithdrawal}
+														sol={pool.totalWithdrawalSol}
+														currency={currency}
+													/>
+												</TableCell>
+												<TableCell className="tabular-nums">
+													<PortfolioAmount
+														usd={pool.totalFee}
+														sol={pool.totalFeeSol}
+														currency={currency}
+													/>
+												</TableCell>
+												<TableCell
+													className={cn(
+														"tabular-nums",
+														pnlClass(pnlSign(pnlUsd)),
+													)}
 												>
-													<TableCell>
-														<ChevronDownIcon
-															className={cn(
-																"size-4 text-muted-foreground transition-transform",
-																isOpen && "rotate-180",
-															)}
-														/>
-													</TableCell>
-													<TableCell>
-														<a
-															href={meteoraUrl(pool.poolAddress)}
-															target="_blank"
-															rel="noopener noreferrer"
-															className="font-medium hover:underline"
-														>
-															<ClosedPair pool={pool} />
-														</a>
-													</TableCell>
-													<TableCell className="tabular-nums">
-														<PortfolioAmount
-															usd={pool.totalDeposit}
-															sol={pool.totalDepositSol}
-															currency={currency}
-														/>
-													</TableCell>
-													<TableCell className="tabular-nums">
-														<PortfolioAmount
-															usd={pool.totalWithdrawal}
-															sol={pool.totalWithdrawalSol}
-															currency={currency}
-														/>
-													</TableCell>
-													<TableCell className="tabular-nums">
-														<PortfolioAmount
-															usd={pool.totalFee}
-															sol={pool.totalFeeSol}
-															currency={currency}
-														/>
-													</TableCell>
-													<TableCell
-														className={cn(
-															"tabular-nums",
-															pnlClass(pnlSign(pnlUsd)),
-														)}
+													<PortfolioAmount
+														usd={pool.pnlUsd}
+														sol={pool.pnlSol}
+														currency="usd"
+													/>
+													<div className="text-xs text-muted-foreground">
+														{fmtPct(pool.pnlPctChange)}
+													</div>
+												</TableCell>
+												<TableCell
+													className={cn(
+														"tabular-nums",
+														pnlClass(pnlSign(pnlSol)),
+													)}
+												>
+													<PortfolioAmount
+														usd={pool.pnlUsd}
+														sol={pool.pnlSol}
+														currency="sol"
+													/>
+													<div className="text-xs text-muted-foreground">
+														{fmtPct(pool.pnlSolPctChange)}
+													</div>
+												</TableCell>
+												<TableCell className="text-xs text-muted-foreground">
+													{timeAgo(pool.lastClosedAt)}
+												</TableCell>
+												<TableCell onClick={(e) => e.stopPropagation()}>
+													<Button
+														variant="ghost"
+														size="sm"
+														className="h-7 px-2 text-xs"
+														onClick={(e) => {
+															e.stopPropagation();
+															setSharePool(pool);
+														}}
 													>
-														<PortfolioAmount
-															usd={pool.pnlUsd}
-															sol={pool.pnlSol}
-															currency="usd"
+														<ShareIcon className="size-3" />
+														Share
+													</Button>
+												</TableCell>
+											</TableRow>
+											{isOpen ? (
+												<TableRow>
+													<TableCell colSpan={9} className="bg-muted/20 p-0">
+														<ClosedDetail
+															pool={pool.poolAddress}
+															pairLabel={p}
+															currency={currency}
+															layout="table"
 														/>
-														<div className="text-xs text-muted-foreground">
-															{fmtPct(pool.pnlPctChange)}
-														</div>
-													</TableCell>
-													<TableCell
-														className={cn(
-															"tabular-nums",
-															pnlClass(pnlSign(pnlSol)),
-														)}
-													>
-														<PortfolioAmount
-															usd={pool.pnlUsd}
-															sol={pool.pnlSol}
-															currency="sol"
-														/>
-														<div className="text-xs text-muted-foreground">
-															{fmtPct(pool.pnlSolPctChange)}
-														</div>
-													</TableCell>
-													<TableCell className="text-xs text-muted-foreground">
-														{timeAgo(pool.lastClosedAt)}
-													</TableCell>
-													<TableCell onClick={(e) => e.stopPropagation()}>
-														<Button
-															variant="ghost"
-															size="sm"
-															className="h-7 px-2 text-xs"
-															onClick={(e) => {
-																e.stopPropagation();
-																setSharePool(pool);
-															}}
-														>
-															<ShareIcon className="size-3" />
-															Share
-														</Button>
 													</TableCell>
 												</TableRow>
-												{isOpen ? (
-													<TableRow>
-														<TableCell colSpan={9} className="bg-muted/20 p-0">
-															<ClosedDetail
-																pool={pool.poolAddress}
-																pairLabel={p}
-																currency={currency}
-																layout="table"
-															/>
-														</TableCell>
-													</TableRow>
-												) : null}
-											</Fragment>
-										);
-									})}
-								</TableBody>
-							</Table>
-						</div>
-						{sharePool ? (
-							<ClosedPnlShareDialog
-								open={!!sharePool}
-								onOpenChange={(o) => !o && setSharePool(null)}
-								pool={sharePool}
-								currency={currency}
-							/>
-						) : null}
-						{totalCount > 0 ? (
-							<div className="flex items-center justify-between px-4 py-3">
-								<span className="text-sm text-muted-foreground">
-									Showing {from}–{to} of {totalCount}
-								</span>
-								<div className="flex items-center gap-2">
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={page <= 1}
-										onClick={() => onPageChange(page - 1)}
-									>
-										<ChevronLeftIcon />
-										Prev
-									</Button>
-									<span className="text-sm tabular-nums">
-										Page {page} of {lastPage}
-									</span>
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={page >= lastPage}
-										onClick={() => onPageChange(page + 1)}
-									>
-										Next
-										<ChevronRightIcon />
-									</Button>
-								</div>
-							</div>
-						) : null}
-					</>
+											) : null}
+										</Fragment>
+									);
+								})}
+							</TableBody>
+						</Table>
+					</div>
 				)}
+				{totalCount > 0 ? (
+					<div className="flex items-center justify-between px-4 py-3">
+						<span className="text-sm text-muted-foreground">
+							Showing {from}–{to} of {totalCount}
+						</span>
+						<div className="flex items-center gap-2">
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page <= 1}
+								onClick={() => onPageChange(page - 1)}
+							>
+								<ChevronLeftIcon />
+								Prev
+							</Button>
+							<span className="text-sm tabular-nums">
+								Page {page} of {lastPage}
+							</span>
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={page >= lastPage}
+								onClick={() => onPageChange(page + 1)}
+							>
+								Next
+								<ChevronRightIcon />
+							</Button>
+						</div>
+					</div>
+				) : null}
+				{viewMode !== "card" && sharePool ? (
+					<ClosedPnlShareDialog
+						open={!!sharePool}
+						onOpenChange={(o) => !o && setSharePool(null)}
+						pool={sharePool}
+						currency={currency}
+					/>
+				) : null}
 			</CardContent>
 			<Sheet
 				open={selectedCard !== null}
