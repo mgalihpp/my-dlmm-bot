@@ -33,7 +33,7 @@ function HalfDonut({ wins, losses }: { wins: number; losses: number }) {
 	return (
 		<ChartContainer
 			config={config}
-			className="aspect-video h-14 w-24"
+			className="aspect-video h-14 w-24 overflow-visible [&_.recharts-wrapper]:overflow-visible"
 			style={
 				{
 					"--color-wins": "oklch(0.696 0.17 162.48)",
@@ -42,7 +42,11 @@ function HalfDonut({ wins, losses }: { wins: number; losses: number }) {
 			}
 		>
 			<PieChart>
-				<ChartTooltip content={<ChartTooltipContent hideLabel />} />
+				<ChartTooltip
+					content={<ChartTooltipContent hideLabel />}
+					allowEscapeViewBox={{ x: true, y: true }}
+					wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+				/>
 				<Pie
 					data={data}
 					cx="50%"
@@ -81,7 +85,7 @@ function FullDonut({
 	return (
 		<ChartContainer
 			config={config}
-			className="aspect-square h-16"
+			className="aspect-square h-16 overflow-visible [&_.recharts-wrapper]:overflow-visible"
 			style={
 				{
 					"--color-grossProfit": "oklch(0.696 0.17 162.48)",
@@ -90,7 +94,11 @@ function FullDonut({
 			}
 		>
 			<PieChart>
-				<ChartTooltip content={<ChartTooltipContent hideLabel />} />
+				<ChartTooltip
+					content={<ChartTooltipContent hideLabel />}
+					allowEscapeViewBox={{ x: true, y: true }}
+					wrapperStyle={{ zIndex: 50, pointerEvents: "none" }}
+				/>
 				<Pie
 					data={data}
 					cx="50%"
@@ -281,7 +289,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 				</CardContent>
 			</Card>
 
-			<Card data-size="sm" className="py-3">
+			<Card data-size="sm" className="overflow-visible py-3">
 				<CardContent className="grid h-full grid-cols-2 gap-2">
 					<div className="flex flex-col justify-center gap-1">
 						<div className="flex items-center gap-1.5">
@@ -318,7 +326,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 				</CardContent>
 			</Card>
 
-			<Card data-size="sm" className="py-3">
+			<Card data-size="sm" className="overflow-visible py-3">
 				<CardContent className="grid h-full grid-cols-2 gap-2">
 					<div className="flex flex-col justify-center gap-1">
 						<div className="flex items-center gap-1.5">
@@ -359,7 +367,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 				</CardContent>
 			</Card>
 
-			<Card data-size="sm" className="py-3">
+			<Card data-size="sm" className="overflow-visible py-3">
 				<CardContent className="grid h-full grid-cols-2 gap-2">
 					<div className="flex flex-col justify-center gap-1">
 						<div className="flex items-center gap-1.5">
