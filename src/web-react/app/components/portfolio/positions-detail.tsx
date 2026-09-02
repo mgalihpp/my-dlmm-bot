@@ -116,7 +116,10 @@ export function CloseConfirmPopover({
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger asChild>{children}</PopoverTrigger>
-			<PopoverContent side={side}>
+			<PopoverContent
+				side={side}
+				onClick={(e) => e.stopPropagation()}
+			>
 				<div className="space-y-1">
 					<h3 className="text-sm font-semibold">Close &amp; Zap Out</h3>
 					<p className="text-sm text-muted-foreground">
