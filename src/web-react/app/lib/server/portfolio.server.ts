@@ -87,11 +87,48 @@ export function dedupeClosedPools(pools: readonly ClosedPool[]): ClosedPool[] {
 	return out;
 }
 
-function fetchAllClosedPoolPages(
+const CLOSED_POOL_LIST_TTL_MS = 5 * 60 * 1000;
+const closedPoolListCache = createTtlCache<
+	string,
+	{ pools: ClosedPool[]; totalCount: number }
+>({ ttlMs: CLOSED_POOL_LIST_TTL_MS });
+
+const CLOSED_POOL_POSITIONS_TTL_MS = 24 * 60 * 60 * 1000;
+const closedPoolPositionsCache = createTtlCache<string, PositionPnLData[]>({
+	ttlMs: CLOSED_POOL_POSITIONS_TTL_MS,
+	maxEntries: 500,
+});
+
+export function closedPoolPositionsCacheKey(
+	wallet: string,
+	poolAddress: string,
+): string {
+	return `${wallet}:${poolAddress}`;
+}
+
+export function startOfTodayUtcSec(nowMs = Date.now()): number {
+	const d = new Date(nowMs);
+	return Math.floor(
+		Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) / 1000,
+	);
+}
+
+/**
+ * A range is immutable when it ends before today (UTC): new closes always
+ * land at ~now, so cached closed positions stay correct for such ranges.
+ */
+export function isImmutableRange(
+	range: { start: number; end: number } | null,
+	nowMs = Date.now(),
+): boolean {
+	return range !== null && range.end <= startOfTodayUtcSec(nowMs);
+}
+
+function fetchAllClosedPoolPagesUncached(
 	api: MeteoraApiService,
 	wallet: string,
-): Effect.Effect<{ pools: ClosedPool[]; totalCount: number }> {
-	return Effect.gen(function* () {
+): Promise<{ pools: ClosedPool[]; totalCount: number }> {
+	const program = Effect.gen(function* () {
 		const closedRes = yield* api
 			.closedPortfolio(wallet, 1, 10)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
@@ -112,40 +149,69 @@ function fetchAllClosedPoolPages(
 			totalCount: closedRes.totalCount,
 		};
 	});
+	return Effect.runPromise(program);
+}
+
+function fetchAllClosedPoolPages(
+	api: MeteoraApiService,
+	wallet: string,
+): Effect.Effect<{ pools: ClosedPool[]; totalCount: number }> {
+	return Effect.promise(() =>
+		closedPoolListCache.load(wallet, () =>
+			fetchAllClosedPoolPagesUncached(api, wallet),
+		),
+	);
+}
+
+function fetchOneClosedPoolPositions(
+	pool: Pick<ClosedPool, "poolAddress">,
+	api: MeteoraApiService,
+	w: string,
+): Effect.Effect<PositionPnLData[]> {
+	return api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
+		Effect.flatMap((res) => {
+			const first = (res.positions as PositionPnLData[]).filter(
+				(p) => p.isClosed && p.closedAt != null,
+			);
+			if (!res.hasNext) return Effect.succeed(first);
+			const remaining = Math.ceil(res.totalCount / 100) - 1;
+			if (remaining <= 0) return Effect.succeed(first);
+			const pageEffects = Array.from({ length: remaining }, (_, i) =>
+				api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
+					Effect.map((r) =>
+						(r.positions as PositionPnLData[]).filter(
+							(p) => p.isClosed && p.closedAt != null,
+						),
+					),
+					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+				),
+			);
+			return Effect.all(pageEffects, { concurrency: 3 }).pipe(
+				Effect.map((pg) => [...first, ...pg.flat()]),
+			);
+		}),
+		Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+	);
 }
 
 function fetchPositionsForClosedPools(
 	pools: readonly ClosedPool[],
 	api: MeteoraApiService,
 	w: string,
+	opts?: { useCache?: boolean },
 ): Effect.Effect<PositionPnLData[]> {
 	return Effect.forEach(
 		pools,
 		(pool) =>
-			api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
-				Effect.flatMap((res) => {
-					const first = (res.positions as PositionPnLData[]).filter(
-						(p) => p.isClosed && p.closedAt != null,
-					);
-					if (!res.hasNext) return Effect.succeed(first);
-					const remaining = Math.ceil(res.totalCount / 100) - 1;
-					if (remaining <= 0) return Effect.succeed(first);
-					const pageEffects = Array.from({ length: remaining }, (_, i) =>
-						api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
-							Effect.map((r) =>
-								(r.positions as PositionPnLData[]).filter(
-									(p) => p.isClosed && p.closedAt != null,
-								),
-							),
-							Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+			opts?.useCache === true
+				? Effect.promise(() =>
+						closedPoolPositionsCache.load(
+							closedPoolPositionsCacheKey(w, pool.poolAddress),
+							() =>
+								Effect.runPromise(fetchOneClosedPoolPositions(pool, api, w)),
 						),
-					);
-					return Effect.all(pageEffects, { concurrency: 3 }).pipe(
-						Effect.map((pg) => [...first, ...pg.flat()]),
-					);
-				}),
-				Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-			),
+					)
+				: fetchOneClosedPoolPositions(pool, api, w),
 		{ concurrency: 5 },
 	).pipe(Effect.map((arr) => arr.flat() as PositionPnLData[]));
 }
@@ -413,16 +479,24 @@ export interface PortfolioDeferred {
 	readonly total: PortfolioTotal;
 }
 
-function fetchClosedPositionsUncached(
+export function fetchClosedPositionsCore(
+	api: MeteoraApiService,
 	wallet: string,
 	periodRange: { start: number; end: number } | null,
-): Promise<readonly PositionPnLData[]> {
-	const program = Effect.gen(function* () {
-		const api = yield* MeteoraApi;
+	usePositionsCache: boolean,
+): Effect.Effect<readonly PositionPnLData[]> {
+	return Effect.gen(function* () {
 		const { pools: rawPoolsAll } = yield* fetchAllClosedPoolPages(api, wallet);
 		if (rawPoolsAll.length === 0) return [] as PositionPnLData[];
 		if (!periodRange) {
-			const all = yield* fetchPositionsForClosedPools(rawPoolsAll, api, wallet);
+			const all = yield* fetchPositionsForClosedPools(
+				rawPoolsAll,
+				api,
+				wallet,
+				{
+					useCache: usePositionsCache,
+				},
+			);
 			return all;
 		}
 		const candidatePools = rawPoolsAll.filter((pool) => {
@@ -437,12 +511,28 @@ function fetchClosedPositionsUncached(
 			candidatePools,
 			api,
 			wallet,
+			{ useCache: usePositionsCache },
 		);
 		return allPositions.filter(
 			(p) =>
 				p.closedAt != null &&
 				p.closedAt >= periodRange.start &&
 				p.closedAt < periodRange.end,
+		);
+	});
+}
+
+function fetchClosedPositionsUncached(
+	wallet: string,
+	periodRange: { start: number; end: number } | null,
+): Promise<readonly PositionPnLData[]> {
+	const program = Effect.gen(function* () {
+		const api = yield* MeteoraApi;
+		return yield* fetchClosedPositionsCore(
+			api,
+			wallet,
+			periodRange,
+			isImmutableRange(periodRange),
 		);
 	}).pipe(
 		Effect.provide(AppLayer),
@@ -514,13 +604,14 @@ function bucketByMonth(
 	return map;
 }
 
-function fetchOverviewClosedUncached(
+export function fetchOverviewClosedCore(
+	api: MeteoraApiService,
 	wallet: string,
 	periodRange: { start: number; end: number } | null,
-	poolsOnly = false,
-): Promise<OverviewClosed> {
-	const program = Effect.gen(function* () {
-		const api = yield* MeteoraApi;
+	poolsOnly: boolean,
+	usePositionsCache: boolean,
+): Effect.Effect<OverviewClosed> {
+	return Effect.gen(function* () {
 		const { pools: rawPoolsAll, totalCount } = yield* fetchAllClosedPoolPages(
 			api,
 			wallet,
@@ -543,7 +634,14 @@ function fetchOverviewClosedUncached(
 			} satisfies OverviewClosed;
 		}
 		if (!periodRange) {
-			const all = yield* fetchPositionsForClosedPools(rawPoolsAll, api, wallet);
+			const all = yield* fetchPositionsForClosedPools(
+				rawPoolsAll,
+				api,
+				wallet,
+				{
+					useCache: usePositionsCache,
+				},
+			);
 			return {
 				pools: rawPoolsAll,
 				positions: all,
@@ -571,6 +669,7 @@ function fetchOverviewClosedUncached(
 			candidatePools,
 			api,
 			wallet,
+			{ useCache: usePositionsCache },
 		);
 		const filtered = allPositions.filter(
 			(p) =>
@@ -585,6 +684,23 @@ function fetchOverviewClosedUncached(
 			totalCount,
 			totalPositions: filtered.length,
 		} satisfies OverviewClosed;
+	});
+}
+
+function fetchOverviewClosedUncached(
+	wallet: string,
+	periodRange: { start: number; end: number } | null,
+	poolsOnly = false,
+): Promise<OverviewClosed> {
+	const program = Effect.gen(function* () {
+		const api = yield* MeteoraApi;
+		return yield* fetchOverviewClosedCore(
+			api,
+			wallet,
+			periodRange,
+			poolsOnly,
+			!poolsOnly && isImmutableRange(periodRange),
+		);
 	}).pipe(
 		Effect.provide(AppLayer),
 		Effect.catchAll(() =>
