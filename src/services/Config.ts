@@ -7,9 +7,49 @@ import { Context, Effect, Layer, Ref, Schema } from "effect";
 import type { CreatePreset, VexisConfig } from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
 
-export const VexisConfigSchema = Schema.Record({
-	key: Schema.String,
-	value: Schema.Unknown,
+const CreateRangeSchema = Schema.Struct({
+	type: Schema.optional(Schema.Literal("default", "bin", "pct")),
+	minBin: Schema.optional(Schema.Number),
+	maxBin: Schema.optional(Schema.Number),
+	minPct: Schema.optional(Schema.Number),
+	maxPct: Schema.optional(Schema.Number),
+});
+
+const CreateSchema = Schema.Struct({
+	strategy: Schema.optional(Schema.Literal("spot", "bidask", "curve")),
+	mode: Schema.optional(Schema.Literal("two-sided", "single-x", "single-y")),
+	range: Schema.optional(CreateRangeSchema),
+	amountPresets: Schema.optional(Schema.Array(Schema.Number)),
+	xAmount: Schema.optional(Schema.Number),
+	yAmount: Schema.optional(Schema.Number),
+	autoSwap: Schema.optional(Schema.Boolean),
+	slippageBps: Schema.optional(Schema.Number),
+});
+
+const WebSchema = Schema.Struct({
+	port: Schema.optional(Schema.Number),
+	password: Schema.optional(Schema.String),
+});
+
+export const VexisConfigSchema = Schema.Struct({
+	wallet: Schema.optional(Schema.String),
+	privateKey: Schema.optional(Schema.String),
+	rpcUrl: Schema.optional(Schema.String),
+	dev: Schema.optional(Schema.Boolean),
+	pageSize: Schema.optional(Schema.Number),
+	telegramBotToken: Schema.optional(Schema.String),
+	telegramChatId: Schema.optional(Schema.String),
+	alertInterval: Schema.optional(Schema.Number),
+	stopLossPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	takeProfitPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	create: Schema.optional(CreateSchema),
+	pools: Schema.optional(
+		Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+	),
+	agent: Schema.optional(
+		Schema.Record({ key: Schema.String, value: Schema.Unknown }),
+	),
+	web: Schema.optional(WebSchema),
 });
 
 export function decodeVexisConfig(raw: unknown): VexisConfig {
@@ -18,8 +58,24 @@ export function decodeVexisConfig(raw: unknown): VexisConfig {
 			`Invalid VexisConfig: expected object, got ${raw === null ? "null" : Array.isArray(raw) ? "array" : typeof raw}`,
 		);
 	}
-	const decoded = Schema.decodeUnknownSync(VexisConfigSchema)(raw);
-	return decoded as VexisConfig;
+	let decoded: VexisConfig;
+	try {
+		decoded = Schema.decodeUnknownSync(VexisConfigSchema)(raw) as VexisConfig;
+	} catch (e) {
+		throw new Error(
+			`Invalid VexisConfig: ${e instanceof Error ? e.message : String(e)}`,
+		);
+	}
+	const slippage = decoded.create?.slippageBps;
+	if (
+		slippage !== undefined &&
+		(!Number.isFinite(slippage) || slippage < 0 || slippage > 10_000)
+	) {
+		throw new Error(
+			`Invalid VexisConfig: create.slippageBps must be a number between 0 and 10000`,
+		);
+	}
+	return decoded;
 }
 
 function candidatePaths(): string[] {

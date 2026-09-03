@@ -27,7 +27,12 @@ import type {
 	StrategyType,
 } from "../domain/index.js";
 import { OnchainError, RpcError } from "../errors.js";
-import { atomicToHuman, pctToBinOffset, scaleAmount } from "../lib/math.js";
+import { atomicToHuman, pctToBinOffset } from "../lib/math.js";
+import {
+	assertValidPubkey,
+	bpsToSlippagePct,
+	parseHumanAmountStrict,
+} from "../lib/validation.js";
 import { Solana } from "./Solana.js";
 
 const INITIAL_POSITION_WIDTH = DEFAULT_BIN_PER_POSITION.toNumber();
@@ -37,6 +42,18 @@ const STRATEGY_MAP: Record<StrategyType, SdkStrategyType> = {
 	bidask: SdkStrategyType.BidAsk,
 	curve: SdkStrategyType.Curve,
 } as const;
+
+async function simulateThenSend(
+	connection: Connection,
+	tx: Transaction,
+	signers: Keypair[],
+): Promise<string> {
+	const sim = await connection.simulateTransaction(tx);
+	if (sim.value.err) {
+		throw new Error(`Simulation failed: ${JSON.stringify(sim.value.err)}`);
+	}
+	return sendAndConfirmTransaction(connection, tx, signers);
+}
 
 export interface RangePreview {
 	activeBinId: number;
@@ -134,6 +151,7 @@ async function quotePositionCostImpl(
 	connection: Connection,
 	params: QuotePositionCostParams,
 ): Promise<PositionCostQuote> {
+	assertValidPubkey("poolAddress", params.poolAddress);
 	const dlmm = await DLMM.create(connection, new PublicKey(params.poolAddress));
 	const activeBin = await dlmm.getActiveBin();
 	const activeBinId = activeBin.binId;
@@ -172,6 +190,8 @@ async function createPositionImpl(
 	keypair: Keypair,
 	params: CreatePositionParams,
 ): Promise<CreatePositionResult> {
+	assertValidPubkey("poolAddress", params.poolAddress);
+	const slippage = bpsToSlippagePct(params.slippageBps ?? 100);
 	const dlmm = await DLMM.create(connection, new PublicKey(params.poolAddress));
 	const strategyType = STRATEGY_MAP[params.strategy];
 
@@ -185,10 +205,10 @@ async function createPositionImpl(
 	const binCount = maxBinId - minBinId + 1;
 
 	let totalXAmount = params.amountsAreHuman
-		? scaleAmount(params.totalXAmount, decimalsX)
+		? parseHumanAmountStrict(params.totalXAmount, decimalsX)
 		: new BN(params.totalXAmount);
 	let totalYAmount = params.amountsAreHuman
-		? scaleAmount(params.totalYAmount, decimalsY)
+		? parseHumanAmountStrict(params.totalYAmount, decimalsY)
 		: new BN(params.totalYAmount);
 
 	if (params.autoFill) {
@@ -232,9 +252,9 @@ async function createPositionImpl(
 				singleSidedX: params.singleSidedX,
 			},
 			user: keypair.publicKey,
-			slippage: 1,
+			slippage,
 		});
-		const sig = await sendAndConfirmTransaction(connection, tx, [
+		const sig = await simulateThenSend(connection, tx, [
 			keypair,
 			positionKeypair,
 		]);
@@ -320,10 +340,7 @@ async function createPositionImpl(
 		lastValidBlockHeight,
 	}).add(initPositionIx);
 	signatures.push(
-		await sendAndConfirmTransaction(connection, initTx, [
-			keypair,
-			positionKeypair,
-		]),
+		await simulateThenSend(connection, initTx, [keypair, positionKeypair]),
 	);
 
 	const expandLower = initMin - minBinId;
@@ -338,9 +355,7 @@ async function createPositionImpl(
 		);
 		if (txs) {
 			for (const tx of txs) {
-				signatures.push(
-					await sendAndConfirmTransaction(connection, tx, [keypair]),
-				);
+				signatures.push(await simulateThenSend(connection, tx, [keypair]));
 			}
 		}
 	}
@@ -353,9 +368,7 @@ async function createPositionImpl(
 		);
 		if (txs) {
 			for (const tx of txs) {
-				signatures.push(
-					await sendAndConfirmTransaction(connection, tx, [keypair]),
-				);
+				signatures.push(await simulateThenSend(connection, tx, [keypair]));
 			}
 		}
 	}
@@ -371,11 +384,9 @@ async function createPositionImpl(
 			singleSidedX: params.singleSidedX,
 		},
 		user: keypair.publicKey,
-		slippage: 1,
+		slippage,
 	});
-	signatures.push(
-		await sendAndConfirmTransaction(connection, addTx, [keypair]),
-	);
+	signatures.push(await simulateThenSend(connection, addTx, [keypair]));
 
 	return {
 		signatures,
@@ -390,6 +401,7 @@ async function fetchUserPositionsImpl(
 	connection: Connection,
 	wallet: string,
 ): Promise<UserPositionLive[]> {
+	assertValidPubkey("wallet", wallet);
 	const map = await DLMM.getAllLbPairPositionsByUser(
 		connection,
 		new PublicKey(wallet),
@@ -458,6 +470,7 @@ const make = Effect.gen(function* () {
 	const service: DlmmService = {
 		previewRange: (params) =>
 			onchain("previewRange", async (connection) => {
+				assertValidPubkey("poolAddress", params.poolAddress);
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -487,6 +500,8 @@ const make = Effect.gen(function* () {
 			onchain("createPosition", (c, k) => createPositionImpl(c, k, params)),
 		closePosition: (poolAddress, positionPubkey) =>
 			onchain("closePosition", async (connection, keypair) => {
+				assertValidPubkey("poolAddress", poolAddress);
+				assertValidPubkey("positionPubkey", positionPubkey);
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),
@@ -495,10 +510,13 @@ const make = Effect.gen(function* () {
 					owner: keypair.publicKey,
 					position: positionData,
 				});
-				return sendAndConfirmTransaction(connection, tx, [keypair]);
+				return simulateThenSend(connection, tx, [keypair]);
 			}),
 		addLiquidity: (params) =>
 			onchain("addLiquidity", async (connection, keypair) => {
+				assertValidPubkey("poolAddress", params.poolAddress);
+				assertValidPubkey("positionPubkey", params.positionPubkey);
+				const slippage = bpsToSlippagePct(params.slippageBps ?? 100);
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -508,10 +526,10 @@ const make = Effect.gen(function* () {
 				const decimalsX = dlmm.tokenX.mint.decimals;
 				const decimalsY = dlmm.tokenY.mint.decimals;
 				const totalXAmount = params.amountsAreHuman
-					? scaleAmount(params.totalXAmount, decimalsX)
+					? parseHumanAmountStrict(params.totalXAmount, decimalsX)
 					: new BN(params.totalXAmount);
 				const totalYAmount = params.amountsAreHuman
-					? scaleAmount(params.totalYAmount, decimalsY)
+					? parseHumanAmountStrict(params.totalYAmount, decimalsY)
 					: new BN(params.totalYAmount);
 
 				let minBinId = params.minBinId;
@@ -532,12 +550,14 @@ const make = Effect.gen(function* () {
 						maxBinId,
 					},
 					user: keypair.publicKey,
-					slippage: 1,
+					slippage,
 				});
-				return sendAndConfirmTransaction(connection, tx, [keypair]);
+				return simulateThenSend(connection, tx, [keypair]);
 			}),
 		removeLiquidity: (params) =>
 			onchain("removeLiquidity", async (connection, keypair) => {
+				assertValidPubkey("poolAddress", params.poolAddress);
+				assertValidPubkey("positionPubkey", params.positionPubkey);
 				const dlmm = await DLMM.create(
 					connection,
 					new PublicKey(params.poolAddress),
@@ -555,10 +575,16 @@ const make = Effect.gen(function* () {
 				});
 
 				if (txs.length === 0) throw new Error("No transactions generated");
-				return sendAndConfirmTransaction(connection, txs[0], [keypair]);
+				let sig = "";
+				for (const tx of txs) {
+					sig = await simulateThenSend(connection, tx, [keypair]);
+				}
+				return sig;
 			}),
 		claimFee: (poolAddress, positionPubkey) =>
 			onchain("claimFee", async (connection, keypair) => {
+				assertValidPubkey("poolAddress", poolAddress);
+				assertValidPubkey("positionPubkey", positionPubkey);
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),
@@ -568,10 +594,16 @@ const make = Effect.gen(function* () {
 					position: positionData,
 				});
 				if (txs.length === 0) throw new Error("No transactions generated");
-				return sendAndConfirmTransaction(connection, txs[0], [keypair]);
+				let sig = "";
+				for (const tx of txs) {
+					sig = await simulateThenSend(connection, tx, [keypair]);
+				}
+				return sig;
 			}),
 		claimReward: (poolAddress, positionPubkey) =>
 			onchain("claimReward", async (connection, keypair) => {
+				assertValidPubkey("poolAddress", poolAddress);
+				assertValidPubkey("positionPubkey", positionPubkey);
 				const dlmm = await DLMM.create(connection, new PublicKey(poolAddress));
 				const positionData = await dlmm.getPosition(
 					new PublicKey(positionPubkey),
@@ -581,7 +613,11 @@ const make = Effect.gen(function* () {
 					position: positionData,
 				});
 				if (txs.length === 0) throw new Error("No transactions generated");
-				return sendAndConfirmTransaction(connection, txs[0], [keypair]);
+				let sig = "";
+				for (const tx of txs) {
+					sig = await simulateThenSend(connection, tx, [keypair]);
+				}
+				return sig;
 			}),
 		fetchUserPositions,
 		attachLivePositions: (pools, wallet) =>

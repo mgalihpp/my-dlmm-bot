@@ -637,6 +637,7 @@ export function registerCreate(bot: Bot) {
 				amountsAreHuman: true,
 				singleSidedX,
 				singleSidedY,
+				slippageBps: PRESET.slippageBps,
 				...(isPctMode
 					? { minPct: state.minPct!, maxPct: state.maxPct! }
 					: {
@@ -1003,6 +1004,7 @@ async function executeSwapAndCreate(ctx: Context, wid: string, budget: number) {
 			amountsAreHuman: false,
 			singleSidedX: false,
 			autoFill: true,
+			slippageBps: PRESET.slippageBps,
 			...(state.isPctMode
 				? { minPct: state.minPct!, maxPct: state.maxPct! }
 				: {

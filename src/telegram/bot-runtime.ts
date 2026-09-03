@@ -156,9 +156,14 @@ export async function startBot(): Promise<BotRuntime | null> {
 		if (agentCfg.enabled) rtAgent.start();
 	} else {
 		registerDashboard(bot, null); // idle header fallback
+		console.warn(
+			"[bot] No chat ID configured. The bot answers any chat and secret editing is disabled. Set telegramChatId or TELEGRAM_CHAT_ID to lock it down.",
+		);
 	}
 
-	registerConfigEditor(bot);
+	if (chatId) {
+		registerConfigEditor(bot);
+	}
 
 	runtime.runPromise(
 		Effect.flatMap(AppConfig, (c) =>
@@ -218,7 +223,9 @@ export async function startBot(): Promise<BotRuntime | null> {
 
 	console.log(
 		"Bot started" +
-			(chatId ? ` (locked to chat ${chatId})` : " (open to all chats)"),
+			(chatId
+				? ` (locked to chat ${chatId})`
+				: " (OPEN to all chats — set telegramChatId to lock it down)"),
 	);
 	void bot.start().catch((e) => {
 		console.error("Bot polling error:", errorMessage(e));

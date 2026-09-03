@@ -20,7 +20,7 @@
 				"noNonNullAssertion": "off"
 			},
 			"suspicious": {
-				"noExplicitAny": "off",
+				"noExplicitAny": "error",
 				"noControlCharactersInRegex": "off",
 				"useIterableCallbackReturn": "off",
 				"noImplicitAnyLet": "off"

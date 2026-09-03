@@ -377,9 +377,6 @@ const make = Effect.gen(function* () {
 							transactions.push(tx);
 						}
 
-						if (claimSig)
-							await connection.confirmTransaction(claimSig, "confirmed");
-
 						const [balXAfter, balYAfter] = await Promise.all([
 							getWalletTokenBalance(connection, keypair.publicKey, tokenX),
 							getWalletTokenBalance(connection, keypair.publicKey, tokenY),
@@ -457,9 +454,6 @@ const make = Effect.gen(function* () {
 							]);
 							transactions.push(tx);
 						}
-
-						if (closeSig)
-							await connection.confirmTransaction(closeSig, "confirmed");
 
 						const [balXAfter, balYAfter] = await Promise.all([
 							getWalletTokenBalance(connection, keypair.publicKey, tokenX),
