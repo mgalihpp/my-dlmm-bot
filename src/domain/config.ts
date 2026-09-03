@@ -65,8 +65,8 @@ export interface CreateConfig {
 		maxPct?: number;
 	};
 	amountPresets?: number[];
-	xAmount?: number;
-	yAmount?: number;
+	xAmount?: number | null;
+	yAmount?: number | null;
 	autoSwap?: boolean;
 	slippageBps?: number;
 }
@@ -127,7 +127,7 @@ export interface AgentConfig {
 }
 
 export interface WebConfig {
-	port?: number;
+	port?: number | null;
 	password?: string;
 }
 
@@ -136,10 +136,10 @@ export interface VexisConfig {
 	privateKey?: string;
 	rpcUrl?: string;
 	dev?: boolean;
-	pageSize?: number;
+	pageSize?: number | null;
 	telegramBotToken?: string;
 	telegramChatId?: string;
-	alertInterval?: number;
+	alertInterval?: number | null;
 	stopLossPct?: number | null;
 	takeProfitPct?: number | null;
 	create?: CreateConfig;
@@ -159,8 +159,8 @@ export interface CreatePreset {
 		maxPct?: number;
 	};
 	amountPresets: number[];
-	xAmount?: number;
-	yAmount?: number;
+	xAmount?: number | null;
+	yAmount?: number | null;
 	autoSwap: boolean;
 	slippageBps: number;
 }

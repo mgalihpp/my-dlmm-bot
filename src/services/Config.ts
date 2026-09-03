@@ -20,14 +20,14 @@ const CreateSchema = Schema.Struct({
 	mode: Schema.optional(Schema.Literal("two-sided", "single-x", "single-y")),
 	range: Schema.optional(CreateRangeSchema),
 	amountPresets: Schema.optional(Schema.Array(Schema.Number)),
-	xAmount: Schema.optional(Schema.Number),
-	yAmount: Schema.optional(Schema.Number),
+	xAmount: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	yAmount: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	autoSwap: Schema.optional(Schema.Boolean),
 	slippageBps: Schema.optional(Schema.Number),
 });
 
 const WebSchema = Schema.Struct({
-	port: Schema.optional(Schema.Number),
+	port: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	password: Schema.optional(Schema.String),
 });
 
@@ -36,10 +36,10 @@ export const VexisConfigSchema = Schema.Struct({
 	privateKey: Schema.optional(Schema.String),
 	rpcUrl: Schema.optional(Schema.String),
 	dev: Schema.optional(Schema.Boolean),
-	pageSize: Schema.optional(Schema.Number),
+	pageSize: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	telegramBotToken: Schema.optional(Schema.String),
 	telegramChatId: Schema.optional(Schema.String),
-	alertInterval: Schema.optional(Schema.Number),
+	alertInterval: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	stopLossPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	takeProfitPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	create: Schema.optional(CreateSchema),
