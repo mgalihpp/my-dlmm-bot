@@ -261,6 +261,15 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 			: 50;
 	const grossProfit = isSol ? metrics.grossProfitSol : metrics.grossProfitUsd;
 	const grossLoss = isSol ? metrics.grossLossSol : metrics.grossLossUsd;
+	const isBounded = dateRange?.kind === "bounded";
+	const badgeCount =
+		!isBounded && positionCount != null
+			? positionCount
+			: metrics.totalClosed;
+	const badgeTitle =
+		!isBounded && positionCount != null && countBasis === "pools"
+			? `${positionCount} closed positions across ${metrics.totalClosed} pools`
+			: `${metrics.totalClosed} closed ${countBasis}`;
 
 	return (
 		<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
@@ -280,15 +289,18 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
 								Realized PnL from closed {countBasis} plus unrealized PnL from
-								open positions. Badge shows total closed {countBasis}
-								{countBasis === "pools" && positionCount != null
-									? ` across ${positionCount} positions`
+								open positions. Badge shows total closed positions
+								{countBasis === "pools"
+									? ` across ${metrics.totalClosed} aggregated pools`
 									: ""}
 								.
 							</TooltipContent>
 						</Tooltip>
-						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-							{metrics.totalClosed}
+						<span
+							className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+							title={badgeTitle}
+						>
+							{badgeCount}
 						</span>
 					</div>
 					<span className={`text-2xl font-bold ${netPnlColor}`}>
