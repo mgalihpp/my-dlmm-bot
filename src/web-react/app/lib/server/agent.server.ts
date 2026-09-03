@@ -5,11 +5,15 @@ import { loadConfigSync } from "@vexis/services/Config.js";
 import {
 	type AgentStats,
 	agentStats,
+	type BlockedBreakdown,
+	blockedBreakdown,
 	JOURNAL_PAGE_SIZE,
 	type JournalFilter,
 	journalRows,
 	paginate,
 	parseJournalFilter,
+	type ScoreSummary,
+	scoreSummary,
 	type TimelineGroup,
 	timelineGroups,
 } from "@vexis/shared/agent-journal.js";
@@ -43,6 +47,8 @@ export interface AgentPayload {
 	readonly filter?: JournalFilter;
 	readonly state?: AgentStateSummary;
 	readonly stats?: AgentStats;
+	readonly blocked?: BlockedBreakdown;
+	readonly scores?: ScoreSummary;
 	readonly narrative?: NarrativeResult;
 	readonly total?: number;
 	readonly page?: number;
@@ -62,9 +68,11 @@ export function buildAgentPayload(
 ): AgentPayload {
 	const filter = parseJournalFilter(rawAction);
 	const stats = agentStats(journal);
+	const blocked = blockedBreakdown(journal);
+	const scores = scoreSummary(journal);
 	const rows = journalRows(journal, filter);
 	const paged = paginate(rows, page, JOURNAL_PAGE_SIZE);
-	const chart = journal.slice(-12).map((entry) => ({
+	const chart = journal.slice(-30).map((entry) => ({
 		cycle: entry.cycle,
 		open: entry.candidates.filter(
 			(c) => c.action === "open" && c.execution === "ok",
@@ -92,6 +100,8 @@ export function buildAgentPayload(
 			cycle: state.cycle,
 		},
 		stats,
+		blocked,
+		scores,
 		narrative,
 		total: paged.total,
 		page: paged.page,

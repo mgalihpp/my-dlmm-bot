@@ -28,10 +28,11 @@ export function AgentPage() {
 			{isNavigating ? (
 				<PageSkeleton />
 			) : (
-				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
+				<div className="flex flex-col gap-3 py-4 md:gap-4 md:py-6">
 					<AgentHeader
 						onRefresh={revalidate}
 						refreshing={state === "loading"}
+						state={data.ok ? data.state : undefined}
 					/>
 
 					{!data.ok ? (

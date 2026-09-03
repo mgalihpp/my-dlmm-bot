@@ -7,17 +7,14 @@ import {
 	ChevronLeftIcon,
 	ChevronRightIcon,
 	ExternalLinkIcon,
+	ShieldXIcon,
 } from "lucide-react";
 import { Badge } from "~/components/ui/badge";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-} from "~/components/ui/tooltip";
 import { shortAddr, solscanUrl, tsLocal } from "~/lib/format";
+import { cn } from "~/lib/utils";
 
 const FILTER_TABS: { value: JournalFilter; label: string }[] = [
 	{ value: "all", label: "All" },
@@ -50,20 +47,33 @@ function actionVariant(
 
 function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
 	const blocked = candidate.guardrail === "blocked";
+	const failed = candidate.execution === "failed";
 	return (
-		<div className="flex flex-col gap-1 py-2 pl-2">
-			<div className="flex flex-wrap items-center gap-1.5">
-				<span className="text-sm font-medium">
+		<div
+			className={cn(
+				"rounded-md border px-3 py-2.5",
+				blocked
+					? "border-destructive/30 bg-destructive/[0.04]"
+					: "border-border/70 bg-card",
+			)}
+		>
+			<div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
+				<span className="text-sm font-semibold">
 					{candidate.poolName || candidate.pool}
 				</span>
 				<Badge variant={actionVariant(candidate.action)}>
 					{candidate.action}
 				</Badge>
-				<Badge variant={blocked ? "destructive" : "outline"}>
-					{blocked ? "BLOCKED" : "PASS"}
-				</Badge>
-				{candidate.execution === "failed" ? (
-					<Badge variant="destructive">FAILED</Badge>
+				{blocked ? (
+					<Badge variant="destructive" className="gap-1">
+						<ShieldXIcon />
+						Blocked
+					</Badge>
+				) : (
+					<Badge variant="outline">Pass</Badge>
+				)}
+				{failed ? (
+					<Badge variant="destructive">Exec failed</Badge>
 				) : candidate.execution === "ok" && candidate.txSignature ? (
 					<a
 						href={solscanUrl(candidate.txSignature)}
@@ -75,21 +85,21 @@ function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
 						<ExternalLinkIcon className="size-3" />
 					</a>
 				) : null}
+				{candidate.heuristicScore > 0 ? (
+					<span className="ml-auto font-mono text-xs text-muted-foreground tabular-nums">
+						score {candidate.heuristicScore}
+					</span>
+				) : null}
 			</div>
 			{candidate.rationale ? (
-				<Tooltip>
-					<TooltipTrigger asChild>
-						<p className="line-clamp-1 cursor-help text-xs text-muted-foreground">
-							{candidate.rationale}
-						</p>
-					</TooltipTrigger>
-					<TooltipContent className="max-w-sm">
-						{candidate.rationale}
-					</TooltipContent>
-				</Tooltip>
+				<p className="mt-1.5 line-clamp-2 text-[13px] leading-relaxed text-muted-foreground">
+					{candidate.rationale}
+				</p>
 			) : null}
 			{candidate.blockedReason ? (
-				<p className="text-xs text-destructive">{candidate.blockedReason}</p>
+				<p className="mt-1.5 border-l-2 border-destructive/50 pl-2 text-xs leading-relaxed text-destructive">
+					{candidate.blockedReason}
+				</p>
 			) : null}
 		</div>
 	);
@@ -115,16 +125,27 @@ export function DecisionJournal({
 	const from = total === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
 	const to = Math.min(page * PAGE_SIZE, total);
 	return (
-		<Card className="mx-4 lg:mx-6">
-			<CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3">
-				<div>
-					<CardTitle>Decision Journal</CardTitle>
-					<p className="text-sm text-muted-foreground">{total} entries</p>
+		<Card className="min-w-0 gap-0 overflow-hidden py-0">
+			<CardHeader className="gap-3 border-b py-4">
+				<div className="flex flex-wrap items-baseline justify-between gap-2">
+					<div>
+						<CardTitle className="text-sm">Decision journal</CardTitle>
+						<p className="text-xs text-muted-foreground">
+							{total} decision{total === 1 ? "" : "s"} · newest cycle first
+						</p>
+					</div>
+					<span className="font-mono text-xs text-muted-foreground tabular-nums">
+						{from}–{to} of {total}
+					</span>
 				</div>
 				<Tabs value={filter} onValueChange={onFilterChange}>
-					<TabsList>
+					<TabsList className="h-8 w-full justify-start gap-0.5 overflow-x-auto overflow-y-hidden [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
 						{FILTER_TABS.map((tab) => (
-							<TabsTrigger key={tab.value} value={tab.value}>
+							<TabsTrigger
+								key={tab.value}
+								value={tab.value}
+								className="shrink-0 flex-none px-3 text-xs"
+							>
 								{tab.label}
 							</TabsTrigger>
 						))}
@@ -133,58 +154,75 @@ export function DecisionJournal({
 			</CardHeader>
 			<CardContent className="px-0 pb-0">
 				{groups.length === 0 ? (
-					<div className="px-4 py-10 text-center text-sm text-muted-foreground">
-						No journal entries
-						{filter !== "all" ? ` matching filter "${filter}"` : ""}.
+					<div className="flex flex-col items-center gap-1 px-4 py-12 text-center">
+						<p className="text-sm font-medium">No journal entries</p>
+						<p className="text-xs text-muted-foreground">
+							{filter !== "all"
+								? `Nothing tagged "${filter}" on this page. Try All.`
+								: "Run the agent once and decisions land here."}
+						</p>
 					</div>
 				) : (
-					<div className="divide-y divide-border">
-						{groups.map((group) => (
-							<div key={group.cycle} className="px-4 py-2">
-								<div className="flex flex-wrap items-center gap-2 py-1">
-									<span className="font-mono text-xs font-semibold">
-										#{group.cycle}
-									</span>
-									{group.llmStatus === "failed" ? (
-										<Badge variant="destructive">LLM FAILED</Badge>
-									) : null}
-									<span className="text-xs text-muted-foreground">
-										{tsLocal(group.ts)}
-									</span>
-								</div>
-								<div className="border-l pl-3">
-									{group.rows.length === 0 ? (
-										<p className="py-2 text-xs text-muted-foreground">
-											No candidates
-										</p>
-									) : (
-										group.rows.map((row) =>
-											row.candidate === null ? (
-												<p
-													key={`${row.cycle}-empty`}
-													className="py-2 text-xs text-muted-foreground"
-												>
-													No candidates
-												</p>
-											) : (
-												<CandidateRow
-													key={`${row.cycle}-${row.candidate.pool}-${row.candidate.action}`}
-													candidate={row.candidate}
-												/>
-											),
-										)
-									)}
-								</div>
-							</div>
-						))}
-					</div>
+					<ol className="divide-y divide-border">
+						{groups.map((group) => {
+							const troubled =
+								group.llmStatus === "failed" ||
+								group.rows.some(
+									(r) =>
+										r.candidate?.guardrail === "blocked" ||
+										r.candidate?.execution === "failed",
+								);
+							return (
+								<li key={group.cycle} className="flex gap-3 px-4 py-3.5">
+									<div className="flex w-12 shrink-0 flex-col items-center">
+										<span
+											className={cn(
+												"flex size-2.5 rounded-full ring-4",
+												troubled
+													? "bg-destructive ring-destructive/10"
+													: "bg-emerald-500 ring-emerald-500/10",
+											)}
+										/>
+										<span className="mt-1.5 font-mono text-[11px] font-bold tabular-nums">
+											#{group.cycle}
+										</span>
+										<span className="max-w-full truncate text-[11px] text-muted-foreground">
+											{tsLocal(group.ts)}
+										</span>
+									</div>
+									<div className="min-w-0 flex-1 space-y-2">
+										{group.llmStatus === "failed" ? (
+											<Badge variant="destructive" className="w-fit">
+												LLM failed this cycle
+											</Badge>
+										) : null}
+										{group.rows.length === 0 ||
+										group.rows.every((r) => r.candidate === null) ? (
+											<p className="rounded-md border border-dashed px-3 py-2.5 text-xs text-muted-foreground">
+												No candidates this cycle. Agent scanned and stood down.
+											</p>
+										) : (
+											group.rows.map((row) =>
+												row.candidate === null ? null : (
+													<CandidateRow
+														key={`${row.cycle}-${row.candidate.pool}-${row.candidate.action}`}
+														candidate={row.candidate}
+													/>
+												),
+											)
+										)}
+									</div>
+								</li>
+							);
+						})}
+					</ol>
 				)}
 				{total > 0 ? (
-					<div className="flex items-center justify-between px-4 py-3">
-						<span className="text-sm text-muted-foreground">
-							Showing {from}–{to} of {total}
+					<div className="flex items-center justify-between gap-2 border-t px-4 py-2.5">
+						<span className="text-xs text-muted-foreground tabular-nums">
+							Page {page} of {pages}
 						</span>
-						<div className="flex items-center gap-2">
+						<div className="flex items-center gap-1.5">
 							<Button
 								variant="outline"
 								size="sm"
@@ -194,9 +232,6 @@ export function DecisionJournal({
 								<ChevronLeftIcon />
 								Prev
 							</Button>
-							<span className="text-sm tabular-nums">
-								Page {page} of {pages}
-							</span>
 							<Button
 								variant="outline"
 								size="sm"

@@ -1,12 +1,5 @@
 import type { AgentStats } from "@vexis/shared/agent-journal.js";
-import {
-	BanIcon,
-	CircleCheckBigIcon,
-	RefreshCwIcon,
-	ShieldAlertIcon,
-	TargetIcon,
-	TrophyIcon,
-} from "lucide-react";
+import { BanIcon, CircleCheckBigIcon, TargetIcon, ZapIcon } from "lucide-react";
 import {
 	Card,
 	CardDescription,
@@ -14,66 +7,67 @@ import {
 	CardHeader,
 	CardTitle,
 } from "~/components/ui/card";
-
-const ICONS = {
-	cycles: RefreshCwIcon,
-	opens: TrophyIcon,
-	blocked: BanIcon,
-	rate: TargetIcon,
-	tp: CircleCheckBigIcon,
-	sl: ShieldAlertIcon,
-};
+import { cn } from "~/lib/utils";
 
 export function StatCards({ stats }: { stats: AgentStats }) {
+	const exits = stats.tp + stats.sl + stats.closes;
 	const cards = [
 		{
-			key: "cycles",
-			label: "Cycles",
-			value: stats.cycles,
-			sub: `cycle ${stats.cycles}`,
-		},
-		{
-			key: "opens",
-			label: "Opens",
-			value: stats.opens,
-			sub: `${stats.successRate}% of decisions`,
+			key: "rate",
+			label: "Open rate",
+			value: `${stats.successRate}%`,
+			sub: `${stats.opens} opens · ${stats.holds} holds`,
+			Icon: TargetIcon,
+			accent: "text-sky-500",
 		},
 		{
 			key: "blocked",
-			label: "Blocked",
+			label: "Guardrail blocks",
 			value: stats.blocked,
-			sub: "guardrail prevented",
+			sub:
+				stats.failed > 0
+					? `${stats.failed} executions failed`
+					: "risk filter held the line",
+			Icon: BanIcon,
+			accent: stats.blocked > 0 ? "text-destructive" : "text-muted-foreground",
 		},
 		{
-			key: "rate",
-			label: "Success rate",
-			value: `${stats.successRate}%`,
-			sub: "open decision rate",
+			key: "exits",
+			label: "Exits secured",
+			value: exits,
+			sub: `${stats.tp} TP · ${stats.sl} SL · ${stats.closes} close`,
+			Icon: CircleCheckBigIcon,
+			accent: "text-emerald-500",
 		},
-		{ key: "tp", label: "Take profit", value: stats.tp, sub: "target hit" },
-		{ key: "sl", label: "Stop loss", value: stats.sl, sub: "risk cut" },
+		{
+			key: "cycles",
+			label: "Cycles scanned",
+			value: stats.cycles,
+			sub: "journal entries indexed",
+			Icon: ZapIcon,
+			accent: "text-muted-foreground",
+		},
 	];
 	return (
-		<div className="grid grid-cols-1 gap-4 px-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card *:data-[slot=card]:shadow-xs lg:px-6 @xl/main:grid-cols-2 @5xl/main:grid-cols-6 dark:*:data-[slot=card]:bg-card">
-			{cards.map((card) => {
-				const Icon = ICONS[card.key as keyof typeof ICONS];
-				return (
-					<Card key={card.key} className="@container/card">
-						<CardHeader>
-							<CardDescription className="flex items-center gap-1.5">
-								<Icon className="size-3.5" />
-								{card.label}
-							</CardDescription>
-							<CardTitle className="text-2xl font-semibold tabular-nums">
-								{card.value}
-							</CardTitle>
-						</CardHeader>
-						<CardFooter className="mt-auto">
-							<span className="text-xs text-muted-foreground">{card.sub}</span>
-						</CardFooter>
-					</Card>
-				);
-			})}
+		<div className="grid grid-cols-2 gap-3 px-4 lg:px-6 @4xl/main:grid-cols-4">
+			{cards.map((card) => (
+				<Card key={card.key} className="gap-1 py-4">
+					<CardHeader className="gap-0.5">
+						<CardDescription className="flex items-center gap-1.5 text-[11px] font-semibold tracking-[0.1em] uppercase">
+							<card.Icon className={cn("size-3.5", card.accent)} />
+							{card.label}
+						</CardDescription>
+						<CardTitle className="text-2xl font-bold tabular-nums md:text-[1.7rem]">
+							{card.value}
+						</CardTitle>
+					</CardHeader>
+					<CardFooter>
+						<span className="truncate text-xs text-muted-foreground">
+							{card.sub}
+						</span>
+					</CardFooter>
+				</Card>
+			))}
 		</div>
 	);
 }

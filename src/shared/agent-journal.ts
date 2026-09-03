@@ -172,3 +172,104 @@ export function paginate<T>(
 		pages,
 	};
 }
+
+export interface BlockedReasonGroup {
+	readonly reason: string;
+	readonly count: number;
+}
+
+export interface BlockedBreakdown {
+	readonly groups: readonly BlockedReasonGroup[];
+	readonly others: number;
+	readonly total: number;
+}
+
+/** Collapse free-form blocked reasons into stable buckets by masking numbers, timestamps, and trailing detail. */
+export function normalizeBlockedReason(reason: string): string {
+	const normalized = reason
+		.replace(/\d{4}-\d{2}-\d{2}T[^\s)]*/g, "#")
+		.replace(/\(.*\)$/, "")
+		.replace(/-?\d[\d.,]*%?/g, "#")
+		.replace(/\s+/g, " ")
+		.trim();
+	return normalized.length > 64 ? `${normalized.slice(0, 64)}…` : normalized;
+}
+
+export function blockedBreakdown(
+	entries: readonly AgentJournalEntry[],
+	topN = 5,
+): BlockedBreakdown {
+	const counts = new Map<string, number>();
+	let total = 0;
+	for (const entry of entries) {
+		for (const candidate of entry.candidates) {
+			if (candidate.guardrail !== "blocked") continue;
+			total += 1;
+			const key = normalizeBlockedReason(candidate.blockedReason ?? "unknown");
+			counts.set(key, (counts.get(key) ?? 0) + 1);
+		}
+	}
+	const sorted = [...counts.entries()]
+		.map(([reason, count]) => ({ reason, count }))
+		.sort((a, b) => b.count - a.count || (a.reason < b.reason ? -1 : 1));
+	return {
+		groups: sorted.slice(0, topN),
+		others: sorted.slice(topN).reduce((n, g) => n + g.count, 0),
+		total,
+	};
+}
+
+export interface ScoreBand {
+	readonly label: string;
+	readonly count: number;
+}
+
+export interface ScoreSummary {
+	readonly scored: number;
+	readonly avgOpen: number | null;
+	readonly avgHold: number | null;
+	readonly avgBlocked: number | null;
+	readonly bands: readonly ScoreBand[];
+}
+
+const SCORE_BANDS: { label: string; min: number; max: number }[] = [
+	{ label: "<50", min: Number.NEGATIVE_INFINITY, max: 49 },
+	{ label: "50–69", min: 50, max: 69 },
+	{ label: "70–84", min: 70, max: 84 },
+	{ label: "85+", min: 85, max: Number.POSITIVE_INFINITY },
+];
+
+function avg(values: number[]): number | null {
+	if (values.length === 0) return null;
+	return Math.round(values.reduce((n, v) => n + v, 0) / values.length);
+}
+
+/** Heuristic score signal: average score per outcome plus distribution bands. Scores of 0 mean unscored and are skipped, matching the journal UI. */
+export function scoreSummary(
+	entries: readonly AgentJournalEntry[],
+): ScoreSummary {
+	const opens: number[] = [];
+	const holds: number[] = [];
+	const blocked: number[] = [];
+	const bands = SCORE_BANDS.map((b) => ({ ...b, count: 0 }));
+	let scored = 0;
+	for (const entry of entries) {
+		for (const candidate of entry.candidates) {
+			const score = candidate.heuristicScore;
+			if (!(score > 0)) continue;
+			scored += 1;
+			if (candidate.guardrail === "blocked") blocked.push(score);
+			else if (candidate.action === "open") opens.push(score);
+			else if (candidate.action === "hold") holds.push(score);
+			const band = bands.find((b) => score >= b.min && score <= b.max);
+			if (band) band.count += 1;
+		}
+	}
+	return {
+		scored,
+		avgOpen: avg(opens),
+		avgHold: avg(holds),
+		avgBlocked: avg(blocked),
+		bands: bands.map(({ label, count }) => ({ label, count })),
+	};
+}

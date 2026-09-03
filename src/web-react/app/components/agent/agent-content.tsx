@@ -1,14 +1,9 @@
-import { lazy, Suspense } from "react";
-import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { AgentPayload } from "~/lib/server/agent.server";
+import { AnalyticsTabs } from "./analytics-tabs";
 import { DecisionJournal } from "./decision-journal";
 import { NarrativeCard } from "./narrative-card";
 import { StatCards } from "./stat-cards";
 import { StatusBanner } from "./status-banner";
-
-const CycleChart = lazy(() =>
-	import("./cycle-chart").then((m) => ({ default: m.CycleChart })),
-);
 
 export function AgentContent({
 	data,
@@ -23,21 +18,25 @@ export function AgentContent({
 		<>
 			<StatusBanner state={data.state!} />
 			<StatCards stats={data.stats!} />
-			<div className="grid grid-cols-1 gap-4 px-4 lg:px-6 @4xl/main:grid-cols-2">
-				<NarrativeCard narrative={data.narrative!} stats={data.stats!} />
-				<Suspense fallback={<ChartCardSkeleton blockClassName="h-64 w-full" />}>
-					<CycleChart data={data.chart!} />
-				</Suspense>
-			</div>
-			<DecisionJournal
-				filter={data.filter!}
-				page={data.page!}
-				pages={data.pages!}
-				total={data.total!}
-				groups={data.groups!}
-				onFilterChange={onFilterChange}
-				onPageChange={onPageChange}
+			<AnalyticsTabs
+				chart={data.chart!}
+				blocked={data.blocked!}
+				scores={data.scores!}
 			/>
+			<div className="grid grid-cols-1 items-start gap-3 px-4 lg:px-6 @4xl/main:grid-cols-[minmax(0,1fr)_340px]">
+				<DecisionJournal
+					filter={data.filter!}
+					page={data.page!}
+					pages={data.pages!}
+					total={data.total!}
+					groups={data.groups!}
+					onFilterChange={onFilterChange}
+					onPageChange={onPageChange}
+				/>
+				<aside className="min-w-0">
+					<NarrativeCard narrative={data.narrative!} stats={data.stats!} />
+				</aside>
+			</div>
 		</>
 	);
 }
