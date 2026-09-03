@@ -218,23 +218,17 @@ export function PortfolioOverviewContent({
 						)}
 					</div>
 					<div className="lg:col-span-2">
-						{monthLoading && monthPositions.length === 0 ? (
-							<ChartCardSkeleton blockClassName="h-[360px] w-full" />
-						) : (
-							<Suspense
-								fallback={
-									<ChartCardSkeleton blockClassName="h-[360px] w-full" />
-								}
-							>
-								<OverviewCalendar
-									closed={monthPositions}
-									currency={currency}
-									month={month}
-									onMonthChange={setMonth}
-									loading={detailFetcher.state !== "idle"}
-								/>
-							</Suspense>
-						)}
+						<Suspense
+							fallback={<ChartCardSkeleton blockClassName="h-[360px] w-full" />}
+						>
+							<OverviewCalendar
+								closed={monthPositions}
+								currency={currency}
+								month={month}
+								onMonthChange={setMonth}
+								loading={monthLoading}
+							/>
+						</Suspense>
 					</div>
 				</div>
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-2">

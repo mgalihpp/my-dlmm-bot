@@ -9,6 +9,7 @@ import {
 import { memo, useMemo, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
+import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
@@ -230,87 +231,105 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 							))}
 						</div>
 						<div className="grid auto-rows-fr">
-							{Array.from({ length: Math.ceil(cells.length / 7) }).map(
-								(_, row) => (
-									<div key={`row-${row}`} className="grid grid-cols-7">
-										{cells.slice(row * 7, row * 7 + 7).map((cell, idx) => {
-											if (cell.day == null) {
+							{loading ? (
+								<div
+									className="grid grid-cols-7"
+									role="status"
+									aria-busy="true"
+									aria-label="Loading calendar"
+								>
+									{cells.map((_, idx) => (
+										<div
+											key={`skeleton-${idx}`}
+											className="min-h-[70px] border-r border-b border-border/30 p-1.5"
+										>
+											<Skeleton className="h-full min-h-[58px] w-full" />
+										</div>
+									))}
+								</div>
+							) : (
+								Array.from({ length: Math.ceil(cells.length / 7) }).map(
+									(_, row) => (
+										<div key={`row-${row}`} className="grid grid-cols-7">
+											{cells.slice(row * 7, row * 7 + 7).map((cell, idx) => {
+												if (cell.day == null) {
+													return (
+														<div
+															key={`cell-${row}-${idx}`}
+															className="min-h-[70px] border-r border-b border-border/30 p-1.5"
+														/>
+													);
+												}
+												const hasData = cell.pnl != null;
+												const bg = !hasData
+													? ""
+													: cell.pnl! >= 0
+														? "bg-emerald-500/10"
+														: "bg-red-500/10";
+												const textColor = !hasData
+													? ""
+													: cell.pnl! >= 0
+														? "text-emerald-500"
+														: "text-red-500";
 												return (
 													<div
 														key={`cell-${row}-${idx}`}
-														className="min-h-[70px] border-r border-b border-border/30 p-1.5"
-													/>
-												);
-											}
-											const hasData = cell.pnl != null;
-											const bg = !hasData
-												? ""
-												: cell.pnl! >= 0
-													? "bg-emerald-500/10"
-													: "bg-red-500/10";
-											const textColor = !hasData
-												? ""
-												: cell.pnl! >= 0
-													? "text-emerald-500"
-													: "text-red-500";
-											return (
-												<div
-													key={`cell-${row}-${idx}`}
-													className={`group relative flex min-h-[70px] flex-col border-r border-b border-border/30 p-1.5 ${bg}`}
-												>
-													<div className="flex items-start justify-between gap-1">
-														<button
-															type="button"
-															aria-label={
-																hasData ? `Share ${cell.day}` : undefined
-															}
-															disabled={!hasData}
-															onClick={() => {
-																if (!hasData || cell.day == null) return;
-																setDailyDate(
-																	new Date(
-																		Date.UTC(
-																			month.getUTCFullYear(),
-																			month.getUTCMonth(),
-																			cell.day,
+														className={`group relative flex min-h-[70px] flex-col border-r border-b border-border/30 p-1.5 ${bg}`}
+													>
+														<div className="flex items-start justify-between gap-1">
+															<button
+																type="button"
+																aria-label={
+																	hasData ? `Share ${cell.day}` : undefined
+																}
+																disabled={!hasData}
+																onClick={() => {
+																	if (!hasData || cell.day == null) return;
+																	setDailyDate(
+																		new Date(
+																			Date.UTC(
+																				month.getUTCFullYear(),
+																				month.getUTCMonth(),
+																				cell.day,
+																			),
 																		),
-																	),
-																);
-															}}
-															className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
-														>
-															{hasData ? (
-																<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
-															) : null}
-														</button>
-														<span className="text-[10px] leading-none text-muted-foreground">
-															{cell.day}
-														</span>
-													</div>
-													{hasData ? (
-														<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
-															<span
-																className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
+																	);
+																}}
+																className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
 															>
-																{cell.pnl! >= 0 ? "+" : ""}
-																{cell.pnl!.toFixed(3)}{" "}
-																{currency === "sol" ? "SOL" : "USD"}
+																{hasData ? (
+																	<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
+																) : null}
+															</button>
+															<span className="text-[10px] leading-none text-muted-foreground">
+																{cell.day}
 															</span>
-															<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
-																{cell.count} positions
-															</span>
-															{cell.winPct != null && (
-																<span className="text-[9px] leading-none text-muted-foreground">
-																	{cell.winPct.toFixed(1)}%
-																</span>
-															)}
 														</div>
-													) : null}
-												</div>
-											);
-										})}
-									</div>
-								),
+														{hasData ? (
+															<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
+																<span
+																	className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
+																>
+																	{cell.pnl! >= 0 ? "+" : ""}
+																	{cell.pnl!.toFixed(3)}{" "}
+																	{currency === "sol" ? "SOL" : "USD"}
+																</span>
+																<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
+																	{cell.count} positions
+																</span>
+																{cell.winPct != null && (
+																	<span className="text-[9px] leading-none text-muted-foreground">
+																		{cell.winPct.toFixed(1)}%
+																	</span>
+																)}
+															</div>
+														) : null}
+													</div>
+												);
+											})}
+										</div>
+									),
+								)
 							)}
 						</div>
 					</div>
