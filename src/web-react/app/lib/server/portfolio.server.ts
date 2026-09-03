@@ -97,7 +97,7 @@ const closedPoolListCache = createTtlCache<
 const CLOSED_POOL_POSITIONS_TTL_MS = 24 * 60 * 60 * 1000;
 const closedPoolPositionsCache = createTtlCache<string, PositionPnLData[]>({
 	ttlMs: CLOSED_POOL_POSITIONS_TTL_MS,
-	maxEntries: 500,
+	maxEntries: 2000,
 });
 
 export function closedPoolPositionsCacheKey(
