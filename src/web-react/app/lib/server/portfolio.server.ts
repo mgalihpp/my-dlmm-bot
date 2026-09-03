@@ -38,6 +38,7 @@ export interface OverviewClosed {
 	readonly byMonth: Readonly<Record<string, readonly PositionPnLData[]>>;
 	readonly totalCount: number;
 	readonly totalPositions: number;
+	readonly apiTotalPositions: number;
 }
 
 const OVERVIEW_CLOSED_TTL_MS = 60 * 1000;
@@ -90,13 +91,13 @@ export function dedupeClosedPools(pools: readonly ClosedPool[]): ClosedPool[] {
 const CLOSED_POOL_LIST_TTL_MS = 5 * 60 * 1000;
 const closedPoolListCache = createTtlCache<
 	string,
-	{ pools: ClosedPool[]; totalCount: number }
+	{ pools: ClosedPool[]; totalCount: number; apiTotalPositions: number }
 >({ ttlMs: CLOSED_POOL_LIST_TTL_MS });
 
 const CLOSED_POOL_POSITIONS_TTL_MS = 24 * 60 * 60 * 1000;
 const closedPoolPositionsCache = createTtlCache<string, PositionPnLData[]>({
 	ttlMs: CLOSED_POOL_POSITIONS_TTL_MS,
-	maxEntries: 500,
+	maxEntries: 2000,
 });
 
 export function closedPoolPositionsCacheKey(
@@ -127,13 +128,21 @@ export function isImmutableRange(
 function fetchAllClosedPoolPagesUncached(
 	api: MeteoraApiService,
 	wallet: string,
-): Promise<{ pools: ClosedPool[]; totalCount: number }> {
+): Promise<{
+	pools: ClosedPool[];
+	totalCount: number;
+	apiTotalPositions: number;
+}> {
 	const program = Effect.gen(function* () {
 		const closedRes = yield* api
 			.closedPortfolio(wallet, 1, 10)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
 		if (closedRes === null || closedRes.totalCount === 0)
-			return { pools: [] as ClosedPool[], totalCount: 0 };
+			return {
+				pools: [] as ClosedPool[],
+				totalCount: 0,
+				apiTotalPositions: 0,
+			};
 		const pageSizeForAll = 50;
 		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
 		const maxPages = Math.min(totalPages, 40);
@@ -147,6 +156,7 @@ function fetchAllClosedPoolPagesUncached(
 		return {
 			pools: dedupeClosedPools(pages.flat()),
 			totalCount: closedRes.totalCount,
+			apiTotalPositions: closedRes.totalPositions,
 		};
 	});
 	return Effect.runPromise(program);
@@ -155,7 +165,11 @@ function fetchAllClosedPoolPagesUncached(
 function fetchAllClosedPoolPages(
 	api: MeteoraApiService,
 	wallet: string,
-): Effect.Effect<{ pools: ClosedPool[]; totalCount: number }> {
+): Effect.Effect<{
+	pools: ClosedPool[];
+	totalCount: number;
+	apiTotalPositions: number;
+}> {
 	return Effect.promise(() =>
 		closedPoolListCache.load(wallet, () =>
 			fetchAllClosedPoolPagesUncached(api, wallet),
@@ -612,10 +626,11 @@ export function fetchOverviewClosedCore(
 	usePositionsCache: boolean,
 ): Effect.Effect<OverviewClosed> {
 	return Effect.gen(function* () {
-		const { pools: rawPoolsAll, totalCount } = yield* fetchAllClosedPoolPages(
-			api,
-			wallet,
-		);
+		const {
+			pools: rawPoolsAll,
+			totalCount,
+			apiTotalPositions,
+		} = yield* fetchAllClosedPoolPages(api, wallet);
 		if (rawPoolsAll.length === 0)
 			return {
 				pools: [],
@@ -623,6 +638,7 @@ export function fetchOverviewClosedCore(
 				byMonth: {},
 				totalCount,
 				totalPositions: 0,
+				apiTotalPositions,
 			} satisfies OverviewClosed;
 		if (poolsOnly) {
 			return {
@@ -631,6 +647,7 @@ export function fetchOverviewClosedCore(
 				byMonth: {},
 				totalCount,
 				totalPositions: 0,
+				apiTotalPositions,
 			} satisfies OverviewClosed;
 		}
 		if (!periodRange) {
@@ -648,6 +665,7 @@ export function fetchOverviewClosedCore(
 				byMonth: bucketByMonth(all),
 				totalCount,
 				totalPositions: all.length,
+				apiTotalPositions,
 			} satisfies OverviewClosed;
 		}
 		const candidatePools = rawPoolsAll.filter((pool) => {
@@ -664,6 +682,7 @@ export function fetchOverviewClosedCore(
 				byMonth: {},
 				totalCount,
 				totalPositions: 0,
+				apiTotalPositions,
 			} satisfies OverviewClosed;
 		const allPositions = yield* fetchPositionsForClosedPools(
 			candidatePools,
@@ -683,6 +702,7 @@ export function fetchOverviewClosedCore(
 			byMonth: bucketByMonth(filtered),
 			totalCount,
 			totalPositions: filtered.length,
+			apiTotalPositions,
 		} satisfies OverviewClosed;
 	});
 }
@@ -710,6 +730,7 @@ function fetchOverviewClosedUncached(
 				byMonth: {} as Record<string, readonly PositionPnLData[]>,
 				totalCount: 0,
 				totalPositions: 0,
+				apiTotalPositions: 0,
 			} satisfies OverviewClosed),
 		),
 	);

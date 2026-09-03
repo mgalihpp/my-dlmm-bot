@@ -10,10 +10,12 @@ import {
 	type ResolvedRange,
 } from "~/lib/date-range";
 import {
+	computeClosedAggregates,
 	computeOverviewMetrics,
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
 import {
+	allTimeMonthKeys,
 	type OverviewClosedResponse,
 	resolveMonthStoreUpdate,
 } from "~/lib/overview-month";
@@ -93,6 +95,51 @@ export function PortfolioOverviewContent({
 
 	const closedAll = useMemo(() => summary?.pools ?? [], [summary]);
 	const totalCount = summary?.totalCount ?? data.closed?.totalCount ?? 0;
+	const apiTotalPositions = summary?.apiTotalPositions ?? 0;
+
+	// Stage 3: backfill every remaining month so charts graduate from
+	// pool aggregates to position-level detail. Newest first, one at a
+	// time, skipped for months already cached or attempted.
+	const allKeys = useMemo(
+		() => (summary ? allTimeMonthKeys(closedAll, new Date()) : []),
+		[summary, closedAll],
+	);
+	const bgFetcher = useFetcher<OverviewClosedResponse>();
+	const [bgLoadingMonth, setBgLoadingMonth] = useState<string | null>(null);
+	const bgAttempted = useRef<Set<string>>(new Set());
+	const bgDataAtRequest = useRef<OverviewClosedResponse | undefined>(
+		undefined,
+	);
+	const bgNext =
+		bgLoadingMonth !== null || bgFetcher.state !== "idle"
+			? null
+			: [...allKeys]
+					.reverse()
+					.find(
+						(k) =>
+							entries[k] === undefined &&
+							!bgAttempted.current.has(k) &&
+							k !== monthKey,
+					) ?? null;
+	useEffect(() => {
+		if (bgNext === null) return;
+		bgAttempted.current.add(bgNext);
+		bgDataAtRequest.current = bgFetcher.data;
+		setBgLoadingMonth(bgNext);
+		bgFetcher.load(`/api/overview-closed?month=${bgNext}`);
+	}, [bgNext, bgFetcher]);
+	useEffect(() => {
+		if (bgLoadingMonth === null) return;
+		if (bgFetcher.state !== "idle") return;
+		const update = resolveMonthStoreUpdate(
+			bgLoadingMonth,
+			bgDataAtRequest.current,
+			bgFetcher.data,
+		);
+		if (update === null) return;
+		if (update.length > 0) setMonths(update);
+		setBgLoadingMonth(null);
+	}, [bgFetcher.data, bgFetcher.state, bgLoadingMonth, setMonths]);
 
 	const monthPositions = useMemo(
 		() => (cachedMonth ?? []) as readonly PositionPnLData[],
@@ -106,12 +153,18 @@ export function PortfolioOverviewContent({
 
 	// Position-level views only when every month in the selected range is
 	// loaded; otherwise pool aggregates (complete) avoid undercount bias.
+	// Stage 3 backfills the remaining months so all-time graduates too.
 	const positionsCoverRange =
 		dateRange.kind === "bounded" &&
 		monthKeysInRange(dateRange.from, dateRange.to).every(
 			(k) => entries[k] !== undefined,
 		) &&
 		monthKeysInRange(dateRange.from, dateRange.to).length > 0;
+	const allCoverRange =
+		dateRange.kind === "all" &&
+		allKeys.length > 0 &&
+		allKeys.every((k) => entries[k] !== undefined);
+	const rangeCovered = positionsCoverRange || allCoverRange;
 
 	const filteredClosed = useMemo(
 		() => filterClosedByRange(closedAll, dateRange),
@@ -120,14 +173,32 @@ export function PortfolioOverviewContent({
 
 	const filteredChartPositions = useMemo(
 		() =>
-			positionsCoverRange
-				? filterPositionsByRange(loadedPositions, dateRange)
-				: [],
-		[positionsCoverRange, loadedPositions, dateRange],
+			rangeCovered ? filterPositionsByRange(loadedPositions, dateRange) : [],
+		[rangeCovered, loadedPositions, dateRange],
 	);
 	const bounded = dateRange.kind === "bounded";
+	const countBasis = rangeCovered ? "positions" : "pools";
+	const aggregates = useMemo(
+		() => computeClosedAggregates(filteredClosed),
+		[filteredClosed],
+	);
+	const avgDenominator =
+		rangeCovered && filteredChartPositions.length > 0
+			? filteredChartPositions.length
+			: bounded
+				? Math.max(1, filteredClosed.length)
+				: Math.max(1, apiTotalPositions > 0 ? apiTotalPositions : totalCount);
+	const netPnlPct = (() => {
+		if (bounded || data.total == null) return null;
+		const raw =
+			currency === "sol"
+				? data.total.totalPnlSolPctChange
+				: data.total.totalPnlPctChange;
+		const n = Number.parseFloat(raw ?? "");
+		return Number.isNaN(n) ? null : n;
+	})();
 	const metrics = useMemo(() => {
-		if (positionsCoverRange && filteredChartPositions.length > 0) {
+		if (rangeCovered && filteredChartPositions.length > 0) {
 			const records = filteredChartPositions.map((p) => ({
 				pnlSol: p.pnlSol,
 				pnlUsd: p.pnlUsd,
@@ -145,7 +216,6 @@ export function PortfolioOverviewContent({
 						}
 					: null,
 				currency,
-				dateRange,
 			);
 		}
 		return computeOverviewMetrics(
@@ -160,15 +230,13 @@ export function PortfolioOverviewContent({
 						usd: data.summary.unrealizedUsd,
 					},
 			currency,
-			dateRange,
 		);
 	}, [
-		positionsCoverRange,
+		rangeCovered,
 		filteredChartPositions,
 		filteredClosed,
 		bounded,
 		totalCount,
-		dateRange,
 		data.total,
 		data.summary,
 		currency,
@@ -197,6 +265,9 @@ export function PortfolioOverviewContent({
 						metrics={metrics}
 						currency={currency}
 						dateRange={dateRange}
+						countBasis={countBasis}
+						positionCount={apiTotalPositions > 0 ? apiTotalPositions : null}
+						netPnlPct={netPnlPct}
 					/>
 				)}
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-stretch">
@@ -209,6 +280,9 @@ export function PortfolioOverviewContent({
 									total={bounded ? null : (data.total ?? null)}
 									metrics={metrics}
 									currency={currency}
+									aggregates={aggregates}
+									avgDenominator={avgDenominator}
+									countBasis={countBasis}
 								/>
 							</>
 						) : (
@@ -238,7 +312,7 @@ export function PortfolioOverviewContent({
 						<EquityChart
 							closed={filteredClosed}
 							positions={
-								positionsCoverRange ? filteredChartPositions : undefined
+								rangeCovered ? filteredChartPositions : undefined
 							}
 							currency={currency}
 							loading={summaryLoading}

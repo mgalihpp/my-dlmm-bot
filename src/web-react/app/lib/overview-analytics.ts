@@ -1,5 +1,5 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
-import { type ResolvedRange, secToLocalDate } from "./date-range.js";
+import { secToLocalDate } from "./date-range.js";
 
 type PortfolioSnapshot = { pnlSol: number | null; pnlUsd: number | null };
 
@@ -46,7 +46,6 @@ export function computeOverviewMetricsFromRecords(
 	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
 	unrealized?: { sol: number; usd: number } | null,
 	currency: Currency = "sol",
-	resolvedRange?: ResolvedRange | null,
 ): OverviewMetrics {
 	let wins = 0;
 	let losses = 0;
@@ -57,10 +56,7 @@ export function computeOverviewMetricsFromRecords(
 
 	let dayWins = 0;
 	let dayLosses = 0;
-	const nowSec = Math.floor(Date.now() / 1000);
-	const dayStart = nowSec - 86400;
-	const isBounded = resolvedRange?.kind === "bounded";
-	const dailyPnl = isBounded ? new Map<string, number>() : null;
+	const dailyPnl = new Map<string, number>();
 
 	for (const r of records) {
 		const pnlSol = toNum(r.pnlSol as string | null | undefined);
@@ -74,16 +70,11 @@ export function computeOverviewMetricsFromRecords(
 			} else if (primary < 0) {
 				losses += 1;
 			}
-			if (isBounded) {
-				if (closedAt != null) {
-					const key = secToLocalDate(closedAt);
-					if (key !== null) {
-						dailyPnl!.set(key, (dailyPnl!.get(key) ?? 0) + primary);
-					}
+			if (closedAt != null) {
+				const key = secToLocalDate(closedAt);
+				if (key !== null) {
+					dailyPnl.set(key, (dailyPnl.get(key) ?? 0) + primary);
 				}
-			} else if (closedAt != null && closedAt >= dayStart) {
-				if (primary > 0) dayWins += 1;
-				else if (primary < 0) dayLosses += 1;
 			}
 		}
 		if (pnlSol !== null) {
@@ -96,11 +87,9 @@ export function computeOverviewMetricsFromRecords(
 		}
 	}
 
-	if (isBounded && dailyPnl !== null) {
-		for (const sum of dailyPnl.values()) {
-			if (sum > 0) dayWins += 1;
-			else if (sum < 0) dayLosses += 1;
-		}
+	for (const sum of dailyPnl.values()) {
+		if (sum > 0) dayWins += 1;
+		else if (sum < 0) dayLosses += 1;
 	}
 
 	const winLossTotal = wins + losses;
@@ -165,7 +154,6 @@ export function computeOverviewMetrics(
 	totalPnl?: { totalPnlSol: string; totalPnlUsd: string } | null,
 	unrealized?: { sol: number; usd: number } | null,
 	currency: Currency = "sol",
-	resolvedRange?: ResolvedRange | null,
 ): OverviewMetrics {
 	const records: readonly PnlRecord[] = closed.map((p) => ({
 		pnlSol: p.pnlSol,
@@ -180,6 +168,48 @@ export function computeOverviewMetrics(
 		totalPnl,
 		unrealized,
 		currency,
-		resolvedRange,
 	);
+}
+
+export interface ClosedAggregates {
+	readonly pools: number;
+	readonly depositsSol: number;
+	readonly withdrawalsSol: number;
+	readonly feesSol: number;
+	readonly depositsUsd: number;
+	readonly withdrawalsUsd: number;
+	readonly feesUsd: number;
+}
+
+function sumNum(value: string | number | null | undefined): number {
+	const n = toNum(value);
+	return n ?? 0;
+}
+
+export function computeClosedAggregates(
+	closed: readonly ClosedPool[],
+): ClosedAggregates {
+	let depositsSol = 0;
+	let withdrawalsSol = 0;
+	let feesSol = 0;
+	let depositsUsd = 0;
+	let withdrawalsUsd = 0;
+	let feesUsd = 0;
+	for (const p of closed) {
+		depositsSol += sumNum(p.totalDepositSol ?? p.totalDeposit);
+		withdrawalsSol += sumNum(p.totalWithdrawalSol ?? p.totalWithdrawal);
+		feesSol += sumNum(p.totalFeeSol ?? p.totalFee);
+		depositsUsd += sumNum(p.totalDeposit);
+		withdrawalsUsd += sumNum(p.totalWithdrawal);
+		feesUsd += sumNum(p.totalFee);
+	}
+	return {
+		pools: closed.length,
+		depositsSol,
+		withdrawalsSol,
+		feesSol,
+		depositsUsd,
+		withdrawalsUsd,
+		feesUsd,
+	};
 }

@@ -214,10 +214,16 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	metrics,
 	currency,
 	dateRange,
+	countBasis = "pools",
+	positionCount = null,
+	netPnlPct = null,
 }: {
 	metrics: OverviewMetrics;
 	currency: Currency;
 	dateRange?: ResolvedRange | null;
+	countBasis?: "pools" | "positions";
+	positionCount?: number | null;
+	netPnlPct?: number | null;
 }) {
 	const isSol = currency === "sol";
 	const netPnl = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
@@ -257,6 +263,15 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 			: 50;
 	const grossProfit = isSol ? metrics.grossProfitSol : metrics.grossProfitUsd;
 	const grossLoss = isSol ? metrics.grossLossSol : metrics.grossLossUsd;
+	const isBounded = dateRange?.kind === "bounded";
+	const badgeCount =
+		!isBounded && positionCount != null
+			? positionCount
+			: metrics.totalClosed;
+	const badgeTitle =
+		!isBounded && positionCount != null && countBasis === "pools"
+			? `${positionCount} closed positions across ${metrics.totalClosed} pools`
+			: `${metrics.totalClosed} closed ${countBasis}`;
 
 	return (
 		<div className="grid grid-cols-1 gap-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
@@ -275,17 +290,33 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</button>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
-								Realized PnL from closed positions plus unrealized PnL from open
-								positions. Badge shows total closed count.
+								Realized PnL from closed {countBasis} plus unrealized PnL from
+								open positions. Badge shows total closed positions
+								{countBasis === "pools"
+									? ` across ${metrics.totalClosed} aggregated pools`
+									: ""}
+								.
 							</TooltipContent>
 						</Tooltip>
-						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
-							{metrics.totalClosed}
+						<span
+							className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"
+							title={badgeTitle}
+						>
+							{badgeCount}
 						</span>
 					</div>
-					<span className={`text-2xl font-bold ${netPnlColor}`}>
-						{netPnlLabel}
-					</span>
+					<div className="flex items-center gap-2">
+						<span className={`text-2xl font-bold ${netPnlColor}`}>
+							{netPnlLabel}
+						</span>
+						{netPnlPct != null ? (
+							<span
+								className={`rounded px-1.5 py-0.5 text-xs ${netPnlPct >= 0 ? "bg-emerald-500/20 text-emerald-500" : "bg-red-500/20 text-red-500"}`}
+							>
+								{fmtPct(netPnlPct)}
+							</span>
+						) : null}
+					</div>
 				</CardContent>
 			</Card>
 
@@ -307,8 +338,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									</button>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Wins divided by total closed positions (breakeven excluded).
-									Half-donut shows wins vs losses.
+									Wins divided by total closed {countBasis} (breakeven
+									excluded). Half-donut shows wins vs losses.
 								</TooltipContent>
 							</Tooltip>
 						</div>
@@ -385,7 +416,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								<TooltipContent className="max-w-xs">
 									{dateRange?.kind === "bounded"
 										? "Winning days vs losing days in the selected period (daily net PnL)."
-										: "Same as Position win % but only for positions closed in the last 24 hours."}
+										: "Winning days vs losing days across all history (daily net PnL)."}
 								</TooltipContent>
 							</Tooltip>
 						</div>

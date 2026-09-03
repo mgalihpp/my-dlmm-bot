@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	allTimeMonthKeys,
 	type OverviewClosedResponse,
 	resolveMonthStoreUpdate,
 } from "./overview-month";
@@ -15,6 +16,7 @@ function okResponse(
 		byMonth,
 		totalCount: 0,
 		totalPositions: 0,
+		apiTotalPositions: 0,
 	};
 }
 
@@ -34,6 +36,7 @@ describe("resolveMonthStoreUpdate", () => {
 			byMonth: { "2026-08": [pos] } as never,
 			totalCount: 1,
 			totalPositions: 1,
+			apiTotalPositions: 1,
 		};
 		const stale = okResponse({ "2026-09": [] });
 		expect(resolveMonthStoreUpdate("2026-08", stale, fresh)).toEqual([
@@ -51,5 +54,29 @@ describe("resolveMonthStoreUpdate", () => {
 	it("clears the pending month without storing on error", () => {
 		const err: OverviewClosedResponse = { ok: false, error: "boom" };
 		expect(resolveMonthStoreUpdate("2026-08", undefined, err)).toEqual([]);
+	});
+});
+
+describe("allTimeMonthKeys", () => {
+	const ts = (y: number, m: number, d: number) =>
+		Math.floor(Date.UTC(y, m - 1, d) / 1000);
+
+	it("spans earliest close month to now ascending", () => {
+		expect(
+			allTimeMonthKeys(
+				[{ lastClosedAt: ts(2026, 5, 10) }, { lastClosedAt: ts(2026, 9, 3) }],
+				new Date(Date.UTC(2026, 8, 4)),
+			),
+		).toEqual(["2026-05", "2026-06", "2026-07", "2026-08", "2026-09"]);
+	});
+
+	it("returns empty without dated pools", () => {
+		expect(allTimeMonthKeys([], new Date())).toEqual([]);
+		expect(
+			allTimeMonthKeys(
+				[{ lastClosedAt: null }],
+				new Date(Date.UTC(2026, 8, 4)),
+			),
+		).toEqual([]);
 	});
 });

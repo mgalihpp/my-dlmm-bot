@@ -223,3 +223,39 @@ describe("fetchOverviewClosedCore with per-pool cache", () => {
 		expect(calls.pnl.length).toBeGreaterThan(pnlCalls);
 	});
 });
+
+describe("fetchOverviewClosedCore apiTotalPositions", () => {
+	it("propagates the API position count on the pools-only path", async () => {
+		const pools = [
+			{ ...pool("A"), lastClosedAt: sec(2026, 9, 2) },
+			{ ...pool("B"), lastClosedAt: sec(2026, 4, 5) },
+		];
+		const calls: { closed: unknown[][]; pnl: unknown[][] } = {
+			closed: [],
+			pnl: [],
+		};
+		const api = {
+			closedPortfolio: ((user: string, page = 1, pageSize = 50) => {
+				calls.closed.push([user, page, pageSize]);
+				const start = (page - 1) * pageSize;
+				return Effect.succeed({
+					hasNext: false,
+					page,
+					pageSize,
+					totalCount: pools.length,
+					totalPositions: 7,
+					pools: pools.slice(start, start + pageSize),
+				});
+			}) as MeteoraApiService["closedPortfolio"],
+			positionPnl:
+				stubApi(pools, {}, calls)
+					.positionPnl as MeteoraApiService["positionPnl"],
+		} as MeteoraApiService;
+
+		const res = await Effect.runPromise(
+			fetchOverviewClosedCore(api, "positions-wallet", null, true, false),
+		);
+		expect(res.totalCount).toBe(2);
+		expect(res.apiTotalPositions).toBe(7);
+	});
+});

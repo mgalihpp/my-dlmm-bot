@@ -4,7 +4,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import type { Currency } from "~/lib/currency";
 import { formatNum } from "~/lib/format";
-import type { OverviewMetrics } from "~/lib/overview-analytics";
+import type {
+	ClosedAggregates,
+	OverviewMetrics,
+} from "~/lib/overview-analytics";
 import type {
 	PortfolioSummary,
 	PortfolioTotal,
@@ -103,11 +106,17 @@ export const PerformanceCard = memo(function PerformanceCard({
 	total,
 	metrics,
 	currency,
+	aggregates,
+	avgDenominator,
+	countBasis,
 }: {
 	summary: PortfolioSummary;
 	total: PortfolioTotal | null;
 	metrics: OverviewMetrics;
 	currency: Currency;
+	aggregates: ClosedAggregates | null;
+	avgDenominator: number;
+	countBasis: "pools" | "positions";
 }) {
 	const isSol = currency === "sol";
 	const totalPnl = isSol
@@ -118,6 +127,19 @@ export const PerformanceCard = memo(function PerformanceCard({
 	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
 	const winRateLabel =
 		metrics.winPct == null ? "—" : `${metrics.winPct.toFixed(2)}%`;
+	const deposits = isSol
+		? (aggregates?.depositsSol ?? 0)
+		: (aggregates?.depositsUsd ?? 0);
+	const withdrawals = isSol
+		? (aggregates?.withdrawalsSol ?? 0)
+		: (aggregates?.withdrawalsUsd ?? 0);
+	const fees = isSol
+		? (aggregates?.feesSol ?? 0)
+		: (aggregates?.feesUsd ?? 0);
+	const netWorth =
+		(isSol ? summary.openBalanceSol : summary.openBalanceUsd) +
+		(isSol ? summary.openFeesSol : summary.openFeesUsd);
+	const avgInvested = avgDenominator > 0 ? deposits / avgDenominator : null;
 
 	return (
 		<Card data-size="sm" className="py-3">
@@ -128,7 +150,9 @@ export const PerformanceCard = memo(function PerformanceCard({
 					<span className="text-border">/</span>
 					<span className="text-red-500">{metrics.losses}L</span>
 					<span className="text-border">|</span>
-					<span>{metrics.totalClosed} total</span>
+					<span>
+						{metrics.totalClosed} {countBasis}
+					</span>
 				</div>
 			</CardHeader>
 			<CardContent className="flex flex-1 flex-col gap-2.5">
@@ -138,43 +162,30 @@ export const PerformanceCard = memo(function PerformanceCard({
 							<span className="text-xs text-muted-foreground">
 								Total Deposits
 							</span>
-							<span className="text-xs font-medium">
-								{fmt(isSol ? summary.openBalanceSol : summary.openBalanceUsd)}
+							<span className="text-xs font-medium">{fmt(deposits)}</span>
+						</div>
+						<div className="flex items-center justify-between">
+							<span className="text-xs text-muted-foreground">
+								Total Withdrawals
 							</span>
+							<span className="text-xs font-medium">{fmt(withdrawals)}</span>
 						</div>
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Total Fees</span>
-							<span className="text-xs font-medium">
-								{fmt(isSol ? summary.openFeesSol : summary.openFeesUsd)}
-							</span>
+							<span className="text-xs font-medium">{fmt(fees)}</span>
 						</div>
 					</div>
 					<div className="flex flex-col gap-1">
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Net Worth</span>
-							<span className="text-xs font-medium">
-								{fmt(
-									total !== null
-										? totalPnl
-										: isSol
-											? summary.openBalanceSol
-											: summary.openBalanceUsd,
-								)}
-							</span>
+							<span className="text-xs font-medium">{fmt(netWorth)}</span>
 						</div>
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">
 								Avg Invested
 							</span>
 							<span className="text-xs font-medium">
-								{metrics.totalClosed > 0
-									? fmt(
-											(isSol
-												? summary.openBalanceSol
-												: summary.openBalanceUsd) /
-												Math.max(1, metrics.totalClosed),
-										)
-									: "—"}
+								{avgInvested == null ? "—" : fmt(avgInvested)}
 							</span>
 						</div>
 						<div className="flex items-center justify-between">
