@@ -1,4 +1,3 @@
-import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
@@ -14,6 +13,10 @@ import {
 	computeOverviewMetrics,
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
+import {
+	type OverviewClosedResponse,
+	resolveMonthStoreUpdate,
+} from "~/lib/overview-month";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { useClosedMonthStore } from "~/stores/closed-month-cache";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
@@ -31,17 +34,6 @@ const OverviewCalendar = lazy(() =>
 const DailyPnlChart = lazy(() =>
 	import("./overview-daily-pnl").then((m) => ({ default: m.DailyPnlChart })),
 );
-
-type OverviewClosedResponse =
-	| {
-			ok: true;
-			pools: readonly ClosedPool[];
-			positions: readonly PositionPnLData[];
-			byMonth: Readonly<Record<string, readonly PositionPnLData[]>>;
-			totalCount: number;
-			totalPositions: number;
-	  }
-	| { ok: false; error: string };
 
 export function PortfolioOverviewContent({
 	data,
@@ -73,19 +65,29 @@ export function PortfolioOverviewContent({
 	const detailFetcher = useFetcher<OverviewClosedResponse>();
 	const [loadingMonth, setLoadingMonth] = useState<string | null>(null);
 	const attempted = useRef<Set<string>>(new Set());
+	// Snapshot of the response visible when a request starts. Right after
+	// load() the fetcher still exposes the previous month's idle payload,
+	// which must never be stored under the newly requested month.
+	const dataAtRequest = useRef<OverviewClosedResponse | undefined>(undefined);
 	useEffect(() => {
 		if (cachedMonth || loadingMonth !== null || detailFetcher.state !== "idle")
 			return;
 		if (attempted.current.has(monthKey)) return;
 		attempted.current.add(monthKey);
+		dataAtRequest.current = detailFetcher.data;
 		setLoadingMonth(monthKey);
 		detailFetcher.load(`/api/overview-closed?month=${monthKey}`);
 	}, [monthKey, cachedMonth, loadingMonth, detailFetcher]);
 	useEffect(() => {
 		if (loadingMonth === null) return;
-		const d = detailFetcher.data;
-		if (detailFetcher.state !== "idle" || !d) return;
-		if (d.ok === true) setMonths([{ key: loadingMonth, data: d.positions }]);
+		if (detailFetcher.state !== "idle") return;
+		const update = resolveMonthStoreUpdate(
+			loadingMonth,
+			dataAtRequest.current,
+			detailFetcher.data,
+		);
+		if (update === null) return;
+		if (update.length > 0) setMonths(update);
 		setLoadingMonth(null);
 	}, [detailFetcher.data, detailFetcher.state, loadingMonth, setMonths]);
 
