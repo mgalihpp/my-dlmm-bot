@@ -90,7 +90,7 @@ export function CycleChart({ data }: { data: readonly CyclePoint[] }) {
 				<div>
 					<CardTitle className="text-sm">Activity per cycle</CardTitle>
 					<p className="text-xs text-muted-foreground">
-						Successful executions · last {data.length} cycles
+						Successful executions · {data.length} cycles
 					</p>
 				</div>
 				<span className="font-mono text-xs text-muted-foreground tabular-nums">

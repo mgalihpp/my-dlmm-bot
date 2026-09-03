@@ -72,7 +72,7 @@ export function buildAgentPayload(
 	const scores = scoreSummary(journal);
 	const rows = journalRows(journal, filter);
 	const paged = paginate(rows, page, JOURNAL_PAGE_SIZE);
-	const chart = journal.slice(-30).map((entry) => ({
+	const chart = journal.map((entry) => ({
 		cycle: entry.cycle,
 		open: entry.candidates.filter(
 			(c) => c.action === "open" && c.execution === "ok",
