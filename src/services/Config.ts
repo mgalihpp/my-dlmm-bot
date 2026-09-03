@@ -8,34 +8,45 @@ import type { CreatePreset, VexisConfig } from "../domain/config.js";
 import { ConfigError, SignerError, WalletError } from "../errors.js";
 
 const CreateRangeSchema = Schema.Struct({
-	type: Schema.optional(Schema.Literal("default", "bin", "pct")),
-	minBin: Schema.optional(Schema.Number),
-	maxBin: Schema.optional(Schema.Number),
-	minPct: Schema.optional(Schema.Number),
-	maxPct: Schema.optional(Schema.Number),
+	type: Schema.optional(
+		Schema.Union(Schema.Literal("default", "bin", "pct"), Schema.Null),
+	),
+	minBin: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	maxBin: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	minPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
+	maxPct: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 });
 
 const CreateSchema = Schema.Struct({
-	strategy: Schema.optional(Schema.Literal("spot", "bidask", "curve")),
-	mode: Schema.optional(Schema.Literal("two-sided", "single-x", "single-y")),
+	strategy: Schema.optional(
+		Schema.Union(Schema.Literal("spot", "bidask", "curve"), Schema.Null),
+	),
+	mode: Schema.optional(
+		Schema.Union(
+			Schema.Literal("two-sided", "single-x", "single-y"),
+			Schema.Null,
+		),
+	),
 	range: Schema.optional(CreateRangeSchema),
-	amountPresets: Schema.optional(Schema.Array(Schema.Number)),
+	amountPresets: Schema.optional(
+		Schema.Union(Schema.Array(Schema.Number), Schema.Null),
+	),
 	xAmount: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	yAmount: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
-	autoSwap: Schema.optional(Schema.Boolean),
-	slippageBps: Schema.optional(Schema.Number),
+	autoSwap: Schema.optional(Schema.Union(Schema.Boolean, Schema.Null)),
+	slippageBps: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 });
 
 const WebSchema = Schema.Struct({
 	port: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
-	password: Schema.optional(Schema.String),
+	password: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
 });
 
 export const VexisConfigSchema = Schema.Struct({
-	wallet: Schema.optional(Schema.String),
+	wallet: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
 	privateKey: Schema.optional(Schema.String),
-	rpcUrl: Schema.optional(Schema.String),
-	dev: Schema.optional(Schema.Boolean),
+	rpcUrl: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
+	dev: Schema.optional(Schema.Union(Schema.Boolean, Schema.Null)),
 	pageSize: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	telegramBotToken: Schema.optional(Schema.String),
 	telegramChatId: Schema.optional(Schema.String),
@@ -68,7 +79,7 @@ export function decodeVexisConfig(raw: unknown): VexisConfig {
 	}
 	const slippage = decoded.create?.slippageBps;
 	if (
-		slippage !== undefined &&
+		slippage != null &&
 		(!Number.isFinite(slippage) || slippage < 0 || slippage > 10_000)
 	) {
 		throw new Error(
@@ -161,7 +172,13 @@ export const resolveCreatePresetFrom = (config: VexisConfig): CreatePreset => {
 	return {
 		strategy: c.strategy ?? "bidask",
 		mode: c.mode ?? "single-y",
-		range: c.range ?? { type: "default" },
+		range: {
+			type: c.range?.type ?? "default",
+			minBin: c.range?.minBin ?? undefined,
+			maxBin: c.range?.maxBin ?? undefined,
+			minPct: c.range?.minPct ?? undefined,
+			maxPct: c.range?.maxPct ?? undefined,
+		},
 		amountPresets:
 			c.amountPresets && c.amountPresets.length > 0
 				? c.amountPresets

@@ -2,7 +2,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
-import { decodeVexisConfig } from "../src/services/Config.js";
+import {
+	decodeVexisConfig,
+	resolveCreatePresetFrom,
+} from "../src/services/Config.js";
 
 const repoRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -45,6 +48,48 @@ describe("decodeVexisConfig", () => {
 		});
 		expect(cfg.create?.xAmount).toBeNull();
 		expect(cfg.create?.yAmount).toBeNull();
+	});
+	it("accepts null for resettable string/boolean fields", () => {
+		const cfg = decodeVexisConfig({
+			wallet: null,
+			rpcUrl: null,
+			dev: null,
+			web: { port: null, password: null },
+		});
+		expect(cfg.wallet).toBeNull();
+		expect(cfg.rpcUrl).toBeNull();
+		expect(cfg.dev).toBeNull();
+		expect(cfg.web?.port).toBeNull();
+		expect(cfg.web?.password).toBeNull();
+	});
+	it("accepts null across the create block and resolves preset defaults", () => {
+		const cfg = decodeVexisConfig({
+			create: {
+				strategy: null,
+				mode: null,
+				range: { type: null, minBin: null, maxPct: null },
+				amountPresets: null,
+				autoSwap: null,
+				slippageBps: null,
+			},
+		});
+		const preset = resolveCreatePresetFrom(cfg);
+		expect(preset.strategy).toBe("bidask");
+		expect(preset.mode).toBe("single-y");
+		expect(preset.range.type).toBe("default");
+		expect(preset.amountPresets).toEqual([0.1, 0.25, 0.5, 1]);
+		expect(preset.autoSwap).toBe(false);
+		expect(preset.slippageBps).toBe(100);
+	});
+	it("preserves explicit create range values through preset resolution", () => {
+		const preset = resolveCreatePresetFrom(
+			decodeVexisConfig({
+				create: { strategy: "curve", range: { type: "bin", minBin: -5 } },
+			}),
+		);
+		expect(preset.strategy).toBe("curve");
+		expect(preset.range.type).toBe("bin");
+		expect(preset.range.minBin).toBe(-5);
 	});
 	it("accepts null for unset numeric fields", () => {
 		const cfg = decodeVexisConfig({

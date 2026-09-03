@@ -55,20 +55,20 @@ export interface PoolsConfig {
 }
 
 export interface CreateConfig {
-	strategy?: "spot" | "bidask" | "curve";
-	mode?: "two-sided" | "single-x" | "single-y";
+	strategy?: "spot" | "bidask" | "curve" | null;
+	mode?: "two-sided" | "single-x" | "single-y" | null;
 	range?: {
-		type: "default" | "bin" | "pct";
-		minBin?: number;
-		maxBin?: number;
-		minPct?: number;
-		maxPct?: number;
+		type: "default" | "bin" | "pct" | null;
+		minBin?: number | null;
+		maxBin?: number | null;
+		minPct?: number | null;
+		maxPct?: number | null;
 	};
-	amountPresets?: number[];
+	amountPresets?: number[] | null;
 	xAmount?: number | null;
 	yAmount?: number | null;
-	autoSwap?: boolean;
-	slippageBps?: number;
+	autoSwap?: boolean | null;
+	slippageBps?: number | null;
 }
 
 export interface AgentLlmConfig {
@@ -128,14 +128,14 @@ export interface AgentConfig {
 
 export interface WebConfig {
 	port?: number | null;
-	password?: string;
+	password?: string | null;
 }
 
 export interface VexisConfig {
-	wallet?: string;
+	wallet?: string | null;
 	privateKey?: string;
-	rpcUrl?: string;
-	dev?: boolean;
+	rpcUrl?: string | null;
+	dev?: boolean | null;
 	pageSize?: number | null;
 	telegramBotToken?: string;
 	telegramChatId?: string;
