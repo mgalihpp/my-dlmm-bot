@@ -23,7 +23,13 @@ import {
 	usd,
 } from "./format.js";
 import { AppLayer } from "./layers.js";
-import { AppConfig } from "./services/Config.js";
+import {
+	assertValidCliAmount,
+	assertValidStrategy,
+	clampPageSize,
+	redactConfig,
+} from "./lib/validation.js";
+import { AppConfig, resolveCreatePresetFrom } from "./services/Config.js";
 import { Dlmm } from "./services/Dlmm.js";
 import { MeteoraApi } from "./services/MeteoraApi.js";
 import { Screening } from "./services/Screening.js";
@@ -48,15 +54,37 @@ const pageSizeOpt = Options.integer("page-size").pipe(
 
 const effPageSize = (opt: Option.Option<number>) =>
 	Effect.gen(function* () {
-		if (Option.isSome(opt)) return opt.value;
-		const cfg = yield* (yield* AppConfig).get;
-		return cfg.pageSize ?? 50;
+		const raw = Option.isSome(opt)
+			? opt.value
+			: ((yield* (yield* AppConfig).get).pageSize ?? 50);
+		return clampPageSize(raw);
 	});
 
 const pageHint = (hasNext: boolean, page: number) =>
 	hasNext
 		? Console.log(dim(`\n  More results — use --page ${page + 1}`))
 		: Effect.void;
+
+const STRATEGIES = ["spot", "bidask", "curve"] as const;
+type Strategy = (typeof STRATEGIES)[number];
+
+const parseStrategy = (s: string): Effect.Effect<Strategy, Error> =>
+	Effect.try({
+		try: () => assertValidStrategy(s),
+		catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+	});
+
+const parseCliAmount = (
+	label: string,
+	v: string,
+): Effect.Effect<string, Error> =>
+	Effect.try({
+		try: () => {
+			assertValidCliAmount(label, v);
+			return v;
+		},
+		catch: (e) => (e instanceof Error ? e : new Error(String(e))),
+	});
 
 const openCmd = Command.make(
 	"open",
@@ -206,7 +234,7 @@ const configCmd = Command.make("config", {}, () =>
 		}
 		const cfg = yield* config.get;
 		yield* Console.log(`${bold("Config")} ${gray(config.path)}\n`);
-		yield* Console.log(JSON.stringify(cfg, null, 2));
+		yield* Console.log(JSON.stringify(redactConfig(cfg), null, 2));
 	}),
 ).pipe(
 	Command.withDescription(
@@ -300,6 +328,16 @@ const positionCreateCmd = Command.make(
 				? `${minPct}% to ${maxPct}% (vs current price)`
 				: `bins ${minBin} to ${maxBin} (absolute)`;
 
+			const strategy = yield* parseStrategy(opts.strategy);
+			const xAmount = yield* parseCliAmount("x-amount", opts.xAmount);
+			const yAmount = yield* parseCliAmount("y-amount", opts.yAmount);
+			if (Number(xAmount) === 0 && Number(yAmount) === 0 && !opts.autoFill) {
+				return yield* Effect.fail(
+					new Error("Provide a non-zero --x-amount or --y-amount"),
+				);
+			}
+			const preset = resolveCreatePresetFrom(yield* config.get);
+
 			yield* Console.log(`\n${bold("Create Position")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Strategy: ${opts.strategy}`);
@@ -318,7 +356,7 @@ const positionCreateCmd = Command.make(
 			const quoteResult = yield* dlmm
 				.quotePositionCost({
 					poolAddress: opts.poolAddress,
-					strategy: opts.strategy as "spot" | "bidask" | "curve",
+					strategy,
 					...(isPctMode
 						? { minPct: minPct! / 100, maxPct: maxPct! / 100 }
 						: { minBinId: minBin!, maxBinId: maxBin! }),
@@ -343,12 +381,13 @@ const positionCreateCmd = Command.make(
 
 			const res = yield* dlmm.createPosition({
 				poolAddress: opts.poolAddress,
-				strategy: opts.strategy as "spot" | "bidask" | "curve",
-				totalXAmount: opts.xAmount,
-				totalYAmount: opts.yAmount,
+				strategy,
+				totalXAmount: xAmount,
+				totalYAmount: yAmount,
 				amountsAreHuman: !opts.atomic,
 				autoFill: opts.autoFill,
 				singleSidedX,
+				slippageBps: preset.slippageBps,
 				...(isPctMode
 					? { minPct: minPct! / 100, maxPct: maxPct! / 100 }
 					: { minBinId: minBin!, maxBinId: maxBin! }),
@@ -430,6 +469,11 @@ const liquidityAddCmd = Command.make(
 	},
 	(opts) =>
 		Effect.gen(function* () {
+			const strategy = yield* parseStrategy(opts.strategy);
+			const xAmount = yield* parseCliAmount("x-amount", opts.xAmount);
+			const yAmount = yield* parseCliAmount("y-amount", opts.yAmount);
+			const config = yield* AppConfig;
+			const preset = resolveCreatePresetFrom(yield* config.get);
 			yield* Console.log(`\n${bold("Add Liquidity")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Position: ${gray(shortAddr(opts.positionPubkey))}`);
@@ -451,11 +495,12 @@ const liquidityAddCmd = Command.make(
 			const sig = yield* dlmm.addLiquidity({
 				poolAddress: opts.poolAddress,
 				positionPubkey: opts.positionPubkey,
-				strategy: opts.strategy as "spot" | "bidask" | "curve",
-				totalXAmount: opts.xAmount,
-				totalYAmount: opts.yAmount,
+				strategy,
+				totalXAmount: xAmount,
+				totalYAmount: yAmount,
 				minBinId: 0,
 				maxBinId: 0,
+				slippageBps: preset.slippageBps,
 			});
 			yield* Console.log(`${bold("✓ Success")} ${cyan(sig)}`);
 			yield* Console.log(`  https://solscan.io/tx/${sig}\n`);

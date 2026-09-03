@@ -14,6 +14,7 @@ export interface CreatePositionParams {
 	maxPct?: number;
 	amountsAreHuman?: boolean;
 	autoFill?: boolean;
+	slippageBps?: number;
 }
 
 export interface CreatePositionResult {
@@ -56,6 +57,7 @@ export interface AddLiquidityParams {
 	minBinId: number;
 	maxBinId: number;
 	amountsAreHuman?: boolean;
+	slippageBps?: number;
 }
 
 export interface RemoveLiquidityParams {
