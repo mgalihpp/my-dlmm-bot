@@ -10,6 +10,7 @@ import {
 	type ResolvedRange,
 } from "~/lib/date-range";
 import {
+	computeClosedAggregates,
 	computeOverviewMetrics,
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
@@ -93,6 +94,7 @@ export function PortfolioOverviewContent({
 
 	const closedAll = useMemo(() => summary?.pools ?? [], [summary]);
 	const totalCount = summary?.totalCount ?? data.closed?.totalCount ?? 0;
+	const apiTotalPositions = summary?.apiTotalPositions ?? 0;
 
 	const monthPositions = useMemo(
 		() => (cachedMonth ?? []) as readonly PositionPnLData[],
@@ -126,6 +128,17 @@ export function PortfolioOverviewContent({
 		[positionsCoverRange, loadedPositions, dateRange],
 	);
 	const bounded = dateRange.kind === "bounded";
+	const countBasis = positionsCoverRange ? "positions" : "pools";
+	const aggregates = useMemo(
+		() => computeClosedAggregates(filteredClosed),
+		[filteredClosed],
+	);
+	const avgDenominator =
+		positionsCoverRange && filteredChartPositions.length > 0
+			? filteredChartPositions.length
+			: bounded
+				? Math.max(1, filteredClosed.length)
+				: Math.max(1, apiTotalPositions > 0 ? apiTotalPositions : totalCount);
 	const metrics = useMemo(() => {
 		if (positionsCoverRange && filteredChartPositions.length > 0) {
 			const records = filteredChartPositions.map((p) => ({
@@ -145,7 +158,6 @@ export function PortfolioOverviewContent({
 						}
 					: null,
 				currency,
-				dateRange,
 			);
 		}
 		return computeOverviewMetrics(
@@ -160,7 +172,6 @@ export function PortfolioOverviewContent({
 						usd: data.summary.unrealizedUsd,
 					},
 			currency,
-			dateRange,
 		);
 	}, [
 		positionsCoverRange,
@@ -168,7 +179,6 @@ export function PortfolioOverviewContent({
 		filteredClosed,
 		bounded,
 		totalCount,
-		dateRange,
 		data.total,
 		data.summary,
 		currency,
@@ -197,6 +207,8 @@ export function PortfolioOverviewContent({
 						metrics={metrics}
 						currency={currency}
 						dateRange={dateRange}
+						countBasis={countBasis}
+						positionCount={apiTotalPositions > 0 ? apiTotalPositions : null}
 					/>
 				)}
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-stretch">
@@ -209,6 +221,9 @@ export function PortfolioOverviewContent({
 									total={bounded ? null : (data.total ?? null)}
 									metrics={metrics}
 									currency={currency}
+									aggregates={aggregates}
+									avgDenominator={avgDenominator}
+									countBasis={countBasis}
 								/>
 							</>
 						) : (

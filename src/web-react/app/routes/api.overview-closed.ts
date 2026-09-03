@@ -71,6 +71,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				byMonth: data.byMonth,
 				totalCount: data.totalCount,
 				totalPositions: data.totalPositions,
+				apiTotalPositions: data.apiTotalPositions,
 			},
 			{ headers: { "Cache-Control": `public, max-age=${maxAge}` } },
 		);

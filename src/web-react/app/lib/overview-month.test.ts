@@ -15,6 +15,7 @@ function okResponse(
 		byMonth,
 		totalCount: 0,
 		totalPositions: 0,
+		apiTotalPositions: 0,
 	};
 }
 
@@ -34,6 +35,7 @@ describe("resolveMonthStoreUpdate", () => {
 			byMonth: { "2026-08": [pos] } as never,
 			totalCount: 1,
 			totalPositions: 1,
+			apiTotalPositions: 1,
 		};
 		const stale = okResponse({ "2026-09": [] });
 		expect(resolveMonthStoreUpdate("2026-08", stale, fresh)).toEqual([

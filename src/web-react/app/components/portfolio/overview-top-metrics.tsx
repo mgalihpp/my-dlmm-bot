@@ -214,10 +214,14 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	metrics,
 	currency,
 	dateRange,
+	countBasis = "pools",
+	positionCount = null,
 }: {
 	metrics: OverviewMetrics;
 	currency: Currency;
 	dateRange?: ResolvedRange | null;
+	countBasis?: "pools" | "positions";
+	positionCount?: number | null;
 }) {
 	const isSol = currency === "sol";
 	const netPnl = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
@@ -275,8 +279,12 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</button>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
-								Realized PnL from closed positions plus unrealized PnL from open
-								positions. Badge shows total closed count.
+								Realized PnL from closed {countBasis} plus unrealized PnL from
+								open positions. Badge shows total closed {countBasis}
+								{countBasis === "pools" && positionCount != null
+									? ` across ${positionCount} positions`
+									: ""}
+								.
 							</TooltipContent>
 						</Tooltip>
 						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -307,8 +315,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									</button>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Wins divided by total closed positions (breakeven excluded).
-									Half-donut shows wins vs losses.
+									Wins divided by total closed {countBasis} (breakeven
+									excluded). Half-donut shows wins vs losses.
 								</TooltipContent>
 							</Tooltip>
 						</div>
@@ -385,7 +393,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								<TooltipContent className="max-w-xs">
 									{dateRange?.kind === "bounded"
 										? "Winning days vs losing days in the selected period (daily net PnL)."
-										: "Same as Position win % but only for positions closed in the last 24 hours."}
+										: "Winning days vs losing days across all history (daily net PnL)."}
 								</TooltipContent>
 							</Tooltip>
 						</div>

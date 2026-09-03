@@ -9,6 +9,7 @@ export type OverviewClosedResponse =
 			byMonth: Readonly<Record<string, readonly PositionPnLData[]>>;
 			totalCount: number;
 			totalPositions: number;
+			apiTotalPositions: number;
 	  }
 	| { ok: false; error: string };
 
