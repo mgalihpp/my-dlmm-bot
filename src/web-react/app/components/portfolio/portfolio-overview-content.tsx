@@ -1,12 +1,13 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { lazy, Suspense, useEffect, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
 import type { Currency } from "~/lib/currency";
 import {
 	filterClosedByRange,
 	filterPositionsByRange,
+	monthKeysInRange,
 	type ResolvedRange,
 } from "~/lib/date-range";
 import {
@@ -14,6 +15,7 @@ import {
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
+import { useClosedMonthStore } from "~/stores/closed-month-cache";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
 import {
 	OverviewTopMetrics,
@@ -50,75 +52,104 @@ export function PortfolioOverviewContent({
 	currency: Currency;
 	dateRange: ResolvedRange;
 }) {
-	const overviewFetcher = useFetcher<OverviewClosedResponse>();
-	const overviewState = overviewFetcher.state;
-	const hasOverviewData = !!overviewFetcher.data;
+	// Stage 1: pool summary — complete all-time coverage without the per-pool
+	// positionPnl fan-out, so top metrics and equity render fast.
+	const summaryFetcher = useFetcher<OverviewClosedResponse>();
 	useEffect(() => {
-		if (overviewState !== "idle" || hasOverviewData) return;
-		overviewFetcher.load("/api/overview-closed");
-	}, [overviewState, hasOverviewData, overviewFetcher.load]);
+		if (summaryFetcher.state !== "idle" || summaryFetcher.data) return;
+		summaryFetcher.load("/api/overview-closed?poolsOnly=1");
+	}, [summaryFetcher]);
 
-	const overview = useMemo(() => {
-		const d = overviewFetcher.data;
-		if (d?.ok) return d;
-		return null;
-	}, [overviewFetcher.data]);
+	const summary = summaryFetcher.data?.ok === true ? summaryFetcher.data : null;
 
-	const closedAll = overview?.pools ?? [];
-	const positions = overview?.positions ?? [];
-	const byMonth = overview?.byMonth ?? {};
+	const [month, setMonth] = useState(() => new Date());
+	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
+
+	// Stage 2: position detail for the visible calendar month only, accumulated
+	// in the month cache so navigation never refetches a loaded month.
+	const entries = useClosedMonthStore((s) => s.entries);
+	const setMonths = useClosedMonthStore((s) => s.setMonths);
+	const cachedMonth = entries[monthKey]?.data;
+	const detailFetcher = useFetcher<OverviewClosedResponse>();
+	const [loadingMonth, setLoadingMonth] = useState<string | null>(null);
+	const attempted = useRef<Set<string>>(new Set());
+	useEffect(() => {
+		if (cachedMonth || loadingMonth !== null || detailFetcher.state !== "idle")
+			return;
+		if (attempted.current.has(monthKey)) return;
+		attempted.current.add(monthKey);
+		setLoadingMonth(monthKey);
+		detailFetcher.load(`/api/overview-closed?month=${monthKey}`);
+	}, [monthKey, cachedMonth, loadingMonth, detailFetcher]);
+	useEffect(() => {
+		if (loadingMonth === null) return;
+		const d = detailFetcher.data;
+		if (detailFetcher.state !== "idle" || !d) return;
+		if (d.ok === true) setMonths([{ key: loadingMonth, data: d.positions }]);
+		setLoadingMonth(null);
+	}, [detailFetcher.data, detailFetcher.state, loadingMonth, setMonths]);
+
+	const closedAll = useMemo(() => summary?.pools ?? [], [summary]);
+	const totalCount = summary?.totalCount ?? data.closed?.totalCount ?? 0;
+
+	const monthPositions = useMemo(
+		() => (cachedMonth ?? []) as readonly PositionPnLData[],
+		[cachedMonth],
+	);
+
+	const loadedPositions = useMemo(
+		() => Object.values(entries).flatMap((e) => e.data),
+		[entries],
+	);
+
+	// Position-level views only when every month in the selected range is
+	// loaded; otherwise pool aggregates (complete) avoid undercount bias.
+	const positionsCoverRange =
+		dateRange.kind === "bounded" &&
+		monthKeysInRange(dateRange.from, dateRange.to).every(
+			(k) => entries[k] !== undefined,
+		) &&
+		monthKeysInRange(dateRange.from, dateRange.to).length > 0;
 
 	const filteredClosed = useMemo(
 		() => filterClosedByRange(closedAll, dateRange),
 		[closedAll, dateRange],
 	);
 
-	const [month, setMonth] = useState(() => new Date());
-	const monthKey = `${month.getUTCFullYear()}-${String(month.getUTCMonth() + 1).padStart(2, "0")}`;
-	const monthPositions = useMemo(
-		() => (byMonth[monthKey] as readonly PositionPnLData[] | undefined) ?? [],
-		[byMonth, monthKey],
-	);
-
 	const filteredChartPositions = useMemo(
-		() => filterPositionsByRange(positions, dateRange),
-		[positions, dateRange],
+		() =>
+			positionsCoverRange
+				? filterPositionsByRange(loadedPositions, dateRange)
+				: [],
+		[positionsCoverRange, loadedPositions, dateRange],
 	);
-	const chartHasData = positions.length > 0;
-	const isLoading = overviewState !== "idle" && !hasOverviewData;
-	const topMetricsLoading = isLoading;
 	const bounded = dateRange.kind === "bounded";
 	const metrics = useMemo(() => {
-		const hasPositions = chartHasData;
-		if (hasPositions) {
-			const source = filteredChartPositions;
-			const records = source.map((p) => ({
+		if (positionsCoverRange && filteredChartPositions.length > 0) {
+			const records = filteredChartPositions.map((p) => ({
 				pnlSol: p.pnlSol,
 				pnlUsd: p.pnlUsd,
 				closedAt: p.closedAt,
 			}));
-			const total = bounded ? filteredChartPositions.length : positions.length;
-			if (total > 0 || filteredChartPositions.length > 0) {
-				return computeOverviewMetricsFromRecords(
-					records,
-					[],
-					total,
-					bounded ? null : (data.total ?? null),
-					bounded || !data.summary
-						? null
-						: {
-								sol: data.summary.unrealizedSol,
-								usd: data.summary.unrealizedUsd,
-							},
-					currency,
-					dateRange,
-				);
-			}
+			return computeOverviewMetricsFromRecords(
+				records,
+				[],
+				filteredChartPositions.length,
+				null,
+				data.summary
+					? {
+							sol: data.summary.unrealizedSol,
+							usd: data.summary.unrealizedUsd,
+						}
+					: null,
+				currency,
+				dateRange,
+			);
 		}
 		return computeOverviewMetrics(
 			filteredClosed,
 			[],
-			bounded ? filteredClosed.length : (data.closed?.totalCount ?? 0),
+			bounded ? filteredClosed.length : totalCount,
 			bounded ? null : (data.total ?? null),
 			bounded || !data.summary
 				? null
@@ -130,13 +161,12 @@ export function PortfolioOverviewContent({
 			dateRange,
 		);
 	}, [
-		filteredClosed,
+		positionsCoverRange,
 		filteredChartPositions,
-		positions,
-		chartHasData,
+		filteredClosed,
 		bounded,
+		totalCount,
 		dateRange,
-		data.closed,
 		data.total,
 		data.summary,
 		currency,
@@ -151,13 +181,14 @@ export function PortfolioOverviewContent({
 		);
 	}
 
-	const monthLoading = isLoading && monthPositions.length === 0;
-	const equityLoading = isLoading;
+	const summaryLoading = summaryFetcher.state !== "idle" && !summary;
+	const monthLoading =
+		!cachedMonth && (loadingMonth !== null || detailFetcher.state !== "idle");
 
 	return (
 		<div className="relative">
 			<div className="flex flex-col gap-2 px-4 pb-2 lg:px-6">
-				{topMetricsLoading ? (
+				{summaryLoading ? (
 					<OverviewTopMetricsSkeleton />
 				) : (
 					<OverviewTopMetrics
@@ -198,7 +229,7 @@ export function PortfolioOverviewContent({
 									currency={currency}
 									month={month}
 									onMonthChange={setMonth}
-									loading={overviewState !== "idle"}
+									loading={detailFetcher.state !== "idle"}
 								/>
 							</Suspense>
 						)}
@@ -210,19 +241,22 @@ export function PortfolioOverviewContent({
 					>
 						<EquityChart
 							closed={filteredClosed}
-							positions={filteredChartPositions}
+							positions={
+								positionsCoverRange ? filteredChartPositions : undefined
+							}
 							currency={currency}
-							loading={equityLoading}
+							loading={summaryLoading}
 						/>
 					</Suspense>
 					<Suspense
 						fallback={<ChartCardSkeleton blockClassName="h-[300px] w-full" />}
 					>
-						{topMetricsLoading ? (
+						{summaryLoading ? (
 							<ChartCardSkeleton blockClassName="h-[300px] w-full" />
 						) : (
 							<DailyPnlChart
 								closed={filteredChartPositions}
+								pools={filteredClosed}
 								currency={currency}
 							/>
 						)}

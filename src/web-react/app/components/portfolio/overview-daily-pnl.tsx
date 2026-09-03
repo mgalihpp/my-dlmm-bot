@@ -1,3 +1,4 @@
+import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { ShareIcon } from "lucide-react";
 import { memo, useMemo, useState } from "react";
@@ -18,14 +19,21 @@ import {
 	ChartTooltip,
 } from "~/components/ui/chart";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
+import {
+	buildDailyBuckets,
+	poolDelta,
+	positionDelta,
+} from "~/lib/cumulative-pnl";
 import type { Currency } from "~/lib/currency";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 export const DailyPnlChart = memo(function DailyPnlChart({
 	closed,
+	pools,
 	currency,
 }: {
 	closed: readonly PositionPnLData[];
+	pools?: readonly ClosedPool[];
 	currency: Currency;
 }) {
 	const timeframe = useChartPreferenceStore((s) => s.timeframe);
@@ -34,119 +42,16 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 	const setMode = useChartPreferenceStore((s) => s.setMode);
 	const [shareOpen, setShareOpen] = useState(false);
 	const { points, config, rangeLabel, total } = useMemo(() => {
-		const getVal = (p: PositionPnLData) => {
-			if (mode === "fees")
-				return (
-					Number(
-						currency === "sol"
-							? (p.allTimeFees.total.sol ?? "0")
-							: p.allTimeFees.total.usd,
-					) || 0
-				);
-			return Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
-		};
-		const deltas = closed
-			.filter(
-				(p): p is PositionPnLData & { closedAt: number } => p.closedAt != null,
-			)
-			.map((p) => ({ ts: p.closedAt, delta: getVal(p) }));
-		let buckets: { key: string; label: string; value: number }[] = [];
-		if (timeframe === "daily") {
-			if (deltas.length === 0) {
-				buckets = [];
-			} else {
-				let minTs = Number.POSITIVE_INFINITY;
-				let maxTs = Number.NEGATIVE_INFINITY;
-				for (const d of deltas) {
-					if (d.ts < minTs) minTs = d.ts;
-					if (d.ts > maxTs) maxTs = d.ts;
-				}
-				const minDt = new Date(minTs * 1000);
-				const maxDt = new Date(maxTs * 1000);
-				const startUtc = Date.UTC(
-					minDt.getUTCFullYear(),
-					minDt.getUTCMonth(),
-					minDt.getUTCDate(),
-				);
-				const endUtc = Date.UTC(
-					maxDt.getUTCFullYear(),
-					maxDt.getUTCMonth(),
-					maxDt.getUTCDate(),
-				);
-				const spansYears = minDt.getUTCFullYear() !== maxDt.getUTCFullYear();
-				const dayBuckets = new Map<string, { label: string; value: number }>();
-				for (let t = startUtc; t <= endUtc; t += 86400000) {
-					const dt = new Date(t);
-					const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
-					const label = dt.toLocaleDateString("en-US", {
-						month: "short",
-						day: "numeric",
-						year: spansYears ? "2-digit" : undefined,
-						timeZone: "UTC",
-					});
-					dayBuckets.set(key, { label, value: 0 });
-				}
-				for (const d of deltas) {
-					const dt = new Date(d.ts * 1000);
-					const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}-${dt.getUTCDate()}`;
-					const entry = dayBuckets.get(key);
-					if (entry) entry.value += d.delta;
-				}
-				buckets = [...dayBuckets.entries()].map(([key, e]) => ({
-					key,
-					label: e.label,
-					value: e.value,
-				}));
-			}
-		} else if (timeframe === "weekly") {
-			const map = new Map<
-				string,
-				{ label: string; value: number; ts: number }
-			>();
-			for (const d of deltas) {
-				const dt = new Date(d.ts * 1000);
-				const jan1 = new Date(Date.UTC(dt.getUTCFullYear(), 0, 1));
-				const week = Math.ceil(
-					((dt.getTime() - jan1.getTime()) / 86400000 + jan1.getUTCDay() + 1) /
-						7,
-				);
-				const key = `${dt.getUTCFullYear()}-W${week}`;
-				const entry = map.get(key) ?? {
-					label: `W${week}`,
-					value: 0,
-					ts: d.ts,
-				};
-				entry.value += d.delta;
-				entry.ts = d.ts;
-				map.set(key, entry);
-			}
-			buckets = [...map.values()]
-				.sort((a, b) => a.ts - b.ts)
-				.slice(-12)
-				.map((e) => ({ key: e.label, label: e.label, value: e.value }));
-		} else {
-			const map = new Map<
-				string,
-				{ label: string; value: number; ts: number }
-			>();
-			for (const d of deltas) {
-				const dt = new Date(d.ts * 1000);
-				const key = `${dt.getUTCFullYear()}-${dt.getUTCMonth()}`;
-				const ts = Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), 1);
-				const label = dt.toLocaleDateString("en-US", {
-					month: "short",
-					year: "numeric",
-					timeZone: "UTC",
-				});
-				const entry = map.get(key) ?? { label, value: 0, ts };
-				entry.value += d.delta;
-				map.set(key, entry);
-			}
-			buckets = [...map.values()]
-				.sort((a, b) => a.ts - b.ts)
-				.slice(-12)
-				.map((e) => ({ key: e.label, label: e.label, value: e.value }));
-		}
+		const fromPositions = closed.map((p) => positionDelta(p, currency, mode));
+		const hasPositions = fromPositions.some((d) => d !== null);
+		const deltas = (
+			hasPositions
+				? fromPositions
+				: ((pools ?? []).map((p) => poolDelta(p, currency, mode)) as ReturnType<
+						typeof positionDelta
+					>[])
+		).filter((d): d is { ts: number; delta: number } => d !== null);
+		const buckets = buildDailyBuckets(deltas, timeframe);
 		const points = buckets.map((b) => ({
 			key: b.key,
 			label: b.label,
@@ -189,7 +94,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 			rangeLabel = ` - ${nowFmt}`;
 		}
 		return { points, config, rangeLabel, total };
-	}, [closed, currency, timeframe, mode]);
+	}, [closed, pools, currency, timeframe, mode]);
 
 	return (
 		<>

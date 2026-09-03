@@ -12,6 +12,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 	const month = url.searchParams.get("month");
 	const day = url.searchParams.get("day");
 	const week = url.searchParams.get("week");
+	const poolsOnly = url.searchParams.get("poolsOnly") === "1";
 	const provided = [month, day, week].filter((v) => v != null).length;
 	if (provided > 1) {
 		return Response.json(
@@ -54,8 +55,14 @@ export async function loader({ request }: Route.LoaderArgs) {
 				? { week }
 				: month
 					? { month }
-					: undefined;
+					: poolsOnly
+						? { poolsOnly: true as const }
+						: undefined;
 		const data = await fetchOverviewClosed(wallet, opts);
+		const now = new Date();
+		const currentMonth = `${now.getUTCFullYear()}-${String(now.getUTCMonth() + 1).padStart(2, "0")}`;
+		const maxAge =
+			month != null && month < currentMonth && !poolsOnly ? 3600 : 60;
 		return Response.json(
 			{
 				ok: true,
@@ -65,7 +72,7 @@ export async function loader({ request }: Route.LoaderArgs) {
 				totalCount: data.totalCount,
 				totalPositions: data.totalPositions,
 			},
-			{ headers: { "Cache-Control": "public, max-age=60" } },
+			{ headers: { "Cache-Control": `public, max-age=${maxAge}` } },
 		);
 	} catch (e) {
 		return Response.json({ ok: false, error: String(e) }, { status: 500 });

@@ -11,6 +11,7 @@ import {
 	formatMonthDayYear,
 	formatShortRange,
 	makeLocalDate,
+	monthKeysInRange,
 	monthMatrix,
 	type PresetKey,
 	parseDateFilterParams,
@@ -220,6 +221,38 @@ describe("date text and draft helpers", () => {
 				to: parseLocalDate("2026-06-30"),
 			}),
 		).toBe("Jun 1 – Jun 30 selected");
+	});
+});
+
+describe("monthKeysInRange", () => {
+	it("lists every YYYY-MM key in a bounded range", () => {
+		expect(
+			monthKeysInRange(
+				parseLocalDate("2026-08-24")!,
+				parseLocalDate("2026-08-30")!,
+			),
+		).toEqual(["2026-08"]);
+		expect(
+			monthKeysInRange(
+				parseLocalDate("2026-07-15")!,
+				parseLocalDate("2026-09-02")!,
+			),
+		).toEqual(["2026-07", "2026-08", "2026-09"]);
+		expect(
+			monthKeysInRange(
+				parseLocalDate("2025-12-31")!,
+				parseLocalDate("2026-01-01")!,
+			),
+		).toEqual(["2025-12", "2026-01"]);
+	});
+
+	it("returns empty for inverted ranges", () => {
+		expect(
+			monthKeysInRange(
+				parseLocalDate("2026-08-30")!,
+				parseLocalDate("2026-08-24")!,
+			),
+		).toEqual([]);
 	});
 });
 

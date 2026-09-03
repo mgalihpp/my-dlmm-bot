@@ -336,6 +336,30 @@ export function filterPositionsByRange<
 	});
 }
 
+/** YYYY-MM keys covered by a bounded local-date range, inclusive. */
+export function monthKeysInRange(from: LocalDate, to: LocalDate): string[] {
+	const [fy, fm, fd] = from.split("-").map(Number);
+	const [ty, tm, td] = to.split("-").map(Number);
+	if (
+		![fy, fm, fd, ty, tm, td].every(Number.isInteger) ||
+		compareLocalDate(from, to) > 0
+	) {
+		return [];
+	}
+	const out: string[] = [];
+	let y = fy;
+	let m = fm;
+	while (y < ty || (y === ty && m <= tm)) {
+		out.push(`${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}`);
+		m += 1;
+		if (m > 12) {
+			m = 1;
+			y += 1;
+		}
+	}
+	return out;
+}
+
 export function parseMonthDayYear(input: string): LocalDate | null {
 	const match = /^([A-Za-z]{3}) (\d{1,2}), (\d{4})$/.exec(input);
 	if (match === null) return null;

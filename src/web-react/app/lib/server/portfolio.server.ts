@@ -18,7 +18,7 @@ import {
 import { Effect } from "effect";
 import { computeLiveMcap } from "~/lib/mcap";
 import { resolveWebConfig } from "./config";
-import { isoWeekToKey } from "./period.server";
+import { getCurrentMonthKey, isoWeekToKey } from "./period.server";
 import { createTtlCache } from "./ttl-cache.server";
 import { isValidSolanaAddress } from "./validate.server";
 export type OpenPoolWithIcons = OpenPool & {
@@ -41,9 +41,114 @@ export interface OverviewClosed {
 }
 
 const OVERVIEW_CLOSED_TTL_MS = 60 * 1000;
+const OVERVIEW_CLOSED_PAST_MONTH_TTL_MS = 24 * 60 * 60 * 1000;
 const overviewClosedCache = createTtlCache<string, OverviewClosed>({
 	ttlMs: OVERVIEW_CLOSED_TTL_MS,
 });
+/** Long-lived cache for immutable past months (closedAt in the past never changes). */
+const overviewClosedPastCache = createTtlCache<string, OverviewClosed>({
+	ttlMs: OVERVIEW_CLOSED_PAST_MONTH_TTL_MS,
+});
+
+export interface OverviewClosedOpts {
+	month?: string;
+	day?: string;
+	week?: string;
+	poolsOnly?: boolean;
+}
+
+export function buildOverviewCacheKey(
+	wallet: string,
+	opts?: OverviewClosedOpts,
+): string {
+	if (opts?.poolsOnly) return `${wallet}:pools-only`;
+	return `${wallet}:${opts?.month ?? opts?.day ?? opts?.week ?? "all"}`;
+}
+
+/** Past-month detail responses are immutable, safe to serve from the long cache. */
+export function isPastMonthOpts(
+	opts?: OverviewClosedOpts,
+	currentMonth = getCurrentMonthKey(),
+): boolean {
+	return (
+		opts?.month != null && opts.poolsOnly !== true && opts.month < currentMonth
+	);
+}
+
+/** Dedupe closed pools by address (pagination overlap guard). */
+export function dedupeClosedPools(pools: readonly ClosedPool[]): ClosedPool[] {
+	const seen = new Set<string>();
+	const out: ClosedPool[] = [];
+	for (const p of pools) {
+		if (seen.has(p.poolAddress)) continue;
+		seen.add(p.poolAddress);
+		out.push(p);
+	}
+	return out;
+}
+
+function fetchAllClosedPoolPages(
+	api: MeteoraApiService,
+	wallet: string,
+): Effect.Effect<{ pools: ClosedPool[]; totalCount: number }> {
+	return Effect.gen(function* () {
+		const closedRes = yield* api
+			.closedPortfolio(wallet, 1, 10)
+			.pipe(Effect.catchAll(() => Effect.succeed(null)));
+		if (closedRes === null || closedRes.totalCount === 0)
+			return { pools: [] as ClosedPool[], totalCount: 0 };
+		const pageSizeForAll = 50;
+		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
+		const maxPages = Math.min(totalPages, 40);
+		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
+			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
+				Effect.map((res) => res.pools as ClosedPool[]),
+				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
+			),
+		);
+		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
+		return {
+			pools: dedupeClosedPools(pages.flat()),
+			totalCount: closedRes.totalCount,
+		};
+	});
+}
+
+function fetchPositionsForClosedPools(
+	pools: readonly ClosedPool[],
+	api: MeteoraApiService,
+	w: string,
+): Effect.Effect<PositionPnLData[]> {
+	return Effect.forEach(
+		pools,
+		(pool) =>
+			api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
+				Effect.flatMap((res) => {
+					const first = (res.positions as PositionPnLData[]).filter(
+						(p) => p.isClosed && p.closedAt != null,
+					);
+					if (!res.hasNext) return Effect.succeed(first);
+					const remaining = Math.ceil(res.totalCount / 100) - 1;
+					if (remaining <= 0) return Effect.succeed(first);
+					const pageEffects = Array.from({ length: remaining }, (_, i) =>
+						api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
+							Effect.map((r) =>
+								(r.positions as PositionPnLData[]).filter(
+									(p) => p.isClosed && p.closedAt != null,
+								),
+							),
+							Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+						),
+					);
+					return Effect.all(pageEffects, { concurrency: 3 }).pipe(
+						Effect.map((pg) => [...first, ...pg.flat()]),
+					);
+				}),
+				Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
+			),
+		{ concurrency: 5 },
+	).pipe(Effect.map((arr) => arr.flat() as PositionPnLData[]));
+}
 
 function periodRangeFromOpts(opts?: {
 	month?: string;
@@ -312,62 +417,12 @@ function fetchClosedPositionsUncached(
 	wallet: string,
 	periodRange: { start: number; end: number } | null,
 ): Promise<readonly PositionPnLData[]> {
-	const fetchPositionsForPools = (
-		pools: readonly ClosedPool[],
-		api: MeteoraApiService,
-		w: string,
-	) =>
-		Effect.forEach(
-			pools,
-			(pool) =>
-				api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
-					Effect.flatMap((res) => {
-						const first = (res.positions as PositionPnLData[]).filter(
-							(p) => p.isClosed && p.closedAt != null,
-						);
-						if (!res.hasNext) return Effect.succeed(first);
-						const remaining = Math.ceil(res.totalCount / 100) - 1;
-						if (remaining <= 0) return Effect.succeed(first);
-						const pageEffects = Array.from({ length: remaining }, (_, i) =>
-							api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
-								Effect.map((r) =>
-									(r.positions as PositionPnLData[]).filter(
-										(p) => p.isClosed && p.closedAt != null,
-									),
-								),
-								Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-							),
-						);
-						return Effect.all(pageEffects, { concurrency: 3 }).pipe(
-							Effect.map((pg) => [...first, ...pg.flat()]),
-						);
-					}),
-					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-				),
-			{ concurrency: 5 },
-		).pipe(Effect.map((arr) => arr.flat() as PositionPnLData[]));
-
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
-		const closedRes = yield* api
-			.closedPortfolio(wallet, 1, 10)
-			.pipe(Effect.catchAll(() => Effect.succeed(null)));
-		if (closedRes === null || closedRes.totalCount === 0)
-			return [] as PositionPnLData[];
-		const pageSizeForAll = 50;
-		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
-		const maxPages = Math.min(totalPages, 40);
-		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
-			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
-				Effect.map((res) => res.pools as ClosedPool[]),
-				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-			),
-		);
-		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
-		const rawPoolsAll = pages.flat() as ClosedPool[];
+		const { pools: rawPoolsAll } = yield* fetchAllClosedPoolPages(api, wallet);
 		if (rawPoolsAll.length === 0) return [] as PositionPnLData[];
 		if (!periodRange) {
-			const all = yield* fetchPositionsForPools(rawPoolsAll, api, wallet);
+			const all = yield* fetchPositionsForClosedPools(rawPoolsAll, api, wallet);
 			return all;
 		}
 		const candidatePools = rawPoolsAll.filter((pool) => {
@@ -378,7 +433,7 @@ function fetchClosedPositionsUncached(
 			return last != null && last >= periodRange.start;
 		});
 		if (candidatePools.length === 0) return [] as PositionPnLData[];
-		const allPositions = yield* fetchPositionsForPools(
+		const allPositions = yield* fetchPositionsForClosedPools(
 			candidatePools,
 			api,
 			wallet,
@@ -430,22 +485,7 @@ export function fetchAllClosedPools(
 ): Promise<readonly ClosedPoolWithIcons[]> {
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
-		const closedRes = yield* api
-			.closedPortfolio(wallet, 1, 10)
-			.pipe(Effect.catchAll(() => Effect.succeed(null)));
-		if (closedRes === null || closedRes.totalCount === 0)
-			return [] as ClosedPoolWithIcons[];
-		const pageSizeForAll = 50;
-		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
-		const maxPages = Math.min(totalPages, 40);
-		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
-			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
-				Effect.map((res) => res.pools),
-				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-			),
-		);
-		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
-		const rawPools = pages.flat() as ClosedPool[];
+		const { pools: rawPools } = yield* fetchAllClosedPoolPages(api, wallet);
 		if (rawPools.length === 0) return [] as ClosedPoolWithIcons[];
 		return rawPools.map((p) => ({
 			...p,
@@ -477,81 +517,38 @@ function bucketByMonth(
 function fetchOverviewClosedUncached(
 	wallet: string,
 	periodRange: { start: number; end: number } | null,
+	poolsOnly = false,
 ): Promise<OverviewClosed> {
-	const fetchPositionsForPools = (
-		pools: readonly ClosedPool[],
-		api: MeteoraApiService,
-		w: string,
-	) =>
-		Effect.forEach(
-			pools,
-			(pool) =>
-				api.positionPnl(pool.poolAddress, w, "closed", 1, 100).pipe(
-					Effect.flatMap((res) => {
-						const first = (res.positions as PositionPnLData[]).filter(
-							(p) => p.isClosed && p.closedAt != null,
-						);
-						if (!res.hasNext) return Effect.succeed(first);
-						const remaining = Math.ceil(res.totalCount / 100) - 1;
-						if (remaining <= 0) return Effect.succeed(first);
-						const pageEffects = Array.from({ length: remaining }, (_, i) =>
-							api.positionPnl(pool.poolAddress, w, "closed", i + 2, 100).pipe(
-								Effect.map((r) =>
-									(r.positions as PositionPnLData[]).filter(
-										(p) => p.isClosed && p.closedAt != null,
-									),
-								),
-								Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-							),
-						);
-						return Effect.all(pageEffects, { concurrency: 3 }).pipe(
-							Effect.map((pg) => [...first, ...pg.flat()]),
-						);
-					}),
-					Effect.catchAll(() => Effect.succeed([] as PositionPnLData[])),
-				),
-			{ concurrency: 5 },
-		).pipe(Effect.map((arr) => arr.flat() as PositionPnLData[]));
-
 	const program = Effect.gen(function* () {
 		const api = yield* MeteoraApi;
-		const closedRes = yield* api
-			.closedPortfolio(wallet, 1, 10)
-			.pipe(Effect.catchAll(() => Effect.succeed(null)));
-		if (closedRes === null || closedRes.totalCount === 0)
-			return {
-				pools: [] as ClosedPool[],
-				positions: [] as PositionPnLData[],
-				byMonth: {} as Record<string, readonly PositionPnLData[]>,
-				totalCount: 0,
-				totalPositions: 0,
-			} satisfies OverviewClosed;
-		const pageSizeForAll = 50;
-		const totalPages = Math.ceil(closedRes.totalCount / pageSizeForAll);
-		const maxPages = Math.min(totalPages, 40);
-		const poolEffects = Array.from({ length: maxPages }, (_, idx) =>
-			api.closedPortfolio(wallet, idx + 1, pageSizeForAll).pipe(
-				Effect.map((res) => res.pools as ClosedPool[]),
-				Effect.catchAll(() => Effect.succeed([] as ClosedPool[])),
-			),
+		const { pools: rawPoolsAll, totalCount } = yield* fetchAllClosedPoolPages(
+			api,
+			wallet,
 		);
-		const pages = yield* Effect.all(poolEffects, { concurrency: 3 });
-		const rawPoolsAll = pages.flat() as ClosedPool[];
 		if (rawPoolsAll.length === 0)
 			return {
 				pools: [],
 				positions: [],
 				byMonth: {},
-				totalCount: closedRes.totalCount,
+				totalCount,
 				totalPositions: 0,
 			} satisfies OverviewClosed;
+		if (poolsOnly) {
+			return {
+				pools: rawPoolsAll,
+				positions: [],
+				byMonth: {},
+				totalCount,
+				totalPositions: 0,
+			} satisfies OverviewClosed;
+		}
 		if (!periodRange) {
-			const all = yield* fetchPositionsForPools(rawPoolsAll, api, wallet);
+			const all = yield* fetchPositionsForClosedPools(rawPoolsAll, api, wallet);
 			return {
 				pools: rawPoolsAll,
 				positions: all,
 				byMonth: bucketByMonth(all),
-				totalCount: closedRes.totalCount,
+				totalCount,
 				totalPositions: all.length,
 			} satisfies OverviewClosed;
 		}
@@ -567,10 +564,10 @@ function fetchOverviewClosedUncached(
 				pools: rawPoolsAll,
 				positions: [],
 				byMonth: {},
-				totalCount: closedRes.totalCount,
+				totalCount,
 				totalPositions: 0,
 			} satisfies OverviewClosed;
-		const allPositions = yield* fetchPositionsForPools(
+		const allPositions = yield* fetchPositionsForClosedPools(
 			candidatePools,
 			api,
 			wallet,
@@ -585,7 +582,7 @@ function fetchOverviewClosedUncached(
 			pools: rawPoolsAll,
 			positions: filtered,
 			byMonth: bucketByMonth(filtered),
-			totalCount: closedRes.totalCount,
+			totalCount,
 			totalPositions: filtered.length,
 		} satisfies OverviewClosed;
 	}).pipe(
@@ -605,12 +602,15 @@ function fetchOverviewClosedUncached(
 
 export function fetchOverviewClosed(
 	wallet: string,
-	opts?: { month?: string; day?: string; week?: string },
+	opts?: OverviewClosedOpts,
 ): Promise<OverviewClosed> {
 	const periodRange = periodRangeFromOpts(opts);
-	const key = `${wallet}:${opts?.month ?? opts?.day ?? opts?.week ?? "all"}`;
-	return overviewClosedCache.load(key, () =>
-		fetchOverviewClosedUncached(wallet, periodRange),
+	const key = buildOverviewCacheKey(wallet, opts);
+	const cache = isPastMonthOpts(opts)
+		? overviewClosedPastCache
+		: overviewClosedCache;
+	return cache.load(key, () =>
+		fetchOverviewClosedUncached(wallet, periodRange, opts?.poolsOnly === true),
 	);
 }
 
