@@ -4,7 +4,6 @@ import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
-	ChartTooltipContent,
 } from "~/components/ui/chart";
 import type { CyclePoint } from "~/lib/server/agent.server";
 
@@ -14,6 +13,74 @@ const chartConfig = {
 	sl: { label: "SL", color: "var(--chart-3)" },
 	close: { label: "Close", color: "var(--chart-4)" },
 } satisfies ChartConfig;
+
+const SERIES_ORDER = ["open", "tp", "sl", "close"] as const;
+
+type SeriesKey = (typeof SERIES_ORDER)[number];
+
+export interface CycleTooltipRow {
+	readonly key: SeriesKey;
+	readonly label: string;
+	readonly value: number;
+}
+
+export function cycleTooltipRows(
+	datum: Partial<Record<SeriesKey | "cycle", unknown>> | null | undefined,
+): CycleTooltipRow[] {
+	if (datum === null || datum === undefined) return [];
+	const rows: CycleTooltipRow[] = [];
+	for (const key of SERIES_ORDER) {
+		const raw = Number(datum[key]);
+		if (!Number.isFinite(raw) || raw <= 0) continue;
+		rows.push({ key, label: String(chartConfig[key].label), value: raw });
+	}
+	return rows;
+}
+
+function CycleTooltipContent({
+	active,
+	payload,
+	label,
+}: {
+	readonly active?: boolean;
+	readonly payload?: readonly { readonly payload?: unknown }[];
+	readonly label?: unknown;
+}) {
+	const datum = payload?.[0]?.payload as
+		| Partial<Record<SeriesKey | "cycle", unknown>>
+		| null
+		| undefined;
+	const rows = cycleTooltipRows(datum);
+	if (!active || rows.length === 0) return null;
+	const cycle = datum?.cycle ?? label;
+	return (
+		<div className="grid min-w-32 items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs/relaxed shadow-xl">
+			<div className="font-medium">Cycle {String(cycle)}</div>
+			<div className="grid gap-1.5">
+				{rows.map((row) => (
+					<div
+						key={row.key}
+						className="flex w-full flex-wrap items-center gap-2"
+					>
+						<div
+							className="h-2.5 w-2.5 shrink-0 rounded-[2px]"
+							style={{
+								backgroundColor: `var(--color-${row.key})`,
+								borderColor: `var(--color-${row.key})`,
+							}}
+						/>
+						<div className="flex flex-1 items-center justify-between leading-none">
+							<span className="text-muted-foreground">{row.label}</span>
+							<span className="font-mono font-medium text-foreground tabular-nums">
+								{row.value.toLocaleString()}
+							</span>
+						</div>
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
 
 export function CycleChart({ data }: { data: readonly CyclePoint[] }) {
 	const total = data.reduce((n, d) => n + d.open + d.tp + d.sl + d.close, 0);
@@ -56,7 +123,7 @@ export function CycleChart({ data }: { data: readonly CyclePoint[] }) {
 								allowDecimals={false}
 								tick={{ fontSize: 11 }}
 							/>
-							<ChartTooltip content={<ChartTooltipContent />} />
+							<ChartTooltip content={<CycleTooltipContent />} />
 							<Bar dataKey="open" stackId="a" fill="var(--color-open)" />
 							<Bar dataKey="tp" stackId="a" fill="var(--color-tp)" />
 							<Bar dataKey="sl" stackId="a" fill="var(--color-sl)" />
