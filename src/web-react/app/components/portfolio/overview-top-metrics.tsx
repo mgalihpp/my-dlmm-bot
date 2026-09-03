@@ -216,12 +216,14 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	dateRange,
 	countBasis = "pools",
 	positionCount = null,
+	netPnlPct = null,
 }: {
 	metrics: OverviewMetrics;
 	currency: Currency;
 	dateRange?: ResolvedRange | null;
 	countBasis?: "pools" | "positions";
 	positionCount?: number | null;
+	netPnlPct?: number | null;
 }) {
 	const isSol = currency === "sol";
 	const netPnl = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
@@ -303,9 +305,18 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 							{badgeCount}
 						</span>
 					</div>
-					<span className={`text-2xl font-bold ${netPnlColor}`}>
-						{netPnlLabel}
-					</span>
+					<div className="flex items-center gap-2">
+						<span className={`text-2xl font-bold ${netPnlColor}`}>
+							{netPnlLabel}
+						</span>
+						{netPnlPct != null ? (
+							<span
+								className={`rounded px-1.5 py-0.5 text-xs ${netPnlPct >= 0 ? "bg-emerald-500/20 text-emerald-500" : "bg-red-500/20 text-red-500"}`}
+							>
+								{fmtPct(netPnlPct)}
+							</span>
+						) : null}
+					</div>
 				</CardContent>
 			</Card>
 

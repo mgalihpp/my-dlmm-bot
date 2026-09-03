@@ -139,6 +139,15 @@ export function PortfolioOverviewContent({
 			: bounded
 				? Math.max(1, filteredClosed.length)
 				: Math.max(1, apiTotalPositions > 0 ? apiTotalPositions : totalCount);
+	const netPnlPct = (() => {
+		if (bounded || data.total == null) return null;
+		const raw =
+			currency === "sol"
+				? data.total.totalPnlSolPctChange
+				: data.total.totalPnlPctChange;
+		const n = Number.parseFloat(raw ?? "");
+		return Number.isNaN(n) ? null : n;
+	})();
 	const metrics = useMemo(() => {
 		if (positionsCoverRange && filteredChartPositions.length > 0) {
 			const records = filteredChartPositions.map((p) => ({
@@ -209,6 +218,7 @@ export function PortfolioOverviewContent({
 						dateRange={dateRange}
 						countBasis={countBasis}
 						positionCount={apiTotalPositions > 0 ? apiTotalPositions : null}
+						netPnlPct={netPnlPct}
 					/>
 				)}
 				<div className="grid grid-cols-1 gap-2 lg:grid-cols-3 lg:items-stretch">
