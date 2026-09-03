@@ -1,4 +1,4 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 
 export const SESSION_COOKIE = "vexis_session";
 export const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
@@ -8,10 +8,9 @@ function hmac(password: string, payload: string): Buffer {
 }
 
 export function passwordMatches(input: string, expected: string): boolean {
-	const inputBytes = Buffer.from(input, "utf8");
-	const expectedBytes = Buffer.from(expected, "utf8");
-	if (inputBytes.length !== expectedBytes.length) return false;
-	return timingSafeEqual(inputBytes, expectedBytes);
+	const a = createHash("sha256").update(input, "utf8").digest();
+	const b = createHash("sha256").update(expected, "utf8").digest();
+	return timingSafeEqual(a, b);
 }
 
 export function signSessionCookie(password: string, now = Date.now()): string {
@@ -48,9 +47,9 @@ export function verifySessionCookie(
 }
 
 export function sessionCookieHeader(password: string): string {
-	return `${SESSION_COOKIE}=${signSessionCookie(password)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`;
+	return `${SESSION_COOKIE}=${signSessionCookie(password)}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${Math.floor(SESSION_TTL_MS / 1000)}`;
 }
 
 export function expiredCookieHeader(): string {
-	return `${SESSION_COOKIE}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+	return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`;
 }

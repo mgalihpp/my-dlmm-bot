@@ -15,7 +15,10 @@ import {
 	setAgentEnabled,
 } from "~/lib/server/settings.server";
 import type { SettingsPayload } from "~/lib/settings";
+import { authMiddleware } from "~/middleware/auth";
 import type { Route } from "./+types/settings-category";
+
+export const middleware: Route.MiddlewareFunction[] = [authMiddleware];
 
 export async function action({ request }: Route.ActionArgs) {
 	const form = await request.formData();
