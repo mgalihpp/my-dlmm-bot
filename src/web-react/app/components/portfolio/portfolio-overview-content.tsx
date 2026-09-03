@@ -10,6 +10,7 @@ import {
 	type ResolvedRange,
 } from "~/lib/date-range";
 import {
+	computeClosedAggregates,
 	computeOverviewMetrics,
 	computeOverviewMetricsFromRecords,
 } from "~/lib/overview-analytics";
@@ -118,6 +119,11 @@ export function PortfolioOverviewContent({
 		[closedAll, dateRange],
 	);
 
+	const aggregates = useMemo(
+		() => computeClosedAggregates(filteredClosed),
+		[filteredClosed],
+	);
+
 	const filteredChartPositions = useMemo(
 		() =>
 			positionsCoverRange
@@ -206,9 +212,9 @@ export function PortfolioOverviewContent({
 								<ActiveSummaryCard summary={data.summary} currency={currency} />
 								<PerformanceCard
 									summary={data.summary}
-									total={bounded ? null : (data.total ?? null)}
 									metrics={metrics}
 									currency={currency}
+									aggregates={aggregates}
 								/>
 							</>
 						) : (

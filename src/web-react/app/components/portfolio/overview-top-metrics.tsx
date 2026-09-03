@@ -275,8 +275,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 								</button>
 							</TooltipTrigger>
 							<TooltipContent className="max-w-xs">
-								Realized PnL from closed positions plus unrealized PnL from open
-								positions. Badge shows total closed count.
+								Realized PnL from closed pools (trailing 365-day window) plus
+								open unrealized PnL. Badge shows total closed count.
 							</TooltipContent>
 						</Tooltip>
 						<span className="ml-auto rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
@@ -307,8 +307,8 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 									</button>
 								</TooltipTrigger>
 								<TooltipContent className="max-w-xs">
-									Wins divided by total closed positions (breakeven excluded).
-									Half-donut shows wins vs losses.
+									Wins divided by total closed pools on a per-pool basis
+									(breakeven excluded). Half-donut shows wins vs losses.
 								</TooltipContent>
 							</Tooltip>
 						</div>

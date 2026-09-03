@@ -52,6 +52,7 @@ export interface MeteoraApiService {
 		user: string,
 		page?: number,
 		pageSize?: number,
+		daysBack?: number,
 	) => Effect.Effect<ClosedPortfolioResponse, MeteoraApiError | DecodeError>;
 	readonly pool: (
 		address: string,
@@ -213,11 +214,11 @@ const make = Effect.gen(function* () {
 				{ user, page, page_size: pageSize },
 				OpenPortfolioResponse,
 			),
-		closedPortfolio: (user, page = 1, pageSize = 50) =>
+		closedPortfolio: (user, page = 1, pageSize = 50, daysBack = 365) =>
 			getJson(
 				base,
 				"/portfolio",
-				{ user, page, page_size: pageSize },
+				{ user, page, page_size: pageSize, days_back: daysBack },
 				ClosedPortfolioResponse,
 			),
 		pool: (address) => getJson(base, `/pools/${address}`, {}, DlmmPool),

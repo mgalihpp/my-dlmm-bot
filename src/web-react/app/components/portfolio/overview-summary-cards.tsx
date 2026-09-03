@@ -4,11 +4,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import type { Currency } from "~/lib/currency";
 import { formatNum } from "~/lib/format";
-import type { OverviewMetrics } from "~/lib/overview-analytics";
 import type {
-	PortfolioSummary,
-	PortfolioTotal,
-} from "~/lib/server/portfolio.server";
+	ClosedAggregates,
+	OverviewMetrics,
+} from "~/lib/overview-analytics";
+import type { PortfolioSummary } from "~/lib/server/portfolio.server";
 export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 	summary,
 	currency,
@@ -100,24 +100,29 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 
 export const PerformanceCard = memo(function PerformanceCard({
 	summary,
-	total,
 	metrics,
 	currency,
+	aggregates,
 }: {
 	summary: PortfolioSummary;
-	total: PortfolioTotal | null;
 	metrics: OverviewMetrics;
 	currency: Currency;
+	aggregates: ClosedAggregates;
 }) {
 	const isSol = currency === "sol";
-	const totalPnl = isSol
-		? Number.parseFloat(total?.totalPnlSol ?? "0") || 0
-		: Number.parseFloat(total?.totalPnlUsd ?? "0") || 0;
-	const positive = totalPnl >= 0;
+	const net = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
+	const positive = (net ?? 0) >= 0;
 	const unit = isSol ? "SOL" : "USD";
 	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
 	const winRateLabel =
 		metrics.winPct == null ? "—" : `${metrics.winPct.toFixed(2)}%`;
+	const totalDeposits = isSol
+		? aggregates.totalDepositSol
+		: aggregates.totalDepositUsd;
+	const totalFees = isSol ? aggregates.totalFeeSol : aggregates.totalFeeUsd;
+	const netWorth = isSol
+		? summary.openBalanceSol + summary.openFeesSol
+		: summary.openBalanceUsd + summary.openFeesUsd;
 
 	return (
 		<Card data-size="sm" className="py-3">
@@ -138,42 +143,25 @@ export const PerformanceCard = memo(function PerformanceCard({
 							<span className="text-xs text-muted-foreground">
 								Total Deposits
 							</span>
-							<span className="text-xs font-medium">
-								{fmt(isSol ? summary.openBalanceSol : summary.openBalanceUsd)}
-							</span>
+							<span className="text-xs font-medium">{fmt(totalDeposits)}</span>
 						</div>
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Total Fees</span>
-							<span className="text-xs font-medium">
-								{fmt(isSol ? summary.openFeesSol : summary.openFeesUsd)}
-							</span>
+							<span className="text-xs font-medium">{fmt(totalFees)}</span>
 						</div>
 					</div>
 					<div className="flex flex-col gap-1">
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">Net Worth</span>
-							<span className="text-xs font-medium">
-								{fmt(
-									total !== null
-										? totalPnl
-										: isSol
-											? summary.openBalanceSol
-											: summary.openBalanceUsd,
-								)}
-							</span>
+							<span className="text-xs font-medium">{fmt(netWorth)}</span>
 						</div>
 						<div className="flex items-center justify-between">
 							<span className="text-xs text-muted-foreground">
-								Avg Invested
+								Avg Invested / pool
 							</span>
 							<span className="text-xs font-medium">
-								{metrics.totalClosed > 0
-									? fmt(
-											(isSol
-												? summary.openBalanceSol
-												: summary.openBalanceUsd) /
-												Math.max(1, metrics.totalClosed),
-										)
+								{aggregates.count > 0
+									? fmt(totalDeposits / Math.max(1, aggregates.count))
 									: "—"}
 							</span>
 						</div>
@@ -199,11 +187,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 						<span
 							className={`text-base font-bold ${positive ? "text-emerald-500" : "text-red-500"}`}
 						>
-							{totalPnl >= 0 ? "+" : ""}
-							{fmt(
-								totalPnl ||
-									(isSol ? (metrics.netPnlSol ?? 0) : (metrics.netPnlUsd ?? 0)),
-							)}
+							{net == null ? "—" : `${net >= 0 ? "+" : ""}${fmt(net)}`}
 						</span>
 					</div>
 				</div>

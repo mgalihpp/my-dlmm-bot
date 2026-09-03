@@ -39,6 +39,36 @@ function toNum(value: string | number | null | undefined): number | null {
 	return Number.isNaN(n) ? null : n;
 }
 
+export interface ClosedAggregates {
+	readonly count: number;
+	readonly totalDepositSol: number;
+	readonly totalDepositUsd: number;
+	readonly totalFeeSol: number;
+	readonly totalFeeUsd: number;
+}
+
+export function computeClosedAggregates(
+	closed: readonly ClosedPool[],
+): ClosedAggregates {
+	let totalDepositSol = 0;
+	let totalDepositUsd = 0;
+	let totalFeeSol = 0;
+	let totalFeeUsd = 0;
+	for (const p of closed) {
+		totalDepositUsd += toNum(p.totalDeposit) ?? 0;
+		totalDepositSol += toNum(p.totalDepositSol) ?? 0;
+		totalFeeUsd += toNum(p.totalFee) ?? 0;
+		totalFeeSol += toNum(p.totalFeeSol) ?? 0;
+	}
+	return {
+		count: closed.length,
+		totalDepositSol,
+		totalDepositUsd,
+		totalFeeSol,
+		totalFeeUsd,
+	};
+}
+
 export function computeOverviewMetricsFromRecords(
 	records: readonly PnlRecord[],
 	history: readonly PortfolioSnapshot[],
@@ -122,18 +152,24 @@ export function computeOverviewMetricsFromRecords(
 			? avgWinSol / Math.abs(avgLossSol)
 			: null;
 	const last = history.at(-1);
-	const baseSol = last?.pnlSol ?? toNum(totalPnl?.totalPnlSol);
-	const baseUsd = last?.pnlUsd ?? toNum(totalPnl?.totalPnlUsd);
+	const totalSol = toNum(totalPnl?.totalPnlSol);
+	const totalUsd = toNum(totalPnl?.totalPnlUsd);
+	const baseSol = last?.pnlSol ?? totalSol;
+	const baseUsd = last?.pnlUsd ?? totalUsd;
 	const realizedSol = grossProfitSol + grossLossSol;
 	const realizedUsd = grossProfitUsd + grossLossUsd;
 	const withUnrealizedSol =
-		unrealized != null
-			? realizedSol + unrealized.sol
-			: (baseSol ?? realizedSol);
+		!isBounded && totalSol != null && unrealized != null
+			? totalSol + unrealized.sol
+			: unrealized != null
+				? realizedSol + unrealized.sol
+				: (baseSol ?? realizedSol);
 	const withUnrealizedUsd =
-		unrealized != null
-			? realizedUsd + unrealized.usd
-			: (baseUsd ?? realizedUsd);
+		!isBounded && totalUsd != null && unrealized != null
+			? totalUsd + unrealized.usd
+			: unrealized != null
+				? realizedUsd + unrealized.usd
+				: (baseUsd ?? realizedUsd);
 	const netPnlSol = withUnrealizedSol ?? null;
 	const netPnlUsd = withUnrealizedUsd ?? null;
 
