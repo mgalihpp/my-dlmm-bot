@@ -9,8 +9,8 @@ import type { CyclePoint } from "~/lib/server/agent.server";
 
 const chartConfig = {
 	open: { label: "Open", color: "var(--chart-1)" },
-	tp: { label: "TP", color: "var(--chart-2)" },
-	sl: { label: "SL", color: "var(--chart-3)" },
+	tp: { label: "TP", color: "var(--color-emerald-500)" },
+	sl: { label: "SL", color: "var(--color-red-500)" },
 	close: { label: "Close", color: "var(--chart-4)" },
 } satisfies ChartConfig;
 
