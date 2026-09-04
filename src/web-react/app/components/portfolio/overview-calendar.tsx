@@ -12,19 +12,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
+import { buildCalendarCells, computeWeekBuckets } from "~/lib/pnl-calendar.js";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog.js";
 
-function startOfMonth(date: Date) {
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
-
-function daysInMonth(date: Date) {
-	return new Date(
-		Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
-	).getUTCDate();
-}
 export const OverviewCalendar = memo(function OverviewCalendar({
 	closed,
 	currency = "sol",
@@ -43,69 +35,11 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	const [shareOpen, setShareOpen] = useState(false);
 	const [dailyDate, setDailyDate] = useState<Date | null>(null);
 
-	const { cells, monthlyPnl, monthlyDays } = useMemo(() => {
-		const year = month.getUTCFullYear();
-		const mon = month.getUTCMonth();
-		const dim = daysInMonth(month);
-		const firstDow = startOfMonth(month).getUTCDay();
-		const byDay = new Map<
-			number,
-			{ pnl: number; count: number; wins: number }
-		>();
-		let monthlyPnl = 0;
-		const seenDays = new Set<number>();
-		const getVal = (p: PositionPnLData) => {
-			if (mode === "fees")
-				return (
-					Number(
-						currency === "sol"
-							? (p.allTimeFees.total.sol ?? "0")
-							: p.allTimeFees.total.usd,
-					) || 0
-				);
-			return Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
-		};
-
-		for (const pos of closed) {
-			if (pos.closedAt == null) continue;
-			const d = new Date(pos.closedAt * 1000);
-			if (d.getUTCFullYear() !== year || d.getUTCMonth() !== mon) continue;
-			const day = d.getUTCDate();
-			const val = getVal(pos);
-			monthlyPnl += val;
-			seenDays.add(day);
-			const entry = byDay.get(day) ?? { pnl: 0, count: 0, wins: 0 };
-			entry.pnl += val;
-			entry.count += 1;
-			if (val > 0) entry.wins += 1;
-			byDay.set(day, entry);
-		}
-		const cells: Array<{
-			day: number | null;
-			pnl: number | null;
-			count: number | null;
-			winPct: number | null;
-		}> = [];
-		for (let i = 0; i < firstDow; i++)
-			cells.push({ day: null, pnl: null, count: null, winPct: null });
-		for (let d = 1; d <= dim; d++) {
-			const entry = byDay.get(d);
-			if (entry) {
-				cells.push({
-					day: d,
-					pnl: entry.pnl,
-					count: entry.count,
-					winPct: entry.count ? (entry.wins / entry.count) * 100 : null,
-				});
-			} else {
-				cells.push({ day: d, pnl: null, count: null, winPct: null });
-			}
-		}
-		while (cells.length % 7 !== 0)
-			cells.push({ day: null, pnl: null, count: null, winPct: null });
-
-		return { cells, monthlyPnl, monthlyDays: seenDays.size };
-	}, [closed, month, mode, currency]);
+	const { cells, monthlyPnl, monthlyDays } = useMemo(
+		() => buildCalendarCells(closed, month, mode, currency),
+		[closed, month, mode, currency],
+	);
+	const weekBuckets = useMemo(() => computeWeekBuckets(cells), [cells]);
 
 	const monthLabel = month.toLocaleDateString("en-US", {
 		month: "long",
@@ -252,14 +186,6 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 									(_, row) => (
 										<div key={`row-${row}`} className="grid grid-cols-7">
 											{cells.slice(row * 7, row * 7 + 7).map((cell, idx) => {
-												if (cell.day == null) {
-													return (
-														<div
-															key={`cell-${row}-${idx}`}
-															className="min-h-[70px] border-r border-b border-border/30 p-1.5"
-														/>
-													);
-												}
 												const hasData = cell.pnl != null;
 												const bg = !hasData
 													? ""
@@ -280,20 +206,14 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 															<button
 																type="button"
 																aria-label={
-																	hasData ? `Share ${cell.day}` : undefined
+																	hasData
+																		? `Share ${cell.date.toISOString().slice(0, 10)}`
+																		: undefined
 																}
 																disabled={!hasData}
 																onClick={() => {
-																	if (!hasData || cell.day == null) return;
-																	setDailyDate(
-																		new Date(
-																			Date.UTC(
-																				month.getUTCFullYear(),
-																				month.getUTCMonth(),
-																				cell.day,
-																			),
-																		),
-																	);
+																	if (!hasData) return;
+																	setDailyDate(cell.date);
 																}}
 																className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
 															>
@@ -301,7 +221,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 																	<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
 																) : null}
 															</button>
-															<span className="text-[10px] leading-none text-muted-foreground">
+															<span
+																className={`text-[10px] leading-none text-muted-foreground ${cell.inMonth ? "" : "opacity-40"}`}
+															>
 																{cell.day}
 															</span>
 														</div>
@@ -331,6 +253,52 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 									),
 								)
 							)}
+						</div>
+					</div>
+					<div className="flex w-[96px] flex-col">
+						<div className="border-b border-border/50 py-1 text-center text-[10px] text-muted-foreground/70">
+							Week
+						</div>
+						<div className="flex flex-1 flex-col">
+							{weekBuckets.map((w) => {
+								const bg = !w.hasData
+									? ""
+									: w.pnl! >= 0
+										? "bg-emerald-500/10"
+										: "bg-red-500/10";
+								const textColor = !w.hasData
+									? ""
+									: w.pnl! >= 0
+										? "text-emerald-500"
+										: "text-red-500";
+								return (
+									<div
+										key={w.index}
+										className={`flex min-h-[70px] flex-1 flex-col items-center justify-center gap-0.5 border-b border-border/30 px-1 py-2 text-center ${bg}`}
+									>
+										<span className="text-[9px] text-muted-foreground/70">
+											{w.label}
+										</span>
+										{w.hasData ? (
+											<>
+												<span
+													className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
+												>
+													{w.pnl! >= 0 ? "+" : ""}
+													{w.pnl!.toFixed(3)}
+												</span>
+												<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
+													{w.days} days
+												</span>
+											</>
+										) : (
+											<span className="text-[10px] text-muted-foreground/50">
+												—
+											</span>
+										)}
+									</div>
+								);
+							})}
 						</div>
 					</div>
 				</div>
