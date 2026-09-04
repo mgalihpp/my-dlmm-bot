@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
+	adjacentMonthKeys,
 	allTimeMonthKeys,
 	type OverviewClosedResponse,
 	resolveMonthStoreUpdate,
+	selectCalendarPositions,
 } from "./overview-month";
 
 function okResponse(
@@ -78,5 +80,45 @@ describe("allTimeMonthKeys", () => {
 				new Date(Date.UTC(2026, 8, 4)),
 			),
 		).toEqual([]);
+	});
+});
+
+describe("selectCalendarPositions", () => {
+	it("selects Aug+Sep+Oct entries in order for Sep 2026", () => {
+		const aug = { id: "aug" } as never;
+		const sep = { id: "sep" } as never;
+		const oct = { id: "oct" } as never;
+		const entries = {
+			"2026-08": { data: [aug] },
+			"2026-09": { data: [sep] },
+			"2026-10": { data: [oct] },
+		} as never;
+		expect(selectCalendarPositions(entries, "2026-09")).toEqual([
+			aug,
+			sep,
+			oct,
+		]);
+	});
+
+	it("returns the rest without throwing when prev month is missing", () => {
+		const sep = { id: "sep" } as never;
+		const oct = { id: "oct" } as never;
+		const entries = {
+			"2026-09": { data: [sep] },
+			"2026-10": { data: [oct] },
+		} as never;
+		expect(selectCalendarPositions(entries, "2026-09")).toEqual([sep, oct]);
+	});
+
+	it('yields Dec/Feb rollover for "2026-01"', () => {
+		expect(adjacentMonthKeys("2026-01")).toEqual([
+			"2025-12",
+			"2026-01",
+			"2026-02",
+		]);
+	});
+
+	it("returns empty for empty entries", () => {
+		expect(selectCalendarPositions({}, "2026-09")).toEqual([]);
 	});
 });

@@ -1,123 +1,14 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: calendar grid uses positional keys
 "use client";
 
-import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import type { CalendarCell, WeekBucket } from "~/lib/pnl-calendar.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
+export type { CalendarCell, WeekBucket } from "~/lib/pnl-calendar.js";
+export { buildCalendarCells, computeWeekBuckets } from "~/lib/pnl-calendar.js";
 export type { CardTheme } from "./pnl-share-theme.js";
-
-export type CalendarCell = {
-	day: number | null;
-	pnl: number | null;
-	count: number | null;
-	winPct: number | null;
-};
-
-export type WeekBucket = {
-	index: number;
-	label: string;
-	pnl: number | null;
-	days: number;
-	hasData: boolean;
-};
-
-function startOfMonth(date: Date) {
-	return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), 1));
-}
-
-function daysInMonth(date: Date) {
-	return new Date(
-		Date.UTC(date.getUTCFullYear(), date.getUTCMonth() + 1, 0),
-	).getUTCDate();
-}
-
-export function buildCalendarCells(
-	closed: readonly PositionPnLData[],
-	month: Date,
-	mode: "fees" | "total",
-	currency: Currency,
-): { cells: CalendarCell[]; monthlyPnl: number; monthlyDays: number } {
-	const year = month.getUTCFullYear();
-	const mon = month.getUTCMonth();
-	const dim = daysInMonth(month);
-	const firstDow = startOfMonth(month).getUTCDay();
-	const byDay = new Map<number, { pnl: number; count: number; wins: number }>();
-	let monthlyPnl = 0;
-	const seenDays = new Set<number>();
-	const getVal = (p: PositionPnLData) => {
-		if (mode === "fees") {
-			return (
-				Number(
-					currency === "sol"
-						? (p.allTimeFees.total.sol ?? "0")
-						: p.allTimeFees.total.usd,
-				) || 0
-			);
-		}
-		return Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
-	};
-	for (const pos of closed) {
-		if (pos.closedAt == null) continue;
-		const d = new Date(pos.closedAt * 1000);
-		if (d.getUTCFullYear() !== year || d.getUTCMonth() !== mon) continue;
-		const day = d.getUTCDate();
-		const val = getVal(pos);
-		monthlyPnl += val;
-		seenDays.add(day);
-		const entry = byDay.get(day) ?? { pnl: 0, count: 0, wins: 0 };
-		entry.pnl += val;
-		entry.count += 1;
-		if (val > 0) entry.wins += 1;
-		byDay.set(day, entry);
-	}
-	const cells: CalendarCell[] = [];
-	for (let i = 0; i < firstDow; i++)
-		cells.push({ day: null, pnl: null, count: null, winPct: null });
-	for (let d = 1; d <= dim; d++) {
-		const entry = byDay.get(d);
-		if (entry) {
-			cells.push({
-				day: d,
-				pnl: entry.pnl,
-				count: entry.count,
-				winPct: entry.count ? (entry.wins / entry.count) * 100 : null,
-			});
-		} else {
-			cells.push({ day: d, pnl: null, count: null, winPct: null });
-		}
-	}
-	while (cells.length % 7 !== 0)
-		cells.push({ day: null, pnl: null, count: null, winPct: null });
-	return { cells, monthlyPnl, monthlyDays: seenDays.size };
-}
-
-export function computeWeekBuckets(cells: CalendarCell[]): WeekBucket[] {
-	const weekCount = Math.ceil(cells.length / 7);
-	const buckets: WeekBucket[] = [];
-	for (let w = 0; w < weekCount; w++) {
-		const slice = cells.slice(w * 7, w * 7 + 7);
-		let pnl: number | null = null;
-		let days = 0;
-		let hasData = false;
-		for (const c of slice) {
-			if (c.day != null) days += 1;
-			if (c.pnl != null) {
-				hasData = true;
-				pnl = (pnl ?? 0) + c.pnl;
-			}
-		}
-		buckets.push({
-			index: w,
-			label: `Week ${w + 1}`,
-			pnl,
-			days,
-			hasData,
-		});
-	}
-	return buckets;
-}
 
 export type PnlCalendarCardProps = {
 	month: Date;
@@ -292,20 +183,6 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 									(_, row) => (
 										<div key={`row-${row}`} className="grid grid-cols-7">
 											{cells.slice(row * 7, row * 7 + 7).map((cell, idx) => {
-												if (cell.day == null) {
-													return (
-														<div
-															key={`cell-${row}-${idx}`}
-															className="min-h-[68px] border-r border-b p-1.5"
-															style={{
-																backgroundColor: "transparent",
-																borderColor: t.isDarkText
-																	? "rgba(0,0,0,0.06)"
-																	: "rgba(255,255,255,0.05)",
-															}}
-														/>
-													);
-												}
 												const hasData = cell.pnl != null;
 												const bg = !hasData
 													? "transparent"
@@ -335,6 +212,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 																	color: t.isDarkText
 																		? "rgba(0,0,0,0.45)"
 																		: "rgba(255,255,255,0.55)",
+																	opacity: cell.inMonth ? 1 : 0.4,
 																}}
 															>
 																{cell.day}

@@ -3,11 +3,8 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { useMemo } from "react";
 import type { Currency } from "~/lib/currency";
-import {
-	buildCalendarCells,
-	computeWeekBuckets,
-	PnlCalendarCard,
-} from "./pnl-calendar-card.js";
+import { buildCalendarCells, computeWeekBuckets } from "~/lib/pnl-calendar.js";
+import { PnlCalendarCard } from "./pnl-calendar-card.js";
 import { PnlShareShell } from "./pnl-share-shell.js";
 
 export function PnlCalendarShareDialog({

@@ -1,4 +1,3 @@
-import type { PositionPnLData } from "@vexis/domain/position.js";
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useFetcher } from "react-router";
 import { ChartCardSkeleton } from "~/components/page-skeletons";
@@ -18,7 +17,8 @@ import {
 	allTimeMonthKeys,
 	type OverviewClosedResponse,
 	resolveMonthStoreUpdate,
-} from "~/lib/overview-month";
+	selectCalendarPositions,
+} from "~/lib/overview-month.js";
 import type { PortfolioPayload } from "~/lib/server/portfolio.server";
 import { useClosedMonthStore } from "~/stores/closed-month-cache";
 import { ActiveSummaryCard, PerformanceCard } from "./overview-summary-cards";
@@ -141,9 +141,9 @@ export function PortfolioOverviewContent({
 		setBgLoadingMonth(null);
 	}, [bgFetcher.data, bgFetcher.state, bgLoadingMonth, setMonths]);
 
-	const monthPositions = useMemo(
-		() => (cachedMonth ?? []) as readonly PositionPnLData[],
-		[cachedMonth],
+	const calendarPositions = useMemo(
+		() => selectCalendarPositions(entries, monthKey),
+		[entries, monthKey],
 	);
 
 	const loadedPositions = useMemo(
@@ -296,7 +296,7 @@ export function PortfolioOverviewContent({
 							fallback={<ChartCardSkeleton blockClassName="h-[360px] w-full" />}
 						>
 							<OverviewCalendar
-								closed={monthPositions}
+								closed={calendarPositions}
 								currency={currency}
 								month={month}
 								onMonthChange={setMonth}
