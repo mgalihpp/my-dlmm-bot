@@ -142,3 +142,114 @@ export function computeWeekBuckets(cells: CalendarCell[]): WeekBucket[] {
 	}
 	return buckets;
 }
+
+export type WeeklyDayRow = {
+	date: Date;
+	pnl: number | null;
+	count: number | null;
+	winPct: number | null;
+};
+
+export type WeeklyStats = {
+	start: Date;
+	end: Date;
+	rangeLabel: string;
+	pnl: number;
+	fees: number;
+	deposits: number;
+	withdrawals: number;
+	count: number;
+	winRate: number | null;
+	daysWithData: number;
+	days: WeeklyDayRow[];
+};
+
+export function buildWeeklyStats(
+	closed: readonly PositionPnLData[],
+	weekCells: readonly CalendarCell[],
+	currency: Currency,
+	mode: "fees" | "total",
+): WeeklyStats {
+	const sorted = [...weekCells].sort(
+		(a, b) => a.date.getTime() - b.date.getTime(),
+	);
+	const start = sorted[0]?.date ?? new Date(0);
+	const end = sorted[sorted.length - 1]?.date ?? new Date(0);
+	const days: WeeklyDayRow[] = weekCells.map((c) => ({
+		date: c.date,
+		pnl: c.pnl,
+		count: c.count,
+		winPct: c.winPct,
+	}));
+	const daysWithData = days.filter((d) => d.pnl != null).length;
+	const startPart = start.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		timeZone: "UTC",
+	});
+	const endPart = end.toLocaleDateString("en-US", {
+		month: "short",
+		day: "numeric",
+		year: "numeric",
+		timeZone: "UTC",
+	});
+	const rangeLabel = `${startPart} - ${endPart}`;
+	const startDay = Date.UTC(
+		start.getUTCFullYear(),
+		start.getUTCMonth(),
+		start.getUTCDate(),
+	);
+	const endExclusive =
+		Date.UTC(end.getUTCFullYear(), end.getUTCMonth(), end.getUTCDate()) +
+		86_400_000;
+	let pnl = 0;
+	let fees = 0;
+	let deposits = 0;
+	let withdrawals = 0;
+	let count = 0;
+	let wins = 0;
+	for (const p of closed) {
+		if (p.closedAt == null) continue;
+		const ts = p.closedAt * 1000;
+		if (ts < startDay || ts >= endExclusive) continue;
+		const pnlVal =
+			Number(currency === "sol" ? (p.pnlSol ?? "0") : p.pnlUsd) || 0;
+		const feeVal =
+			Number(
+				currency === "sol"
+					? (p.allTimeFees.total.sol ?? "0")
+					: p.allTimeFees.total.usd,
+			) || 0;
+		const depVal =
+			Number(
+				currency === "sol"
+					? (p.allTimeDeposits.total.sol ?? "0")
+					: p.allTimeDeposits.total.usd,
+			) || 0;
+		const wdVal =
+			Number(
+				currency === "sol"
+					? (p.allTimeWithdrawals.total.sol ?? "0")
+					: p.allTimeWithdrawals.total.usd,
+			) || 0;
+		pnl += pnlVal;
+		fees += feeVal;
+		deposits += depVal;
+		withdrawals += wdVal;
+		count += 1;
+		if ((mode === "fees" ? feeVal : pnlVal) > 0) wins += 1;
+	}
+	return {
+		start,
+		end,
+		rangeLabel,
+		pnl,
+		fees,
+		deposits,
+		withdrawals,
+		count,
+		winRate: count ? (wins / count) * 100 : null,
+		daysWithData,
+		days,
+	};
+}
