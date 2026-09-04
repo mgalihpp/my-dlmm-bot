@@ -12,7 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
-import { buildCalendarCells, computeWeekBuckets } from "~/lib/pnl-calendar.js";
+import { type CalendarCell, buildCalendarCells, buildWeeklyStats, computeWeekBuckets } from "~/lib/pnl-calendar.js";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog.js";
@@ -34,6 +34,10 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	const setMode = useChartPreferenceStore((s) => s.setMode);
 	const [shareOpen, setShareOpen] = useState(false);
 	const [dailyDate, setDailyDate] = useState<Date | null>(null);
+	const [weekShare, setWeekShare] = useState<{
+		index: number;
+		cells: CalendarCell[];
+	} | null>(null);
 
 	const { cells, monthlyPnl, monthlyDays } = useMemo(
 		() => buildCalendarCells(closed, month, mode, currency),
@@ -274,8 +278,25 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 								return (
 									<div
 										key={w.index}
-										className={`flex min-h-[70px] flex-1 flex-col items-center justify-center gap-0.5 border-b border-border/30 px-1 py-2 text-center ${bg}`}
+										className={`group flex min-h-[70px] flex-1 flex-col items-center justify-center gap-0.5 border-b border-border/30 px-1 py-2 text-center ${bg}`}
 									>
+										<button
+											type="button"
+											aria-label={w.hasData ? `Share Week ${w.index + 1}` : undefined}
+											disabled={!w.hasData}
+											onClick={() => {
+												if (!w.hasData) return;
+												setWeekShare({
+													index: w.index,
+													cells: cells.slice(w.index * 7, w.index * 7 + 7),
+												});
+											}}
+											className={`flex size-2.5 items-center justify-center rounded-sm ${w.hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
+										>
+											{w.hasData ? (
+												<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
+											) : null}
+										</button>
 										<span className="text-[9px] text-muted-foreground/70">
 											{w.label}
 										</span>
@@ -321,6 +342,20 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					date={dailyDate}
 					closed={closed}
 					currency={currency ?? "sol"}
+				/>
+			)}
+			{weekShare && (
+				<DailyPnlShareDialog
+					open={!!weekShare}
+					onOpenChange={(v) => {
+						if (!v) setWeekShare(null);
+					}}
+					date={weekShare.cells[0]?.date ?? month}
+					closed={closed}
+					currency={currency ?? "sol"}
+					variant="weekly"
+					weekStats={buildWeeklyStats(closed, weekShare.cells, currency ?? "sol", mode)}
+					weekMode={mode}
 				/>
 			)}
 		</Card>
