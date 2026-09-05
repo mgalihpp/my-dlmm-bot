@@ -6,9 +6,9 @@ Start with the console output, `vexis.config.json`, `.vexis-agent.json`, and `.v
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `npm install` fails | Node is older than 20 or the install is incomplete. | Install Node.js 20+, then run `npm install` again. |
-| `npm run build` fails with TypeScript errors | Dependencies are missing or the source has a type error. | Run `npm run typecheck` and fix the first reported error. |
-| `npm start` does not start the CLI | `npm start` starts the web server, not the CLI. | Build first, then use the `vexis` binary or `npm run cli -- <command>`. |
+| `bun install` fails | Bun is older than 1.4 or the install is incomplete. | Install Bun 1.4+, then run `bun install` again. |
+| `bun run build` fails with TypeScript errors | Dependencies are missing or the source has a type error. | Run `bun run typecheck` and fix the first reported error. |
+| `bun run start` does not start the CLI | `bun run start` starts the web server, not the CLI. | Build first, then use the `vexis` binary or `bun run cli -- <command>`. |
 | The wrong config is loaded | Vexis found another config path first. | Check `VEXIS_CONFIG`, then `./vexis.config.json`, then `~/.vexis/config.json`. |
 
 ## Configuration and RPC
@@ -25,7 +25,7 @@ Start with the console output, `vexis.config.json`, `.vexis-agent.json`, and `.v
 
 | Symptom | Likely cause | Fix |
 |---|---|---|
-| `/start` gets no response | Invalid token or the bot is not running. | Check `telegramBotToken` or `TELEGRAM_BOT_TOKEN`, then run `npm run bot`. |
+| `/start` gets no response | Invalid token or the bot is not running. | Check `telegramBotToken` or `TELEGRAM_BOT_TOKEN`, then run `bun run bot`. |
 | Notifications do not arrive | Wrong chat ID or the bot has not been started in that chat. | Check `telegramChatId` or `TELEGRAM_CHAT_ID` and send `/start` to the bot. |
 | An old button does nothing | Callback state belongs to an older process or message. | Send a new command and use the new keyboard. |
 | Responses are slow | Network, RPC, or upstream API latency. | Check server connectivity and the configured RPC endpoint. |
@@ -50,14 +50,14 @@ Start with the console output, `vexis.config.json`, `.vexis-agent.json`, and `.v
 | Password is rejected | `VEXIS_WEB_PASSWORD` or `web.password` is wrong. | Check the environment variable first, then the config. |
 | Port is busy | Another process uses `web.port`. | Choose an unused port and restart. |
 | Data looks stale | The page or loader has not refreshed. | Hard-refresh the browser. Portfolio and agent data normally refresh about every 10 seconds. |
-| Dashboard is unavailable | The web server is not running. | Run `npm start` and check the configured port. |
+| Dashboard is unavailable | The web server is not running. | Run `bun run start` and check the configured port. |
 
 ## Verification
 
 ```bash
-npm run check
-npm run typecheck
-npm test
+bun run check
+bun run typecheck
+bun run test
 ```
 
 If the problem remains, include the first console error, the relevant config keys with secrets removed, and the relevant journal entry when asking for help.

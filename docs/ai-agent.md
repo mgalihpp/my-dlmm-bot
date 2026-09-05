@@ -6,7 +6,7 @@ The agent can also evaluate TP/SL rules, handle out-of-range positions, write a 
 
 ## Requirements
 
-- Node.js 20 or newer
+- Bun 1.4 or newer
 - A Solana wallet and RPC endpoint
 - A Telegram bot token and chat ID
 - An API key for an OpenAI-compatible LLM
@@ -14,10 +14,10 @@ The agent can also evaluate TP/SL rules, handle out-of-range positions, write a 
 ## Setup
 
 ```bash
-npm install
-npm run build
+bun install
+bun run build
 copy vexis.config.example.json vexis.config.json
-npm run bot
+bun run bot
 ```
 
 Use `cp` instead of `copy` on macOS or Linux. Add the wallet, private key, RPC URL, Telegram settings, and `agent` settings to the local config. The private key is required because the agent can create and close positions.
