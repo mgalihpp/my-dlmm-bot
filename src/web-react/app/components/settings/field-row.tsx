@@ -253,7 +253,9 @@ export function FieldRow({
 
 	const stageTextChange = (next: string) => {
 		setDraft(next);
-		if (pendingRef.current != null && !savingRef.current) requestConfirm(next);
+		if (savingRef.current) return;
+		if (next !== committedRef.current) requestConfirm(next);
+		else if (pendingRef.current != null) revertDraft();
 	};
 
 	const stageTextCommit = () => {
