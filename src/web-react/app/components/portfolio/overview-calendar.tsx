@@ -59,7 +59,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					<Button
 						variant="ghost"
 						size="icon"
-						className="size-6 text-muted-foreground hover:text-white"
+						className="size-6 text-muted-foreground hover:text-foreground"
 						aria-label="Share"
 						onClick={() => setShareOpen(true)}
 					>
@@ -219,10 +219,10 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 																	if (!hasData) return;
 																	setDailyDate(cell.date);
 																}}
-																className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
+																className={`flex size-2.5 items-center justify-center rounded-sm ${hasData ? "cursor-pointer hover:bg-muted" : "cursor-default"}`}
 															>
 																{hasData ? (
-																	<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
+																	<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
 																) : null}
 															</button>
 															<span
@@ -291,10 +291,10 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													cells: cells.slice(w.index * 7, w.index * 7 + 7),
 												});
 											}}
-											className={`flex size-2.5 items-center justify-center rounded-sm ${w.hasData ? "cursor-pointer hover:bg-white/10" : "cursor-default"}`}
+											className={`flex size-2.5 items-center justify-center rounded-sm ${w.hasData ? "cursor-pointer hover:bg-muted" : "cursor-default"}`}
 										>
 											{w.hasData ? (
-												<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-white" />
+												<UploadIcon className="size-2.5 text-muted-foreground/60 transition-colors group-hover:text-foreground" />
 											) : null}
 										</button>
 										<span className="text-[9px] text-muted-foreground/70">

@@ -112,7 +112,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 							<Button
 								variant="ghost"
 								size="icon"
-								className="size-6 text-muted-foreground hover:text-white"
+								className="size-6 text-muted-foreground hover:text-foreground"
 								aria-label="Share"
 								onClick={() => setShareOpen(true)}
 							>
