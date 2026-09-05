@@ -3,6 +3,7 @@ import { useEffect } from "react";
 import { Link, useActionData, useOutletContext, useParams } from "react-router";
 import { toast } from "sonner";
 import { AgentStatusCard } from "~/components/settings/agent-status-card";
+import { dismissResolvedSettingsConfirms } from "~/components/settings/field-row";
 import { PreferencesCard } from "~/components/settings/preferences-card";
 import { SECTIONS } from "~/components/settings/settings-meta";
 import { SettingsSection } from "~/components/settings/settings-section";
@@ -75,6 +76,7 @@ export default function SettingsCategory() {
 
 	useEffect(() => {
 		if (!actionData) return;
+		dismissResolvedSettingsConfirms();
 		if (actionData.ok) toast.success("Settings saved");
 		else toast.error(actionData.error ?? "Failed to save settings");
 	}, [actionData]);
