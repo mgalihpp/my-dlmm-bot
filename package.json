@@ -3,6 +3,7 @@
 	"version": "0.1.0",
 	"description": "CLI to view Meteora DLMM portfolio (open & closed positions)",
 	"type": "module",
+	"packageManager": "bun@1.4.1",
 	"bin": {
 		"vexis": "./dist/cli.js"
 	},
@@ -10,12 +11,12 @@
 		"src/web-react"
 	],
 	"scripts": {
-		"postinstall": "node scripts/patch-cjs.cjs",
-		"build": "tsc && npm run build --prefix src/web-react",
-		"dev": "npm run dev --prefix src/web-react",
-		"start": "npm run start --prefix src/web-react",
-		"cli": "tsx src/cli.ts",
-		"bot": "tsx src/telegram/bot.ts",
+		"postinstall": "bun scripts/patch-cjs.cjs",
+		"build": "tsc && bun run --filter web-react build",
+		"dev": "bun run --filter web-react dev",
+		"start": "bun run --filter web-react start",
+		"cli": "bun src/cli.ts",
+		"bot": "bun src/telegram/bot.ts",
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"typecheck": "tsc --noEmit",
@@ -45,7 +46,6 @@
 		"@types/bn.js": "^5.2.0",
 		"@types/bs58": "^4.0.4",
 		"@types/node": "^22.10.0",
-		"tsx": "^4.19.2",
 		"typescript": "^5.7.2",
 		"vite": "^8.2.2",
 		"vitest": "^3.2.7"
