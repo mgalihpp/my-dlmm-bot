@@ -2,12 +2,12 @@
 
 ## VPS with pm2
 
-Install Node.js 20 or newer and pm2 on the server. Copy `vexis.config.json` to the server through a secure channel, then run:
+Install Bun 1.4 or newer and pm2 on the server. Copy `vexis.config.json` to the server through a secure channel, then run:
 
 ```bash
-npm ci
-npm run build
-pm2 start npm --name vexis -- start
+bun install --frozen-lockfile
+bun run build
+pm2 start bun --name vexis -- run start
 pm2 save
 pm2 startup
 ```
@@ -15,8 +15,8 @@ pm2 startup
 The `start` script runs the compiled React dashboard and the shared bot runtime. Set the dashboard port in `web.port`, or provide the port expected by the hosting environment. After a release, run:
 
 ```bash
-npm ci
-npm run build
+bun install --frozen-lockfile
+bun run build
 pm2 restart vexis
 ```
 
@@ -25,14 +25,14 @@ pm2 restart vexis
 Create a `Dockerfile` in the repository root:
 
 ```dockerfile
-FROM node:20-slim
+FROM oven/bun:1.4.1-alpine
 WORKDIR /app
-COPY package*.json ./
-COPY src/web-react/package*.json ./src/web-react/
-RUN npm ci && npm ci --prefix src/web-react
+COPY package.json bun.lock bunfig.toml ./
+COPY src/web-react/package.json ./src/web-react/
+RUN bun install --frozen-lockfile
 COPY . .
-RUN npm run build
-CMD ["npm", "start"]
+RUN bun run build
+CMD ["bun", "run", "start"]
 ```
 
 Build and run it with the local config mounted read-only:

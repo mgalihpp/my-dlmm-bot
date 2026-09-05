@@ -96,8 +96,8 @@ When modifying the web UI:
   target addresses and never keys.
 - Reuse existing components from `src/web-react/app/components/ui/`.
 - Data fetching uses React Router loaders; keep server-side logic in loaders.
-- Format with Prettier (`npm run format` in `src/web-react/`).
-- Typecheck with `npm run typecheck` in `src/web-react/`.
+- Format with Prettier (`bun run --filter web-react format` in `src/web-react/`).
+- Typecheck with `bun run --filter web-react typecheck` in `src/web-react/`.
 
 ## CLI
 
@@ -199,6 +199,6 @@ If external behavior needs testing, mock the boundary.
 After making changes, run:
 
 ```bash
-npm run check
-npm run typecheck
-npm test
+bun run check
+bun run typecheck
+bun run test

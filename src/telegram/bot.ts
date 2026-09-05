@@ -1,4 +1,4 @@
-// Telegram bot entry point. Run with: npm run bot
+// Telegram bot entry point. Run with: bun run bot
 
 import { errorMessage } from "../errors.js";
 import { startBot } from "./bot-runtime.js";

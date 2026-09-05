@@ -146,7 +146,7 @@ Monitor and control it from Telegram. Create a bot with [@BotFather](https://t.m
 }
 ```
 
-Start the bot with `npm run bot`. Useful command groups:
+Start the bot with `bun run bot`. Useful command groups:
 
 | Group | Commands |
 |---|---|
@@ -169,19 +169,19 @@ A read-only React dashboard for monitoring portfolio, pools, positions, agent ac
 }
 ```
 
-Run with `npm run dev` (development) or `npm start` (compiled server).
+Run with `bun run dev` (development) or `bun run start` (compiled server).
 
 ### Command-line interface
 
-Run the CLI directly with `npm run cli -- <command>`, or use the compiled `vexis` binary after building.
+Run the CLI directly with `bun run cli -- <command>`, or use the compiled `vexis` binary after building.
 
 ```bash
-npm run cli -- open [wallet]
-npm run cli -- closed [wallet]
-npm run cli -- summary [wallet]
-npm run cli -- pool list
-npm run cli -- pool info <address>
-npm run cli -- position create <poolAddress> --strategy bidask --x-amount 1 --y-amount 1 --min-pct -10 --max-pct 10 --dry-run
+bun run cli -- open [wallet]
+bun run cli -- closed [wallet]
+bun run cli -- summary [wallet]
+bun run cli -- pool list
+bun run cli -- pool info <address>
+bun run cli -- position create <poolAddress> --strategy bidask --x-amount 1 --y-amount 1 --min-pct -10 --max-pct 10 --dry-run
 ```
 
 The CLI also provides `config`, `position close`, `liquidity add`, `liquidity remove`, `claim fee`, `claim reward`, `watch`, and `wallets` commands. Use `--help` for exact options.
@@ -205,14 +205,14 @@ Vercel AI SDK
 
 ## Getting started
 
-Requires Node.js 20 or newer.
+Requires Bun 1.4 or newer.
 
 ```bash
 git clone https://github.com/mgalihpp/my-dlmm-bot.git
 cd my-dlmm-bot
 
-npm install
-npm run build
+bun install
+bun run build
 ```
 
 Then create your local config:
@@ -264,12 +264,12 @@ See the [deployment guide](docs/deployment.md) for VPS, PM2, and Docker setup.
 ## Development
 
 ```bash
-npm run check
-npm run typecheck
-npm test
+bun run check
+bun run typecheck
+bun run test
 ```
 
-`npm run build` builds both the root TypeScript application and the web dashboard. Tests focus on pure logic, response decoding, formatting, state storage, and agent behavior. They do not require live RPC, Telegram, or Meteora services.
+`bun run build` builds both the root TypeScript application and the web dashboard. Tests focus on pure logic, response decoding, formatting, state storage, and agent behavior. They do not require live RPC, Telegram, or Meteora services.
 
 ---
 
