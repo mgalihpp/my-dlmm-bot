@@ -141,8 +141,6 @@ function numberExample(name: string): string {
 
 type PendingChange = { path: string; label: string; value: string };
 
-// Confirm toasts whose save was submitted but whose result toast has not
-// shown yet. Lets the route clear stragglers without touching other rows.
 const resolvingConfirms = new Set<string>();
 
 export function dismissResolvedSettingsConfirms() {
@@ -181,7 +179,6 @@ export function FieldRow({
 		setDraft(committedInput);
 	}, [committedInput]);
 
-	// Toast callbacks outlive renders, so they read refs instead of state.
 	const revertDraft = () => {
 		if (saveArmedRef.current) return;
 		pendingRef.current = null;
@@ -215,8 +212,6 @@ export function FieldRow({
 		pendingRef.current = change;
 		setPending(change);
 		const shown = next === "" ? "(empty)" : next;
-		// Infinity: the toast must survive the mobile keyboard, it only
-		// closes via Save, Dismiss, or swipe.
 		toast(`Save ${field.label}?`, {
 			id: field.path,
 			description:
@@ -230,8 +225,6 @@ export function FieldRow({
 		});
 	};
 
-	// Own save finished: drop the gate. Foreign rows' results are ignored so
-	// a concurrent pending on another row keeps its confirm toast.
 	useEffect(() => {
 		if (!actionData || !saveArmedRef.current) return;
 		saveArmedRef.current = false;
@@ -243,7 +236,6 @@ export function FieldRow({
 		if (!actionData.ok) setDraft(committedRef.current);
 	}, [actionData, field.path]);
 
-	// Navigation away drops the gate without submitting.
 	useEffect(
 		() => () => {
 			toast.dismiss(field.path);
@@ -275,7 +267,6 @@ export function FieldRow({
 		}
 	};
 
-	// Reset discards any staged draft, then submits resetField directly.
 	const resetToDefault = () => {
 		if (savingRef.current) return;
 		pendingRef.current = null;
