@@ -5,6 +5,7 @@ const DISPLAY_ONLY_PARAMS: readonly string[] = [
 	"sort",
 	"dir",
 	"range",
+	"outcome",
 ];
 
 export interface ShouldRevalidateForDataChangeArgs {
