@@ -967,6 +967,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 
 export function fetchClosedPortfolio(
 	closedPage: number,
+	closedSize: number,
 ): Promise<PortfolioPayload> {
 	const program = Effect.gen(function* () {
 		const config = yield* AppConfig;
@@ -984,7 +985,7 @@ export function fetchClosedPortfolio(
 			Effect.catchAll(() => Effect.succeed(null as number | null)),
 		);
 		const closedRes = yield* api
-			.closedPortfolio(wallet, closedPage, 10)
+			.closedPortfolio(wallet, closedPage, closedSize)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
 		const closedWithIcons =
 			closedRes === null
@@ -1002,7 +1003,7 @@ export function fetchClosedPortfolio(
 					? {
 							pools: closedWithIcons,
 							page: closedPage,
-							pageSize: 10,
+							pageSize: closedSize,
 							totalCount: 0,
 						}
 					: {
