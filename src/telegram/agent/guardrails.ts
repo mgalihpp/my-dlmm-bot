@@ -390,7 +390,7 @@ export function adoptOnchainPlans(
 			baseMint: pool.tokenXMint,
 			amountSol: deriveAdoptedAmountSol(pool),
 			positionAddress: pool.listPositions[0] ?? null,
-			openedAt: null,
+			openedAt: new Date(nowMs).toISOString(),
 		});
 		known.add(pool.poolAddress);
 	}
