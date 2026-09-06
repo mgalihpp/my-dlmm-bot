@@ -24,6 +24,7 @@ const FILTER_TABS: { value: JournalFilter; label: string }[] = [
 	{ value: "sl", label: "SL" },
 	{ value: "close", label: "Close" },
 	{ value: "blocked", label: "Blocked" },
+	{ value: "oor", label: "OOR" },
 ];
 
 const PAGE_SIZE = 20;
@@ -48,6 +49,7 @@ function actionVariant(
 function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
 	const blocked = candidate.guardrail === "blocked";
 	const failed = candidate.execution === "failed";
+	const isOor = candidate.rationale?.startsWith("OOR ") === true;
 	return (
 		<div
 			className={cn(
@@ -64,6 +66,7 @@ function CandidateRow({ candidate }: { candidate: JournalCandidate }) {
 				<Badge variant={actionVariant(candidate.action)}>
 					{candidate.action}
 				</Badge>
+				{isOor ? <Badge variant="outline">OOR</Badge> : null}
 				{blocked ? (
 					<Badge variant="destructive" className="gap-1">
 						<ShieldXIcon />
@@ -172,6 +175,11 @@ export function DecisionJournal({
 										r.candidate?.guardrail === "blocked" ||
 										r.candidate?.execution === "failed",
 								);
+							const allOor =
+								group.rows.length > 0 &&
+								group.rows.every(
+									(r) => r.candidate?.rationale?.startsWith("OOR ") === true,
+								);
 							return (
 								<li key={group.cycle} className="flex gap-3 px-4 py-3.5">
 									<div className="flex w-12 shrink-0 flex-col items-center">
@@ -194,6 +202,11 @@ export function DecisionJournal({
 										{group.llmStatus === "failed" ? (
 											<Badge variant="destructive" className="w-fit">
 												LLM failed this cycle
+											</Badge>
+										) : null}
+										{allOor ? (
+											<Badge variant="outline" className="w-fit">
+												OOR
 											</Badge>
 										) : null}
 										{group.rows.length === 0 ||

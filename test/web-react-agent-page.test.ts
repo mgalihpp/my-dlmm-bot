@@ -3,6 +3,7 @@ import type {
 	AgentJournalEntry,
 	JournalCandidate,
 } from "../src/telegram/agent/journal.js";
+import { isOorEntry } from "../src/telegram/agent/journal.js";
 import type { AgentState } from "../src/telegram/agent/state.js";
 import { buildAgentPayload } from "../src/web-react/app/lib/server/agent.server.js";
 
@@ -24,11 +25,13 @@ const mkCandidate = (
 const mkEntry = (
 	cycle: number,
 	candidates: JournalCandidate[],
+	kind?: AgentJournalEntry["kind"],
 ): AgentJournalEntry => ({
 	ts: "2026-08-12T10:00:00.000Z",
 	cycle,
 	llmStatus: "ok",
 	candidates,
+	...(kind === undefined ? {} : { kind }),
 });
 
 const mkState = (): AgentState => ({
@@ -40,6 +43,7 @@ const mkState = (): AgentState => ({
 	plans: [],
 	executions: [],
 	cooldowns: [],
+	oorSince: {},
 });
 
 describe("buildAgentPayload", () => {
@@ -117,5 +121,102 @@ describe("buildAgentPayload", () => {
 		expect(payload.groups).toEqual([]);
 		expect(payload.chart).toEqual([]);
 		expect(payload.stats?.cycles).toBe(0);
+	});
+
+	it("filters OOR entries by kind", () => {
+		const journal = [
+			mkEntry(1, [mkCandidate({ action: "open" })]),
+			mkEntry(
+				1,
+				[
+					mkCandidate({
+						action: "hold",
+						heuristicScore: 0,
+						rationale: "OOR hold: price may revert",
+						execution: null,
+						txSignature: null,
+					}),
+				],
+				"oor",
+			),
+		];
+		const payload = buildAgentPayload(
+			journal,
+			mkState(),
+			{ text: "x", source: "fallback" },
+			"oor",
+			1,
+		);
+		expect(payload.filter).toBe("oor");
+		expect(payload.total).toBe(1);
+		expect(payload.groups).toHaveLength(1);
+	});
+
+	it("matches OOR by rationale prefix for old entries without kind", () => {
+		const journal = [
+			mkEntry(2, [
+				mkCandidate({
+					action: "close",
+					heuristicScore: 0,
+					rationale: "OOR close: idle too long",
+					execution: "ok",
+					txSignature: "sigOor",
+				}),
+			]),
+		];
+		const payload = buildAgentPayload(
+			journal,
+			mkState(),
+			{ text: "x", source: "fallback" },
+			"oor",
+			1,
+		);
+		expect(payload.total).toBe(1);
+		expect(payload.groups).toHaveLength(1);
+	});
+
+	it("keeps degraded OOR holds visible under the oor filter", () => {
+		const journal = [
+			mkEntry(
+				5,
+				[
+					mkCandidate({
+						action: "hold",
+						heuristicScore: 0,
+						rationale: "OOR degraded - held: LLM unavailable",
+						execution: null,
+						txSignature: null,
+					}),
+				],
+				"oor",
+			),
+		];
+		const payload = buildAgentPayload(
+			journal,
+			mkState(),
+			{ text: "x", source: "fallback" },
+			"oor",
+			1,
+		);
+		expect(payload.total).toBe(1);
+		expect(payload.stats?.holds).toBe(1);
+	});
+
+	it("isOorEntry treats missing kind as cycle unless rationale matches", () => {
+		expect(isOorEntry(mkEntry(1, [mkCandidate({ rationale: "solid" })]))).toBe(
+			false,
+		);
+		expect(
+			isOorEntry(
+				mkEntry(
+					1,
+					[mkCandidate({ rationale: "OOR hold: wait", execution: null })],
+					"oor",
+				),
+			),
+		).toBe(true);
+		expect(
+			isOorEntry(mkEntry(1, [mkCandidate({ rationale: "OOR close: idle" })])),
+		).toBe(true);
 	});
 });
