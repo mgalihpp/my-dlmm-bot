@@ -528,6 +528,12 @@ describe("adoptOnchainPlans", () => {
 		expect(out[0].amountSol).toBe(0);
 	});
 
+	it("stamps adopted plans with adoption time so TP/SL grace applies", () => {
+		const out = adoptOnchainPlans([], [openPool()], { nowMs: NOW });
+		expect(out).toHaveLength(1);
+		expect(out[0].openedAt).toBe(new Date(NOW).toISOString());
+	});
+
 	it("does not duplicate already-tracked pools", () => {
 		const plans = [
 			{

@@ -71,7 +71,15 @@ describe("positionTooYoung", () => {
 		);
 	});
 
-	it("allows plans without openedAt (adopted on-chain)", () => {
+	it("treats adopted plans as young right after adoption (TP/SL grace)", () => {
+		const adoptedAt = new Date(now).toISOString();
+		expect(positionTooYoung({ openedAt: adoptedAt }, 90_000, now)).toBe(true);
+		expect(
+			positionTooYoung({ openedAt: adoptedAt }, 90_000, now + 91_000),
+		).toBe(false);
+	});
+
+	it("treats legacy plans without openedAt as mature", () => {
 		expect(positionTooYoung({ openedAt: null }, 90_000, now)).toBe(false);
 	});
 });
