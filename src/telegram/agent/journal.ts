@@ -28,6 +28,12 @@ export interface AgentJournalEntry {
 	cycle: number;
 	llmStatus: LlmStatus;
 	candidates: JournalCandidate[];
+	kind?: "cycle" | "oor";
+}
+
+export function isOorEntry(entry: AgentJournalEntry): boolean {
+	if (entry.kind === "oor") return true;
+	return entry.candidates.some((c) => c.rationale?.startsWith("OOR "));
 }
 
 const DEFAULT_FILE = repoPath(".vexis-agent-journal.jsonl");
