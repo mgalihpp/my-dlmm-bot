@@ -71,6 +71,7 @@ export const JOURNAL_FILTERS = [
 	"sl",
 	"close",
 	"blocked",
+	"oor",
 ] as const;
 
 export type JournalFilter = (typeof JOURNAL_FILTERS)[number];
@@ -113,9 +114,12 @@ export function journalRows(
 		for (const candidate of entry.candidates) {
 			const matches =
 				filter === "all" ||
-				(filter === "blocked"
-					? candidate.guardrail === "blocked"
-					: candidate.action === filter);
+				(filter === "oor"
+					? entry.kind === "oor" ||
+						candidate.rationale?.startsWith("OOR ") === true
+					: filter === "blocked"
+						? candidate.guardrail === "blocked"
+						: candidate.action === filter);
 			if (matches)
 				rows.push({
 					cycle: entry.cycle,

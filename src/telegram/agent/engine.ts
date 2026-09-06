@@ -936,6 +936,23 @@ async function evaluateOor(
 		} else {
 			logInfo(`OOR: LLM degraded — ${positions.length} held`);
 		}
+		appendJournal({
+			ts: new Date().toISOString(),
+			cycle: rt.state.cycle,
+			llmStatus: "ok",
+			kind: "oor",
+			candidates: positions.map((p) => ({
+				pool: p.pool,
+				poolName: p.poolName,
+				heuristicScore: 0,
+				rationale: `OOR degraded - held: ${errorMessage ?? "LLM unavailable"}`,
+				action: "hold" as const,
+				guardrail: "pass" as const,
+				blockedReason: null,
+				execution: null,
+				txSignature: null,
+			})),
+		});
 		return;
 	}
 	for (const d of decisions) {
@@ -972,6 +989,7 @@ async function evaluateOor(
 				ts: new Date().toISOString(),
 				cycle: rt.state.cycle,
 				llmStatus: "ok",
+				kind: "oor",
 				candidates: [base],
 			});
 			logInfo(`OOR decide: ${pos.poolName} → hold (${d.rationale})`);
@@ -1030,6 +1048,7 @@ async function evaluateOor(
 				ts: new Date().toISOString(),
 				cycle: rt.state.cycle,
 				llmStatus: "ok",
+				kind: "oor",
 				candidates: [{ ...base, execution: "ok", txSignature: sig || null }],
 			});
 			saveState(rt.state);
@@ -1062,6 +1081,7 @@ async function evaluateOor(
 				ts: new Date().toISOString(),
 				cycle: rt.state.cycle,
 				llmStatus: "ok",
+				kind: "oor",
 				candidates: [{ ...base, execution: "failed" }],
 			});
 		} finally {
