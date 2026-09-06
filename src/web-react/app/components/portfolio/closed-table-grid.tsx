@@ -12,6 +12,13 @@ import { Button } from "~/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Input } from "~/components/ui/input";
 import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "~/components/ui/select";
+import {
 	Sheet,
 	SheetContent,
 	SheetDescription,
@@ -30,6 +37,7 @@ import { Tabs, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { ViewSwitcher } from "~/components/view-switcher";
 import { useIsMobile } from "~/hooks/use-mobile";
 import { useViewPreference } from "~/hooks/use-view-preference";
+import { CLOSED_PAGE_SIZES } from "~/lib/closed-pagination";
 import {
 	fmtPct,
 	meteoraUrl,
@@ -518,6 +526,34 @@ function ClosedTableView({
 								: `Showing ${from}–${to} of ${totalCount}`}
 						</span>
 						<div className="flex items-center gap-2">
+							<label
+								htmlFor="closed-page-size"
+								className="text-sm text-muted-foreground"
+							>
+								Rows
+							</label>
+							<Select
+								value={String(pageSize)}
+								onValueChange={(value) =>
+									updateParam("closedSize", value, "10")
+								}
+							>
+								<SelectTrigger
+									id="closed-page-size"
+									size="sm"
+									className="w-20"
+									aria-label="Rows per page"
+								>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{CLOSED_PAGE_SIZES.map((size) => (
+										<SelectItem key={size} value={String(size)}>
+											{size}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
 							<Button
 								variant="outline"
 								size="sm"
