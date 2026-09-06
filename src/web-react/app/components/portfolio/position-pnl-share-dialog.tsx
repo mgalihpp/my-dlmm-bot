@@ -26,13 +26,14 @@ export function PositionPnlShareDialog({
 			description="Preview and export your position PnL card"
 			filename={`pnl-position-${poolKey}.png`}
 		>
-			{(cardRef, theme) => (
+			{(cardRef, theme, showDetails) => (
 				<PositionPnlCard
 					ref={cardRef}
 					pool={pool}
 					currency={currency}
 					solPrice={solPrice}
 					theme={theme}
+					showDetails={showDetails}
 				/>
 			)}
 		</PnlShareShell>

@@ -70,7 +70,8 @@ export function DailyPnlShareDialog({
 
 	const weekFilename = useMemo(() => {
 		if (!weekStats) return "";
-		const fmt = (d: Date) => `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
+		const fmt = (d: Date) =>
+			`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")}`;
 		return `pnl-weekly-${fmt(weekStats.start)}-to-${fmt(weekStats.end)}.png`;
 	}, [weekStats]);
 
@@ -106,7 +107,7 @@ export function DailyPnlShareDialog({
 			}
 			filename={filename}
 		>
-			{(cardRef, theme) =>
+			{(cardRef, theme, showDetails) =>
 				isWeekly && weekStats ? (
 					<WeeklyPnlCard
 						ref={cardRef}
@@ -114,6 +115,7 @@ export function DailyPnlShareDialog({
 						currency={currency}
 						mode={weekMode ?? "total"}
 						theme={theme}
+						showDetails={showDetails}
 					/>
 				) : isChart && chartPoints && chartRangeLabel && chartTotal != null ? (
 					<DailyChartShareCard
@@ -146,6 +148,7 @@ export function DailyPnlShareDialog({
 						stats={stats}
 						currency={currency}
 						theme={theme}
+						showDetails={showDetails}
 					/>
 				)
 			}

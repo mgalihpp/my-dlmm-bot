@@ -1,6 +1,7 @@
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
 import type { WeeklyStats } from "~/lib/pnl-calendar.js";
+import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type WeeklyPnlCardProps = {
@@ -8,10 +9,13 @@ export type WeeklyPnlCardProps = {
 	currency: Currency;
 	mode: "fees" | "total";
 	theme: CardTheme;
-};
+} & Partial<ShareDisplayOptions>;
 
 export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
-	function WeeklyPnlCard({ stats, currency, mode, theme }, ref) {
+	function WeeklyPnlCard(
+		{ stats, currency, mode, theme, showDetails = true },
+		ref,
+	) {
 		const timestamp = useMemo(() => {
 			const d = new Date();
 			return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")} UTC`;
@@ -130,122 +134,115 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 							</span>
 						</div>
 
-						<div className="flex min-w-[220px] flex-col">
-							<div className="flex items-center justify-between gap-4">
-								<span
-									className="text-[11px] font-semibold tracking-[0.14em]"
-									style={{ color: t.labelColor }}
-								>
-									DETAILS
-								</span>
-								<span
-									className="rounded border px-2 py-0.5 text-[10px] font-semibold tracking-widest"
-									style={{
-										borderColor: t.isDarkText
-											? "rgba(0,0,0,0.18)"
-											: "rgba(255,255,255,0.18)",
-										color: t.faintColor,
-									}}
-								>
-									HIDE ALL
-								</span>
-							</div>
-							<div className="mt-2 flex flex-col gap-1.5 text-sm">
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Fees:</span>
+						{showDetails ? (
+							<div className="flex min-w-[220px] flex-col">
+								<div className="flex items-center justify-between gap-4">
 									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
+										className="text-[11px] font-semibold tracking-[0.14em]"
+										style={{ color: t.labelColor }}
 									>
-										{stats.fees.toFixed(4)} {currencyLabel}
+										DETAILS
 									</span>
 								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Deposits:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{stats.deposits.toFixed(4)} {currencyLabel}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Withdrawals:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{stats.withdrawals.toFixed(4)} {currencyLabel}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Win rate:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{stats.winRate != null
-											? `${stats.winRate.toFixed(1)}%`
-											: "—"}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Active days:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{stats.daysWithData}/7 days
-									</span>
+								<div className="mt-2 flex flex-col gap-1.5 text-sm">
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Fees:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{stats.fees.toFixed(4)} {currencyLabel}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Deposits:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{stats.deposits.toFixed(4)} {currencyLabel}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Withdrawals:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{stats.withdrawals.toFixed(4)} {currencyLabel}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Win rate:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{stats.winRate != null
+												? `${stats.winRate.toFixed(1)}%`
+												: "—"}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Active days:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{stats.daysWithData}/7 days
+										</span>
+									</div>
 								</div>
 							</div>
-						</div>
+						) : null}
 					</div>
 
-					<div className="mt-6 flex flex-col gap-1.5">
-						{stats.days.map((d) => {
-							const rowColor =
-								d.pnl == null
-									? t.mutedColor
-									: d.pnl >= 0
-										? "#10b981"
-										: "#ef4444";
-							const dayLabel = d.date.toLocaleDateString("en-US", {
-								weekday: "short",
-								month: "short",
-								day: "numeric",
-								timeZone: "UTC",
-							});
-							return (
-								<div
-									key={d.date.toISOString()}
-									className="flex items-center justify-between gap-4 text-sm"
-								>
-									<span style={{ color: t.mutedColor }}>{dayLabel}</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: rowColor }}
+					{showDetails ? (
+						<div className="mt-6 flex flex-col gap-1.5">
+							{stats.days.map((d) => {
+								const rowColor =
+									d.pnl == null
+										? t.mutedColor
+										: d.pnl >= 0
+											? "#10b981"
+											: "#ef4444";
+								const dayLabel = d.date.toLocaleDateString("en-US", {
+									weekday: "short",
+									month: "short",
+									day: "numeric",
+									timeZone: "UTC",
+								});
+								return (
+									<div
+										key={d.date.toISOString()}
+										className="flex items-center justify-between gap-4 text-sm"
 									>
-										{d.pnl != null
-											? `${d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(3)}`
-											: "—"}
-									</span>
-									<span
-										className="tabular-nums"
-										style={{ color: t.mutedColor }}
-									>
-										{d.count != null ? `${d.count} pos` : "—"}
-									</span>
-									<span
-										className="tabular-nums"
-										style={{ color: t.mutedColor }}
-									>
-										{d.winPct != null ? `${d.winPct.toFixed(1)}%` : "—"}
-									</span>
-								</div>
-							);
-						})}
-					</div>
+										<span style={{ color: t.mutedColor }}>{dayLabel}</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: rowColor }}
+										>
+											{d.pnl != null
+												? `${d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(3)}`
+												: "—"}
+										</span>
+										<span
+											className="tabular-nums"
+											style={{ color: t.mutedColor }}
+										>
+											{d.count != null ? `${d.count} pos` : "—"}
+										</span>
+										<span
+											className="tabular-nums"
+											style={{ color: t.mutedColor }}
+										>
+											{d.winPct != null ? `${d.winPct.toFixed(1)}%` : "—"}
+										</span>
+									</div>
+								);
+							})}
+						</div>
+					) : null}
 
 					<div
 						className="mt-10 flex justify-end text-[11px] tabular-nums"

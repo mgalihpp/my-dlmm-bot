@@ -4,6 +4,7 @@
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
 import type { CalendarCell, WeekBucket } from "~/lib/pnl-calendar.js";
+import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type { CalendarCell, WeekBucket } from "~/lib/pnl-calendar.js";
@@ -18,11 +19,20 @@ export type PnlCalendarCardProps = {
 	currency: Currency;
 	weekBuckets: WeekBucket[];
 	theme: CardTheme;
-};
+} & Partial<ShareDisplayOptions>;
 
 export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 	function PnlCalendarCard(
-		{ month, cells, monthlyPnl, monthlyDays, currency, weekBuckets, theme },
+		{
+			month,
+			cells,
+			monthlyPnl,
+			monthlyDays,
+			currency,
+			weekBuckets,
+			theme,
+			showDetails = true,
+		},
 		ref,
 	) {
 		const monthLabel = useMemo(
@@ -137,13 +147,21 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 							</span>
 							<span className="text-[11px]" style={{ color: faintColor }}>
 								Monthly Stats:{" "}
-								<span
-									style={{ color: monthlyPnl >= 0 ? "#10b981" : "#ef4444" }}
-								>
-									{monthlyPnl >= 0 ? "+" : ""}
-									{monthlyPnl.toFixed(3)} {currencyLabel}
-								</span>{" "}
-								{monthlyDays} days
+								{showDetails ? (
+									<>
+										<span
+											style={{
+												color: monthlyPnl >= 0 ? "#10b981" : "#ef4444",
+											}}
+										>
+											{monthlyPnl >= 0 ? "+" : ""}
+											{monthlyPnl.toFixed(3)} {currencyLabel}
+										</span>{" "}
+										{monthlyDays} days
+									</>
+								) : (
+									"Hidden"
+								)}
 							</span>
 						</div>
 					</div>
@@ -218,7 +236,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 																{cell.day}
 															</span>
 														</div>
-														{hasData ? (
+														{hasData && showDetails ? (
 															<div className="mt-1 flex flex-1 flex-col items-center justify-center gap-0.5 text-center">
 																<span
 																	className="text-xs leading-none font-bold"
@@ -250,6 +268,8 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 																	</span>
 																)}
 															</div>
+														) : hasData ? (
+															<div aria-hidden className="mt-1 flex flex-1" />
 														) : null}
 													</div>
 												);
@@ -305,7 +325,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 									>
 										{w.label}
 									</span>
-									{w.hasData ? (
+									{w.hasData && showDetails ? (
 										<span
 											className="mt-0.5 text-[10px] leading-none font-bold"
 											style={{ color: w.pnl! >= 0 ? "#10b981" : "#ef4444" }}

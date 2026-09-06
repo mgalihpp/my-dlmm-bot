@@ -3,6 +3,7 @@ import { pair, shortAddr } from "~/lib/format";
 import { proxiedIconUrl } from "~/lib/icon";
 import { fmtAmount, toSol } from "~/lib/pools";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
+import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type PositionPnlCardProps = {
@@ -10,10 +11,13 @@ export type PositionPnlCardProps = {
 	currency: "usd" | "sol";
 	solPrice: number | null;
 	theme: CardTheme;
-};
+} & Partial<ShareDisplayOptions>;
 
 export const PositionPnlCard = forwardRef<HTMLDivElement, PositionPnlCardProps>(
-	function PositionPnlCard({ pool, currency, solPrice, theme }, ref) {
+	function PositionPnlCard(
+		{ pool, currency, solPrice, theme, showDetails = true },
+		ref,
+	) {
 		const currencyLabel = currency === "sol" ? "SOL" : "USD";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
@@ -222,67 +226,58 @@ export const PositionPnlCard = forwardRef<HTMLDivElement, PositionPnlCardProps>(
 							</span>
 						</div>
 
-						<div className="flex min-w-[220px] flex-col">
-							<div className="flex items-center justify-between gap-4">
-								<span
-									className="text-[11px] font-semibold tracking-[0.14em]"
-									style={{ color: t.labelColor }}
-								>
-									DETAILS
-								</span>
-								<span
-									className="rounded border px-2 py-0.5 text-[10px] font-semibold tracking-widest"
-									style={{
-										borderColor: t.isDarkText
-											? "rgba(0,0,0,0.18)"
-											: "rgba(255,255,255,0.18)",
-										color: t.faintColor,
-									}}
-								>
-									LIVE
-								</span>
-							</div>
-							<div className="mt-2 flex flex-col gap-1.5 text-sm">
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Balance:</span>
+						{showDetails ? (
+							<div className="flex min-w-[220px] flex-col">
+								<div className="flex items-center justify-between gap-4">
 									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
+										className="text-[11px] font-semibold tracking-[0.14em]"
+										style={{ color: t.labelColor }}
 									>
-										{balanceStr}
+										DETAILS
 									</span>
 								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Fees:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{feesStr}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Pool price:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{Number.isFinite(pool.poolPrice)
-											? pool.poolPrice.toFixed(5)
-											: "-"}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Range:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{oor ? "Out of range" : "In range"}
-									</span>
+								<div className="mt-2 flex flex-col gap-1.5 text-sm">
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Balance:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{balanceStr}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Fees:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{feesStr}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Pool price:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{Number.isFinite(pool.poolPrice)
+												? pool.poolPrice.toFixed(5)
+												: "-"}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Range:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{oor ? "Out of range" : "In range"}
+										</span>
+									</div>
 								</div>
 							</div>
-						</div>
+						) : null}
 					</div>
 
 					<div
