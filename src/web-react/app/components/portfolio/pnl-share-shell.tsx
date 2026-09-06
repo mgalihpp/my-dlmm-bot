@@ -34,6 +34,8 @@ import {
 	TEXTURES,
 } from "./pnl-share-theme.js";
 
+export type ShareDisplayOptions = { showDetails: boolean };
+
 export function PnlShareShell({
 	open,
 	onOpenChange,
@@ -50,11 +52,13 @@ export function PnlShareShell({
 	children: (
 		cardRef: RefObject<HTMLDivElement | null>,
 		theme: CardTheme,
+		showDetails: boolean,
 	) => ReactNode;
 }) {
 	const settings = useCardThemeStore((s) => s.theme);
 	const setThemeField = useCardThemeStore((s) => s.setThemeField);
 	const [exporting, setExporting] = useState(false);
+	const [showDetails, setShowDetails] = useState(true);
 	const cardRef = useRef<HTMLDivElement>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 	const viewportRef = useRef<HTMLDivElement>(null);
@@ -242,10 +246,33 @@ export function PnlShareShell({
 						ref={viewportRef}
 						className="flex min-h-[260px] flex-1 items-start justify-center overflow-auto bg-[#050505] p-3 sm:min-h-[300px] sm:p-4 lg:min-h-[420px] lg:items-center lg:p-6"
 					>
-						<div style={scalerStyle}>{children(cardRef, theme)}</div>
+						<div style={scalerStyle}>
+							{children(cardRef, theme, showDetails)}
+						</div>
 					</div>
 					<div className="flex max-h-[42dvh] w-full flex-col overflow-hidden border-t border-[#222] bg-[#111113] sm:max-h-[50dvh] lg:max-h-none lg:w-[320px] lg:border-t-0 lg:border-l">
 						<div className="flex min-h-0 flex-1 flex-col gap-5 overflow-y-auto p-4 sm:p-5 lg:p-5">
+							<div>
+								<div className="mb-2 text-sm font-semibold text-white">
+									Details
+								</div>
+								<div className="flex overflow-hidden rounded-md border border-white/10">
+									<button
+										type="button"
+										onClick={() => setShowDetails(true)}
+										className={`flex-1 px-3 py-1.5 text-xs font-semibold transition ${showDetails ? "bg-[#ff4d00] text-white" : "bg-white/[0.04] text-white/60 hover:text-white"}`}
+									>
+										Show
+									</button>
+									<button
+										type="button"
+										onClick={() => setShowDetails(false)}
+										className={`flex-1 px-3 py-1.5 text-xs font-semibold transition ${!showDetails ? "bg-[#ff4d00] text-white" : "bg-white/[0.04] text-white/60 hover:text-white"}`}
+									>
+										Hide
+									</button>
+								</div>
+							</div>
 							<div>
 								<div className="mb-2 text-sm font-semibold text-white">
 									Background

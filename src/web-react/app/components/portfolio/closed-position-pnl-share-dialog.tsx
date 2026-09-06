@@ -27,7 +27,7 @@ export function ClosedPositionPnlShareDialog({
 			description="Preview and export your closed position PnL card"
 			filename={`pnl-closed-pos-${position.positionAddress.slice(0, 6)}.png`}
 		>
-			{(cardRef, theme) => (
+			{(cardRef, theme, showDetails) => (
 				<ClosedPositionPnlCard
 					ref={cardRef}
 					position={position}
@@ -35,6 +35,7 @@ export function ClosedPositionPnlShareDialog({
 					poolAddress={poolAddress}
 					currency={currency}
 					theme={theme}
+					showDetails={showDetails}
 				/>
 			)}
 		</PnlShareShell>

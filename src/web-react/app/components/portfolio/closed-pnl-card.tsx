@@ -2,16 +2,17 @@ import { forwardRef, useMemo } from "react";
 import { fmtUsd, pair, shortAddr, timeAgo } from "~/lib/format";
 import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
+import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type ClosedPnlCardProps = {
 	pool: ClosedPoolWithIcons;
 	currency: "usd" | "sol";
 	theme: CardTheme;
-};
+} & Partial<ShareDisplayOptions>;
 
 export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
-	function ClosedPnlCard({ pool, currency, theme }, ref) {
+	function ClosedPnlCard({ pool, currency, theme, showDetails = true }, ref) {
 		const currencyLabel = currency === "sol" ? "SOL" : "USD";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
@@ -244,65 +245,56 @@ export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
 							</span>
 						</div>
 
-						<div className="flex min-w-[220px] flex-col">
-							<div className="flex items-center justify-between gap-4">
-								<span
-									className="text-[11px] font-semibold tracking-[0.14em]"
-									style={{ color: t.labelColor }}
-								>
-									DETAILS
-								</span>
-								<span
-									className="rounded border px-2 py-0.5 text-[10px] font-semibold tracking-widest"
-									style={{
-										borderColor: t.isDarkText
-											? "rgba(0,0,0,0.18)"
-											: "rgba(255,255,255,0.18)",
-										color: t.faintColor,
-									}}
-								>
-									CLOSED
-								</span>
-							</div>
-							<div className="mt-2 flex flex-col gap-1.5 text-sm">
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Deposit:</span>
+						{showDetails ? (
+							<div className="flex min-w-[220px] flex-col">
+								<div className="flex items-center justify-between gap-4">
 									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
+										className="text-[11px] font-semibold tracking-[0.14em]"
+										style={{ color: t.labelColor }}
 									>
-										{depositStr}
+										DETAILS
 									</span>
 								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Withdraw:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{withdrawStr}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Fees:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{feesStr}
-									</span>
-								</div>
-								<div className="flex items-center justify-between gap-6">
-									<span style={{ color: t.mutedColor }}>Closed:</span>
-									<span
-										className="font-medium tabular-nums"
-										style={{ color: t.textColor }}
-									>
-										{closedLabel}
-									</span>
+								<div className="mt-2 flex flex-col gap-1.5 text-sm">
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Deposit:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{depositStr}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Withdraw:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{withdrawStr}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Fees:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{feesStr}
+										</span>
+									</div>
+									<div className="flex items-center justify-between gap-6">
+										<span style={{ color: t.mutedColor }}>Closed:</span>
+										<span
+											className="font-medium tabular-nums"
+											style={{ color: t.textColor }}
+										>
+											{closedLabel}
+										</span>
+									</div>
 								</div>
 							</div>
-						</div>
+						) : null}
 					</div>
 
 					<div

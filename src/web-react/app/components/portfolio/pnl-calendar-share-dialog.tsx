@@ -36,7 +36,7 @@ export function PnlCalendarShareDialog({
 			description="Preview and export your monthly PnL calendar"
 			filename={`pnl-${monthKey}.png`}
 		>
-			{(cardRef, theme) => (
+			{(cardRef, theme, showDetails) => (
 				<PnlCalendarCard
 					ref={cardRef}
 					month={month}
@@ -46,6 +46,7 @@ export function PnlCalendarShareDialog({
 					currency={currency}
 					weekBuckets={weekBuckets}
 					theme={theme}
+					showDetails={showDetails}
 				/>
 			)}
 		</PnlShareShell>
