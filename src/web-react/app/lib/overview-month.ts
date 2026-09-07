@@ -1,7 +1,7 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
-import { formatLocalDateKey, monthKeysInRange } from "./date-range.js";
 import type { LocalDate } from "./date-range.js";
+import { formatLocalDateKey, monthKeysInRange } from "./date-range.js";
 
 export type OverviewClosedResponse =
 	| {
@@ -34,7 +34,8 @@ export function allTimeMonthKeys(
 		if (minTs === null || p.lastClosedAt < minTs) minTs = p.lastClosedAt;
 	}
 	if (minTs === null) return [];
-	const from = `${formatLocalDateKey(new Date(minTs * 1000)).slice(0, 7)}-01` as LocalDate;
+	const from =
+		`${formatLocalDateKey(new Date(minTs * 1000)).slice(0, 7)}-01` as LocalDate;
 	const to = formatLocalDateKey(now);
 	return monthKeysInRange(from, to);
 }

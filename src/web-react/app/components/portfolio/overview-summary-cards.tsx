@@ -133,9 +133,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 	const withdrawals = isSol
 		? (aggregates?.withdrawalsSol ?? 0)
 		: (aggregates?.withdrawalsUsd ?? 0);
-	const fees = isSol
-		? (aggregates?.feesSol ?? 0)
-		: (aggregates?.feesUsd ?? 0);
+	const fees = isSol ? (aggregates?.feesSol ?? 0) : (aggregates?.feesUsd ?? 0);
 	const netWorth =
 		(isSol ? summary.openBalanceSol : summary.openBalanceUsd) +
 		(isSol ? summary.openFeesSol : summary.openFeesUsd);

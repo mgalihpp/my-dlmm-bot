@@ -247,9 +247,8 @@ describe("fetchOverviewClosedCore apiTotalPositions", () => {
 					pools: pools.slice(start, start + pageSize),
 				});
 			}) as MeteoraApiService["closedPortfolio"],
-			positionPnl:
-				stubApi(pools, {}, calls)
-					.positionPnl as MeteoraApiService["positionPnl"],
+			positionPnl: stubApi(pools, {}, calls)
+				.positionPnl as MeteoraApiService["positionPnl"],
 		} as MeteoraApiService;
 
 		const res = await Effect.runPromise(

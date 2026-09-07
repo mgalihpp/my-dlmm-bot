@@ -12,7 +12,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
-import { type CalendarCell, buildCalendarCells, buildWeeklyStats, computeWeekBuckets } from "~/lib/pnl-calendar.js";
+import {
+	buildCalendarCells,
+	buildWeeklyStats,
+	type CalendarCell,
+	computeWeekBuckets,
+} from "~/lib/pnl-calendar.js";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 import { PnlCalendarShareDialog } from "./pnl-calendar-share-dialog.js";
@@ -282,7 +287,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 									>
 										<button
 											type="button"
-											aria-label={w.hasData ? `Share Week ${w.index + 1}` : undefined}
+											aria-label={
+												w.hasData ? `Share Week ${w.index + 1}` : undefined
+											}
 											disabled={!w.hasData}
 											onClick={() => {
 												if (!w.hasData) return;
@@ -354,7 +361,12 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					closed={closed}
 					currency={currency ?? "sol"}
 					variant="weekly"
-					weekStats={buildWeeklyStats(closed, weekShare.cells, currency ?? "sol", mode)}
+					weekStats={buildWeeklyStats(
+						closed,
+						weekShare.cells,
+						currency ?? "sol",
+						mode,
+					)}
 					weekMode={mode}
 				/>
 			)}

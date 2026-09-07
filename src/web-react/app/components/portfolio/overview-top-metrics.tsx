@@ -265,9 +265,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	const grossLoss = isSol ? metrics.grossLossSol : metrics.grossLossUsd;
 	const isBounded = dateRange?.kind === "bounded";
 	const badgeCount =
-		!isBounded && positionCount != null
-			? positionCount
-			: metrics.totalClosed;
+		!isBounded && positionCount != null ? positionCount : metrics.totalClosed;
 	const badgeTitle =
 		!isBounded && positionCount != null && countBasis === "pools"
 			? `${positionCount} closed positions across ${metrics.totalClosed} pools`

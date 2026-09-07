@@ -107,20 +107,18 @@ export function PortfolioOverviewContent({
 	const bgFetcher = useFetcher<OverviewClosedResponse>();
 	const [bgLoadingMonth, setBgLoadingMonth] = useState<string | null>(null);
 	const bgAttempted = useRef<Set<string>>(new Set());
-	const bgDataAtRequest = useRef<OverviewClosedResponse | undefined>(
-		undefined,
-	);
+	const bgDataAtRequest = useRef<OverviewClosedResponse | undefined>(undefined);
 	const bgNext =
 		bgLoadingMonth !== null || bgFetcher.state !== "idle"
 			? null
-			: [...allKeys]
+			: ([...allKeys]
 					.reverse()
 					.find(
 						(k) =>
 							entries[k] === undefined &&
 							!bgAttempted.current.has(k) &&
 							k !== monthKey,
-					) ?? null;
+					) ?? null);
 	useEffect(() => {
 		if (bgNext === null) return;
 		bgAttempted.current.add(bgNext);
@@ -311,9 +309,7 @@ export function PortfolioOverviewContent({
 					>
 						<EquityChart
 							closed={filteredClosed}
-							positions={
-								rangeCovered ? filteredChartPositions : undefined
-							}
+							positions={rangeCovered ? filteredChartPositions : undefined}
 							currency={currency}
 							loading={summaryLoading}
 						/>

@@ -1,7 +1,11 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { describe, expect, it } from "vitest";
 import type { CalendarCell } from "./pnl-calendar.js";
-import { buildCalendarCells, buildWeeklyStats, computeWeekBuckets } from "./pnl-calendar.js";
+import {
+	buildCalendarCells,
+	buildWeeklyStats,
+	computeWeekBuckets,
+} from "./pnl-calendar.js";
 
 function pos(utcDate: Date, pnlSol: string): PositionPnLData {
 	return {
@@ -92,7 +96,11 @@ describe("pnl calendar adjacent-month days (issue 63)", () => {
 });
 
 describe("buildWeeklyStats", () => {
-	function posWeekly(utcDate: Date, pnlSol: string, feesSol: string): PositionPnLData {
+	function posWeekly(
+		utcDate: Date,
+		pnlSol: string,
+		feesSol: string,
+	): PositionPnLData {
 		const base = pos(utcDate, pnlSol);
 		return {
 			...base,
@@ -117,7 +125,10 @@ describe("buildWeeklyStats", () => {
 
 	it("includes positions from both months in a week spanning the Aug/Sep boundary", () => {
 		const month = new Date(Date.UTC(2026, 8, 1));
-		const closed = [pos(utc(2026, 7, 31), "0.05"), pos(utc(2026, 8, 1), "0.01")];
+		const closed = [
+			pos(utc(2026, 7, 31), "0.05"),
+			pos(utc(2026, 8, 1), "0.01"),
+		];
 		const { cells } = buildCalendarCells(closed, month, "total", "sol");
 		const idx = cells.findIndex(
 			(c) => c.date.getUTCMonth() === 7 && c.date.getUTCDate() === 31,
@@ -125,7 +136,11 @@ describe("buildWeeklyStats", () => {
 		expect(idx).toBeGreaterThanOrEqual(0);
 		const rowStart = Math.floor(idx / 7) * 7;
 		const slice = cells.slice(rowStart, rowStart + 7);
-		expect(slice.some((c) => c.date.getUTCMonth() === 8 && c.date.getUTCDate() === 1)).toBe(true);
+		expect(
+			slice.some(
+				(c) => c.date.getUTCMonth() === 8 && c.date.getUTCDate() === 1,
+			),
+		).toBe(true);
 		const stats = buildWeeklyStats(closed, slice, "sol", "total");
 		expect(stats.pnl).toBeCloseTo(0.06, 9);
 		expect(stats.count).toBe(2);
@@ -133,7 +148,9 @@ describe("buildWeeklyStats", () => {
 	});
 
 	it("counts wins on the displayed-mode value so fees and total headlines differ", () => {
-		const dates = [0, 1, 2, 3, 4, 5, 6].map((d) => new Date(Date.UTC(2026, 8, d + 6)));
+		const dates = [0, 1, 2, 3, 4, 5, 6].map(
+			(d) => new Date(Date.UTC(2026, 8, d + 6)),
+		);
 		const weekCells = weekCellsFor(dates);
 		const closed = [posWeekly(utc(2026, 8, 7), "-0.5", "0.2")];
 		const totalStats = buildWeeklyStats(closed, weekCells, "sol", "total");
@@ -165,17 +182,16 @@ describe("buildWeeklyStats", () => {
 			i === 0 ? new Date(Date.UTC(2026, 7, d)) : new Date(Date.UTC(2026, 8, d)),
 		);
 		const weekCells = weekCellsFor(dates);
-		const closed = [
-			pos(utc(2026, 8, 2), "0.4"),
-			pos(utc(2026, 8, 20), "99"),
-		];
+		const closed = [pos(utc(2026, 8, 2), "0.4"), pos(utc(2026, 8, 20), "99")];
 		const stats = buildWeeklyStats(closed, weekCells, "sol", "total");
 		expect(stats.pnl).toBeCloseTo(0.4, 9);
 		expect(stats.count).toBe(1);
 	});
 
 	it("yields empty totals for a week with no positions", () => {
-		const dates = [13, 14, 15, 16, 17, 18, 19].map((d) => new Date(Date.UTC(2026, 8, d)));
+		const dates = [13, 14, 15, 16, 17, 18, 19].map(
+			(d) => new Date(Date.UTC(2026, 8, d)),
+		);
 		const weekCells = weekCellsFor(dates);
 		const stats = buildWeeklyStats([], weekCells, "sol", "total");
 		expect(stats.pnl).toBe(0);
