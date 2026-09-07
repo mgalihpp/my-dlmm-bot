@@ -340,7 +340,6 @@ export async function requestOpenDecisions(opts: {
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
-			providerOptions: { vexisLlm: { thinking: { type: "disabled" } } },
 		});
 		const { text, usage } = result;
 		logInfo("LLM open-decision usage:", {
@@ -471,7 +470,6 @@ export async function requestPositionDecisions(opts: {
 			temperature: 0,
 			maxRetries: 1,
 			timeout: cfg.llm.timeoutMs,
-			providerOptions: { vexisLlm: { thinking: { type: "disabled" } } },
 		});
 		const { text, usage } = result;
 		logInfo("LLM OOR position usage:", {
