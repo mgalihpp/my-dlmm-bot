@@ -94,11 +94,15 @@ function ClosedDetailSkeleton() {
 export function ClosedDetail({
 	pool,
 	pairLabel,
+	tokenXIcon,
+	tokenXSymbol,
 	currency,
 	layout = "card",
 }: {
 	pool: string;
 	pairLabel: string;
+	tokenXIcon?: string | null;
+	tokenXSymbol?: string;
 	currency: Currency;
 	layout?: "card" | "table";
 }) {
@@ -228,6 +232,8 @@ export function ClosedDetail({
 						position={sharePos}
 						pairLabel={pairLabel}
 						poolAddress={pool}
+						tokenXIcon={tokenXIcon}
+						tokenXSymbol={tokenXSymbol}
 						currency={currency}
 					/>
 				) : null}
@@ -335,6 +341,8 @@ export function ClosedDetail({
 					position={sharePos}
 					pairLabel={pairLabel}
 					poolAddress={pool}
+					tokenXIcon={tokenXIcon}
+					tokenXSymbol={tokenXSymbol}
 					currency={currency}
 				/>
 			) : null}

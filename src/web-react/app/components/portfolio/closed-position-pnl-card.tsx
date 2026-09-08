@@ -1,6 +1,7 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
 import { fmtUsd, shortAddr, timeAgo } from "~/lib/format";
+import { proxiedIconUrl } from "~/lib/icon";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
@@ -8,6 +9,8 @@ export type ClosedPositionPnlCardProps = {
 	position: PositionPnLData;
 	pairLabel: string;
 	poolAddress: string;
+	tokenXIcon?: string | null;
+	tokenXSymbol?: string;
 	currency: "usd" | "sol";
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
@@ -16,7 +19,7 @@ export const ClosedPositionPnlCard = forwardRef<
 	HTMLDivElement,
 	ClosedPositionPnlCardProps
 >(function ClosedPositionPnlCard(
-	{ position, pairLabel, poolAddress, currency, theme, showDetails = true },
+	{ position, pairLabel, poolAddress, tokenXIcon, tokenXSymbol, currency, theme, showDetails = true },
 	ref,
 ) {
 	const currencyLabel = currency === "sol" ? "SOL" : "USD";
@@ -93,6 +96,8 @@ export const ClosedPositionPnlCard = forwardRef<
 		return `${low.toFixed(4)} - ${high.toFixed(4)}`;
 	})();
 	const binLabel = `${position.lowerBinId}–${position.upperBinId}`;
+	const iconUrl = proxiedIconUrl(tokenXIcon ?? null);
+	const iconAlt = tokenXSymbol ?? pairLabel.split("/")[0]?.trim() ?? pairLabel;
 	const initials = pairLabel
 		.split("/")
 		.map((s) => s.trim().slice(0, 1).toUpperCase())
@@ -179,7 +184,22 @@ export const ClosedPositionPnlCard = forwardRef<
 				<div className="mt-6 flex items-start justify-between gap-4">
 					<div className="flex min-w-0 items-center gap-3">
 						<div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-white/10 text-xs font-bold">
-							{initials || "?"}
+							{iconUrl ? (
+								<img
+									src={iconUrl}
+									alt={iconAlt}
+									crossOrigin="anonymous"
+									referrerPolicy="no-referrer"
+									loading="lazy"
+									className="size-full object-cover"
+									onError={(e) => {
+										(e.currentTarget as HTMLImageElement).style.display =
+											"none";
+									}}
+								/>
+							) : (
+								initials || "?"
+							)}
 						</div>
 						<div className="min-w-0">
 							<div

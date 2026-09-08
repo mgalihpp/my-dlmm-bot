@@ -505,6 +505,8 @@ function ClosedTableView({
 														<ClosedDetail
 															pool={pool.poolAddress}
 															pairLabel={p}
+															tokenXIcon={pool.tokenXIcon}
+															tokenXSymbol={pool.tokenX}
 															currency={currency}
 															layout="table"
 														/>
@@ -611,6 +613,8 @@ function ClosedTableView({
 						<ClosedDetail
 							pool={selectedCard.poolAddress}
 							pairLabel={pair(selectedCard.tokenX, selectedCard.tokenY)}
+							tokenXIcon={selectedCard.tokenXIcon}
+							tokenXSymbol={selectedCard.tokenX}
 							currency={currency}
 						/>
 					) : null}

@@ -10,6 +10,8 @@ export function ClosedPositionPnlShareDialog({
 	position,
 	pairLabel,
 	poolAddress,
+	tokenXIcon,
+	tokenXSymbol,
 	currency,
 }: {
 	open: boolean;
@@ -17,6 +19,8 @@ export function ClosedPositionPnlShareDialog({
 	position: PositionPnLData;
 	pairLabel: string;
 	poolAddress: string;
+	tokenXIcon?: string | null;
+	tokenXSymbol?: string;
 	currency: "usd" | "sol";
 }) {
 	return (
@@ -33,6 +37,8 @@ export function ClosedPositionPnlShareDialog({
 					position={position}
 					pairLabel={pairLabel}
 					poolAddress={poolAddress}
+					tokenXIcon={tokenXIcon}
+					tokenXSymbol={tokenXSymbol}
 					currency={currency}
 					theme={theme}
 					showDetails={showDetails}
