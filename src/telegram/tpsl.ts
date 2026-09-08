@@ -53,6 +53,12 @@ function threshold(v: number | null | undefined): number | null {
 	return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
 
+function stopLossThreshold(v: number | null | undefined): number | null {
+	const t = threshold(v);
+	if (t === null) return null;
+	return t > 0 ? -t : t;
+}
+
 /** True when the AI agent tracks the pool/position and therefore owns its
  * TP/SL handling — the global watcher must skip it to avoid double
  * notifications and a manual close button pointing at an already-closed
@@ -114,7 +120,7 @@ async function runCheck(
 	isAgentOwned?: (poolAddress: string, positionAddress: string) => boolean,
 ): Promise<void> {
 	const config = await getConfig();
-	const sl = threshold(config.stopLossPct);
+	const sl = stopLossThreshold(config.stopLossPct);
 	const tp = threshold(config.takeProfitPct);
 	if (sl === null && tp === null) return;
 

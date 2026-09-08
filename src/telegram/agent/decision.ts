@@ -34,7 +34,8 @@ export function tpslAction(
 	slPct: number,
 ): "tp" | "sl" | "hold" {
 	if (tpPct != null && pnlPct >= tpPct) return "tp";
-	if (slPct != null && pnlPct <= slPct) return "sl";
+	const sl = slPct != null && slPct > 0 ? -slPct : slPct;
+	if (sl != null && pnlPct <= sl) return "sl";
 	return "hold";
 }
 

@@ -86,6 +86,13 @@ export function decodeVexisConfig(raw: unknown): VexisConfig {
 			`Invalid VexisConfig: create.slippageBps must be a number between 0 and 10000`,
 		);
 	}
+	if (
+		decoded.stopLossPct != null &&
+		Number.isFinite(decoded.stopLossPct) &&
+		decoded.stopLossPct > 0
+	) {
+		decoded.stopLossPct = -decoded.stopLossPct;
+	}
 	return decoded;
 }
 
@@ -247,6 +254,8 @@ export const resolveAgentConfigFrom = (
 	const apiKey = a.llm?.apiKey ?? env.OPENAI_API_KEY ?? "";
 	const r = a.risks ?? {};
 	const d = a.darwin ?? {};
+	const rawSl = a.slPct ?? c.stopLossPct ?? -10;
+	const slPct = rawSl > 0 ? -rawSl : rawSl;
 	return {
 		enabled: a.enabled ?? false,
 		intervalMinutes: Math.max(1, a.intervalMinutes ?? 15),
@@ -258,7 +267,7 @@ export const resolveAgentConfigFrom = (
 		txCooldownMs: a.txCooldownMs ?? 300_000,
 		poolCooldownMs: a.poolCooldownMs ?? 24 * 3_600_000,
 		tpPct: a.tpPct ?? c.takeProfitPct ?? 25,
-		slPct: a.slPct ?? c.stopLossPct ?? -10,
+		slPct,
 		llm: {
 			baseUrl: (a.llm?.baseUrl ?? "https://api.openai.com/v1").replace(
 				/\/$/,
