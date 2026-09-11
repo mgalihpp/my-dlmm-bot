@@ -1,6 +1,8 @@
 import type { StrategyType } from "@vexis/domain/onchain.js";
 import { fmtMc, formatPrice } from "~/lib/format";
 
+// Mirrors domain normalizeStrategy without the Effect dependency, which the
+// browser bundle does not include.
 export function normalizeRangeStrategy(
 	value: string | null | undefined,
 ): StrategyType {

@@ -5,8 +5,6 @@ export type StrategyType = typeof Strategy.Type;
 
 /**
  * Decode untrusted strategy input, falling back to "bidask".
- * This is the single unknown boundary for strategy; internal code
- * works purely on StrategyType and never re-validates.
  */
 export function normalizeStrategy(value: unknown): StrategyType {
 	const candidate =

@@ -133,10 +133,8 @@ describe("resolveRangeBarHeight", () => {
 		}
 		const peak = Math.max(...heights);
 		expect(heights[Math.floor(heights.length / 2)]).toBeCloseTo(peak, 10);
-		// Exact center reaches the bidask max; sampled peak sits just below it.
 		expect(resolveRangeBarHeight("curve", 0.5)).toBe(legacyBidask(0));
 		expect(peak).toBeCloseTo(legacyBidask(0), 1);
-		// Valleys sit near the baseline, well below the peak.
 		expect(heights[0]).toBeLessThan(peak / 2);
 	});
 
