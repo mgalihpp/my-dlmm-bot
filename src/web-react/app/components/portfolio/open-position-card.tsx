@@ -149,6 +149,7 @@ export function OpenPositionCard({
 						current={pool.poolPrice}
 						mcap={pool.mcap ?? null}
 						loading={rangesLoading}
+						strategy={pool.strategy}
 					/>
 				</div>
 				<div className="mt-3 flex items-center justify-between">

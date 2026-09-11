@@ -1,4 +1,58 @@
+import type { StrategyType } from "@vexis/domain/onchain.js";
 import { fmtMc, formatPrice } from "~/lib/format";
+
+// Mirrors domain normalizeStrategy without the Effect dependency, which the
+// browser bundle does not include.
+export function normalizeRangeStrategy(
+	value: string | null | undefined,
+): StrategyType {
+	if (typeof value !== "string") return "bidask";
+	switch (value.trim().toLowerCase()) {
+		case "spot":
+			return "spot";
+		case "bidask":
+			return "bidask";
+		case "curve":
+			return "curve";
+		default:
+			return "bidask";
+	}
+}
+
+/**
+ * Bar height (percent of chart height) for a bar at `progress` (0 = left,
+ * 1 = right). Bidask matches the legacy descending formula exactly; spot is
+ * flat at the bidask midpoint; curve is a gaussian bell peaking at center.
+ */
+export function resolveRangeBarHeight(
+	strategy: StrategyType,
+	progress: number,
+): number {
+	switch (strategy) {
+		case "spot":
+			return ((11 + 14) / 86) * 100;
+		case "curve": {
+			const sigma = 0.22;
+			const d = (progress - 0.5) / sigma;
+			return ((11 + 28 * Math.exp(-(d * d) / 2)) / 86) * 100;
+		}
+		case "bidask":
+			return ((11 + (1 - progress) * 28) / 86) * 100;
+		default: {
+			const _exhaustive: never = strategy;
+			return _exhaustive;
+		}
+	}
+}
+
+export function resolveRangeBarHeights(
+	strategy: StrategyType,
+	count: number,
+): number[] {
+	return Array.from({ length: Math.max(0, count) }, (_, i) =>
+		resolveRangeBarHeight(strategy, count <= 1 ? 0.5 : i / (count - 1)),
+	);
+}
 
 export function resolveRangeAnchor(
 	ranges: readonly {
@@ -55,6 +109,7 @@ export function RangeVisual({
 	mcap,
 	className,
 	loading = false,
+	strategy,
 }: {
 	ranges: readonly {
 		minPrice: string;
@@ -65,6 +120,7 @@ export function RangeVisual({
 	mcap?: number | null;
 	className?: string;
 	loading?: boolean;
+	strategy?: StrategyType | null;
 }) {
 	const prices = ranges.flatMap((r) => [
 		Number(r.minPrice),
@@ -99,6 +155,7 @@ export function RangeVisual({
 			: null;
 
 	const baselinePct = 12.8;
+	const normalizedStrategy = normalizeRangeStrategy(strategy);
 	const bars: {
 		left: number;
 		width: number;
@@ -112,7 +169,7 @@ export function RangeVisual({
 		);
 		if (inRange) {
 			const progress = i / 47;
-			const height = ((11 + (1 - progress) * 28) / 86) * 100;
+			const height = resolveRangeBarHeight(normalizedStrategy, progress);
 			bars.push({
 				left: (i / 48) * 100,
 				width: 100 / 48,
@@ -141,9 +198,11 @@ export function RangeVisual({
 		const mc = mcFor(price);
 		return mc != null ? fmtMc(mc) : formatPrice(price);
 	};
-	const ariaLabel = hasMc
-		? `Position range ${fmtMc(mcFor(min))} to ${fmtMc(mcFor(max))}`
-		: `Position range ${formatPrice(min)} to ${formatPrice(max)}`;
+	const ariaLabel = `${
+		hasMc
+			? `Position range ${fmtMc(mcFor(min))} to ${fmtMc(mcFor(max))}`
+			: `Position range ${formatPrice(min)} to ${formatPrice(max)}`
+	} (${normalizedStrategy})`;
 
 	return (
 		<div className={`w-full min-w-32 ${className ?? ""}`}>

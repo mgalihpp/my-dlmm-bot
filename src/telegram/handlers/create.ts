@@ -1173,9 +1173,9 @@ export async function renderStrategyStep(wid: string): Promise<string> {
 		"",
 		tgBold("Or pick strategy:"),
 		"",
-		"• *Spot* — uniform liquidity across range",
-		"• *Bid\\-Ask* — concentrated at edges \\(volatility\\)",
-		"• *Curve* — bell curve centered on price",
+		"• *Spot* — uniform liquidity across range \\(visual: flat bars\\)",
+		"• *Bid\\-Ask* — concentrated at edges \\(visual: tall left, descending right\\)",
+		"• *Curve* — bell curve centered on price \\(visual: bell, peak in middle\\)",
 	);
 	return lines.join("\n");
 }
