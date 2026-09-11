@@ -215,6 +215,7 @@ export function PositionsTableBody({
 											current={pool.poolPrice}
 											mcap={pool.mcap ?? null}
 											loading={rangesLoading}
+											strategy={pool.strategy}
 										/>
 									</TableCell>
 									<TableCell>

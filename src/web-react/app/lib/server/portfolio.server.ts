@@ -1,5 +1,6 @@
 import "~/lib/server/env.server";
 
+import type { StrategyType } from "@vexis/domain/onchain.js";
 import type {
 	ClosedPool,
 	OpenPool,
@@ -25,6 +26,9 @@ export type OpenPoolWithIcons = OpenPool & {
 	readonly tokenXIcon?: string | null;
 	readonly tokenYIcon?: string | null;
 	readonly mcap?: number | null;
+	// Meteora open-portfolio payloads carry no strategy yet; reserved so
+	// RangeVisual consumers stay typed as the backend starts plumbing it.
+	readonly strategy?: StrategyType | null;
 };
 
 export type ClosedPoolWithIcons = ClosedPool & {

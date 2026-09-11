@@ -422,6 +422,7 @@ export function PositionsCardDetail({
 									current={pool.poolPrice}
 									mcap={pool.mcap ?? null}
 									className="border-0 [&_*]:border-0"
+									strategy={pool.strategy}
 								/>
 							</div>
 						) : null}

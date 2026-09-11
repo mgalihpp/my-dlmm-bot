@@ -1,4 +1,21 @@
-export type StrategyType = "spot" | "bidask" | "curve";
+import { Either, Schema } from "effect";
+
+export const Strategy = Schema.Literal("spot", "bidask", "curve");
+export type StrategyType = typeof Strategy.Type;
+
+/**
+ * Decode untrusted strategy input, falling back to "bidask".
+ * This is the single unknown boundary for strategy; internal code
+ * works purely on StrategyType and never re-validates.
+ */
+export function normalizeStrategy(value: unknown): StrategyType {
+	const candidate =
+		typeof value === "string" ? value.trim().toLowerCase() : value;
+	return Either.getOrElse(
+		Schema.decodeUnknownEither(Strategy)(candidate),
+		() => "bidask",
+	);
+}
 
 export interface CreatePositionParams {
 	poolAddress: string;
