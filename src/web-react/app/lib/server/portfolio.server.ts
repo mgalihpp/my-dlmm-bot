@@ -29,6 +29,7 @@ export type OpenPoolWithIcons = OpenPool & {
 	// Meteora open-portfolio payloads carry no strategy yet; reserved so
 	// RangeVisual consumers stay typed as the backend starts plumbing it.
 	readonly strategy?: StrategyType | null;
+	readonly positionStrategies?: Readonly<Record<string, StrategyType>>;
 };
 
 export type ClosedPoolWithIcons = ClosedPool & {
@@ -758,7 +759,7 @@ export function fetchOverviewClosed(
 function attachLivePositions(
 	pools: readonly OpenPool[],
 	live: readonly UserPositionLive[],
-): OpenPool[] {
+): OpenPoolWithIcons[] {
 	const byPool = new Map<string, UserPositionLive[]>();
 	for (const l of live) {
 		const arr = byPool.get(l.poolAddress) ?? [];
@@ -782,7 +783,23 @@ function attachLivePositions(
 		for (const pos of positionsLive) {
 			pos.createdAt = createdAt.get(pos.address) ?? null;
 		}
-		return { ...pool, positionsLive };
+		const inferredByAddress = new Map<string, StrategyType>();
+		for (const x of entries) {
+			if (x.inferredStrategy !== null)
+				inferredByAddress.set(x.positionAddress, x.inferredStrategy);
+		}
+		const positionStrategies: Record<string, StrategyType> = {};
+		for (const range of pool.positionsRange ?? []) {
+			const s = inferredByAddress.get(range.address);
+			if (s !== undefined) positionStrategies[range.address] = s;
+		}
+		const inferred = Object.values(positionStrategies);
+		const first = inferred[0];
+		const strategy =
+			first !== undefined && inferred.every((v) => v === first)
+				? first
+				: undefined;
+		return { ...pool, positionsLive, positionStrategies, strategy };
 	});
 }
 
