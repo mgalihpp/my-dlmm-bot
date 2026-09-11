@@ -28,6 +28,7 @@ import type {
 } from "../domain/index.js";
 import { OnchainError, RpcError } from "../errors.js";
 import { atomicToHuman, pctToBinOffset } from "../lib/math.js";
+import { inferStrategyFromBinWeights } from "../lib/strategy-infer.js";
 import {
 	assertValidPubkey,
 	bpsToSlippagePct,
@@ -74,6 +75,7 @@ export interface UserPositionLive {
 	amountY: string;
 	feeX: string;
 	feeY: string;
+	inferredStrategy: StrategyType | null;
 }
 
 export interface DlmmService {
@@ -412,6 +414,10 @@ async function fetchUserPositionsImpl(
 		const dy = info.tokenY.mint.decimals;
 		for (const pos of info.lbPairPositionsData) {
 			const d = pos.positionData;
+			const weights = d.positionBinData.map((b) => {
+				const n = Number(b.positionLiquidity);
+				return Number.isFinite(n) && n > 0 ? n : 0;
+			});
 			out.push({
 				poolAddress,
 				positionAddress: pos.publicKey.toBase58(),
@@ -420,6 +426,7 @@ async function fetchUserPositionsImpl(
 				amountY: atomicToHuman(d.totalYAmount, dy),
 				feeX: atomicToHuman(d.feeX.toString(), dx),
 				feeY: atomicToHuman(d.feeY.toString(), dy),
+				inferredStrategy: inferStrategyFromBinWeights(weights),
 			});
 		}
 	}
