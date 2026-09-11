@@ -214,10 +214,10 @@ export function RangeVisual({
 				{bars.map((bar) => (
 					<div
 						key={bar.left}
-						className={`absolute ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
+						className={`absolute rounded-t-full ${bar.leftSide ? "bg-chart-1" : "bg-chart-2"}`}
 						style={{
-							left: `${bar.left}%`,
-							width: `calc(${bar.width}% + 1px)`,
+							left: `${bar.left + bar.width * 0.15}%`,
+							width: `${bar.width * 0.7}%`,
 							bottom: `${baselinePct}%`,
 							height: `${bar.height}%`,
 						}}
