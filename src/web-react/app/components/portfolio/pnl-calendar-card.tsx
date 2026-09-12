@@ -1,8 +1,7 @@
 // biome-ignore-all lint/suspicious/noArrayIndexKey: calendar grid uses positional keys
-"use client";
-
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import type { CalendarCell, WeekBucket } from "~/lib/pnl-calendar.js";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
@@ -17,6 +16,7 @@ export type PnlCalendarCardProps = {
 	monthlyPnl: number;
 	monthlyDays: number;
 	currency: Currency;
+	usdToIdr?: number | null;
 	weekBuckets: WeekBucket[];
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
@@ -29,6 +29,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 			monthlyPnl,
 			monthlyDays,
 			currency,
+			usdToIdr,
 			weekBuckets,
 			theme,
 			showDetails = true,
@@ -48,7 +49,9 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 			const d = new Date();
 			return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")} UTC`;
 		}, []);
-		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+		const currencyLabel =
+			currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
+		const isIdr = currency === "idr";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
@@ -155,7 +158,9 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 											}}
 										>
 											{monthlyPnl >= 0 ? "+" : ""}
-											{monthlyPnl.toFixed(3)} {currencyLabel}
+											{isIdr
+												? fmtIdr(monthlyPnl, usdToIdr)
+												: `${monthlyPnl.toFixed(3)} ${currencyLabel}`}
 										</span>{" "}
 										{monthlyDays} days
 									</>
@@ -243,7 +248,9 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 																	style={{ color: pnlColor }}
 																>
 																	{cell.pnl! >= 0 ? "+" : ""}
-																	{cell.pnl!.toFixed(3)} {currencyLabel}
+																	{isIdr
+																		? fmtIdr(cell.pnl, usdToIdr)
+																		: `${cell.pnl!.toFixed(3)} ${currencyLabel}`}
 																</span>
 																<span
 																	className="text-[9px] leading-none"
@@ -331,7 +338,7 @@ export const PnlCalendarCard = forwardRef<HTMLDivElement, PnlCalendarCardProps>(
 											style={{ color: w.pnl! >= 0 ? "#10b981" : "#ef4444" }}
 										>
 											{w.pnl! >= 0 ? "+" : ""}
-											{w.pnl!.toFixed(3)}
+											{isIdr ? fmtIdr(w.pnl, usdToIdr) : w.pnl!.toFixed(3)}
 										</span>
 									) : (
 										<span

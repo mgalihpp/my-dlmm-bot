@@ -103,11 +103,15 @@ export const ClosedPositionPnlCard = forwardRef<
 		currency,
 	);
 	const pnlStr =
-		pnlNumeric == null
-			? "-"
-			: pnlNumeric >= 0
-				? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
-				: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
+		currency === "idr"
+			? pnlNumeric == null
+				? "-"
+				: `${pnlNumeric >= 0 ? "+" : ""}${fmtIdr(position.pnlUsd, usdToIdr)}`
+			: pnlNumeric == null
+				? "-"
+				: pnlNumeric >= 0
+					? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
+					: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
 	const pnlColor =
 		pnlNumeric == null ? t.mutedColor : pnlNumeric >= 0 ? "#10b981" : "#ef4444";
 	const closedLabel = position.closedAt ? timeAgo(position.closedAt) : "-";

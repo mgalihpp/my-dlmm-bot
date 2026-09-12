@@ -83,9 +83,11 @@ export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
 			currency,
 		);
 		const pnlStr =
-			pnlNumeric >= 0
-				? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
-				: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
+			currency === "idr"
+				? `${pnlNumeric >= 0 ? "+" : ""}${fmtIdr(pool.pnlUsd, usdToIdr)}`
+				: pnlNumeric >= 0
+					? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
+					: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
 		const pnlColor = pnlNumeric >= 0 ? "#10b981" : "#ef4444";
 		const pairLabel = pair(pool.tokenX, pool.tokenY);
 		const iconUrl = proxiedIconUrl(pool.tokenXIcon);

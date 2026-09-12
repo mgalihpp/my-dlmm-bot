@@ -10,6 +10,7 @@ import {
 	YAxis,
 } from "recharts";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type CumulativeChartShareCardProps = {
@@ -18,6 +19,7 @@ export type CumulativeChartShareCardProps = {
 	total: number;
 	points: readonly { key: string; label: string; value: number }[];
 	currency: Currency;
+	usdToIdr?: number | null;
 	theme: CardTheme;
 };
 
@@ -25,10 +27,12 @@ export const CumulativeChartShareCard = forwardRef<
 	HTMLDivElement,
 	CumulativeChartShareCardProps
 >(function CumulativeChartShareCard(
-	{ rangeLabel, mode, total, points, currency, theme },
+	{ rangeLabel, mode, total, points, currency, usdToIdr, theme },
 	ref,
 ) {
-	const currencyLabel = currency === "sol" ? "SOL" : "USD";
+	const currencyLabel =
+		currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
+	const isIdr = currency === "idr";
 	const gradientId = useId().replace(/:/g, "");
 	const host = useMemo(
 		() => (typeof window !== "undefined" ? window.location.host : ""),
@@ -64,19 +68,27 @@ export const CumulativeChartShareCard = forwardRef<
 		const top = maxVal + pad;
 		const bottom = minVal - pad;
 		const range = top - bottom;
-		const ticks = [
-			top.toFixed(2),
-			(bottom + range * 0.75).toFixed(2),
-			(bottom + range * 0.5).toFixed(2),
-			(bottom + range * 0.25).toFixed(2),
-			bottom.toFixed(2),
-		];
+		const ticks = isIdr
+			? [
+					fmtIdr(top, usdToIdr),
+					fmtIdr(bottom + range * 0.75, usdToIdr),
+					fmtIdr(bottom + range * 0.5, usdToIdr),
+					fmtIdr(bottom + range * 0.25, usdToIdr),
+					fmtIdr(bottom, usdToIdr),
+				]
+			: [
+					top.toFixed(2),
+					(bottom + range * 0.75).toFixed(2),
+					(bottom + range * 0.5).toFixed(2),
+					(bottom + range * 0.25).toFixed(2),
+					bottom.toFixed(2),
+				];
 		const step = Math.max(1, Math.ceil(points.length / 7));
 		const labels = points.map((p, i) =>
 			i % step === 0 || i === points.length - 1 ? p.label : "",
 		);
 		return { yTicks: ticks, xLabels: labels };
-	}, [points]);
+	}, [points, isIdr, usdToIdr]);
 
 	const stops = useMemo(() => {
 		if (points.length === 0) return [] as { offset: string; color: string }[];
@@ -206,7 +218,9 @@ export const CumulativeChartShareCard = forwardRef<
 							style={{ color: totalColor }}
 						>
 							{total >= 0 ? "+" : ""}
-							{total.toFixed(4)} {currencyLabel}
+							{isIdr
+								? fmtIdr(total, usdToIdr)
+								: `${total.toFixed(4)} ${currencyLabel}`}
 						</span>
 					</div>
 				</div>
@@ -219,7 +233,7 @@ export const CumulativeChartShareCard = forwardRef<
 								className="text-[10px] leading-none tabular-nums"
 								style={{ color: t.faintColor }}
 							>
-								{tick} {currencyLabel}
+								{isIdr ? tick : `${tick} ${currencyLabel}`}
 							</span>
 						))}
 					</div>

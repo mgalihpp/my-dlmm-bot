@@ -1,6 +1,6 @@
-// biome-ignore-all lint/suspicious/noArrayIndexKey: chart bars positional
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type DailyChartShareCardProps = {
@@ -10,6 +10,7 @@ export type DailyChartShareCardProps = {
 	total: number;
 	points: readonly { key: string; label: string; value: number }[];
 	currency: Currency;
+	usdToIdr?: number | null;
 	theme: CardTheme;
 };
 
@@ -17,10 +18,12 @@ export const DailyChartShareCard = forwardRef<
 	HTMLDivElement,
 	DailyChartShareCardProps
 >(function DailyChartShareCard(
-	{ rangeLabel, timeframe, mode, total, points, currency, theme },
+	{ rangeLabel, timeframe, mode, total, points, currency, usdToIdr, theme },
 	ref,
 ) {
-	const currencyLabel = currency === "sol" ? "SOL" : "USD";
+	const currencyLabel =
+		currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
+	const isIdr = currency === "idr";
 	const host = useMemo(
 		() => (typeof window !== "undefined" ? window.location.host : ""),
 		[],
@@ -46,19 +49,27 @@ export const DailyChartShareCard = forwardRef<
 		let abs = Math.max(Math.abs(maxV), Math.abs(minV));
 		if (!Number.isFinite(abs) || abs === 0) abs = 1;
 		const nice = abs;
-		const ticks = [
-			nice.toFixed(2),
-			(nice / 2).toFixed(2),
-			"0.00",
-			(-nice / 2).toFixed(2),
-			(-nice).toFixed(2),
-		];
+		const ticks = isIdr
+			? [
+					fmtIdr(nice, usdToIdr),
+					fmtIdr(nice / 2, usdToIdr),
+					fmtIdr(0, usdToIdr),
+					fmtIdr(-nice / 2, usdToIdr),
+					fmtIdr(-nice, usdToIdr),
+				]
+			: [
+					nice.toFixed(2),
+					(nice / 2).toFixed(2),
+					"0.00",
+					(-nice / 2).toFixed(2),
+					(-nice).toFixed(2),
+				];
 		const step = Math.max(1, Math.ceil(points.length / 7));
 		const labels = points.map((p, i) =>
 			i % step === 0 || i === points.length - 1 ? p.label : "",
 		);
 		return { yTicks: ticks, maxAbs: nice, xLabels: labels };
-	}, [points]);
+	}, [points, isIdr, usdToIdr]);
 
 	const timeframeLabel =
 		timeframe === "weekly"
@@ -169,7 +180,9 @@ export const DailyChartShareCard = forwardRef<
 							style={{ color: totalColor }}
 						>
 							{total >= 0 ? "+" : ""}
-							{total.toFixed(4)} {currencyLabel}
+							{isIdr
+								? fmtIdr(total, usdToIdr)
+								: `${total.toFixed(4)} ${currencyLabel}`}
 						</span>
 					</div>
 				</div>
@@ -182,7 +195,7 @@ export const DailyChartShareCard = forwardRef<
 								className="text-[10px] leading-none tabular-nums"
 								style={{ color: t.faintColor }}
 							>
-								{tick} {currencyLabel}
+								{isIdr ? tick : `${tick} ${currencyLabel}`}
 							</span>
 						))}
 					</div>

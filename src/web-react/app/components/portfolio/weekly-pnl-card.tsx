@@ -1,5 +1,6 @@
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import type { WeeklyStats } from "~/lib/pnl-calendar.js";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
@@ -8,19 +9,22 @@ export type WeeklyPnlCardProps = {
 	stats: WeeklyStats;
 	currency: Currency;
 	mode: "fees" | "total";
+	usdToIdr?: number | null;
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
 
 export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 	function WeeklyPnlCard(
-		{ stats, currency, mode, theme, showDetails = true },
+		{ stats, currency, mode, usdToIdr, theme, showDetails = true },
 		ref,
 	) {
 		const timestamp = useMemo(() => {
 			const d = new Date();
 			return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")} UTC`;
 		}, []);
-		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+		const currencyLabel =
+			currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
+		const isIdr = currency === "idr";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
@@ -130,7 +134,9 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 								className="mt-1 text-[40px] leading-none font-extrabold tracking-tight"
 								style={{ color: pnlColor }}
 							>
-								{headline.toFixed(4)} {currencyLabel}
+								{isIdr
+									? `${headline >= 0 ? "+" : ""}${fmtIdr(headline, usdToIdr)}`
+									: `${headline.toFixed(4)} ${currencyLabel}`}
 							</span>
 						</div>
 
@@ -151,7 +157,9 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.fees.toFixed(4)} {currencyLabel}
+											{isIdr
+												? fmtIdr(stats.fees, usdToIdr)
+												: `${stats.fees.toFixed(4)} ${currencyLabel}`}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">
@@ -160,7 +168,9 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.deposits.toFixed(4)} {currencyLabel}
+											{isIdr
+												? fmtIdr(stats.deposits, usdToIdr)
+												: `${stats.deposits.toFixed(4)} ${currencyLabel}`}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">
@@ -169,7 +179,9 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.withdrawals.toFixed(4)} {currencyLabel}
+											{isIdr
+												? fmtIdr(stats.withdrawals, usdToIdr)
+												: `${stats.withdrawals.toFixed(4)} ${currencyLabel}`}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">
@@ -223,7 +235,9 @@ export const WeeklyPnlCard = forwardRef<HTMLDivElement, WeeklyPnlCardProps>(
 											style={{ color: rowColor }}
 										>
 											{d.pnl != null
-												? `${d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(3)}`
+												? isIdr
+													? `${d.pnl >= 0 ? "+" : ""}${fmtIdr(d.pnl, usdToIdr)}`
+													: `${d.pnl >= 0 ? "+" : ""}${d.pnl.toFixed(3)}`
 												: "—"}
 										</span>
 										<span

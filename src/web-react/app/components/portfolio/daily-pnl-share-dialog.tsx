@@ -16,6 +16,7 @@ export function DailyPnlShareDialog({
 	date,
 	closed,
 	currency,
+	usdToIdr,
 	variant,
 	chartPoints,
 	chartRangeLabel,
@@ -34,6 +35,7 @@ export function DailyPnlShareDialog({
 	date: Date;
 	closed: readonly PositionPnLData[];
 	currency: Currency;
+	usdToIdr?: number | null;
 	variant?: "daily" | "chart" | "cumulative" | "weekly";
 	chartPoints?: readonly { key: string; label: string; value: number }[];
 	chartRangeLabel?: string;
@@ -113,6 +115,7 @@ export function DailyPnlShareDialog({
 						ref={cardRef}
 						stats={weekStats}
 						currency={currency}
+						usdToIdr={usdToIdr}
 						mode={weekMode ?? "total"}
 						theme={theme}
 						showDetails={showDetails}
@@ -126,6 +129,7 @@ export function DailyPnlShareDialog({
 						total={chartTotal}
 						points={chartPoints}
 						currency={currency}
+						usdToIdr={usdToIdr}
 						theme={theme}
 					/>
 				) : isCumulative &&
@@ -139,6 +143,7 @@ export function DailyPnlShareDialog({
 						total={cumulativeTotal}
 						points={cumulativePoints}
 						currency={currency}
+						usdToIdr={usdToIdr}
 						theme={theme}
 					/>
 				) : (
@@ -147,6 +152,7 @@ export function DailyPnlShareDialog({
 						date={date}
 						stats={stats}
 						currency={currency}
+						usdToIdr={usdToIdr}
 						theme={theme}
 						showDetails={showDetails}
 					/>

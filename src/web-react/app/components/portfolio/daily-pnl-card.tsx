@@ -1,8 +1,7 @@
-// biome-ignore-all lint/suspicious/noArrayIndexKey: decorative dots grid
-
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
@@ -79,12 +78,13 @@ export type DailyPnlCardProps = {
 	date: Date;
 	stats: DailyStats;
 	currency: Currency;
+	usdToIdr?: number | null;
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
 
 export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 	function DailyPnlCard(
-		{ date, stats, currency, theme, showDetails = true },
+		{ date, stats, currency, usdToIdr, theme, showDetails = true },
 		ref,
 	) {
 		const dateLabel = useMemo(
@@ -101,13 +101,19 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 			const d = new Date();
 			return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}-${String(d.getUTCDate()).padStart(2, "0")} ${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}:${String(d.getUTCSeconds()).padStart(2, "0")} UTC`;
 		}, []);
-		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+		const currencyLabel =
+			currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
+		const isIdr = currency === "idr";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
 		);
 		const t = resolveCardTheme(theme);
 		const pnlColor = stats.pnl >= 0 ? "#10b981" : "#ef4444";
+		const fmt = (v: number, signed: boolean) =>
+			isIdr
+				? `${signed && v >= 0 ? "+" : ""}${fmtIdr(v, usdToIdr)}`
+				: `${signed && v >= 0 ? "+" : ""}${v.toFixed(4)} ${currencyLabel}`;
 
 		return (
 			<div
@@ -210,8 +216,7 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 								className="mt-1 text-[40px] leading-none font-extrabold tracking-tight"
 								style={{ color: pnlColor }}
 							>
-								{stats.pnl >= 0 ? "" : ""}
-								{stats.pnl.toFixed(4)} {currencyLabel}
+								{fmt(stats.pnl, true)}
 							</span>
 						</div>
 
@@ -232,7 +237,7 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.fees.toFixed(4)} {currencyLabel}
+											{fmt(stats.fees, false)}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">
@@ -241,7 +246,7 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.deposits.toFixed(4)} {currencyLabel}
+											{fmt(stats.deposits, false)}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">
@@ -250,7 +255,7 @@ export const DailyPnlCard = forwardRef<HTMLDivElement, DailyPnlCardProps>(
 											className="font-medium tabular-nums"
 											style={{ color: t.textColor }}
 										>
-											{stats.withdrawals.toFixed(4)} {currencyLabel}
+											{fmt(stats.withdrawals, false)}
 										</span>
 									</div>
 									<div className="flex items-center justify-between gap-6">

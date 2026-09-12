@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from "react";
-import { pair, shortAddr } from "~/lib/format";
+import { fmtIdr, pair, shortAddr } from "~/lib/format";
 import { proxiedIconUrl } from "~/lib/icon";
 import { fmtAmount, toSol } from "~/lib/pools";
 import type { OpenPoolWithIcons } from "~/lib/server/portfolio.server";
@@ -71,9 +71,11 @@ export const PositionPnlCard = forwardRef<HTMLDivElement, PositionPnlCardProps>(
 			usdToIdr,
 		);
 		const pnlStr =
-			pnlNumeric >= 0
-				? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
-				: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
+			currency === "idr"
+				? `${pnlNumeric >= 0 ? "+" : ""}${fmtIdr(pool.pnl, usdToIdr)}`
+				: pnlNumeric >= 0
+					? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`
+					: `${pnlNumeric.toFixed(4)} ${currencyLabel}`;
 		const pnlColor = pnlNumeric >= 0 ? "#10b981" : "#ef4444";
 		const pairLabel = pair(pool.tokenX, pool.tokenY);
 		const iconUrl = proxiedIconUrl(pool.tokenXIcon);

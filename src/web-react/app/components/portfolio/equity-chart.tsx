@@ -238,6 +238,7 @@ export const EquityChart = memo(function EquityChart({
 					date={new Date()}
 					closed={positions ?? []}
 					currency={currency as unknown as import("~/lib/currency").Currency}
+					usdToIdr={usdToIdr}
 					variant="cumulative"
 					cumulativePoints={sharePoints}
 					cumulativeRangeLabel={shareRangeLabel}

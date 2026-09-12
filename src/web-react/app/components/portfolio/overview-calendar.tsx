@@ -346,6 +346,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					month={month}
 					closed={closed}
 					currency={currency ?? "sol"}
+					usdToIdr={usdToIdr}
 				/>
 			)}
 			{dailyDate && (
@@ -357,6 +358,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					date={dailyDate}
 					closed={closed}
 					currency={currency ?? "sol"}
+					usdToIdr={usdToIdr}
 				/>
 			)}
 			{weekShare && (
@@ -368,6 +370,7 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 					date={weekShare.cells[0]?.date ?? month}
 					closed={closed}
 					currency={currency ?? "sol"}
+					usdToIdr={usdToIdr}
 					variant="weekly"
 					weekStats={buildWeeklyStats(
 						closed,

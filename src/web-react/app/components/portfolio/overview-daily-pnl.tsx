@@ -258,6 +258,7 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 					date={new Date()}
 					closed={closed}
 					currency={currency}
+					usdToIdr={usdToIdr}
 					variant="chart"
 					chartPoints={points}
 					chartRangeLabel={rangeLabel}

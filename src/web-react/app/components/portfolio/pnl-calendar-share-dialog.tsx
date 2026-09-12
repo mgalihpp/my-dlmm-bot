@@ -13,12 +13,14 @@ export function PnlCalendarShareDialog({
 	month,
 	closed,
 	currency,
+	usdToIdr,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	month: Date;
 	closed: readonly PositionPnLData[];
 	currency: Currency;
+	usdToIdr?: number | null;
 }) {
 	const { cells, monthlyPnl, monthlyDays } = useMemo(
 		() => buildCalendarCells(closed, month, "total", currency),
@@ -44,6 +46,7 @@ export function PnlCalendarShareDialog({
 					monthlyPnl={monthlyPnl}
 					monthlyDays={monthlyDays}
 					currency={currency}
+					usdToIdr={usdToIdr}
 					weekBuckets={weekBuckets}
 					theme={theme}
 					showDetails={showDetails}
