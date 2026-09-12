@@ -115,7 +115,11 @@ export function fetchPoolsCritical(
 							timeframe,
 							usdToIdr,
 						);
-						return { ...payload, wallet: current.wallet ?? undefined, rpc: current.rpcUrl ?? undefined };
+						return {
+							...payload,
+							wallet: current.wallet ?? undefined,
+							rpc: current.rpcUrl ?? undefined,
+						};
 					}).pipe(Effect.provide(AppLayer)),
 				),
 			),

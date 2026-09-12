@@ -1015,7 +1015,7 @@ export function fetchClosedPortfolio(
 			),
 			Effect.catchAll(() => Effect.succeed(null as number | null)),
 		);
-		const usdToIdr = yield* liveUsdToIdr
+		const usdToIdr = yield* liveUsdToIdr;
 		const closedRes = yield* api
 			.closedPortfolio(wallet, closedPage, closedSize)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
