@@ -1,3 +1,5 @@
+import type { Currency } from "./currency.js";
+
 export function formatNum(value: string | number, decimals = 2): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return String(value);
@@ -55,6 +57,20 @@ export function fmtPnl(
 ): string {
 	if (currency === "idr") return fmtIdr(usd, usdToIdr);
 	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol, solDecimals);
+}
+
+export function fmtMoney(
+	value: string | number | null | undefined,
+	currency: Currency,
+	usdToIdr?: number | null,
+	solDecimals: SolDecimals = 3,
+): string {
+	if (currency === "idr") return fmtIdr(value, usdToIdr);
+	if (currency === "sol") return fmtSol(value, solDecimals);
+	if (value === null || value === undefined) return "-";
+	const n = typeof value === "number" ? value : parseFloat(value);
+	if (Number.isNaN(n)) return "-";
+	return `${formatNum(n, 2)} USD`;
 }
 
 export function fmtPnlPct(

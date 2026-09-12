@@ -24,3 +24,6 @@ scripts/deploy.sh
 .vexis-agent-signals.json
 .vexis-portfolio-history.json
 .vexis-agent-narrative.json
+
+# firecrawl research cache (regenerable web data)
+.firecrawl/

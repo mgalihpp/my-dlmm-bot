@@ -33,11 +33,13 @@ export const EquityChart = memo(function EquityChart({
 	positions,
 	currency,
 	loading = false,
+	usdToIdr = null,
 }: {
 	closed: readonly ClosedPool[];
 	positions?: readonly PositionPnLData[];
 	currency: Currency;
 	loading?: boolean;
+	usdToIdr?: number | null;
 }) {
 	const mode = useChartPreferenceStore((s) => s.mode);
 	const setMode = useChartPreferenceStore((s) => s.setMode);
@@ -198,6 +200,7 @@ export const EquityChart = memo(function EquityChart({
 												<CurrencyValue
 													currency={currency}
 													value={Number(value)}
+													usdToIdr={usdToIdr}
 												/>
 											)}
 										/>

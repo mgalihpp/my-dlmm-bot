@@ -86,6 +86,7 @@ export function PortfolioPage() {
 					data={data}
 					currency={currency}
 					dateRange={dateRange}
+					usdToIdr={data.usdToIdr}
 				/>
 			</div>
 		</DashboardShell>
