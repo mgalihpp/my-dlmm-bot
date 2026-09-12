@@ -96,6 +96,7 @@ const openCmd = Command.make(
 			const dlmm = yield* Dlmm;
 			const w = yield* config.wallet(Option.getOrUndefined(wallet));
 			const ps = yield* effPageSize(pageSize);
+			const usdToIdr = (yield* config.get).usdToIdr ?? null;
 			const data = yield* api.openPortfolio(w, page, ps);
 			if (json) {
 				yield* Console.log(JSON.stringify(data, null, 2));
@@ -120,7 +121,7 @@ const openCmd = Command.make(
 					yield* Console.log(`  Position: ${pos}`);
 				}
 				yield* Console.log(
-					`  Balance:  ${usd(p.balances)}  |  Fees: ${usd(p.unclaimedFees)}`,
+					`  Balance:  ${usd(p.balances, usdToIdr)}  |  Fees: ${usd(p.unclaimedFees, usdToIdr)}`,
 				);
 				yield* Console.log(
 					`  PnL:      ${pnlColor(p.pnl)}  (${pct(p.pnlPctChange)})  |  PnL SOL: ${pnlSol(p.pnlSol)}  (${pct(p.pnlSolPctChange)})`,
@@ -133,8 +134,8 @@ const openCmd = Command.make(
 					"\n" +
 						[
 							`${bold("Totals")}  ${gray(`${t.totalPositions} positions`)}`,
-							`  Balance:   ${usd(t.balances)}`,
-							`  Unclaimed: ${usd(t.unclaimedFees)}`,
+							`  Balance:   ${usd(t.balances, usdToIdr)}`,
+							`  Unclaimed: ${usd(t.unclaimedFees, usdToIdr)}`,
 							`  PnL:       ${pnlColor(t.pnl)}  (${pct(t.pnlPctChange)})`,
 							`  PnL (SOL): ${pnlSol(t.pnlSol)}`,
 						].join("\n"),
@@ -153,6 +154,7 @@ const closedCmd = Command.make(
 			const api = yield* MeteoraApi;
 			const w = yield* config.wallet(Option.getOrUndefined(wallet));
 			const ps = yield* effPageSize(pageSize);
+			const usdToIdr = (yield* config.get).usdToIdr ?? null;
 			const data = yield* api.closedPortfolio(w, page, ps);
 			if (json) {
 				yield* Console.log(JSON.stringify(data, null, 2));
@@ -168,9 +170,9 @@ const closedCmd = Command.make(
 			const rows = data.pools.map((p: ClosedPool) => [
 				cyan(pair(p.tokenX, p.tokenY)),
 				p.poolAddress,
-				usd(p.totalDeposit),
-				usd(p.totalWithdrawal),
-				usd(p.totalFee),
+				usd(p.totalDeposit, usdToIdr),
+				usd(p.totalWithdrawal, usdToIdr),
+				usd(p.totalFee, usdToIdr),
 				pnlColor(p.pnlUsd),
 				pnlSol(p.pnlSol),
 				pct(p.pnlPctChange),
@@ -336,13 +338,15 @@ const positionCreateCmd = Command.make(
 					new Error("Provide a non-zero --x-amount or --y-amount"),
 				);
 			}
-			const preset = resolveCreatePresetFrom(yield* config.get);
+			const cfg = yield* config.get;
+			const preset = resolveCreatePresetFrom(cfg);
+			const usdToIdr = cfg.usdToIdr ?? null;
 
 			yield* Console.log(`\n${bold("Create Position")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Strategy: ${opts.strategy}`);
-			yield* Console.log(`  Token X:  ${usd(opts.xAmount)}`);
-			yield* Console.log(`  Token Y:  ${usd(opts.yAmount)}`);
+			yield* Console.log(`  Token X:  ${usd(opts.xAmount, usdToIdr)}`);
+			yield* Console.log(`  Token Y:  ${usd(opts.yAmount, usdToIdr)}`);
 			yield* Console.log(`  Range:    ${rangeLabel}`);
 			yield* Console.log(`  Mode:     ${mode}`);
 			yield* Console.log(
@@ -473,13 +477,15 @@ const liquidityAddCmd = Command.make(
 			const xAmount = yield* parseCliAmount("x-amount", opts.xAmount);
 			const yAmount = yield* parseCliAmount("y-amount", opts.yAmount);
 			const config = yield* AppConfig;
-			const preset = resolveCreatePresetFrom(yield* config.get);
+			const cfg = yield* config.get;
+			const preset = resolveCreatePresetFrom(cfg);
+			const usdToIdr = cfg.usdToIdr ?? null;
 			yield* Console.log(`\n${bold("Add Liquidity")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Position: ${gray(shortAddr(opts.positionPubkey))}`);
 			yield* Console.log(`  Strategy: ${opts.strategy}`);
-			yield* Console.log(`  Token X:  ${usd(opts.xAmount)}`);
-			yield* Console.log(`  Token Y:  ${usd(opts.yAmount)}\n`);
+			yield* Console.log(`  Token X:  ${usd(opts.xAmount, usdToIdr)}`);
+			yield* Console.log(`  Token Y:  ${usd(opts.yAmount, usdToIdr)}\n`);
 
 			if (opts.dryRun) {
 				yield* Console.log(dim("(--dry-run: transaction not sent)\n"));
@@ -644,6 +650,8 @@ const poolListCmd = Command.make(
 	},
 	(opts) =>
 		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const usdToIdr = (yield* config.get).usdToIdr ?? null;
 			const screening = yield* Screening;
 			const result = yield* screening.screen({
 				timeframe: Option.getOrUndefined(opts.timeframe),
@@ -678,12 +686,12 @@ const poolListCmd = Command.make(
 				);
 				yield* Console.log(`  ${gray("Name")}      ${p.name}`);
 				yield* Console.log(`  ${gray("Mint")}      ${p.baseMint}`);
-				yield* Console.log(`  ${gray("MC")}        ${usd(p.mcap)}`);
+				yield* Console.log(`  ${gray("MC")}        ${usd(p.mcap, usdToIdr)}`);
 				yield* Console.log(
-					`  ${gray("TVL")}       ${usd(p.tvl)}  ${gray("(")}${usd(p.activeTvl)}${gray(" active)")}`,
+					`  ${gray("TVL")}       ${usd(p.tvl, usdToIdr)}  ${gray("(")}${usd(p.activeTvl, usdToIdr)}${gray(" active)")}`,
 				);
 				yield* Console.log(
-					`  ${gray("Volume")}    ${usd(p.volume)}  ${gray("Fee")} ${usd(p.fee)}`,
+					`  ${gray("Volume")}    ${usd(p.volume, usdToIdr)}  ${gray("Fee")} ${usd(p.fee, usdToIdr)}`,
 				);
 				yield* Console.log(
 					`  ${gray("Fee/TVL")}   ${pct(p.feeActiveTvlRatio)}  ${gray("Volat")} ${p.volatility}`,
@@ -726,6 +734,8 @@ const poolInfoCmd = Command.make(
 	{ address: Args.text({ name: "address" }), json: jsonFlag },
 	(opts) =>
 		Effect.gen(function* () {
+			const config = yield* AppConfig;
+			const usdToIdr = (yield* config.get).usdToIdr ?? null;
 			const api = yield* MeteoraApi;
 			const pool = yield* api.pool(opts.address);
 
@@ -740,21 +750,21 @@ const poolInfoCmd = Command.make(
 			yield* Console.log(
 				`  Tokens:   ${pool.token_x.symbol} / ${pool.token_y.symbol}`,
 			);
-			yield* Console.log(`  Price:    ${usd(pool.current_price)}`);
+			yield* Console.log(`  Price:    ${usd(pool.current_price, usdToIdr)}`);
 			yield* Console.log(
 				`  Bin Step: ${pool.pool_config.bin_step}  |  Base Fee: ${pool.pool_config.base_fee_pct}%`,
 			);
 			yield* Console.log(
-				`  TVL:      ${usd(pool.tvl)}  |  MC: ${usd(pool.token_x.market_cap)}  |  Holders: ${pool.token_x.holders}`,
+				`  TVL:      ${usd(pool.tvl, usdToIdr)}  |  MC: ${usd(pool.token_x.market_cap, usdToIdr)}  |  Holders: ${pool.token_x.holders}`,
 			);
 			yield* Console.log(
 				`  APR:      ${pct(pool.apr)}${pool.has_farm ? `  (Farm: ${pct(pool.farm_apr)})` : ""}`,
 			);
 			yield* Console.log(
-				`\n  Volume:   1h: ${usd(pool.volume["1h"])}  4h: ${usd(pool.volume["4h"])}  24h: ${usd(pool.volume["24h"])}`,
+				`\n  Volume:   1h: ${usd(pool.volume["1h"], usdToIdr)}  4h: ${usd(pool.volume["4h"], usdToIdr)}  24h: ${usd(pool.volume["24h"], usdToIdr)}`,
 			);
 			yield* Console.log(
-				`  Fees:     30m: ${usd(pool.fees["30m"])}  1h: ${usd(pool.fees["1h"])}  4h: ${usd(pool.fees["4h"])}  24h: ${usd(pool.fees["24h"])}`,
+				`  Fees:     30m: ${usd(pool.fees["30m"], usdToIdr)}  1h: ${usd(pool.fees["1h"], usdToIdr)}  4h: ${usd(pool.fees["4h"], usdToIdr)}  24h: ${usd(pool.fees["24h"], usdToIdr)}`,
 			);
 			yield* Console.log(
 				`  Fee/TVL:  ${pct(pool.fee_tvl_ratio["30m"])} (30m)  ${pct(pool.fee_tvl_ratio["24h"])} (24h)`,
@@ -841,6 +851,8 @@ const watchListCmd = Command.make("list", {}, () =>
 
 const showWalletPositions = (wallet: string, json: boolean) =>
 	Effect.gen(function* () {
+		const config = yield* AppConfig;
+		const usdToIdr = (yield* config.get).usdToIdr ?? null;
 		const api = yield* MeteoraApi;
 		const data = yield* api.openPortfolio(wallet, 1, 50);
 		if (json) {
@@ -859,7 +871,7 @@ const showWalletPositions = (wallet: string, json: boolean) =>
 			yield* Console.log(`    Pool: ${p.poolAddress}`);
 			yield* Console.log(`    🔗 https://app.meteora.ag/dlmm/${p.poolAddress}`);
 			yield* Console.log(
-				`    Balance: ${usd(p.balances)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`,
+				`    Balance: ${usd(p.balances, usdToIdr)}  |  PnL: ${pnlColor(p.pnl)} (${pct(p.pnlPctChange)})`,
 			);
 			yield* Console.log(`    Positions: ${p.openPositionCount}`);
 		}

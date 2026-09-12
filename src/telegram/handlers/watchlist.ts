@@ -7,7 +7,7 @@ import {
 	tgWatchedList,
 	type WalletPositions,
 } from "../format.js";
-import { api, dlmm, watchlist } from "../fx.js";
+import { api, dlmm, idrRate, watchlist } from "../fx.js";
 import { setInputSession } from "../input-store.js";
 import { MD, replyError } from "../utils.js";
 
@@ -158,7 +158,7 @@ export function registerWatchlist(bot: Bot) {
 					results.push({ wallet: w, pools: [] });
 				}
 			}
-			const text = tgMultiWalletPositions(results);
+			const text = tgMultiWalletPositions(results, idrRate());
 			try {
 				await ctx.api.deleteMessage(ctx.chat?.id, loadingMsg.message_id);
 			} catch {}
@@ -188,7 +188,7 @@ export function registerWatchlist(bot: Bot) {
 						results.push({ wallet: w, pools: [] });
 					}
 				}
-				const text = tgMultiWalletPositions(results);
+				const text = tgMultiWalletPositions(results, idrRate());
 				try {
 					await ctx.api.deleteMessage(ctx.chat?.id, loadingMsg.message_id);
 				} catch {}
@@ -220,7 +220,7 @@ export function registerWatchlist(bot: Bot) {
 						results.push({ wallet: w, pools: [] });
 					}
 				}
-				const resText = tgMultiWalletPositions(results);
+				const resText = tgMultiWalletPositions(results, idrRate());
 				try {
 					await sessionCtx.api.deleteMessage(
 						sessionCtx.chat!.id,

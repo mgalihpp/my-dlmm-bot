@@ -4,7 +4,7 @@ import type { PositionPnLData } from "../../domain/index.js";
 import { resolveAgentConfigFrom } from "../../services/Config.js";
 import { registerAction, resolveAction } from "../action-store.js";
 import { escapeMarkdown } from "../format.js";
-import { api, getConfig, resolveWallet, updateConfig } from "../fx.js";
+import { api, getConfig, idrRate, resolveWallet, updateConfig } from "../fx.js";
 import { resolvePoolDetail } from "../pool-position-selector.js";
 import { MD } from "../utils.js";
 import type { RuntimeAgent } from "./engine.js";
@@ -447,20 +447,24 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			);
 			if (!pos) throw new Error("position not found");
 			const fees = positionFeeData(pos);
-			const text = formatPositionCard({
-				tokenX: detail?.tokenX ?? "?",
-				tokenY: detail?.tokenY ?? "?",
-				poolAddress: action.poolAddress,
-				positionAddress: action.positionPubkey,
-				amountSol: plan?.amountSol ?? null,
-				pnlPct: pnlPctValue(pos),
-				isOutOfRange: pos.isOutOfRange ?? null,
-				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
-				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
-				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
-				feeUsd: fees.feeUsd,
-				claimedUsd: fees.claimedUsd,
-			});
+			const text = formatPositionCard(
+				{
+					tokenX: detail?.tokenX ?? "?",
+					tokenY: detail?.tokenY ?? "?",
+					poolAddress: action.poolAddress,
+					positionAddress: action.positionPubkey,
+					amountSol: plan?.amountSol ?? null,
+					pnlPct: pnlPctValue(pos),
+					isOutOfRange: pos.isOutOfRange ?? null,
+					price:
+						pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
+					minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
+					maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
+					feeUsd: fees.feeUsd,
+					claimedUsd: fees.claimedUsd,
+				},
+				idrRate(),
+			);
 			const kb = new InlineKeyboard()
 				.text("🔄", `agent:pos:${ctx.match[1]}`)
 				.url(
@@ -495,20 +499,24 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 			);
 			if (!pos) throw new Error("position not found");
 			const fees = positionFeeData(pos);
-			const text = formatPositionCard({
-				tokenX: detail?.tokenX ?? "?",
-				tokenY: detail?.tokenY ?? "?",
-				poolAddress: pool,
-				positionAddress: plan.positionAddress,
-				amountSol: plan.amountSol ?? null,
-				pnlPct: pnlPctValue(pos),
-				isOutOfRange: pos.isOutOfRange ?? null,
-				price: pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
-				minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
-				maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
-				feeUsd: fees.feeUsd,
-				claimedUsd: fees.claimedUsd,
-			});
+			const text = formatPositionCard(
+				{
+					tokenX: detail?.tokenX ?? "?",
+					tokenY: detail?.tokenY ?? "?",
+					poolAddress: pool,
+					positionAddress: plan.positionAddress,
+					amountSol: plan.amountSol ?? null,
+					pnlPct: pnlPctValue(pos),
+					isOutOfRange: pos.isOutOfRange ?? null,
+					price:
+						pos.poolActivePrice != null ? Number(pos.poolActivePrice) : null,
+					minPrice: pos.minPrice != null ? Number(pos.minPrice) : null,
+					maxPrice: pos.maxPrice != null ? Number(pos.maxPrice) : null,
+					feeUsd: fees.feeUsd,
+					claimedUsd: fees.claimedUsd,
+				},
+				idrRate(),
+			);
 			const kb = new InlineKeyboard()
 				.text("🔄", `notif:pnl:${pool}`)
 				.url("🙂 View on Meteora", `https://app.meteora.ag/dlmm/${pool}`)

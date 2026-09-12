@@ -387,7 +387,10 @@ export interface PositionCard {
 	claimedUsd: number | null;
 }
 
-export function formatPositionCard(o: PositionCard): string {
+export function formatPositionCard(
+	o: PositionCard,
+	rate?: number | null,
+): string {
 	const rangeOk = o.price != null && o.minPrice != null && o.maxPrice != null;
 	const range = rangeOk
 		? formatRangeBar(o.price!, o.minPrice!, o.maxPrice!)
@@ -417,11 +420,11 @@ export function formatPositionCard(o: PositionCard): string {
 		lines.push(`${escapeMarkdown("▲ above range")}`);
 	} else if (rangeOk) {
 		lines.push(
-			`${escapeMarkdown(marker)} in range · fees ${tgUsd(o.feeUsd ?? 0)} unclaimed`,
+			`${escapeMarkdown(marker)} in range · fees ${tgUsd(o.feeUsd ?? 0, rate)} unclaimed`,
 		);
 	}
 	if (o.claimedUsd != null) {
-		lines.push(`Claimed fees: ${tgUsd(o.claimedUsd)}`);
+		lines.push(`Claimed fees: ${tgUsd(o.claimedUsd, rate)}`);
 	}
 	return lines.join("\n");
 }

@@ -18,6 +18,7 @@ export const getConfig = (): Promise<VexisConfig> =>
 
 export const getConfigSync = (): VexisConfig =>
 	runtime.runSync(Effect.flatMap(AppConfig, (c) => c.get));
+export const idrRate = (): number | null => getConfigSync().usdToIdr ?? null;
 
 export const configPath = (): string | null =>
 	runtime.runSync(Effect.map(AppConfig, (c) => c.path));

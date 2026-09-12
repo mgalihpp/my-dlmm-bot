@@ -214,6 +214,7 @@ export function actionPanelMessage(
 		pnlPctChange: string;
 		pnlSol: string | null;
 		pnlSolPctChange: string | null;
+		rate?: number | null;
 	},
 ): string {
 	const lines = [
@@ -222,8 +223,9 @@ export function actionPanelMessage(
 		`Position: ${tgCode(positionPubkey)}`,
 	];
 	if (opts) {
+		const rate = opts.rate ?? null;
 		lines.push(
-			`PnL \\(USD\\): ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange)}\\)`,
+			`PnL \\(USD\\): ${tgUsd(opts.pnl, rate)} \\(${tgPct(opts.pnlPctChange)}\\)`,
 		);
 		if (opts.pnlSol != null) {
 			lines.push(
