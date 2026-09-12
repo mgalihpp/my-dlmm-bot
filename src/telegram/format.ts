@@ -1,8 +1,8 @@
 // Telegram MarkdownV2 formatters. Reuses the plain number-formatting helpers
 // from ../format.js (the ANSI color wrappers are skipped — no TTY in a bot).
-import { formatNum } from "../format.js";
+import { formatIdr, formatNum } from "../format.js";
 
-export { formatNum } from "../format.js";
+export { formatIdr, formatNum } from "../format.js";
 
 import type {
 	ClosedPool,
@@ -25,9 +25,13 @@ export function escapeMarkdown(s: string): string {
 export const tgBold = (s: string) => `*${escapeMarkdown(s)}*`;
 export const tgCode = (s: string) => `\`${s.replace(/`/g, "")}\``;
 
-/** USD value, escaped for MarkdownV2. */
-export function tgUsd(value: string | number): string {
-	return escapeMarkdown(`$${formatNum(value)}`);
+/** USD value, escaped for MarkdownV2. Appends escaped IDR dual when rate is set. */
+export function tgUsd(value: string | number, rate?: number | null): string {
+	const base = `$${formatNum(value)}`;
+	if (rate == null || !Number.isFinite(rate) || rate <= 0) {
+		return escapeMarkdown(base);
+	}
+	return escapeMarkdown(`${base} (${formatIdr(value, rate)})`);
 }
 
 /** Percentage with sign + colored emoji. */
@@ -91,18 +95,24 @@ export function tgTxLink(sig: string): string {
 }
 
 /** Full portfolio summary message. */
-export function tgPortfolioSummary(total: PortfolioTotal): string {
+export function tgPortfolioSummary(
+	total: PortfolioTotal,
+	rate?: number | null,
+): string {
 	const lines = [
 		tgBold("📊 Portfolio Summary"),
 		"",
-		`PnL \\(USD\\): ${tgUsd(total.totalPnlUsd)} \\(${tgPct(total.totalPnlPctChange)}\\)`,
+		`PnL \\(USD\\): ${tgUsd(total.totalPnlUsd, rate)} \\(${tgPct(total.totalPnlPctChange)}\\)`,
 		`PnL \\(SOL\\): ${tgSol(total.totalPnlSol)} \\(${tgPct(total.totalPnlSolPctChange)}\\)`,
 	];
 	return lines.join("\n");
 }
 
 /** Open positions list. */
-export function tgOpenPools(pools: readonly OpenPool[]): string {
+export function tgOpenPools(
+	pools: readonly OpenPool[],
+	rate?: number | null,
+): string {
 	if (pools.length === 0) return tgBold("📭 No open positions");
 
 	const totalBalance = pools.reduce(
@@ -118,7 +128,7 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 
 	const lines = [
 		tgBold(`📈 Open Positions (${pools.length})`) +
-			` \\| Total: ${tgUsd(totalBalance)}`,
+			` \\| Total: ${tgUsd(totalBalance, rate)}`,
 		"",
 	];
 
@@ -131,9 +141,9 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 			`${escapeMarkdown(`${i + 1}.`)} ${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}${escapeMarkdown(range)}`,
 			`   Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
 			"",
-			`   Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
-			`   PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
-			`   Deposit: ${tgUsd(p.totalDeposit)} \\| Fee/TVL: ${escapeMarkdown(p.feePerTvl24h)}`,
+			`   Balance: ${tgUsd(p.balances, rate)} \\| Fees: ${tgUsd(p.unclaimedFees, rate)}`,
+			`   PnL: ${tgUsd(p.pnl, rate)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
+			`   Deposit: ${tgUsd(p.totalDeposit, rate)} \\| Fee/TVL: ${escapeMarkdown(p.feePerTvl24h)}`,
 			"",
 			`   Positions \\(${escapeMarkdown(String(p.openPositionCount))}\\):`,
 		);
@@ -178,7 +188,7 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 			const pnl = p.positionsPnl?.find((e) => e.address === pos);
 			if (pnl) {
 				lines.push(
-					`      PnL: ${tgUsd(pnl.pnlUsd)} \\(${tgPct(pnl.pnlPctChange)}\\) \\| ${tgSol(pnl.pnlSol)} \\(${tgPct(pnl.pnlSolPctChange)}\\)`,
+					`      PnL: ${tgUsd(pnl.pnlUsd, rate)} \\(${tgPct(pnl.pnlPctChange)}\\) \\| ${tgSol(pnl.pnlSol)} \\(${tgPct(pnl.pnlSolPctChange)}\\)`,
 				);
 			}
 		}
@@ -188,7 +198,7 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 
 	lines.push(
 		"━".repeat(24),
-		`Total: ${tgUsd(totalBalance)} \\| Fees: ${tgUsd(totalFees)} \\| PnL: ${tgUsd(totalPnl)}`,
+		`Total: ${tgUsd(totalBalance, rate)} \\| Fees: ${tgUsd(totalFees, rate)} \\| PnL: ${tgUsd(totalPnl, rate)}`,
 		`Positions: ${escapeMarkdown(String(totalPositions))}`,
 	);
 
@@ -196,14 +206,17 @@ export function tgOpenPools(pools: readonly OpenPool[]): string {
 }
 
 /** Closed positions list. */
-export function tgClosedPools(pools: readonly ClosedPool[]): string {
+export function tgClosedPools(
+	pools: readonly ClosedPool[],
+	rate?: number | null,
+): string {
 	if (pools.length === 0) return tgBold("📭 No closed positions");
 	const lines = [tgBold("📉 Closed Positions"), ""];
 	for (const p of pools) {
 		lines.push(
 			`${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}`,
-			`  Deposit: ${tgUsd(p.totalDeposit)} \\| Withdraw: ${tgUsd(p.totalWithdrawal)}`,
-			`  Fees: ${tgUsd(p.totalFee)} \\| PnL: ${tgUsd(p.pnlUsd)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
+			`  Deposit: ${tgUsd(p.totalDeposit, rate)} \\| Withdraw: ${tgUsd(p.totalWithdrawal, rate)}`,
+			`  Fees: ${tgUsd(p.totalFee, rate)} \\| PnL: ${tgUsd(p.pnlUsd, rate)} \\(${tgPct(p.pnlPctChange)}\\) \\| PnL SOL: ${tgSol(p.pnlSol)}`,
 		);
 		if (p.lastClosedAt) {
 			const d = new Date(p.lastClosedAt * 1000);
@@ -222,7 +235,10 @@ export function tgOrganic(score: number): string {
 }
 
 /** Screened pool list with full screening data. */
-export function tgScreenedPoolList(result: ScreenResult): string {
+export function tgScreenedPoolList(
+	result: ScreenResult,
+	rate?: number | null,
+): string {
 	if (result.pools.length === 0) return tgBold("📭 No pools found");
 	const lines = [
 		tgBold("🔥 Screened Pools"),
@@ -240,8 +256,8 @@ export function tgScreenedPoolList(result: ScreenResult): string {
 		const age = p.tokenAgeHours != null ? `${p.tokenAgeHours}h` : "\\-";
 		lines.push(
 			`${escapeMarkdown(`${i + 1}.`)} ${tgPoolLink(`${p.baseSymbol}/${p.quoteSymbol}`, p.pool)}`,
-			`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
-			`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
+			`MC ${tgUsd(p.mcap, rate)} \\| TVL ${tgUsd(p.tvl, rate)} \\| Vol ${tgUsd(p.volume, rate)}`,
+			`Fee ${tgUsd(p.fee, rate)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 			`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
 			`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg}${fromAth} \\| Vol ${volChg} \\| Rug ${rug}`,
 			"",
@@ -271,6 +287,7 @@ export function tgWatchedList(wallets: readonly WatchedWallet[]): string {
 
 export function tgMultiWalletPositions(
 	results: readonly WalletPositions[],
+	rate?: number | null,
 ): string {
 	if (results.length === 0) return tgBold("📭 No watched wallets");
 	const lines = [tgBold("👁️ All Watched Positions"), ""];
@@ -291,8 +308,8 @@ export function tgMultiWalletPositions(
 				lines.push(
 					`  ${tgPoolLink(`${p.tokenX ?? "?"}/${p.tokenY ?? "?"}`, p.poolAddress)}${escapeMarkdown(range)}`,
 					`  Bin: ${escapeMarkdown(String(p.binStep))} \\| Fee: ${escapeMarkdown(`${p.baseFee}%`)}`,
-					`  Balance: ${tgUsd(p.balances)} \\| Fees: ${tgUsd(p.unclaimedFees)}`,
-					`  PnL: ${tgUsd(p.pnl)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
+					`  Balance: ${tgUsd(p.balances, rate)} \\| Fees: ${tgUsd(p.unclaimedFees, rate)}`,
+					`  PnL: ${tgUsd(p.pnl, rate)} \\(${tgPct(p.pnlPctChange)}\\) \\| ${tgSol(p.pnlSol)} \\(${tgPct(p.pnlSolPctChange)}\\)`,
 				);
 				if (p.positionsLive?.length) {
 					lines.push(
@@ -325,7 +342,7 @@ export function tgMultiWalletPositions(
 	}
 	lines.push(
 		"━".repeat(24),
-		`Total: ${escapeMarkdown(String(totalPositions))} positions across ${escapeMarkdown(String(results.length))} wallets \\| PnL: ${tgUsd(totalPnl)}`,
+		`Total: ${escapeMarkdown(String(totalPositions))} positions across ${escapeMarkdown(String(results.length))} wallets \\| PnL: ${tgUsd(totalPnl, rate)}`,
 	);
 	return lines.join("\n");
 }
@@ -352,8 +369,10 @@ export function tgWatchlistAlert(
 		listPositions?: readonly string[];
 		positionsOutOfRange?: readonly string[];
 		positionsLive?: readonly PositionLiveEntry[];
+		rate?: number | null;
 	},
 ): string {
+	const rate = opts?.rate ?? null;
 	const poolInfo: string[] = [];
 	if (opts?.binStep != null)
 		poolInfo.push(`Bin: ${escapeMarkdown(String(opts.binStep))}`);
@@ -371,10 +390,10 @@ export function tgWatchlistAlert(
 		lines.push("", tgBold("📊 Position"));
 		if (opts.balances != null)
 			lines.push(
-				`  Balance: ${tgUsd(opts.balances)} \\| Fees: ${tgUsd(opts.fees ?? "0")}`,
+				`  Balance: ${tgUsd(opts.balances, rate)} \\| Fees: ${tgUsd(opts.fees ?? "0", rate)}`,
 			);
 		lines.push(
-			`  PnL: ${tgUsd(opts.pnl)} \\(${tgPct(opts.pnlPctChange ?? null)}\\) \\| ${tgSol(opts.pnlSol ?? null)} \\(${tgPct(opts.pnlSolPctChange ?? null)}\\)`,
+			`  PnL: ${tgUsd(opts.pnl, rate)} \\(${tgPct(opts.pnlPctChange ?? null)}\\) \\| ${tgSol(opts.pnlSol ?? null)} \\(${tgPct(opts.pnlSolPctChange ?? null)}\\)`,
 		);
 		if (opts.listPositions?.length) {
 			lines.push(`  Positions \\(${escapeMarkdown(String(positionCount))}\\):`);
@@ -415,7 +434,7 @@ export function tgWatchlistAlert(
 }
 
 /** Single pool detail. */
-export function tgPoolDetail(p: DlmmPool): string {
+export function tgPoolDetail(p: DlmmPool, rate?: number | null): string {
 	const farm = p.has_farm
 		? ` \\(Farm: ${escapeMarkdown(`${formatNum(p.farm_apr)}%`)}\\)`
 		: "";
@@ -427,14 +446,14 @@ export function tgPoolDetail(p: DlmmPool): string {
 		`Tokens: ${escapeMarkdown(`${p.token_x.symbol} / ${p.token_y.symbol}`)}`,
 		`Price: ${escapeMarkdown(formatNum(p.current_price, 6))}`,
 		`Bin Step: ${escapeMarkdown(String(p.pool_config.bin_step))} \\| Base Fee: ${escapeMarkdown(`${p.pool_config.base_fee_pct}%`)}`,
-		`TVL: ${tgUsd(p.tvl)} \\| MC: ${tgUsd(mc)} \\| Holders: ${escapeMarkdown(formatNum(holders))}`,
+		`TVL: ${tgUsd(p.tvl, rate)} \\| MC: ${tgUsd(mc, rate)} \\| Holders: ${escapeMarkdown(formatNum(holders))}`,
 		`APR: ${escapeMarkdown(`${formatNum(p.apr)}%`)}${farm}`,
 		"",
 		tgBold("Volume"),
-		`  30m: ${tgUsd(p.volume["30m"])} \\| 1h: ${tgUsd(p.volume["1h"])} \\| 4h: ${tgUsd(p.volume["4h"])} \\| 24h: ${tgUsd(p.volume["24h"])}`,
+		`  30m: ${tgUsd(p.volume["30m"], rate)} \\| 1h: ${tgUsd(p.volume["1h"], rate)} \\| 4h: ${tgUsd(p.volume["4h"], rate)} \\| 24h: ${tgUsd(p.volume["24h"], rate)}`,
 		"",
 		tgBold("Fees"),
-		`  30m: ${tgUsd(p.fees["30m"])} \\| 1h: ${tgUsd(p.fees["1h"])} \\| 4h: ${tgUsd(p.fees["4h"])} \\| 24h: ${tgUsd(p.fees["24h"])}`,
+		`  30m: ${tgUsd(p.fees["30m"], rate)} \\| 1h: ${tgUsd(p.fees["1h"], rate)} \\| 4h: ${tgUsd(p.fees["4h"], rate)} \\| 24h: ${tgUsd(p.fees["24h"], rate)}`,
 		`  Fee/TVL 24h: ${escapeMarkdown(`${formatNum(p.fee_tvl_ratio["24h"])}%`)}`,
 	];
 	return lines.join("\n");

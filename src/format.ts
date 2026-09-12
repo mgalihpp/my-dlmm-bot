@@ -41,10 +41,23 @@ export function formatNum(value: string | number, decimals = 2): string {
 	});
 }
 
-export function usd(value: string | number): string {
+export function formatIdr(
+	usdValue: string | number,
+	rate: string | number,
+): string {
+	const usdNum = typeof usdValue === "number" ? usdValue : parseFloat(usdValue);
+	const rateNum = typeof rate === "number" ? rate : parseFloat(rate);
+	if (Number.isNaN(usdNum) || Number.isNaN(rateNum)) return String(usdValue);
+	const idr = Math.round(usdNum * rateNum);
+	return `Rp${idr.toLocaleString("id-ID", { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
+}
+
+export function usd(value: string | number, rate?: number | null): string {
 	const n = typeof value === "number" ? value : parseFloat(value);
 	if (Number.isNaN(n)) return String(value);
-	return `$${formatNum(n)}`;
+	const base = `$${formatNum(n)}`;
+	if (rate == null || !Number.isFinite(rate) || rate <= 0) return base;
+	return `${base} (${formatIdr(n, rate)})`;
 }
 
 /** Format a SOL amount, signed & colored like PnL. */
