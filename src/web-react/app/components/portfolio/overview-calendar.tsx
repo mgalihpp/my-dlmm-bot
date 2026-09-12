@@ -319,7 +319,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
 												>
 													{w.pnl! >= 0 ? "+" : ""}
-													{w.pnl!.toFixed(3)}
+													{currency === "idr"
+														? fmtIdr(w.pnl, usdToIdr)
+														: w.pnl!.toFixed(3)}
 												</span>
 												<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
 													{w.days} days

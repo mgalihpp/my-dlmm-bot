@@ -8,7 +8,6 @@ export function formatNum(value: string | number, decimals = 2): string {
 		maximumFractionDigits: decimals,
 	});
 }
-
 export function fmtIdr(
 	usd: string | number | null | undefined,
 	rate: number | null | undefined,
@@ -18,7 +17,14 @@ export function fmtIdr(
 	if (Number.isNaN(n)) return "-";
 	if (rate == null || !Number.isFinite(rate) || rate <= 0) return fmtUsd(usd);
 	const idr = Math.round(n * rate);
-	return `Rp${idr.toLocaleString("id-ID", { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
+	const abs = Math.abs(idr);
+	const sign = idr < 0 ? "-" : "";
+	const short = (v: number) =>
+		v.toLocaleString("id-ID", { maximumFractionDigits: 2 });
+	if (abs >= 1_000_000_000) return `Rp${sign}${short(abs / 1_000_000_000)}M`;
+	if (abs >= 1_000_000) return `Rp${sign}${short(abs / 1_000_000)}jt`;
+	if (abs >= 1_000) return `Rp${sign}${short(abs / 1_000)}k`;
+	return `Rp${sign}${abs.toLocaleString("id-ID")}`;
 }
 
 export function fmtUsd(value: string | number | null | undefined): string {

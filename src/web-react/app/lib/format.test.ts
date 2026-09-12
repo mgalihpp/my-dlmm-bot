@@ -17,8 +17,10 @@ describe("fmtMoney", () => {
 	it("renders SOL with suffix and three decimals", () => {
 		expect(fmtMoney(1.5, "sol", 16500)).toBe("1.500 SOL");
 	});
-	it("converts USD to rupiah with a live rate", () => {
-		expect(fmtMoney(100, "idr", 16500)).toBe("Rp1.650.000");
+	it("converts USD to compact rupiah with a live rate", () => {
+		expect(fmtMoney(100, "idr", 16500)).toBe("Rp1,65jt");
+		expect(fmtMoney(20, "idr", 1000)).toBe("Rp20k");
+		expect(fmtMoney(100, "idr", 1000)).toBe("Rp100k");
 	});
 	it("falls back to USD when the rate is missing", () => {
 		expect(fmtMoney(100, "idr", null)).toBe("$100.00");
