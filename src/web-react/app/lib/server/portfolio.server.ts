@@ -10,6 +10,7 @@ import type {
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
+import { liveUsdToIdr } from "@vexis/lib/usd-idr.js";
 import { AppConfig } from "@vexis/services/Config.js";
 import { Dlmm, type UserPositionLive } from "@vexis/services/Dlmm.js";
 import {
@@ -819,12 +820,13 @@ export function fetchPortfolioCritical(): Promise<
 			const res = yield* api.openPortfolio(wallet, 1, 10);
 			const apiTotals = res.total ?? null;
 			const summary = computePortfolioSummary(res.pools, apiTotals);
+			const usdToIdr = yield* liveUsdToIdr;
 			const payload: PortfolioCritical = {
 				ok: true as const,
 				wallet,
 				rpc: current.rpcUrl ?? "rpc not configured",
 				solPrice: parseNum(res.solPrice),
-				usdToIdr: current.usdToIdr ?? null,
+				usdToIdr,
 				total: apiTotals,
 				summary,
 				pools: res.pools,
@@ -1013,7 +1015,7 @@ export function fetchClosedPortfolio(
 			),
 			Effect.catchAll(() => Effect.succeed(null as number | null)),
 		);
-		const usdToIdr = current.usdToIdr ?? null;
+		const usdToIdr = yield* liveUsdToIdr
 		const closedRes = yield* api
 			.closedPortfolio(wallet, closedPage, closedSize)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));

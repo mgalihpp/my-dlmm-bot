@@ -158,7 +158,7 @@ export function registerWatchlist(bot: Bot) {
 					results.push({ wallet: w, pools: [] });
 				}
 			}
-			const text = tgMultiWalletPositions(results, idrRate());
+			const text = tgMultiWalletPositions(results, await idrRate());
 			try {
 				await ctx.api.deleteMessage(ctx.chat?.id, loadingMsg.message_id);
 			} catch {}
@@ -188,7 +188,7 @@ export function registerWatchlist(bot: Bot) {
 						results.push({ wallet: w, pools: [] });
 					}
 				}
-				const text = tgMultiWalletPositions(results, idrRate());
+				const text = tgMultiWalletPositions(results, await idrRate());
 				try {
 					await ctx.api.deleteMessage(ctx.chat?.id, loadingMsg.message_id);
 				} catch {}
@@ -220,7 +220,7 @@ export function registerWatchlist(bot: Bot) {
 						results.push({ wallet: w, pools: [] });
 					}
 				}
-				const resText = tgMultiWalletPositions(results, idrRate());
+				const resText = tgMultiWalletPositions(results, await idrRate());
 				try {
 					await sessionCtx.api.deleteMessage(
 						sessionCtx.chat!.id,

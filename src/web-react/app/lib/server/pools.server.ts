@@ -9,6 +9,7 @@ import {
 import type { PoolsConfig } from "@vexis/domain/config.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
+import { liveUsdToIdr } from "@vexis/lib/usd-idr.js";
 import { AppConfig } from "@vexis/services/Config.js";
 import { Screening } from "@vexis/services/Screening.js";
 import { Effect, Schema } from "effect";
@@ -95,7 +96,7 @@ export function fetchPoolsCritical(
 				? rawTimeframe
 				: configured;
 		const cacheKey = `${timeframe}::${poolsFingerprint(current.pools)}`;
-		const usdToIdr = current.usdToIdr ?? null;
+		const usdToIdr = yield* liveUsdToIdr;
 		return yield* Effect.tryPromise(() =>
 			poolsCriticalCache.load(cacheKey, () =>
 				Effect.runPromise(

@@ -26,7 +26,7 @@ export function registerPool(bot: Bot) {
 			if (rawArg && timeframe) {
 				// Has timeframe arg — direct fetch
 				const result = await screenPools({ timeframe });
-				await ctx.reply(tgScreenedPoolList(result, idrRate()), MD);
+				await ctx.reply(tgScreenedPoolList(result, await idrRate()), MD);
 				return;
 			}
 
@@ -48,7 +48,10 @@ export function registerPool(bot: Bot) {
 		await ctx.editMessageText("⏳ Screening pools\\.\\.\\.", MD);
 		try {
 			const result = await screenPools({ timeframe: tf });
-			await ctx.editMessageText(tgScreenedPoolList(result, idrRate()), MD);
+			await ctx.editMessageText(
+				tgScreenedPoolList(result, await idrRate()),
+				MD,
+			);
 		} catch (e) {
 			await ctx.editMessageText(
 				`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,
@@ -64,7 +67,7 @@ export function registerPool(bot: Bot) {
 			if (address) {
 				// Has address arg — direct fetch
 				const pool = await api.pool(address);
-				await ctx.reply(tgPoolDetail(pool, idrRate()), MD);
+				await ctx.reply(tgPoolDetail(pool, await idrRate()), MD);
 				return;
 			}
 
@@ -80,7 +83,7 @@ export function registerPool(bot: Bot) {
 				}
 				try {
 					const pool = await api.pool(text);
-					await sessionCtx.reply(tgPoolDetail(pool, idrRate()), MD);
+					await sessionCtx.reply(tgPoolDetail(pool, await idrRate()), MD);
 				} catch (e) {
 					await sessionCtx.reply(
 						`✖ ${escapeMarkdown(e instanceof Error ? e.message : String(e))}`,

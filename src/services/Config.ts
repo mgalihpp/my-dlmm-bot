@@ -48,7 +48,6 @@ export const VexisConfigSchema = Schema.Struct({
 	rpcUrl: Schema.optional(Schema.Union(Schema.String, Schema.Null)),
 	dev: Schema.optional(Schema.Union(Schema.Boolean, Schema.Null)),
 	pageSize: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
-	usdToIdr: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
 	telegramBotToken: Schema.optional(Schema.String),
 	telegramChatId: Schema.optional(Schema.String),
 	alertInterval: Schema.optional(Schema.Union(Schema.Number, Schema.Null)),
@@ -85,12 +84,6 @@ export function decodeVexisConfig(raw: unknown): VexisConfig {
 	) {
 		throw new Error(
 			`Invalid VexisConfig: create.slippageBps must be a number between 0 and 10000`,
-		);
-	}
-	const usdToIdr = decoded.usdToIdr;
-	if (usdToIdr != null && (!Number.isFinite(usdToIdr) || usdToIdr <= 0)) {
-		throw new Error(
-			`Invalid VexisConfig: usdToIdr must be a number greater than 0`,
 		);
 	}
 	if (

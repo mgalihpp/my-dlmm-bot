@@ -558,7 +558,7 @@ async function showActionPanel(
 		tokenY,
 		poolAddress,
 		positionPubkey,
-		pnlOpts ? { ...pnlOpts, rate: idrRate() } : pnlOpts,
+		pnlOpts ? { ...pnlOpts, rate: await idrRate() } : pnlOpts,
 	);
 	const kb = actionPanelKeyboard(actionId, PREFIX, backTarget, [
 		{ label: "🔴 Close & Zap", action: "close" },

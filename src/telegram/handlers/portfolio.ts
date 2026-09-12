@@ -8,7 +8,7 @@ export function registerPortfolio(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const total = await api.totalPnl(wallet);
-			await ctx.reply(tgPortfolioSummary(total, idrRate()), MD);
+			await ctx.reply(tgPortfolioSummary(total, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}
@@ -22,7 +22,7 @@ export function registerPortfolio(bot: Bot) {
 				withRanges: true,
 			});
 			await dlmm.attachLivePositions(enriched, wallet);
-			await ctx.reply(tgOpenPools(enriched, idrRate()), MD);
+			await ctx.reply(tgOpenPools(enriched, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}
@@ -32,7 +32,7 @@ export function registerPortfolio(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const res = await api.closedPortfolio(wallet, 1, 10);
-			await ctx.reply(tgClosedPools(res.pools, idrRate()), MD);
+			await ctx.reply(tgClosedPools(res.pools, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}

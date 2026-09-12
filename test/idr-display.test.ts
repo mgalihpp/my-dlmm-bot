@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { formatIdr, usd } from "../src/format.js";
-import { decodeVexisConfig } from "../src/services/Config.js";
+import { parseUsdIdrRate } from "../src/lib/usd-idr.js";
 import { tgUsd } from "../src/telegram/format.js";
 import {
 	readStoredCurrency,
@@ -93,32 +93,26 @@ describe("currency storage with idr", () => {
 	});
 });
 
-describe("decodeVexisConfig usdToIdr", () => {
-	it("accepts a valid rate and keeps it", () => {
-		expect(decodeVexisConfig({ usdToIdr: 16500 })).toEqual({
-			usdToIdr: 16500,
-		});
+describe("parseUsdIdrRate", () => {
+	it("accepts the live er-api shape", () => {
+		expect(
+			parseUsdIdrRate({ result: "success", rates: { IDR: 17606.126888 } }),
+		).toBe(17606.126888);
 	});
 
-	it("stays backward compatible when the rate is missing", () => {
-		expect(decodeVexisConfig({})).toEqual({});
-		expect(decodeVexisConfig({ usdToIdr: null })).toEqual({
-			usdToIdr: null,
-		});
+	it("rejects missing or mistyped IDR", () => {
+		expect(parseUsdIdrRate({ result: "success", rates: {} })).toBeNull();
+		expect(parseUsdIdrRate({ rates: { IDR: "big" } })).toBeNull();
+		expect(parseUsdIdrRate(null)).toBeNull();
+		expect(parseUsdIdrRate({ nope: true })).toBeNull();
 	});
 
 	it("rejects non-positive and non-finite rates", () => {
-		expect(() => decodeVexisConfig({ usdToIdr: 0 })).toThrow(/usdToIdr/);
-		expect(() => decodeVexisConfig({ usdToIdr: -5 })).toThrow(/usdToIdr/);
-		expect(() => decodeVexisConfig({ usdToIdr: Number.NaN })).toThrow(
-			/usdToIdr/,
-		);
-		expect(() =>
-			decodeVexisConfig({ usdToIdr: Number.POSITIVE_INFINITY }),
-		).toThrow(/usdToIdr/);
-	});
-
-	it("rejects mistyped rates", () => {
-		expect(() => decodeVexisConfig({ usdToIdr: "big" })).toThrow(/Invalid/);
+		expect(parseUsdIdrRate({ rates: { IDR: 0 } })).toBeNull();
+		expect(parseUsdIdrRate({ rates: { IDR: -5 } })).toBeNull();
+		expect(parseUsdIdrRate({ rates: { IDR: Number.NaN } })).toBeNull();
+		expect(
+			parseUsdIdrRate({ rates: { IDR: Number.POSITIVE_INFINITY } }),
+		).toBeNull();
 	});
 });

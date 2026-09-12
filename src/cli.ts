@@ -23,6 +23,7 @@ import {
 	usd,
 } from "./format.js";
 import { AppLayer } from "./layers.js";
+import { liveUsdToIdr } from "./lib/usd-idr.js";
 import {
 	assertValidCliAmount,
 	assertValidStrategy,
@@ -96,7 +97,7 @@ const openCmd = Command.make(
 			const dlmm = yield* Dlmm;
 			const w = yield* config.wallet(Option.getOrUndefined(wallet));
 			const ps = yield* effPageSize(pageSize);
-			const usdToIdr = (yield* config.get).usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 			const data = yield* api.openPortfolio(w, page, ps);
 			if (json) {
 				yield* Console.log(JSON.stringify(data, null, 2));
@@ -154,7 +155,7 @@ const closedCmd = Command.make(
 			const api = yield* MeteoraApi;
 			const w = yield* config.wallet(Option.getOrUndefined(wallet));
 			const ps = yield* effPageSize(pageSize);
-			const usdToIdr = (yield* config.get).usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 			const data = yield* api.closedPortfolio(w, page, ps);
 			if (json) {
 				yield* Console.log(JSON.stringify(data, null, 2));
@@ -340,7 +341,7 @@ const positionCreateCmd = Command.make(
 			}
 			const cfg = yield* config.get;
 			const preset = resolveCreatePresetFrom(cfg);
-			const usdToIdr = cfg.usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 
 			yield* Console.log(`\n${bold("Create Position")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
@@ -479,7 +480,7 @@ const liquidityAddCmd = Command.make(
 			const config = yield* AppConfig;
 			const cfg = yield* config.get;
 			const preset = resolveCreatePresetFrom(cfg);
-			const usdToIdr = cfg.usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 			yield* Console.log(`\n${bold("Add Liquidity")}`);
 			yield* Console.log(`  Pool:     ${cyan(opts.poolAddress)}`);
 			yield* Console.log(`  Position: ${gray(shortAddr(opts.positionPubkey))}`);
@@ -650,8 +651,7 @@ const poolListCmd = Command.make(
 	},
 	(opts) =>
 		Effect.gen(function* () {
-			const config = yield* AppConfig;
-			const usdToIdr = (yield* config.get).usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 			const screening = yield* Screening;
 			const result = yield* screening.screen({
 				timeframe: Option.getOrUndefined(opts.timeframe),
@@ -734,8 +734,7 @@ const poolInfoCmd = Command.make(
 	{ address: Args.text({ name: "address" }), json: jsonFlag },
 	(opts) =>
 		Effect.gen(function* () {
-			const config = yield* AppConfig;
-			const usdToIdr = (yield* config.get).usdToIdr ?? null;
+			const usdToIdr = yield* liveUsdToIdr;
 			const api = yield* MeteoraApi;
 			const pool = yield* api.pool(opts.address);
 
@@ -851,8 +850,7 @@ const watchListCmd = Command.make("list", {}, () =>
 
 const showWalletPositions = (wallet: string, json: boolean) =>
 	Effect.gen(function* () {
-		const config = yield* AppConfig;
-		const usdToIdr = (yield* config.get).usdToIdr ?? null;
+		const usdToIdr = yield* liveUsdToIdr;
 		const api = yield* MeteoraApi;
 		const data = yield* api.openPortfolio(wallet, 1, 50);
 		if (json) {

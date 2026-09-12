@@ -463,7 +463,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 					feeUsd: fees.feeUsd,
 					claimedUsd: fees.claimedUsd,
 				},
-				idrRate(),
+				await idrRate(),
 			);
 			const kb = new InlineKeyboard()
 				.text("🔄", `agent:pos:${ctx.match[1]}`)
@@ -515,7 +515,7 @@ export function registerAgentCommands(bot: Bot, rt: RuntimeAgent) {
 					feeUsd: fees.feeUsd,
 					claimedUsd: fees.claimedUsd,
 				},
-				idrRate(),
+				await idrRate(),
 			);
 			const kb = new InlineKeyboard()
 				.text("🔄", `notif:pnl:${pool}`)

@@ -221,7 +221,7 @@ function schedulePortfolio(
 			const total = await api.totalPnl(wallet);
 			await bot.api.sendMessage(
 				chatId,
-				tgPortfolioSummary(total, idrRate()),
+				tgPortfolioSummary(total, await idrRate()),
 				MD,
 			);
 
@@ -310,7 +310,7 @@ function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 						(sum, p) => sum + parseFloat(p.balances || "0"),
 						0,
 					);
-					const detail = tgOpenPools(currentPools, idrRate())
+					const detail = tgOpenPools(currentPools, await idrRate())
 						.split("\n")
 						.slice(1)
 						.join("\n");
@@ -396,7 +396,7 @@ function scheduleWatchlistChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 										binStep: pool.binStep,
 										baseFee: String(pool.baseFee),
 										outOfRange: pool.outOfRange,
-										rate: idrRate(),
+										rate: await idrRate(),
 									},
 								),
 								keyboard: kb,
@@ -450,7 +450,7 @@ function scheduleWatchlistChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 									listPositions: pool.listPositions,
 									positionsOutOfRange: pool.positionsOutOfRange,
 									positionsLive: pool.positionsLive,
-									rate: idrRate(),
+									rate: await idrRate(),
 								},
 							),
 							keyboard: kb,

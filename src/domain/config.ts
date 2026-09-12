@@ -137,7 +137,6 @@ export interface VexisConfig {
 	rpcUrl?: string | null;
 	dev?: boolean | null;
 	pageSize?: number | null;
-	usdToIdr?: number | null;
 	telegramBotToken?: string;
 	telegramChatId?: string;
 	alertInterval?: number | null;
