@@ -3,7 +3,7 @@ import { secToLocalDate } from "./date-range.js";
 
 type PortfolioSnapshot = { pnlSol: number | null; pnlUsd: number | null };
 
-export type Currency = "sol" | "usd";
+import type { Currency } from "./currency.js";
 
 export type PnlRecord = {
 	readonly pnlSol: string | number | null | undefined;

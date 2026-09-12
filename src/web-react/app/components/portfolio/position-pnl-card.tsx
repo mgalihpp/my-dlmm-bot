@@ -8,17 +8,19 @@ import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type PositionPnlCardProps = {
 	pool: OpenPoolWithIcons;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
 	solPrice: number | null;
+	usdToIdr: number | null;
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
 
 export const PositionPnlCard = forwardRef<HTMLDivElement, PositionPnlCardProps>(
 	function PositionPnlCard(
-		{ pool, currency, solPrice, theme, showDetails = true },
+		{ pool, currency, solPrice, usdToIdr, theme, showDetails = true },
 		ref,
 	) {
-		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+		const currencyLabel =
+			currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
@@ -41,13 +43,33 @@ export const PositionPnlCard = forwardRef<HTMLDivElement, PositionPnlCardProps>(
 			pnlNumeric = converted;
 		}
 		if (pnlNumeric == null) pnlNumeric = Number.parseFloat(pool.pnl) || 0;
+		if (
+			currency === "idr" &&
+			usdToIdr != null &&
+			Number.isFinite(usdToIdr) &&
+			usdToIdr > 0
+		) {
+			pnlNumeric = Math.round(pnlNumeric * usdToIdr);
+		}
 
 		const pnlPctRaw =
 			currency === "sol" ? pool.pnlSolPctChange : pool.pnlPctChange;
 		const pnlPct = pnlPctRaw != null ? Number.parseFloat(pnlPctRaw) : null;
 
-		const balanceStr = fmtAmount(pool.balances, currency, solPrice);
-		const feesStr = fmtAmount(pool.unclaimedFees, currency, solPrice);
+		const balanceStr = fmtAmount(
+			pool.balances,
+			currency,
+			solPrice,
+			3,
+			usdToIdr,
+		);
+		const feesStr = fmtAmount(
+			pool.unclaimedFees,
+			currency,
+			solPrice,
+			3,
+			usdToIdr,
+		);
 		const pnlStr =
 			pnlNumeric >= 0
 				? `+${pnlNumeric.toFixed(4)} ${currencyLabel}`

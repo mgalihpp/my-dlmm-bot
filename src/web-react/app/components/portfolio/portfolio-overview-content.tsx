@@ -41,10 +41,12 @@ export function PortfolioOverviewContent({
 	data,
 	currency,
 	dateRange,
+	usdToIdr,
 }: {
 	data: PortfolioPayload;
 	currency: Currency;
 	dateRange: ResolvedRange;
+	usdToIdr: number | null;
 }) {
 	// Stage 1: pool summary — complete all-time coverage without the per-pool
 	// positionPnl fan-out, so top metrics and equity render fast.
@@ -262,6 +264,7 @@ export function PortfolioOverviewContent({
 					<OverviewTopMetrics
 						metrics={metrics}
 						currency={currency}
+						usdToIdr={usdToIdr}
 						dateRange={dateRange}
 						countBasis={countBasis}
 						positionCount={apiTotalPositions > 0 ? apiTotalPositions : null}
@@ -272,12 +275,17 @@ export function PortfolioOverviewContent({
 					<div className="grid grid-rows-2 gap-2">
 						{data.summary ? (
 							<>
-								<ActiveSummaryCard summary={data.summary} currency={currency} />
+								<ActiveSummaryCard
+									summary={data.summary}
+									currency={currency}
+									usdToIdr={usdToIdr}
+								/>
 								<PerformanceCard
 									summary={data.summary}
 									total={bounded ? null : (data.total ?? null)}
 									metrics={metrics}
 									currency={currency}
+									usdToIdr={usdToIdr}
 									aggregates={aggregates}
 									avgDenominator={avgDenominator}
 									countBasis={countBasis}
@@ -296,6 +304,7 @@ export function PortfolioOverviewContent({
 							<OverviewCalendar
 								closed={calendarPositions}
 								currency={currency}
+								usdToIdr={usdToIdr}
 								month={month}
 								onMonthChange={setMonth}
 								loading={monthLoading}
@@ -311,6 +320,7 @@ export function PortfolioOverviewContent({
 							closed={filteredClosed}
 							positions={rangeCovered ? filteredChartPositions : undefined}
 							currency={currency}
+							usdToIdr={usdToIdr}
 							loading={summaryLoading}
 						/>
 					</Suspense>
@@ -324,6 +334,7 @@ export function PortfolioOverviewContent({
 								closed={filteredChartPositions}
 								pools={filteredClosed}
 								currency={currency}
+								usdToIdr={usdToIdr}
 							/>
 						)}
 					</Suspense>

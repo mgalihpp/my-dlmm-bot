@@ -1,6 +1,6 @@
 import type { Bot, Context } from "grammy";
 import { tgClosedPools, tgOpenPools, tgPortfolioSummary } from "../format.js";
-import { api, dlmm, resolveWallet } from "../fx.js";
+import { api, dlmm, idrRate, resolveWallet } from "../fx.js";
 import { MD, replyError } from "../utils.js";
 
 export function registerPortfolio(bot: Bot) {
@@ -8,7 +8,7 @@ export function registerPortfolio(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const total = await api.totalPnl(wallet);
-			await ctx.reply(tgPortfolioSummary(total), MD);
+			await ctx.reply(tgPortfolioSummary(total, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}
@@ -22,7 +22,7 @@ export function registerPortfolio(bot: Bot) {
 				withRanges: true,
 			});
 			await dlmm.attachLivePositions(enriched, wallet);
-			await ctx.reply(tgOpenPools(enriched), MD);
+			await ctx.reply(tgOpenPools(enriched, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}
@@ -32,7 +32,7 @@ export function registerPortfolio(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const res = await api.closedPortfolio(wallet, 1, 10);
-			await ctx.reply(tgClosedPools(res.pools), MD);
+			await ctx.reply(tgClosedPools(res.pools, await idrRate()), MD);
 		} catch (e) {
 			await replyError(ctx, e);
 		}

@@ -16,7 +16,7 @@ import {
 } from "~/components/ui/tooltip";
 import type { Currency } from "~/lib/currency";
 import type { ResolvedRange } from "~/lib/date-range";
-import { fmtPct, formatNum } from "~/lib/format";
+import { fmtMoney, fmtPct } from "~/lib/format";
 import type { OverviewMetrics } from "~/lib/overview-analytics";
 
 function HalfDonut({ wins, losses }: { wins: number; losses: number }) {
@@ -217,6 +217,7 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	countBasis = "pools",
 	positionCount = null,
 	netPnlPct = null,
+	usdToIdr = null,
 }: {
 	metrics: OverviewMetrics;
 	currency: Currency;
@@ -224,13 +225,12 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	countBasis?: "pools" | "positions";
 	positionCount?: number | null;
 	netPnlPct?: number | null;
+	usdToIdr?: number | null;
 }) {
 	const isSol = currency === "sol";
 	const netPnl = isSol ? metrics.netPnlSol : metrics.netPnlUsd;
 	const netPnlLabel =
-		netPnl == null
-			? "—"
-			: `${netPnl >= 0 ? "" : ""}${formatNum(netPnl, isSol ? 3 : 2)} ${isSol ? "SOL" : "USD"}`;
+		netPnl == null ? "—" : fmtMoney(netPnl, currency, usdToIdr);
 	const netPnlColor =
 		netPnl == null
 			? "text-foreground"
@@ -246,15 +246,15 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 	const avgRatioLabel =
 		metrics.avgRatio == null ? "—" : metrics.avgRatio.toFixed(2);
 
-	const unit = isSol ? "SOL" : "USD";
+	const unit = currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
 	const avgWinLabel =
 		metrics.avgWinSol == null
 			? "—"
-			: `${formatNum(metrics.avgWinSol, isSol ? 3 : 2)} ${unit}`;
+			: fmtMoney(metrics.avgWinSol, currency, usdToIdr);
 	const avgLossLabel =
 		metrics.avgLossSol == null
 			? "—"
-			: `${formatNum(metrics.avgLossSol, isSol ? 3 : 2)} ${unit}`;
+			: fmtMoney(metrics.avgLossSol, currency, usdToIdr);
 	const posPct =
 		metrics.avgWinSol != null && metrics.avgLossSol != null
 			? (Math.abs(metrics.avgWinSol) /
@@ -386,10 +386,10 @@ export const OverviewTopMetrics = memo(function OverviewTopMetrics({
 						<FullDonut grossProfit={grossProfit} grossLoss={grossLoss} />
 						<div className="mt-1 flex w-full items-center justify-between gap-2 text-[10px]">
 							<span className="text-emerald-500">
-								{formatNum(grossProfit, isSol ? 3 : 2)} {unit}
+								{fmtMoney(grossProfit, currency, usdToIdr)}
 							</span>
 							<span className="text-red-500">
-								{formatNum(grossLoss, isSol ? 3 : 2)} {unit}
+								{fmtMoney(grossLoss, currency, usdToIdr)}
 							</span>
 						</div>
 					</div>

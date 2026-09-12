@@ -18,6 +18,7 @@ const payload: PoolsPayload = {
 	total: 1,
 	pools: [],
 	solPrice: 100,
+	usdToIdr: null,
 	fetchedAt: 1,
 	wallet: "wallet",
 	rpc: "rpc",

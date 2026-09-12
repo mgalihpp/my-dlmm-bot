@@ -4,7 +4,7 @@ import { registerAction, resolveAction } from "../action-store.js";
 import type { RuntimeAgent } from "../agent/engine.js";
 import { recordManualClose } from "../agent/manual-close.js";
 import { escapeMarkdown, tgBold, tgCode, tgTxLink } from "../format.js";
-import { dlmm, resolveKeypair, zap } from "../fx.js";
+import { dlmm, idrRate, resolveKeypair, zap } from "../fx.js";
 import { setInputSession } from "../input-store.js";
 import {
 	actionPanelKeyboard,
@@ -558,7 +558,7 @@ async function showActionPanel(
 		tokenY,
 		poolAddress,
 		positionPubkey,
-		pnlOpts,
+		pnlOpts ? { ...pnlOpts, rate: await idrRate() } : pnlOpts,
 	);
 	const kb = actionPanelKeyboard(actionId, PREFIX, backTarget, [
 		{ label: "🔴 Close & Zap", action: "close" },

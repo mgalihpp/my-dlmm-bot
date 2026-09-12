@@ -19,6 +19,7 @@ import {
 	api,
 	dlmm,
 	getConfigSync,
+	idrRate,
 	resolveWallet,
 	screenPools,
 	zap,
@@ -119,8 +120,8 @@ export function registerCreate(bot: Bot) {
 						: "";
 				lines.push(
 					`${tgPoolLink(`${p.baseSymbol}/${p.quoteSymbol}`, p.pool)}`,
-					`MC ${tgUsd(p.mcap)} \\| TVL ${tgUsd(p.tvl)} \\| Vol ${tgUsd(p.volume)}`,
-					`Fee ${tgUsd(p.fee)} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
+					`MC ${tgUsd(p.mcap, await idrRate())} \\| TVL ${tgUsd(p.tvl, await idrRate())} \\| Vol ${tgUsd(p.volume, await idrRate())}`,
+					`Fee ${tgUsd(p.fee, await idrRate())} \\| Fee/TVL ${escapeMarkdown(`${formatNum(p.feeActiveTvlRatio)}%`)} \\| Holders ${escapeMarkdown(formatNum(p.holders))}`,
 					`Organic ${tgOrganic(p.organicScore)} \\| Bin ${escapeMarkdown(String(p.binStep))} \\| BaseFee ${escapeMarkdown(`${p.baseFeePct}%`)} \\| Age ${escapeMarkdown(age)}`,
 					`Price ${escapeMarkdown(formatNum(p.price, 6))} ${priceChg}${fromAth} \\| Vol ${volChg} \\| Rug ${rug}`,
 					"",
@@ -1161,11 +1162,11 @@ export async function renderStrategyStep(wid: string): Promise<string> {
 	}
 	if (state.tvl != null) {
 		lines.push(
-			`TVL: ${tgUsd(state.tvl)} \\| Holders: ${escapeMarkdown(formatNum(state.holders ?? 0))}`,
+			`TVL: ${tgUsd(state.tvl, await idrRate())} \\| Holders: ${escapeMarkdown(formatNum(state.holders ?? 0))}`,
 		);
 	}
 	if (state.volume24h != null) {
-		lines.push(`Vol 24h: ${tgUsd(state.volume24h)}`);
+		lines.push(`Vol 24h: ${tgUsd(state.volume24h, await idrRate())}`);
 	}
 	lines.push(
 		"",

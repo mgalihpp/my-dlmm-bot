@@ -9,6 +9,7 @@ import {
 import type { PoolsConfig } from "@vexis/domain/config.js";
 import { errorMessage } from "@vexis/errors.js";
 import { AppLayer } from "@vexis/layers.js";
+import { liveUsdToIdr } from "@vexis/lib/usd-idr.js";
 import { AppConfig } from "@vexis/services/Config.js";
 import { Screening } from "@vexis/services/Screening.js";
 import { Effect, Schema } from "effect";
@@ -95,6 +96,7 @@ export function fetchPoolsCritical(
 				? rawTimeframe
 				: configured;
 		const cacheKey = `${timeframe}::${poolsFingerprint(current.pools)}`;
+		const usdToIdr = yield* liveUsdToIdr;
 		return yield* Effect.tryPromise(() =>
 			poolsCriticalCache.load(cacheKey, () =>
 				Effect.runPromise(
@@ -107,8 +109,17 @@ export function fetchPoolsCritical(
 							],
 							{ concurrency: "unbounded" },
 						);
-						const payload = buildPoolsPayload(result, solPrice, timeframe);
-						return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
+						const payload = buildPoolsPayload(
+							result,
+							solPrice,
+							timeframe,
+							usdToIdr,
+						);
+						return {
+							...payload,
+							wallet: current.wallet ?? undefined,
+							rpc: current.rpcUrl ?? undefined,
+						};
 					}).pipe(Effect.provide(AppLayer)),
 				),
 			),
@@ -123,6 +134,7 @@ export function fetchPoolsCritical(
 				total: 0,
 				pools: [],
 				solPrice: null,
+				usdToIdr: null,
 				fetchedAt: Date.now(),
 			} satisfies PoolsPayload),
 		),

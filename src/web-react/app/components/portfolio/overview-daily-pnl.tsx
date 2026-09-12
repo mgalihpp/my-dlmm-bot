@@ -25,16 +25,19 @@ import {
 	positionDelta,
 } from "~/lib/cumulative-pnl";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import { useChartPreferenceStore } from "~/stores/chart-preference";
 import { DailyPnlShareDialog } from "./daily-pnl-share-dialog.js";
 export const DailyPnlChart = memo(function DailyPnlChart({
 	closed,
 	pools,
 	currency,
+	usdToIdr = null,
 }: {
 	closed: readonly PositionPnLData[];
 	pools?: readonly ClosedPool[];
 	currency: Currency;
+	usdToIdr?: number | null;
 }) {
 	const timeframe = useChartPreferenceStore((s) => s.timeframe);
 	const setTimeframe = useChartPreferenceStore((s) => s.setTimeframe);
@@ -197,9 +200,17 @@ export const DailyPnlChart = memo(function DailyPnlChart({
 										if (typeof rawUnknown !== "number") return null;
 										const raw = rawUnknown;
 										const isPositive = raw >= 0;
-										const unit = currency === "sol" ? "SOL" : "USD";
+										const unit =
+											currency === "sol"
+												? "SOL"
+												: currency === "idr"
+													? "IDR"
+													: "USD";
 										const rowLabel = mode === "fees" ? "Fees" : "P&L";
-										const formatted = `${raw >= 0 ? "+" : ""}${raw.toFixed(3)} ${unit}`;
+										const formatted =
+											currency === "idr"
+												? `${raw >= 0 ? "+" : ""}${fmtIdr(raw, usdToIdr)}`
+												: `${raw >= 0 ? "+" : ""}${raw.toFixed(3)} ${unit}`;
 										const labelText =
 											typeof label === "string" ? label : String(label ?? "");
 										return (

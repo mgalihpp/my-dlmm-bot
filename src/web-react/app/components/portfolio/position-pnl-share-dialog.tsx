@@ -10,12 +10,14 @@ export function PositionPnlShareDialog({
 	pool,
 	currency,
 	solPrice,
+	usdToIdr,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	pool: OpenPoolWithIcons;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
 	solPrice: number | null;
+	usdToIdr: number | null;
 }) {
 	const poolKey = `${pool.tokenX}-${pool.tokenY}-${pool.poolAddress.slice(0, 4)}`;
 	return (
@@ -32,6 +34,7 @@ export function PositionPnlShareDialog({
 					pool={pool}
 					currency={currency}
 					solPrice={solPrice}
+					usdToIdr={usdToIdr}
 					theme={theme}
 					showDetails={showDetails}
 				/>

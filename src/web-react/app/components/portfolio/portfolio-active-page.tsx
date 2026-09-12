@@ -36,6 +36,7 @@ export function PortfolioActivePage() {
 				<PortfolioHeader
 					title="Active Positions"
 					currency={currency}
+					usdToIdr={data.usdToIdr}
 					onCurrencyChange={setCurrency}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
@@ -47,6 +48,7 @@ export function PortfolioActivePage() {
 						onRangeFilterChange={setRangeFilter}
 						currency={currency}
 						solPrice={data.solPrice}
+						usdToIdr={data.usdToIdr}
 					/>
 				</Suspense>
 			</div>

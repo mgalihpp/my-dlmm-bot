@@ -4,6 +4,7 @@ import { Effect } from "effect";
 import type { PoolsConfig, VexisConfig } from "../domain/config.js";
 import type { OpenPool } from "../domain/index.js";
 import type { ScreenResult } from "../lib/screening.js";
+import { liveUsdToIdr } from "../lib/usd-idr.js";
 import { AppConfig } from "../services/Config.js";
 import { Dlmm, type DlmmService } from "../services/Dlmm.js";
 import { MeteoraApi, type MeteoraApiService } from "../services/MeteoraApi.js";
@@ -18,6 +19,8 @@ export const getConfig = (): Promise<VexisConfig> =>
 
 export const getConfigSync = (): VexisConfig =>
 	runtime.runSync(Effect.flatMap(AppConfig, (c) => c.get));
+export const idrRate = (): Promise<number | null> =>
+	Effect.runPromise(liveUsdToIdr);
 
 export const configPath = (): string | null =>
 	runtime.runSync(Effect.map(AppConfig, (c) => c.path));

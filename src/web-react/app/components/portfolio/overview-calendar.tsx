@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { ToggleGroup, ToggleGroupItem } from "~/components/ui/toggle-group";
 import type { Currency } from "~/lib/currency";
+import { fmtIdr } from "~/lib/format";
 import {
 	buildCalendarCells,
 	buildWeeklyStats,
@@ -28,12 +29,14 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 	month,
 	onMonthChange,
 	loading = false,
+	usdToIdr = null,
 }: {
 	closed: readonly PositionPnLData[];
 	currency?: Currency;
 	month: Date;
 	onMonthChange: (d: Date) => void;
 	loading?: boolean;
+	usdToIdr?: number | null;
 }) {
 	const mode = useChartPreferenceStore((s) => s.mode);
 	const setMode = useChartPreferenceStore((s) => s.setMode);
@@ -152,7 +155,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 									className={`font-semibold ${monthlyPnl >= 0 ? "text-emerald-500" : "text-red-500"}`}
 								>
 									{monthlyPnl >= 0 ? "+" : ""}
-									{monthlyPnl.toFixed(3)} {currency === "sol" ? "SOL" : "USD"}
+									{currency === "idr"
+										? fmtIdr(monthlyPnl, usdToIdr)
+										: `${monthlyPnl.toFixed(3)} ${currency === "sol" ? "SOL" : "USD"}`}
 								</span>
 								<span className="text-muted-foreground">
 									{monthlyDays} days
@@ -242,8 +247,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 																	className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
 																>
 																	{cell.pnl! >= 0 ? "+" : ""}
-																	{cell.pnl!.toFixed(3)}{" "}
-																	{currency === "sol" ? "SOL" : "USD"}
+																	{currency === "idr"
+																		? fmtIdr(cell.pnl, usdToIdr)
+																		: `${cell.pnl!.toFixed(3)} ${currency === "sol" ? "SOL" : "USD"}`}
 																</span>
 																<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
 																	{cell.count} positions
@@ -313,7 +319,9 @@ export const OverviewCalendar = memo(function OverviewCalendar({
 													className={`text-[10px] leading-none font-bold sm:text-sm ${textColor}`}
 												>
 													{w.pnl! >= 0 ? "+" : ""}
-													{w.pnl!.toFixed(3)}
+													{currency === "idr"
+														? fmtIdr(w.pnl, usdToIdr)
+														: w.pnl!.toFixed(3)}
 												</span>
 												<span className="text-[8px] leading-none text-muted-foreground sm:text-[9px]">
 													{w.days} days

@@ -282,18 +282,20 @@ export function PortfolioAmount({
 	sol,
 	currency,
 	solPrice,
+	usdToIdr,
 	solDecimals = 3,
 }: {
 	usd: string | number | null | undefined;
 	sol?: string | number | null;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	solDecimals?: SolDecimals;
 }) {
 	const formatted =
 		sol != null
-			? fmtPnl(usd, sol, currency, solDecimals)
-			: fmtAmount(usd, currency, solPrice, solDecimals);
+			? fmtPnl(usd, sol, currency, solDecimals, usdToIdr)
+			: fmtAmount(usd, currency, solPrice, solDecimals, usdToIdr);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
 		<span className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap tabular-nums">
@@ -307,10 +309,12 @@ export function PositionsCardDetail({
 	pool,
 	currency,
 	solPrice,
+	usdToIdr,
 }: {
 	pool: OpenPoolWithIcons;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 }) {
 	const positions = (pool.positionsLive ?? []).map((live, i) => ({
 		live,
@@ -337,6 +341,7 @@ export function PositionsCardDetail({
 						usd={pool.balances}
 						currency={currency}
 						solPrice={solPrice}
+						usdToIdr={usdToIdr}
 						solDecimals={4}
 					/>
 				</div>
@@ -346,6 +351,7 @@ export function PositionsCardDetail({
 						usd={pool.unclaimedFees}
 						currency={currency}
 						solPrice={solPrice}
+						usdToIdr={usdToIdr}
 						solDecimals={4}
 					/>
 				</div>
@@ -355,6 +361,7 @@ export function PositionsCardDetail({
 						usd={pool.pnl}
 						currency="usd"
 						solPrice={solPrice}
+						usdToIdr={usdToIdr}
 						solDecimals={4}
 					/>
 					<p className="text-xs text-muted-foreground">{fmtPct(pnlPct)}</p>
@@ -366,6 +373,7 @@ export function PositionsCardDetail({
 						sol={pool.pnlSol}
 						currency="sol"
 						solPrice={solPrice}
+						usdToIdr={usdToIdr}
 						solDecimals={4}
 					/>
 					<p className="text-xs text-muted-foreground">

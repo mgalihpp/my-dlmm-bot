@@ -15,33 +15,47 @@ export function PoolsContent({
 	pools,
 	currency,
 	solPrice,
+	usdToIdr,
 	selectedPool,
 	onSelect,
 	onClose,
 }: {
 	pools: Parameters<typeof StatCards>[0]["pools"];
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
 	solPrice: number | null;
+	usdToIdr: number | null;
 	selectedPool: ScreenedPool | null;
 	onSelect: (pool: ScreenedPool) => void;
 	onClose: () => void;
 }) {
 	return (
 		<>
-			<StatCards pools={pools} currency={currency} solPrice={solPrice} />
+			<StatCards
+				pools={pools}
+				currency={currency}
+				solPrice={solPrice}
+				usdToIdr={usdToIdr}
+			/>
 			<Suspense fallback={<ChartGridSkeleton />}>
-				<MarketCharts pools={pools} currency={currency} solPrice={solPrice} />
+				<MarketCharts
+					pools={pools}
+					currency={currency}
+					solPrice={solPrice}
+					usdToIdr={usdToIdr}
+				/>
 			</Suspense>
 			<PoolsTable
 				pools={pools}
 				currency={currency}
 				solPrice={solPrice}
+				usdToIdr={usdToIdr}
 				onSelect={onSelect}
 			/>
 			<PoolDetailSheet
 				pool={selectedPool}
 				currency={currency}
 				solPrice={solPrice}
+				usdToIdr={usdToIdr}
 				onOpenChange={(open) => !open && onClose()}
 			/>
 		</>

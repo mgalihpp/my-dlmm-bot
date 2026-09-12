@@ -8,7 +8,14 @@ import {
 	tgScreenedPoolList,
 	type WalletPositions,
 } from "./format.js";
-import { api, dlmm, resolveWallet, screenPools, watchlist } from "./fx.js";
+import {
+	api,
+	dlmm,
+	idrRate,
+	resolveWallet,
+	screenPools,
+	watchlist,
+} from "./fx.js";
 import { MD } from "./utils.js";
 
 export function registerMenu(bot: Bot) {
@@ -19,7 +26,7 @@ export function registerMenu(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const total = await api.totalPnl(wallet);
-			const text = tgPortfolioSummary(total);
+			const text = tgPortfolioSummary(total, await idrRate());
 			await ctx.editMessageText(text, {
 				...MD,
 				reply_markup: backKeyboard("main"),
@@ -42,7 +49,7 @@ export function registerMenu(bot: Bot) {
 			const res = await api.openPortfolio(wallet, 1, 10);
 			const enriched = await api.enrichOpenPortfolioPnl(res.pools, wallet);
 			await dlmm.attachLivePositions(enriched, wallet);
-			const text = tgOpenPools(enriched);
+			const text = tgOpenPools(enriched, await idrRate());
 			await ctx.editMessageText(text, {
 				...MD,
 				reply_markup: backKeyboard("main"),
@@ -63,7 +70,7 @@ export function registerMenu(bot: Bot) {
 		try {
 			const wallet = await resolveWallet();
 			const res = await api.closedPortfolio(wallet, 1, 10);
-			const text = tgClosedPools(res.pools);
+			const text = tgClosedPools(res.pools, await idrRate());
 			await ctx.editMessageText(text, {
 				...MD,
 				reply_markup: backKeyboard("main"),
@@ -83,7 +90,7 @@ export function registerMenu(bot: Bot) {
 		await ctx.editMessageText("⏳ Screening pools\\.\\.\\.", MD);
 		try {
 			const result = await screenPools();
-			const text = tgScreenedPoolList(result);
+			const text = tgScreenedPoolList(result, await idrRate());
 			await ctx.editMessageText(text, {
 				...MD,
 				reply_markup: backKeyboard("main"),
@@ -147,7 +154,7 @@ export function registerMenu(bot: Bot) {
 					results.push({ wallet: w, pools: [] });
 				}
 			}
-			const text = tgMultiWalletPositions(results);
+			const text = tgMultiWalletPositions(results, await idrRate());
 			const kb = new InlineKeyboard()
 				.text("🔄 Refresh", "menu:watchlist_positions")
 				.row()

@@ -105,8 +105,8 @@ describe("buildWeeklyStats", () => {
 		return {
 			...base,
 			allTimeFees: {
-				tokenX: { amount: "0", usd: "0" },
-				tokenY: { amount: "0", usd: "0" },
+				tokenX: { amount: "0", amountSol: null, usd: "0" },
+				tokenY: { amount: "0", amountSol: null, usd: "0" },
 				total: { usd: "0", sol: feesSol },
 			},
 		};

@@ -1,4 +1,4 @@
-export type Currency = "usd" | "sol";
+export type Currency = "usd" | "sol" | "idr";
 
 export const CURRENCY_STORAGE_KEY = "vexis-currency";
 
@@ -13,11 +13,10 @@ export function readStoredCurrency(
 	key: string = CURRENCY_STORAGE_KEY,
 ): Currency | null {
 	const value = storage.getItem(key);
-	if (value === "usd" || value === "sol") return value;
-	// Fallback to legacy shared key for migration when new key is empty
+	if (value === "usd" || value === "sol" || value === "idr") return value;
 	if (key !== CURRENCY_STORAGE_KEY) {
 		const legacy = storage.getItem(CURRENCY_STORAGE_KEY);
-		if (legacy === "usd" || legacy === "sol") return legacy;
+		if (legacy === "usd" || legacy === "sol" || legacy === "idr") return legacy;
 	}
 	return null;
 }
@@ -40,6 +39,9 @@ export function resolveCurrency(
 	urlCurrency: string | null,
 	storedCurrency: string | null,
 ): Currency {
-	if (urlCurrency === "sol" || urlCurrency === "usd") return urlCurrency;
-	return storedCurrency === "sol" ? "sol" : "usd";
+	if (urlCurrency === "sol" || urlCurrency === "usd" || urlCurrency === "idr")
+		return urlCurrency;
+	if (storedCurrency === "sol" || storedCurrency === "idr")
+		return storedCurrency;
+	return "usd";
 }

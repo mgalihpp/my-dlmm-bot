@@ -43,11 +43,13 @@ export function PoolsTable({
 	pools,
 	currency,
 	solPrice,
+	usdToIdr,
 	onSelect,
 }: {
 	pools: readonly ScreenedPool[];
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	onSelect: (pool: ScreenedPool) => void;
 }) {
 	const [searchParams, setSearchParams] = useSearchParams();
@@ -177,6 +179,7 @@ export function PoolsTable({
 								pool={pool}
 								currency={currency}
 								solPrice={solPrice}
+								usdToIdr={usdToIdr}
 								onSelect={() => onSelect(pool)}
 							/>
 						))}
@@ -186,6 +189,7 @@ export function PoolsTable({
 						pools={rows}
 						currency={currency}
 						solPrice={solPrice}
+						usdToIdr={usdToIdr}
 						onSelect={onSelect}
 						sortKey={sortKey}
 						sortDir={sortDir}

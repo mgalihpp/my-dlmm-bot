@@ -128,10 +128,12 @@ function ClosedSortableHead({
 function ClosedTableView({
 	closed,
 	currency,
+	usdToIdr,
 	onPageChange,
 }: {
 	closed: ClosedPayload;
 	currency: Currency;
+	usdToIdr?: number | null;
 	onPageChange: (page: number) => void;
 }) {
 	const isMobile = useIsMobile();
@@ -586,6 +588,7 @@ function ClosedTableView({
 						onOpenChange={(o) => !o && setSharePool(null)}
 						pool={sharePool}
 						currency={currency}
+						usdToIdr={usdToIdr}
 					/>
 				) : null}
 			</CardContent>

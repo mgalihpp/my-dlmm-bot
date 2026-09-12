@@ -1,5 +1,5 @@
 import { forwardRef, useMemo } from "react";
-import { fmtUsd, pair, shortAddr, timeAgo } from "~/lib/format";
+import { fmtIdr, fmtUsd, pair, shortAddr, timeAgo } from "~/lib/format";
 import { proxiedIconUrl } from "~/lib/icon";
 import type { ClosedPoolWithIcons } from "~/lib/server/portfolio.server";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
@@ -7,13 +7,18 @@ import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
 
 export type ClosedPnlCardProps = {
 	pool: ClosedPoolWithIcons;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
+	usdToIdr?: number | null;
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
 
 export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
-	function ClosedPnlCard({ pool, currency, theme, showDetails = true }, ref) {
-		const currencyLabel = currency === "sol" ? "SOL" : "USD";
+	function ClosedPnlCard(
+		{ pool, currency, usdToIdr, theme, showDetails = true },
+		ref,
+	) {
+		const currencyLabel =
+			currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
 		const host = useMemo(
 			() => (typeof window !== "undefined" ? window.location.host : ""),
 			[],
@@ -32,6 +37,14 @@ export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
 			pnlNumeric = Number.isNaN(n) ? null : n;
 		}
 		if (pnlNumeric == null) pnlNumeric = 0;
+		if (
+			currency === "idr" &&
+			usdToIdr != null &&
+			Number.isFinite(usdToIdr) &&
+			usdToIdr > 0
+		) {
+			pnlNumeric = Math.round(pnlNumeric * usdToIdr);
+		}
 
 		const pnlPctRaw =
 			currency === "sol" ? pool.pnlSolPctChange : pool.pnlPctChange;
@@ -40,8 +53,9 @@ export const ClosedPnlCard = forwardRef<HTMLDivElement, ClosedPnlCardProps>(
 		function fmtClosed(
 			usd: string,
 			sol: string | null | undefined,
-			cur: "usd" | "sol",
+			cur: "usd" | "sol" | "idr",
 		): string {
+			if (cur === "idr") return fmtIdr(usd, usdToIdr);
 			if (cur === "sol" && sol != null) {
 				const n = Number.parseFloat(sol);
 				if (Number.isNaN(n)) return "-";

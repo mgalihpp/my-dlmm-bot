@@ -29,11 +29,13 @@ export function PoolDetailSheet({
 	pool,
 	currency,
 	solPrice,
+	usdToIdr,
 	onOpenChange,
 }: {
 	pool: ScreenedPool | null;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	onOpenChange: (open: boolean) => void;
 }) {
 	const isMobile = useIsMobile();
@@ -43,6 +45,7 @@ export function PoolDetailSheet({
 		<CurrencyValue
 			currency={currency}
 			value={currency === "sol" ? value / (solPrice ?? 1) : value}
+			usdToIdr={usdToIdr}
 		/>
 	);
 	const metrics: { label: string; value: ReactNode }[] = [

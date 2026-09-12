@@ -68,10 +68,12 @@ export function StatCards({
 	pools,
 	currency,
 	solPrice,
+	usdToIdr,
 }: {
 	pools: readonly ScreenedPool[];
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 }) {
 	const tvl = pools.reduce((s, p) => s + p.tvl, 0);
 	const volume = pools.reduce((s, p) => s + p.volume, 0);
@@ -93,7 +95,7 @@ export function StatCards({
 				label="Combined TVL"
 				value={
 					<CurrencyAmount
-						value={fmtAmount(tvl, currency, solPrice)}
+						value={fmtAmount(tvl, currency, solPrice, 3, usdToIdr)}
 						currency={currency}
 					/>
 				}
@@ -104,7 +106,7 @@ export function StatCards({
 				label="Volume"
 				value={
 					<CurrencyAmount
-						value={fmtAmount(volume, currency, solPrice)}
+						value={fmtAmount(volume, currency, solPrice, 3, usdToIdr)}
 						currency={currency}
 					/>
 				}
@@ -115,7 +117,7 @@ export function StatCards({
 				label="Fees"
 				value={
 					<CurrencyAmount
-						value={fmtAmount(fees, currency, solPrice)}
+						value={fmtAmount(fees, currency, solPrice, 3, usdToIdr)}
 						currency={currency}
 					/>
 				}

@@ -12,8 +12,9 @@ import {
 	tgPortfolioSummary,
 	tgWatchlistAlert,
 } from "./format.js";
-import { api, dlmm, resolveWallet, watchlist } from "./fx.js";
+import { api, dlmm, idrRate, resolveWallet, watchlist } from "./fx.js";
 import { renderStrategyStep, strategyKb } from "./handlers/create.js";
+
 import { setInputSession } from "./input-store.js";
 import { runtime } from "./runtime.js";
 import { getMatchGroup, getMatchString } from "./utils/match.js";
@@ -218,7 +219,11 @@ function schedulePortfolio(
 		async () => {
 			const wallet = await resolveWallet();
 			const total = await api.totalPnl(wallet);
-			await bot.api.sendMessage(chatId, tgPortfolioSummary(total), MD);
+			await bot.api.sendMessage(
+				chatId,
+				tgPortfolioSummary(total, await idrRate()),
+				MD,
+			);
 
 			const pnl = parseFloat(total.totalPnlUsd);
 			if (
@@ -305,7 +310,7 @@ function schedulePositionChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 						(sum, p) => sum + parseFloat(p.balances || "0"),
 						0,
 					);
-					const detail = tgOpenPools(currentPools)
+					const detail = tgOpenPools(currentPools, await idrRate())
 						.split("\n")
 						.slice(1)
 						.join("\n");
@@ -391,6 +396,7 @@ function scheduleWatchlistChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 										binStep: pool.binStep,
 										baseFee: String(pool.baseFee),
 										outOfRange: pool.outOfRange,
+										rate: await idrRate(),
 									},
 								),
 								keyboard: kb,
@@ -444,6 +450,7 @@ function scheduleWatchlistChecks(rt: RuntimeAlerts, bot: Bot, chatId: string) {
 									listPositions: pool.listPositions,
 									positionsOutOfRange: pool.positionsOutOfRange,
 									positionsLive: pool.positionsLive,
+									rate: await idrRate(),
 								},
 							),
 							keyboard: kb,

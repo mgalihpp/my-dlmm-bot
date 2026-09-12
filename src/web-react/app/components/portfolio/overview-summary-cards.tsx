@@ -3,7 +3,7 @@ import { memo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "~/components/ui/card";
 import { Separator } from "~/components/ui/separator";
 import type { Currency } from "~/lib/currency";
-import { formatNum } from "~/lib/format";
+import { fmtMoney } from "~/lib/format";
 import type {
 	ClosedAggregates,
 	OverviewMetrics,
@@ -15,9 +15,11 @@ import type {
 export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 	summary,
 	currency,
+	usdToIdr = null,
 }: {
 	summary: PortfolioSummary;
 	currency: Currency;
+	usdToIdr?: number | null;
 }) {
 	const isSol = currency === "sol";
 	const deposited = isSol ? summary.openBalanceSol : summary.openBalanceUsd;
@@ -27,8 +29,7 @@ export const ActiveSummaryCard = memo(function ActiveSummaryCard({
 	const pnl = isSol ? summary.unrealizedSol : summary.unrealizedUsd;
 	const pnlPct = isSol ? summary.unrealizedSolPct : summary.unrealizedPct;
 	const positive = pnl >= 0;
-	const unit = isSol ? "SOL" : "USD";
-	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
+	const fmt = (value: number) => fmtMoney(value, currency, usdToIdr);
 
 	return (
 		<Card data-size="sm" className="py-3">
@@ -106,6 +107,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 	total,
 	metrics,
 	currency,
+	usdToIdr = null,
 	aggregates,
 	avgDenominator,
 	countBasis,
@@ -114,6 +116,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 	total: PortfolioTotal | null;
 	metrics: OverviewMetrics;
 	currency: Currency;
+	usdToIdr?: number | null;
 	aggregates: ClosedAggregates | null;
 	avgDenominator: number;
 	countBasis: "pools" | "positions";
@@ -123,8 +126,7 @@ export const PerformanceCard = memo(function PerformanceCard({
 		? Number.parseFloat(total?.totalPnlSol ?? "0") || 0
 		: Number.parseFloat(total?.totalPnlUsd ?? "0") || 0;
 	const positive = totalPnl >= 0;
-	const unit = isSol ? "SOL" : "USD";
-	const fmt = (value: number) => `${formatNum(value, isSol ? 3 : 2)} ${unit}`;
+	const fmt = (value: number) => fmtMoney(value, currency, usdToIdr);
 	const winRateLabel =
 		metrics.winPct == null ? "—" : `${metrics.winPct.toFixed(2)}%`;
 	const deposits = isSol
