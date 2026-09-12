@@ -112,7 +112,7 @@ export function buildSettingsPayload(
 	return {
 		ok: true,
 		configPath,
-		wallet: config.wallet,
+		wallet: config.wallet ?? undefined,
 		rpc: config.rpcUrl ?? "rpc not configured",
 		agent: {
 			enabled: agentState.enabled,

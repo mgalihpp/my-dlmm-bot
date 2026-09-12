@@ -31,7 +31,12 @@ function fetchOnce(): Effect.Effect<number | null, never, never> {
 		);
 		return parseUsdIdrRate(res);
 	}).pipe(
-		Effect.catchAll(() => Effect.succeed(null)),
+		Effect.catchAll((cause) =>
+			Effect.logWarning(
+				"live USD-IDR rate unavailable, falling back to USD-only display",
+				cause,
+			).pipe(Effect.as(null)),
+		),
 		Effect.provide(FetchHttpClient.layer),
 	);
 }
@@ -45,6 +50,8 @@ export const liveUsdToIdr: Effect.Effect<number | null, never, never> =
 		const now = Date.now();
 		if (cached !== null && now - cached.atMs < RATE_TTL_MS) return cached.rate;
 		const rate = yield* fetchOnce();
-		cached = { rate, atMs: now };
+		// Cache hits for 6h. Misses retry on the next call so a single
+		// outage does not hide the IDR tab for hours.
+		if (rate !== null) cached = { rate, atMs: now };
 		return rate;
 	});
