@@ -57,6 +57,7 @@ export function PortfolioPage() {
 				<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 					<PortfolioHeader
 						currency={currency}
+						usdToIdr={data.usdToIdr}
 						onCurrencyChange={() => {}}
 						dateFilter={dateFilter}
 						onDateFilterApply={applyDateFilter}
@@ -74,6 +75,7 @@ export function PortfolioPage() {
 			<div className="flex flex-col gap-4 py-4 md:gap-6 md:py-6">
 				<PortfolioHeader
 					currency={currency}
+					usdToIdr={data.usdToIdr}
 					onCurrencyChange={setCurrency}
 					dateFilter={dateFilter}
 					onDateFilterApply={applyDateFilter}
