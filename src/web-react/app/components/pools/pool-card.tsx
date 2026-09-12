@@ -12,11 +12,13 @@ export function PoolCard({
 	pool,
 	currency,
 	solPrice,
+	usdToIdr,
 	onSelect,
 }: {
 	pool: ScreenedPool;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	onSelect: () => void;
 }) {
 	const organic = organicBucket(pool.organicScore);
@@ -90,6 +92,7 @@ export function PoolCard({
 									? Number(pool.tvl) / (solPrice ?? 1)
 									: pool.tvl
 							}
+							usdToIdr={usdToIdr}
 						/>
 					</p>
 				</div>
@@ -103,6 +106,7 @@ export function PoolCard({
 									? Number(pool.volume) / (solPrice ?? 1)
 									: pool.volume
 							}
+							usdToIdr={usdToIdr}
 						/>
 					</p>
 				</div>
@@ -121,6 +125,7 @@ export function PoolCard({
 										? Number(pool[key]) / (solPrice ?? 1)
 										: pool[key]
 								}
+								usdToIdr={usdToIdr}
 							/>
 						</p>
 					</div>

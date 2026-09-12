@@ -19,15 +19,17 @@ export function PoolsHeader({
 	onTimeframeChange,
 	onRefresh,
 	refreshing,
+	usdToIdr,
 }: {
 	total: number;
 	ok: boolean;
 	timeframe: string;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
 	onCurrencyChange: (value: string) => void;
 	onTimeframeChange: (value: string) => void;
 	onRefresh: () => void;
 	refreshing: boolean;
+	usdToIdr?: number | null;
 }) {
 	return (
 		<div className="flex flex-wrap items-center justify-between gap-3 px-4 lg:px-6">
@@ -46,6 +48,11 @@ export function PoolsHeader({
 						<TabsTrigger value="sol" aria-label="SOL / Solana">
 							<CurrencyIcon currency="sol" decorative />
 						</TabsTrigger>
+						{usdToIdr != null && usdToIdr > 0 ? (
+							<TabsTrigger value="idr" aria-label="IDR / Rupiah">
+								<CurrencyIcon currency="idr" decorative />
+							</TabsTrigger>
+						) : null}
 					</TabsList>
 				</Tabs>
 				<Select value={timeframe} onValueChange={onTimeframeChange}>

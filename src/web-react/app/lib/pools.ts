@@ -1,6 +1,6 @@
 import type { ScreenedPool } from "@vexis/domain/index.js";
 import type { ScreenResult } from "@vexis/lib/screening.js";
-import { fmtSol, fmtUsd, type SolDecimals } from "~/lib/format";
+import { fmtIdr, fmtSol, fmtUsd, type SolDecimals } from "~/lib/format";
 
 export const TIMEFRAMES = [
 	"5m",
@@ -12,7 +12,7 @@ export const TIMEFRAMES = [
 	"24h",
 ] as const;
 
-export type Currency = "usd" | "sol";
+export type Currency = "usd" | "sol" | "idr";
 export type OrganicBucket = "all" | "pass" | "review" | "blocked";
 export type SortDir = "asc" | "desc";
 export type PoolSortKey =
@@ -35,6 +35,7 @@ export interface PoolsPayload {
 	readonly total: number;
 	readonly pools: readonly ScreenedPool[];
 	readonly solPrice: number | null;
+	readonly usdToIdr: number | null;
 	readonly fetchedAt: number;
 	readonly wallet?: string;
 	readonly rpc?: string;
@@ -72,7 +73,9 @@ export function fmtAmount(
 	currency: Currency,
 	solPrice: number | null,
 	solDecimals: SolDecimals = 3,
+	usdToIdr?: number | null,
 ): string {
+	if (currency === "idr") return fmtIdr(usd, usdToIdr);
 	const sol = toSol(usd, solPrice);
 	if (currency === "sol" && sol !== null) return fmtSol(sol, solDecimals);
 	if (currency === "sol") return "-";
@@ -133,6 +136,7 @@ export function buildPoolsPayload(
 	result: ScreenResult,
 	solPrice: number | null,
 	timeframe: string,
+	usdToIdr: number | null = null,
 ): PoolsPayload {
 	return {
 		ok: true,
@@ -140,6 +144,7 @@ export function buildPoolsPayload(
 		total: result.total,
 		pools: result.pools,
 		solPrice,
+		usdToIdr,
 		fetchedAt: Date.now(),
 	};
 }

@@ -23,12 +23,14 @@ export function OpenPositionCard({
 	onDetails,
 	currency,
 	solPrice,
+	usdToIdr,
 	rangesLoading = false,
 }: {
 	pool: OpenPoolWithIcons;
 	onDetails: () => void;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	rangesLoading?: boolean;
 }) {
 	const oor = pool.outOfRange === true || pool.positionsOutOfRange.length > 0;
@@ -108,6 +110,7 @@ export function OpenPositionCard({
 							usd={pool.balances}
 							currency={currency}
 							solPrice={solPrice}
+							usdToIdr={usdToIdr}
 							solDecimals={4}
 						/>
 					</div>
@@ -117,6 +120,7 @@ export function OpenPositionCard({
 							usd={pool.unclaimedFees}
 							currency={currency}
 							solPrice={solPrice}
+							usdToIdr={usdToIdr}
 							solDecimals={4}
 						/>
 					</div>
@@ -135,6 +139,7 @@ export function OpenPositionCard({
 								sol={pool.pnlSol}
 								currency={currency}
 								solPrice={solPrice}
+								usdToIdr={usdToIdr}
 								solDecimals={4}
 							/>
 							<p className="text-xs text-muted-foreground">
@@ -184,6 +189,7 @@ export function OpenPositionCard({
 					pool={pool}
 					currency={currency}
 					solPrice={solPrice}
+					usdToIdr={usdToIdr}
 				/>
 			) : null}
 		</>

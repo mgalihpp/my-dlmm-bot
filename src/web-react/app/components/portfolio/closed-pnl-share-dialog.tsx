@@ -9,11 +9,13 @@ export function ClosedPnlShareDialog({
 	onOpenChange,
 	pool,
 	currency,
+	usdToIdr,
 }: {
 	open: boolean;
 	onOpenChange: (v: boolean) => void;
 	pool: ClosedPoolWithIcons;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
+	usdToIdr?: number | null;
 }) {
 	return (
 		<PnlShareShell
@@ -28,6 +30,7 @@ export function ClosedPnlShareDialog({
 					ref={cardRef}
 					pool={pool}
 					currency={currency}
+					usdToIdr={usdToIdr}
 					theme={theme}
 					showDetails={showDetails}
 				/>

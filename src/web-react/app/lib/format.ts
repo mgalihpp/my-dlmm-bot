@@ -7,6 +7,18 @@ export function formatNum(value: string | number, decimals = 2): string {
 	});
 }
 
+export function fmtIdr(
+	usd: string | number | null | undefined,
+	rate: number | null | undefined,
+): string {
+	if (usd === null || usd === undefined) return "-";
+	const n = typeof usd === "number" ? usd : parseFloat(usd);
+	if (Number.isNaN(n)) return "-";
+	if (rate == null || !Number.isFinite(rate) || rate <= 0) return fmtUsd(usd);
+	const idr = Math.round(n * rate);
+	return `Rp${idr.toLocaleString("id-ID", { maximumFractionDigits: 0, minimumFractionDigits: 0 })}`;
+}
+
 export function fmtUsd(value: string | number | null | undefined): string {
 	if (value === null || value === undefined) return "-";
 	const n = typeof value === "number" ? value : parseFloat(value);
@@ -37,26 +49,28 @@ export function fmtSol(
 export function fmtPnl(
 	usd: string | number | null | undefined,
 	sol: string | number | null | undefined,
-	currency: "usd" | "sol",
+	currency: "usd" | "sol" | "idr",
 	solDecimals: SolDecimals = 3,
+	usdToIdr?: number | null,
 ): string {
+	if (currency === "idr") return fmtIdr(usd, usdToIdr);
 	return currency === "usd" ? fmtUsd(usd) : fmtSol(sol, solDecimals);
 }
 
 export function fmtPnlPct(
 	usd: string | number | null | undefined,
 	sol: string | number | null | undefined,
-	currency: "usd" | "sol",
+	currency: "usd" | "sol" | "idr",
 ): string {
-	return fmtPct(currency === "usd" ? usd : sol);
+	return fmtPct(currency === "sol" ? sol : usd);
 }
 
 export function pnlSignForCurrency(
 	usd: string | number | null | undefined,
 	sol: string | number | null | undefined,
-	currency: "usd" | "sol",
+	currency: "usd" | "sol" | "idr",
 ): number {
-	return pnlSign(currency === "usd" ? usd : sol);
+	return pnlSign(currency === "sol" ? sol : usd);
 }
 
 export function shortAddr(addr: string, len = 4): string {

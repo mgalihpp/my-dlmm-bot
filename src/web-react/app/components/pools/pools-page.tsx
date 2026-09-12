@@ -125,7 +125,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 			{ preventScrollReset: true },
 		);
 	const onCurrencyChange = (value: string) => {
-		setCurrency(value as "usd" | "sol");
+		setCurrency(value as "usd" | "sol" | "idr");
 	};
 
 	return (
@@ -140,6 +140,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 					ok={payload.ok}
 					timeframe={timeframe}
 					currency={currency}
+					usdToIdr={payload.usdToIdr}
 					onCurrencyChange={onCurrencyChange}
 					onTimeframeChange={onTimeframeChange}
 					onRefresh={revalidate}
@@ -160,6 +161,7 @@ function PoolsPageContent({ payload }: { payload: PoolsPayload }) {
 							pools={displayPools}
 							currency={currency}
 							solPrice={payload.solPrice}
+							usdToIdr={payload.usdToIdr}
 							selectedPool={selectedPool}
 							onSelect={setSelectedPool}
 							onClose={() => setSelectedPool(null)}

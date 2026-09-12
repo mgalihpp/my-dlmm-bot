@@ -62,6 +62,7 @@ export function PortfolioClosedPage() {
 				<PortfolioHeader
 					title="Closed Positions"
 					currency={currency}
+					usdToIdr={data.usdToIdr}
 					onCurrencyChange={setCurrency}
 					onRefresh={revalidate}
 					refreshing={state === "loading"}
@@ -70,6 +71,7 @@ export function PortfolioClosedPage() {
 					<ClosedTable
 						closed={data.closed!}
 						currency={currency}
+						usdToIdr={data.usdToIdr}
 						onPageChange={onClosedPageChange}
 					/>
 				</Suspense>

@@ -19,6 +19,7 @@ export function PoolsTableBody({
 	pools,
 	currency,
 	solPrice,
+	usdToIdr,
 	onSelect,
 	sortKey,
 	sortDir,
@@ -27,6 +28,7 @@ export function PoolsTableBody({
 	pools: readonly ScreenedPool[];
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	onSelect: (pool: ScreenedPool) => void;
 	sortKey: PoolSortKey;
 	sortDir: SortDir;
@@ -97,6 +99,7 @@ export function PoolsTableBody({
 												? Number(pool[key]) / (solPrice ?? 1)
 												: pool[key]
 										}
+										usdToIdr={usdToIdr}
 									/>
 								</TableCell>
 							))}

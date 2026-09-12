@@ -48,9 +48,9 @@ export function PortfolioAmount({
 	const formatted =
 		sol != null
 			? fmtPnl(usd, sol, currency, solDecimals)
-			: currency === "usd"
-				? fmtUsd(usd)
-				: "-";
+			: currency === "sol"
+				? "-"
+				: fmtUsd(usd);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
 		<span className="inline-flex items-center gap-1 tabular-nums">

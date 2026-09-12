@@ -1,5 +1,6 @@
 import type { ClosedPool } from "@vexis/domain/portfolio.js";
 import type { PositionPnLData } from "@vexis/domain/position.js";
+import type { Currency } from "./currency.js";
 
 export interface CumulativePoint {
 	readonly ts: number;
@@ -15,7 +16,7 @@ function toNum(s: string | undefined | null | number): number {
 
 export function buildCumulative(
 	closed: readonly ClosedPool[],
-	currency: "sol" | "usd",
+	currency: Currency,
 ): CumulativePoint[] {
 	const sorted = [...closed].sort(
 		(a, b) => (a.lastClosedAt ?? 0) - (b.lastClosedAt ?? 0),
@@ -43,7 +44,7 @@ export function buildCumulative(
 
 export function buildCumulativeFromPositions(
 	positions: readonly PositionPnLData[],
-	currency: "sol" | "usd",
+	currency: Currency,
 ): CumulativePoint[] {
 	const sorted = [...positions].sort(
 		(a, b) => (a.closedAt ?? 0) - (b.closedAt ?? 0),
@@ -86,7 +87,7 @@ export type PnlMode = "total" | "fees";
 
 export function positionDelta(
 	p: Pick<PositionPnLData, "closedAt" | "pnlSol" | "pnlUsd" | "allTimeFees">,
-	currency: "sol" | "usd",
+	currency: Currency,
 	mode: PnlMode,
 ): PnlDelta | null {
 	if (p.closedAt == null) return null;
@@ -111,7 +112,7 @@ export function poolDelta(
 		ClosedPool,
 		"lastClosedAt" | "pnlSol" | "pnlUsd" | "totalFee" | "totalFeeSol"
 	>,
-	currency: "sol" | "usd",
+	currency: Currency,
 	mode: PnlMode,
 ): PnlDelta | null {
 	if (p.lastClosedAt == null) return null;

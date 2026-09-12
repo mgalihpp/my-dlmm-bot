@@ -34,9 +34,9 @@ export const AllocationDonut = memo(function AllocationDonut({
 	summary: PortfolioSummary;
 	currency: Currency;
 }) {
-	const isUsd = currency === "usd";
-	const balance = isUsd ? summary.openBalanceUsd : summary.openBalanceSol;
-	const fees = isUsd ? summary.openFeesUsd : summary.openFeesSol;
+	const isSol = currency === "sol";
+	const balance = isSol ? summary.openBalanceSol : summary.openBalanceUsd;
+	const fees = isSol ? summary.openFeesSol : summary.openFeesUsd;
 	const total = balance + fees;
 	const chartData = [
 		{ name: "balance", value: balance },

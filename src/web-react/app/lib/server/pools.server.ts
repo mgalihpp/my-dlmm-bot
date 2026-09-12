@@ -95,6 +95,7 @@ export function fetchPoolsCritical(
 				? rawTimeframe
 				: configured;
 		const cacheKey = `${timeframe}::${poolsFingerprint(current.pools)}`;
+		const usdToIdr = current.usdToIdr ?? null;
 		return yield* Effect.tryPromise(() =>
 			poolsCriticalCache.load(cacheKey, () =>
 				Effect.runPromise(
@@ -107,7 +108,12 @@ export function fetchPoolsCritical(
 							],
 							{ concurrency: "unbounded" },
 						);
-						const payload = buildPoolsPayload(result, solPrice, timeframe);
+						const payload = buildPoolsPayload(
+							result,
+							solPrice,
+							timeframe,
+							usdToIdr,
+						);
 						return { ...payload, wallet: current.wallet, rpc: current.rpcUrl };
 					}).pipe(Effect.provide(AppLayer)),
 				),
@@ -123,6 +129,7 @@ export function fetchPoolsCritical(
 				total: 0,
 				pools: [],
 				solPrice: null,
+				usdToIdr: null,
 				fetchedAt: Date.now(),
 			} satisfies PoolsPayload),
 		),

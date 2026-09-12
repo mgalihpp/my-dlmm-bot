@@ -1,6 +1,6 @@
 import type { PositionPnLData } from "@vexis/domain/position.js";
 import { forwardRef, useMemo } from "react";
-import { fmtUsd, shortAddr, timeAgo } from "~/lib/format";
+import { fmtIdr, fmtUsd, shortAddr, timeAgo } from "~/lib/format";
 import { proxiedIconUrl } from "~/lib/icon";
 import type { ShareDisplayOptions } from "./pnl-share-shell.js";
 import { type CardTheme, resolveCardTheme } from "./pnl-share-theme.js";
@@ -11,7 +11,8 @@ export type ClosedPositionPnlCardProps = {
 	poolAddress: string;
 	tokenXIcon?: string | null;
 	tokenXSymbol?: string;
-	currency: "usd" | "sol";
+	currency: "usd" | "sol" | "idr";
+	usdToIdr?: number | null;
 	theme: CardTheme;
 } & Partial<ShareDisplayOptions>;
 
@@ -19,10 +20,21 @@ export const ClosedPositionPnlCard = forwardRef<
 	HTMLDivElement,
 	ClosedPositionPnlCardProps
 >(function ClosedPositionPnlCard(
-	{ position, pairLabel, poolAddress, tokenXIcon, tokenXSymbol, currency, theme, showDetails = true },
+	{
+		position,
+		pairLabel,
+		poolAddress,
+		tokenXIcon,
+		tokenXSymbol,
+		currency,
+		usdToIdr,
+		theme,
+		showDetails = true,
+	},
 	ref,
 ) {
-	const currencyLabel = currency === "sol" ? "SOL" : "USD";
+	const currencyLabel =
+		currency === "sol" ? "SOL" : currency === "idr" ? "IDR" : "USD";
 	const host = useMemo(
 		() => (typeof window !== "undefined" ? window.location.host : ""),
 		[],
@@ -41,6 +53,15 @@ export const ClosedPositionPnlCard = forwardRef<
 		const n = Number.parseFloat(String(pnlRaw));
 		pnlNumeric = Number.isNaN(n) ? null : n;
 	}
+	if (
+		pnlNumeric != null &&
+		currency === "idr" &&
+		usdToIdr != null &&
+		Number.isFinite(usdToIdr) &&
+		usdToIdr > 0
+	) {
+		pnlNumeric = Math.round(pnlNumeric * usdToIdr);
+	}
 
 	const pnlPctRaw =
 		currency === "sol"
@@ -52,8 +73,9 @@ export const ClosedPositionPnlCard = forwardRef<
 	function fmtClosed(
 		usd: string,
 		sol: string | null | undefined,
-		cur: "usd" | "sol",
+		cur: "usd" | "sol" | "idr",
 	): string {
+		if (cur === "idr") return fmtIdr(usd, usdToIdr);
 		if (cur === "sol" && sol != null) {
 			const n = Number.parseFloat(sol);
 			if (Number.isNaN(n)) return "-";

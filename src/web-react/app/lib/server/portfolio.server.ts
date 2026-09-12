@@ -395,6 +395,7 @@ export interface PortfolioPayload {
 	readonly wallet?: string;
 	readonly rpc?: string;
 	readonly solPrice: number | null;
+	readonly usdToIdr: number | null;
 	readonly total?: PortfolioTotal;
 	readonly summary?: PortfolioSummary;
 	readonly pools?: readonly OpenPoolWithIcons[];
@@ -483,6 +484,7 @@ export interface PortfolioCritical {
 	readonly wallet: string;
 	readonly rpc: string;
 	readonly solPrice: number | null;
+	readonly usdToIdr: number | null;
 	readonly total: OpenPortfolioTotals | null;
 	readonly summary: PortfolioSummary;
 	readonly pools: readonly OpenPool[];
@@ -584,7 +586,8 @@ export async function resolveWalletFromRequest(
 	return critical.wallet;
 }
 export function fetchPortfolioCriticalCached(): Promise<
-	PortfolioCritical | { ok: false; error: string; solPrice: null }
+	| PortfolioCritical
+	| { ok: false; error: string; solPrice: null; usdToIdr: null }
 > {
 	return fetchPortfolioCritical();
 }
@@ -804,7 +807,8 @@ function attachLivePositions(
 }
 
 export function fetchPortfolioCritical(): Promise<
-	PortfolioCritical | { ok: false; error: string; solPrice: null }
+	| PortfolioCritical
+	| { ok: false; error: string; solPrice: null; usdToIdr: null }
 > {
 	const configProgram = () =>
 		Effect.gen(function* () {
@@ -820,6 +824,7 @@ export function fetchPortfolioCritical(): Promise<
 				wallet,
 				rpc: current.rpcUrl ?? "rpc not configured",
 				solPrice: parseNum(res.solPrice),
+				usdToIdr: current.usdToIdr ?? null,
 				total: apiTotals,
 				summary,
 				pools: res.pools,
@@ -832,6 +837,7 @@ export function fetchPortfolioCritical(): Promise<
 					ok: false as const,
 					error: errorMessage(error),
 					solPrice: null,
+					usdToIdr: null,
 				}),
 			),
 		);
@@ -969,6 +975,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 			wallet: critical.wallet,
 			rpc: critical.rpc,
 			solPrice: critical.solPrice,
+			usdToIdr: critical.usdToIdr,
 			summary: critical.summary,
 			total: critical.total as unknown as PortfolioTotal,
 			pools,
@@ -980,6 +987,7 @@ export function fetchActivePortfolio(): Promise<PortfolioPayload> {
 				ok: false,
 				error: errorMessage(error),
 				solPrice: null,
+				usdToIdr: null,
 			} satisfies PortfolioPayload),
 		),
 	);
@@ -1005,6 +1013,7 @@ export function fetchClosedPortfolio(
 			),
 			Effect.catchAll(() => Effect.succeed(null as number | null)),
 		);
+		const usdToIdr = current.usdToIdr ?? null;
 		const closedRes = yield* api
 			.closedPortfolio(wallet, closedPage, closedSize)
 			.pipe(Effect.catchAll(() => Effect.succeed(null)));
@@ -1019,6 +1028,7 @@ export function fetchClosedPortfolio(
 			wallet,
 			rpc: current.rpcUrl ?? "rpc not configured",
 			solPrice,
+			usdToIdr,
 			closed:
 				closedRes === null
 					? {
@@ -1041,6 +1051,7 @@ export function fetchClosedPortfolio(
 				ok: false,
 				error: errorMessage(error),
 				solPrice: null,
+				usdToIdr: null,
 			} satisfies PortfolioPayload),
 		),
 	);
@@ -1071,6 +1082,7 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 			wallet: critical.wallet,
 			rpc: critical.rpc,
 			solPrice: critical.solPrice,
+			usdToIdr: critical.usdToIdr,
 			total: deferred.total,
 			summary: critical.summary,
 			pools: deferred.pools,
@@ -1082,6 +1094,7 @@ export function fetchPortfolio(closedPage: number): Promise<PortfolioPayload> {
 				ok: false,
 				error: errorMessage(error),
 				solPrice: null,
+				usdToIdr: null,
 			} satisfies PortfolioPayload),
 		),
 	);

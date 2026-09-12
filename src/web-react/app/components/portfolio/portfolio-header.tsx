@@ -20,6 +20,7 @@ export function PortfolioHeader({
 	onDateFilterApply,
 	onRefresh,
 	refreshing,
+	usdToIdr,
 	title,
 }: {
 	currency: Currency;
@@ -28,6 +29,7 @@ export function PortfolioHeader({
 	onDateFilterApply?: (value: DateFilterState) => void;
 	onRefresh: () => void;
 	refreshing: boolean;
+	usdToIdr?: number | null;
 	title?: string;
 }) {
 	return (
@@ -50,6 +52,11 @@ export function PortfolioHeader({
 						<TabsTrigger value="sol" aria-label="SOL / Solana">
 							<CurrencyIcon currency="sol" decorative />
 						</TabsTrigger>
+						{usdToIdr != null && usdToIdr > 0 ? (
+							<TabsTrigger value="idr" aria-label="IDR / Rupiah">
+								<CurrencyIcon currency="idr" decorative />
+							</TabsTrigger>
+						) : null}
 					</TabsList>
 				</Tabs>
 				<RefreshButton loading={refreshing} onClick={onRefresh} />

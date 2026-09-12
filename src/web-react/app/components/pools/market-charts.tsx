@@ -31,10 +31,12 @@ export function MarketCharts({
 	pools,
 	currency,
 	solPrice,
+	usdToIdr,
 }: {
 	pools: readonly ScreenedPool[];
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 }) {
 	const { top, scatter } = useMemo(() => {
 		const top = [...pools]
@@ -73,7 +75,9 @@ export function MarketCharts({
 								type="number"
 								tickLine={false}
 								axisLine={false}
-								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+								tickFormatter={(v) =>
+									fmtAmount(Number(v), currency, solPrice, 3, usdToIdr)
+								}
 							/>
 							<YAxis
 								type="category"
@@ -87,7 +91,7 @@ export function MarketCharts({
 								content={
 									<ChartTooltipContent
 										formatter={(value) =>
-											fmtAmount(Number(value), currency, solPrice)
+											fmtAmount(Number(value), currency, solPrice, 3, usdToIdr)
 										}
 									/>
 								}
@@ -122,7 +126,9 @@ export function MarketCharts({
 								name="Market cap"
 								scale="log"
 								domain={["auto", "auto"]}
-								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+								tickFormatter={(v) =>
+									fmtAmount(Number(v), currency, solPrice, 3, usdToIdr)
+								}
 								width={90}
 							/>
 							<YAxis
@@ -131,7 +137,9 @@ export function MarketCharts({
 								name="Volume"
 								scale="log"
 								domain={["auto", "auto"]}
-								tickFormatter={(v) => fmtAmount(Number(v), currency, solPrice)}
+								tickFormatter={(v) =>
+									fmtAmount(Number(v), currency, solPrice, 3, usdToIdr)
+								}
 								width={90}
 							/>
 							<ChartTooltip
@@ -142,7 +150,7 @@ export function MarketCharts({
 											String(payload[0]?.payload?.name ?? "Pool")
 										}
 										formatter={(value, name) =>
-											`${name}: ${fmtAmount(Number(value), currency, solPrice)}`
+											`${name}: ${fmtAmount(Number(value), currency, solPrice, 3, usdToIdr)}`
 										}
 									/>
 								}

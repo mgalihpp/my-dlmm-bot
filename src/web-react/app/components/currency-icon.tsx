@@ -1,10 +1,11 @@
 import { cn } from "~/lib/utils";
 
-export type Currency = "usd" | "sol";
+export type Currency = "usd" | "sol" | "idr";
 
 const currencyIcons = {
 	usd: { src: "/usd-coin-usdc-logo.png", alt: "USD / USDC" },
 	sol: { src: "/Solana_logo.png", alt: "SOL / Solana" },
+	idr: { src: "/rupiah-coin-rupiah-logo.png", alt: "IDR / Rupiah" },
 } satisfies Record<Currency, { src: string; alt: string }>;
 
 export function CurrencyIcon({

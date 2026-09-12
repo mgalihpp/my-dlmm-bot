@@ -61,6 +61,7 @@ export function PositionsTableBody({
 	onExpandedChange,
 	currency,
 	solPrice,
+	usdToIdr,
 	sortKey,
 	sortDir,
 	onSort,
@@ -71,6 +72,7 @@ export function PositionsTableBody({
 	onExpandedChange: (poolAddress: string | null) => void;
 	currency: Currency;
 	solPrice: number | null;
+	usdToIdr: number | null;
 	sortKey: SortKey;
 	sortDir: SortDir;
 	onSort: (key: SortKey) => void;
@@ -156,6 +158,7 @@ export function PositionsTableBody({
 											usd={pool.balances}
 											currency={currency}
 											solPrice={solPrice}
+											usdToIdr={usdToIdr}
 											solDecimals={4}
 										/>
 									</TableCell>
@@ -164,6 +167,7 @@ export function PositionsTableBody({
 											usd={pool.unclaimedFees}
 											currency={currency}
 											solPrice={solPrice}
+											usdToIdr={usdToIdr}
 											solDecimals={4}
 										/>
 									</TableCell>
@@ -175,6 +179,7 @@ export function PositionsTableBody({
 											sol={pool.pnlSol}
 											currency="usd"
 											solPrice={solPrice}
+											usdToIdr={usdToIdr}
 											solDecimals={4}
 										/>
 										<div className="text-xs text-muted-foreground">
@@ -189,6 +194,7 @@ export function PositionsTableBody({
 											sol={pool.pnlSol}
 											currency="sol"
 											solPrice={solPrice}
+											usdToIdr={usdToIdr}
 											solDecimals={4}
 										/>
 										<div className="text-xs text-muted-foreground">
@@ -274,8 +280,9 @@ export function PositionsTableBody({
 						if (!v) setSharePool(null);
 					}}
 					pool={sharePool}
-					currency={currency as "usd" | "sol"}
+					currency={currency as "usd" | "sol" | "idr"}
 					solPrice={solPrice}
+					usdToIdr={usdToIdr}
 				/>
 			) : null}
 		</div>
