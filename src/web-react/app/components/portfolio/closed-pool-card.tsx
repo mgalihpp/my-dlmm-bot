@@ -57,13 +57,16 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 	pool,
 	onDetails,
 	currency,
+	usdToIdr,
 }: {
 	pool: ClosedPool;
 	onDetails: (pool: ClosedPool) => void;
 	currency: Currency;
+	usdToIdr?: number | null;
 }) {
 	const pnlUsd = parseFloat(pool.pnlUsd);
 	const pnlSol = parseFloat(pool.pnlSol);
+	const pnlCurrency = currency === "idr" ? "idr" : "usd";
 	const [shareOpen, setShareOpen] = useState(false);
 	const lastShareCloseRef = useRef(0);
 
@@ -121,6 +124,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							sol={pool.totalDepositSol}
 							currency={currency}
 							solDecimals={4}
+							usdToIdr={usdToIdr}
 						/>
 					</div>
 					<div>
@@ -130,6 +134,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							sol={pool.totalWithdrawalSol}
 							currency={currency}
 							solDecimals={4}
+							usdToIdr={usdToIdr}
 						/>
 					</div>
 					<div>
@@ -139,18 +144,22 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 							sol={pool.totalFeeSol}
 							currency={currency}
 							solDecimals={4}
+							usdToIdr={usdToIdr}
 						/>
 					</div>
 				</div>
 				<div className="mt-4 grid grid-cols-2 gap-3 border-t pt-3">
 					<div>
-						<p className="text-xs text-muted-foreground">PnL USD</p>
+						<p className="text-xs text-muted-foreground">
+							PnL {pnlCurrency.toUpperCase()}
+						</p>
 						<span className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
 							<PortfolioAmount
 								usd={pool.pnlUsd}
 								sol={pool.pnlSol}
-								currency="usd"
+								currency={pnlCurrency}
 								solDecimals={4}
+								usdToIdr={usdToIdr}
 							/>
 						</span>
 						<p className="text-xs text-muted-foreground">
@@ -165,6 +174,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 								sol={pool.pnlSol}
 								currency="sol"
 								solDecimals={4}
+								usdToIdr={usdToIdr}
 							/>
 						</span>
 						<p className="text-xs text-muted-foreground">
@@ -197,6 +207,7 @@ export const ClosedPoolCard = memo(function ClosedPoolCard({
 					onOpenChange={handleShareOpenChange}
 					pool={pool}
 					currency={currency}
+					usdToIdr={usdToIdr}
 				/>
 			) : null}
 		</>

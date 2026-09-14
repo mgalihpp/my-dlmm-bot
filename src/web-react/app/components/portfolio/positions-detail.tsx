@@ -320,6 +320,7 @@ export function PositionsCardDetail({
 		live,
 		range: pool.positionsRange?.[i],
 	}));
+	const pnlCurrency = currency === "idr" ? "idr" : "usd";
 	const pnlUsd = parseFloat(pool.pnl);
 	const pnlSol = pool.pnlSol != null ? parseFloat(pool.pnlSol) : null;
 	const pnlPct = parseFloat(pool.pnlPctChange);
@@ -356,10 +357,12 @@ export function PositionsCardDetail({
 					/>
 				</div>
 				<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-					<p className="text-xs text-muted-foreground">PnL USD</p>
+					<p className="text-xs text-muted-foreground">
+						PnL {pnlCurrency.toUpperCase()}
+					</p>
 					<PortfolioAmount
 						usd={pool.pnl}
-						currency="usd"
+						currency={pnlCurrency}
 						solPrice={solPrice}
 						usdToIdr={usdToIdr}
 						solDecimals={4}

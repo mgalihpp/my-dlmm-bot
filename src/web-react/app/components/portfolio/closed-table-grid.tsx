@@ -259,6 +259,7 @@ function ClosedTableView({
 		(pool: ClosedPool) => setSelectedCard(pool),
 		[],
 	);
+	const pnlCurrency = currency === "idr" ? "idr" : "usd";
 
 	return (
 		<Card className="mx-4 lg:mx-6">
@@ -333,6 +334,7 @@ function ClosedTableView({
 								key={pool.poolAddress}
 								pool={pool}
 								currency={currency}
+								usdToIdr={usdToIdr}
 								onDetails={selectCard}
 							/>
 						))}
@@ -372,7 +374,7 @@ function ClosedTableView({
 										onSort={toggleSort}
 									/>
 									<ClosedSortableHead
-										label="PnL USD"
+										label={`PnL ${pnlCurrency.toUpperCase()}`}
 										k="pnlUsd"
 										sortKey={sortKey}
 										sortDir={sortDir}
@@ -433,6 +435,7 @@ function ClosedTableView({
 														sol={pool.totalDepositSol}
 														currency={currency}
 														solDecimals={4}
+														usdToIdr={usdToIdr}
 													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
@@ -441,6 +444,7 @@ function ClosedTableView({
 														sol={pool.totalWithdrawalSol}
 														currency={currency}
 														solDecimals={4}
+														usdToIdr={usdToIdr}
 													/>
 												</TableCell>
 												<TableCell className="tabular-nums">
@@ -449,6 +453,7 @@ function ClosedTableView({
 														sol={pool.totalFeeSol}
 														currency={currency}
 														solDecimals={4}
+														usdToIdr={usdToIdr}
 													/>
 												</TableCell>
 												<TableCell
@@ -460,8 +465,9 @@ function ClosedTableView({
 													<PortfolioAmount
 														usd={pool.pnlUsd}
 														sol={pool.pnlSol}
-														currency="usd"
+														currency={pnlCurrency}
 														solDecimals={4}
+														usdToIdr={usdToIdr}
 													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pool.pnlPctChange)}
@@ -478,6 +484,7 @@ function ClosedTableView({
 														sol={pool.pnlSol}
 														currency="sol"
 														solDecimals={4}
+														usdToIdr={usdToIdr}
 													/>
 													<div className="text-xs text-muted-foreground">
 														{fmtPct(pool.pnlSolPctChange)}
@@ -511,6 +518,7 @@ function ClosedTableView({
 															tokenXSymbol={pool.tokenX}
 															currency={currency}
 															layout="table"
+															usdToIdr={usdToIdr}
 														/>
 													</TableCell>
 												</TableRow>
@@ -619,6 +627,7 @@ function ClosedTableView({
 							tokenXIcon={selectedCard.tokenXIcon}
 							tokenXSymbol={selectedCard.tokenX}
 							currency={currency}
+							usdToIdr={usdToIdr}
 						/>
 					) : null}
 				</SheetContent>

@@ -46,9 +46,9 @@ describe("tgUsd with rate", () => {
 });
 
 describe("fmtIdr and fmtAmount", () => {
-	it("renders Rp only for the idr branch", () => {
-		expect(fmtIdr(100, 16500)).toBe("Rp1.650.000");
-		expect(fmtAmount(100, "idr", null, 3, 16500)).toBe("Rp1.650.000");
+	it("renders compact Rp for the idr branch", () => {
+		expect(fmtIdr(100, 16500)).toBe("Rp1,65jt");
+		expect(fmtAmount(100, "idr", null, 3, 16500)).toBe("Rp1,65jt");
 	});
 	it("falls back to USD when the rate is missing", () => {
 		expect(fmtIdr(100, null)).toBe("$100.00");

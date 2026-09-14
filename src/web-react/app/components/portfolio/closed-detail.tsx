@@ -14,6 +14,7 @@ import {
 	TableRow,
 } from "~/components/ui/table";
 import {
+	fmtIdr,
 	fmtPct,
 	fmtPnl,
 	fmtUsd,
@@ -39,18 +40,22 @@ export function PortfolioAmount({
 	sol,
 	currency,
 	solDecimals = 3,
+	usdToIdr,
 }: {
 	usd: string | number | null | undefined;
 	sol?: string | number | null;
 	currency: Currency;
 	solDecimals?: SolDecimals;
+	usdToIdr?: number | null;
 }) {
 	const formatted =
 		sol != null
-			? fmtPnl(usd, sol, currency, solDecimals)
-			: currency === "sol"
-				? "-"
-				: fmtUsd(usd);
+			? fmtPnl(usd, sol, currency, solDecimals, usdToIdr)
+			: currency === "idr"
+				? fmtIdr(usd, usdToIdr)
+				: currency === "sol"
+					? "-"
+					: fmtUsd(usd);
 	const value = currency === "sol" ? formatted.replace(/ SOL$/, "") : formatted;
 	return (
 		<span className="inline-flex items-center gap-1 tabular-nums">
@@ -98,6 +103,7 @@ export function ClosedDetail({
 	tokenXSymbol,
 	currency,
 	layout = "card",
+	usdToIdr,
 }: {
 	pool: string;
 	pairLabel: string;
@@ -105,9 +111,20 @@ export function ClosedDetail({
 	tokenXSymbol?: string;
 	currency: Currency;
 	layout?: "card" | "table";
+	usdToIdr?: number | null;
 }) {
 	const fetcher = useFetcher<DetailPayload>();
 	const [sharePos, setSharePos] = useState<PositionPnLData | null>(null);
+	const pnlCurrency = currency === "idr" ? "idr" : "usd";
+	const detailColumns = [
+		"Position",
+		"Deposit",
+		"Withdraw",
+		"Fees",
+		`PnL ${pnlCurrency.toUpperCase()}`,
+		"PnL SOL",
+		"Closed",
+	];
 	useEffect(() => {
 		if (fetcher.state === "idle" && fetcher.data === undefined)
 			fetcher.load(`/api/closed-detail/${encodeURIComponent(pool)}`);
@@ -134,7 +151,7 @@ export function ClosedDetail({
 					<Table className="min-w-[840px] rounded-md border">
 						<TableHeader className="bg-muted/50">
 							<TableRow>
-								{DETAIL_COLUMNS.map((column) => (
+								{detailColumns.map((column) => (
 									<TableHead key={column}>{column}</TableHead>
 								))}
 								<TableHead>Action</TableHead>
@@ -163,6 +180,7 @@ export function ClosedDetail({
 												sol={pos.allTimeDeposits.total.sol}
 												currency={currency}
 												solDecimals={4}
+												usdToIdr={usdToIdr}
 											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
@@ -171,6 +189,7 @@ export function ClosedDetail({
 												sol={pos.allTimeWithdrawals.total.sol}
 												currency={currency}
 												solDecimals={4}
+												usdToIdr={usdToIdr}
 											/>
 										</TableCell>
 										<TableCell className="tabular-nums">
@@ -179,12 +198,17 @@ export function ClosedDetail({
 												sol={pos.allTimeFees.total.sol}
 												currency={currency}
 												solDecimals={4}
+												usdToIdr={usdToIdr}
 											/>
 										</TableCell>
 										<TableCell
 											className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}
 										>
-											<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
+											<PortfolioAmount
+												usd={pos.pnlUsd}
+												currency={pnlCurrency}
+												usdToIdr={usdToIdr}
+											/>
 											<div className="text-xs text-muted-foreground">
 												{fmtPct(pos.pnlPctChange)}
 											</div>
@@ -197,6 +221,7 @@ export function ClosedDetail({
 												sol={pnlSol}
 												currency="sol"
 												solDecimals={4}
+												usdToIdr={usdToIdr}
 											/>
 											<div className="text-xs text-muted-foreground">
 												{fmtPct(pos.pnlSolPctChange ?? null)}
@@ -235,6 +260,7 @@ export function ClosedDetail({
 						tokenXIcon={tokenXIcon}
 						tokenXSymbol={tokenXSymbol}
 						currency={currency}
+						usdToIdr={usdToIdr}
 					/>
 				) : null}
 			</>
@@ -276,6 +302,7 @@ export function ClosedDetail({
 										sol={pos.allTimeDeposits.total.sol}
 										currency={currency}
 										solDecimals={4}
+										usdToIdr={usdToIdr}
 									/>
 								</div>
 								<div>
@@ -285,6 +312,7 @@ export function ClosedDetail({
 										sol={pos.allTimeWithdrawals.total.sol}
 										currency={currency}
 										solDecimals={4}
+										usdToIdr={usdToIdr}
 									/>
 								</div>
 								<div>
@@ -294,11 +322,18 @@ export function ClosedDetail({
 										sol={pos.allTimeFees.total.sol}
 										currency={currency}
 										solDecimals={4}
+										usdToIdr={usdToIdr}
 									/>
 								</div>
 								<div className={cn("tabular-nums", pnlClass(pnlSign(pnlUsd)))}>
-									<p className="text-xs text-muted-foreground">PnL USD</p>
-									<PortfolioAmount usd={pos.pnlUsd} currency="usd" />
+									<p className="text-xs text-muted-foreground">
+										PnL {pnlCurrency.toUpperCase()}
+									</p>
+									<PortfolioAmount
+										usd={pos.pnlUsd}
+										currency={pnlCurrency}
+										usdToIdr={usdToIdr}
+									/>
 									<p className="text-xs text-muted-foreground">
 										{fmtPct(pnlPct)}
 									</p>
@@ -310,6 +345,7 @@ export function ClosedDetail({
 										sol={pnlSol}
 										currency="sol"
 										solDecimals={4}
+										usdToIdr={usdToIdr}
 									/>
 									<p className="text-xs text-muted-foreground">
 										{fmtPct(pos.pnlSolPctChange ?? null)}
@@ -344,6 +380,7 @@ export function ClosedDetail({
 					tokenXIcon={tokenXIcon}
 					tokenXSymbol={tokenXSymbol}
 					currency={currency}
+					usdToIdr={usdToIdr}
 				/>
 			) : null}
 		</>

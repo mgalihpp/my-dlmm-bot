@@ -79,6 +79,7 @@ export function PositionsTableBody({
 	rangesLoading?: boolean;
 }) {
 	const [sharePool, setSharePool] = useState<OpenPoolWithIcons | null>(null);
+	const pnlCurrency = currency === "idr" ? "idr" : "usd";
 	return (
 		<div className="overflow-x-auto">
 			<Table>
@@ -108,7 +109,7 @@ export function PositionsTableBody({
 							onSort={onSort}
 						/>
 						<SortableHead
-							label="PnL USD"
+							label={`PnL ${pnlCurrency.toUpperCase()}`}
 							k="pnl"
 							sortKey={sortKey}
 							sortDir={sortDir}
@@ -177,7 +178,7 @@ export function PositionsTableBody({
 										<PortfolioAmount
 											usd={pool.pnl}
 											sol={pool.pnlSol}
-											currency="usd"
+											currency={pnlCurrency}
 											solPrice={solPrice}
 											usdToIdr={usdToIdr}
 											solDecimals={4}
