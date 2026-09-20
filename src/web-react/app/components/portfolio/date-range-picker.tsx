@@ -314,7 +314,7 @@ export function DateRangePicker({
 										"justify-start text-left",
 										draft.kind === "preset" &&
 											draft.preset === preset.key &&
-											"bg-primary text-primary-foreground hover:bg-primary/90",
+											"bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
 									)}
 									onClick={() => {
 										setDraft({ kind: "preset", preset: preset.key });
@@ -352,7 +352,7 @@ export function DateRangePicker({
 										"justify-start text-left",
 										draft.kind === "preset" &&
 											draft.preset === preset.key &&
-											"bg-primary text-primary-foreground hover:bg-primary/90",
+											"bg-primary text-primary-foreground hover:bg-primary/90 hover:text-primary-foreground",
 									)}
 									onClick={() => {
 										setDraft({ kind: "preset", preset: preset.key });
